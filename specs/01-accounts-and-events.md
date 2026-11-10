@@ -5,7 +5,7 @@ Build step 1. Plan: `docs/ontology.md`. Branch: `01-accounts-and-events`.
 A user signs up, plans events in a week view and finds them on any device. Nobody else can see or change them.
 
 ## What
-- [ ] `sign_up` with a new email and an 8-character password creates the account (plan `free`, `time_zone` from the browser).
+- [ ] `sign_up` with a new email and an 8-character password creates the account (plan `free`, `time_zone` from the browser, or "Europe/Lisbon" if it gives none or an invalid one).
 - [ ] `sign_up` rejects a registered email ("This email is already registered") and a 7-character password ("Password needs at least 8 characters"); nothing is created.
 - [ ] `sign_in` with a wrong password: "Email or password is wrong". `sign_out` ends the session.
 - [ ] Not signed in: sign-in page or "401", no data (R3).

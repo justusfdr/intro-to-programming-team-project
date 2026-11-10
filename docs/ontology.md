@@ -38,7 +38,7 @@ Rule for coding agents: read this file first. Do not change it without the team'
 Times in UTC, shown in the user's time zone. Lengths in minutes. Every table has `id` (uuid) and, except user, `user_id`.
 
 - **user**: `email` text, `plan` `free`/`pro`, `stripe_customer_id` text or empty, `planner_count_date` date and `planner_count` integer (3), `extension_seen_at` timestamp or empty
-- **settings**: `time_zone` text, from the browser at sign-up ("Europe/Lisbon"), `home_address` text or empty, `travel_mode` `driving`/`cycling`/`walking` (default `driving`), `travel_buffer_minutes` integer 0 to 120 (10)
+- **settings**: `time_zone` text, from the browser at sign-up, or "Europe/Lisbon" if it gives none or an invalid one, `home_address` text or empty, `travel_mode` `driving`/`cycling`/`walking` (default `driving`), `travel_buffer_minutes` integer 0 to 120 (10)
 - **goal**: `title` text 1 to 80 characters, `deadline` date ("2027-03-14"), `auto_block` boolean (false), `created_at`, `updated_at` timestamps
 - **rule**: `goal_id` → goal, `kind` `count`/`hours`, `target` decimal (2), `min_minutes` integer or empty, only for `count` (45)
 - **event**: `title` text 1 to 100 characters ("Statistics revision"), `start_at`, `end_at` timestamps ("2026-11-16 09:00", "11:00"), `goal_id` → goal or empty, `location` text or empty ("Nova SBE, Carcavelos"), `may_overlap` boolean (false), `status` `planned`/`done`, `source` `app`/`planner`/`outlook`, `outlook_id` text or empty, `updated_at`
@@ -96,7 +96,7 @@ All actions except `sign_up` and `sign_in` need sign-in and touch only the user'
 
 **Access and devices**
 - **R3** The database returns and changes only the signed-in user's rows (row-level security). User A asking for user B's event gets "Not found"; A's edit or delete of B's row is rejected and changes nothing. Without sign-in, any data request gets the sign-in page or "401" and no data.
-- **R4** Two devices of one account read the same database. A save carrying an older `updated_at` than the row is rejected. The database allows one running or paused session per user and accepts a draft only once.
+- **R4** Two devices of one account read the same database. An edit or delete carrying an older `updated_at` than the row is rejected. The database allows one running or paused session per user and accepts a draft only once.
 - **R5** Permissions are checked where the action happens, not only on the screen: a Free user calling the planner address directly is rejected.
 - **R6** Only the server sets `user.plan`, never the user, not even through the database.
 
