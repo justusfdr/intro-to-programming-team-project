@@ -27,6 +27,7 @@ export const MESSAGES = {
   signUpDone: "We sent you a link. Open it to confirm your email.",
   passwordSaved: "Your new password is saved. Sign in with it.",
   eventSaved: "Event saved.",
+  eventDeleted: "Event deleted.",
   invalidEmail: "Enter a valid email address",
   passwordTooLong: "Password can be at most 72 characters",
   signInRequired: "Please sign in.",
