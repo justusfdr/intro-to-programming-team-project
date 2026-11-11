@@ -14,6 +14,7 @@ import type {
   SignUpResult,
   UpdatePasswordResult,
 } from "./types";
+import { isFreshResetSession, RECOVERY_METHOD } from "./reset-window";
 
 const LINK_LIFETIME_MS = 60 * 60 * 1000;
 const EMAIL_INTERVAL_MS = 60 * 1000;
@@ -22,6 +23,19 @@ type FakeUser = { id: string; email: string; password: string; confirmed: boolea
 type FakeLink = { userId: string; kind: LinkKind; expiresAt: number; used: boolean };
 
 export type SentEmail = { to: string; kind: LinkKind; tokenHash: string };
+
+/** How a session was created, like the "amr" claim of a Supabase token. */
+export type SessionMethod = "password" | "confirm_link" | "reset_link";
+
+/** The fake browser's session: whose it is, how and when (milliseconds) it was created. */
+export type FakeSession = { userId: string; method: SessionMethod; createdAt: number };
+
+// The "amr" method names Supabase uses for each way in (setup.md step 8 confirms "recovery").
+const AMR_METHOD: Record<SessionMethod, string> = {
+  password: "password",
+  confirm_link: "otp",
+  reset_link: RECOVERY_METHOD,
+};
 
 export type FakeAuthOptions = {
   /** Clock in milliseconds; tests move it forward to pass the 60-second limit or expire links. */
@@ -34,8 +48,8 @@ export class FakeAuth implements AuthService {
   readonly outbox: SentEmail[] = [];
   /** When true, sending e-mail fails (like the e-mail service being down). */
   emailDown = false;
-  /** The signed-in user's id in this fake browser, or null. */
-  session: string | null = null;
+  /** The session of this fake browser, or null when signed out. */
+  session: FakeSession | null = null;
 
   private readonly users = new Map<string, FakeUser>();
   private readonly links = new Map<string, FakeLink>();
@@ -105,7 +119,7 @@ export class FakeAuth implements AuthService {
     const user = this.users.get(input.email);
     if (!user || user.password !== input.password) return { kind: "wrong_credentials" };
     if (!user.confirmed) return { kind: "unconfirmed" };
-    this.session = user.id;
+    this.startSession(user.id, "password");
     return { kind: "signed_in" };
   }
 
@@ -114,7 +128,7 @@ export class FakeAuth implements AuthService {
   }
 
   async currentUserId(): Promise<string | null> {
-    return this.session;
+    return this.session?.userId ?? null;
   }
 
   async resendConfirmation(email: string): Promise<ResendResult> {
@@ -145,15 +159,24 @@ export class FakeAuth implements AuthService {
     const user = [...this.users.values()].find((u) => u.id === link.userId);
     if (!user) return { kind: "expired" };
     if (link.kind === "confirm") user.confirmed = true;
-    this.session = user.id;
+    this.startSession(user.id, link.kind === "confirm" ? "confirm_link" : "reset_link");
     return { kind: "ok" };
   }
 
   async updatePassword(newPassword: string): Promise<UpdatePasswordResult> {
-    const user = [...this.users.values()].find((u) => u.id === this.session);
-    if (!user) return { kind: "no_session" };
+    // Same rule as the real service, applied to what the token's "amr" claim would say.
+    const session = this.session;
+    const amr = session ? [{ method: AMR_METHOD[session.method], timestamp: session.createdAt / 1000 }] : undefined;
+    const user = [...this.users.values()].find((u) => u.id === session?.userId);
+    if (!user || !isFreshResetSession(amr, this.now() / 1000)) return { kind: "link_expired" };
     user.password = newPassword;
+    // Like the real service: every session of the account ends.
+    this.session = null;
     return { kind: "ok" };
+  }
+
+  private startSession(userId: string, method: SessionMethod) {
+    this.session = { userId, method, createdAt: this.now() };
   }
 
   private sendLink(user: FakeUser, kind: LinkKind, countForLimit = true) {

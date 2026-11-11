@@ -20,7 +20,8 @@ export type ResendResult = { kind: "sent" } | { kind: "too_soon" } | { kind: "em
 
 export type LinkResult = { kind: "ok" } | { kind: "expired" };
 
-export type UpdatePasswordResult = { kind: "ok" } | { kind: "no_session" };
+/** "link_expired": the session was not created by a reset link, or that was more than 15 minutes ago. */
+export type UpdatePasswordResult = { kind: "ok" } | { kind: "link_expired" };
 
 export interface AuthService {
   /** Creates an unconfirmed account and sends the confirmation link. The time zone is already checked. */
@@ -37,7 +38,11 @@ export interface AuthService {
   requestPasswordReset(email: string): Promise<{ kind: "sent" } | { kind: "email_failed" }>;
   /** Uses the link from the e-mail once. On success the user is signed in (reset: for setting the new password). */
   verifyLink(input: { tokenHash: string; kind: LinkKind }): Promise<LinkResult>;
-  /** Saves a new password for the signed-in user (after a reset link). The length is already checked. */
+  /**
+   * Saves a new password, but only within 15 minutes after a reset link signed the user in; any other
+   * session gets "link_expired" and nothing changes. On success every session of the account ends.
+   * The length is already checked.
+   */
   updatePassword(newPassword: string): Promise<UpdatePasswordResult>;
 }
 

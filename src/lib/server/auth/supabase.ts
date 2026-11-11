@@ -7,10 +7,12 @@ import "server-only";
 // Supabase project settings this code relies on (docs/setup.md): e-mail confirmation on,
 // minimum password length 8, "secure password change" off, and e-mail templates that link to
 // /auth/confirm with token_hash and type (server-side flow).
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import type { AuthError } from "@supabase/supabase-js";
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest, NextResponse } from "next/server";
 import { supabaseConfig } from "@/lib/server/config";
+import { proxyCookieJar, type CookieJar } from "./cookies";
+import { isFreshResetSession } from "./reset-window";
 import {
   AuthUnavailableError,
   type AuthService,
@@ -21,12 +23,8 @@ import {
   type UpdatePasswordResult,
 } from "./types";
 
-/** Where the session cookies are read from and written to (the request and the answer). */
-export interface CookieJar {
-  getAll(): { name: string; value: string }[];
-  /** `headers` are cache headers that must go on the same answer, so no cache keeps someone's cookies. */
-  setAll(cookies: { name: string; value: string; options: CookieOptions }[], headers: Record<string, string>): void;
-}
+// Re-exported so cookies.ts can use the type without importing Supabase itself.
+export type { CookieOptions } from "@supabase/ssr";
 
 function client(jar: CookieJar) {
   const { url, publishableKey } = supabaseConfig();
@@ -50,22 +48,11 @@ function unavailable(error: AuthError): AuthUnavailableError {
 /**
  * For the proxy (runs before every page): refreshes an expiring session and returns the signed-in
  * user's id together with the answer that carries the refreshed cookies.
- * Pattern from the @supabase/ssr documentation: refreshed cookies go to the request (so pages see
- * them) and to the answer (so the browser keeps them).
  */
 export async function refreshSession(request: NextRequest): Promise<{ response: NextResponse; userId: string | null }> {
-  let response = NextResponse.next({ request });
-  const jar: CookieJar = {
-    getAll: () => request.cookies.getAll(),
-    setAll(cookies, headers) {
-      for (const { name, value } of cookies) request.cookies.set(name, value);
-      response = NextResponse.next({ request });
-      for (const { name, value, options } of cookies) response.cookies.set(name, value, options);
-      for (const [key, value] of Object.entries(headers)) response.headers.set(key, value);
-    },
-  };
+  const { jar, response } = proxyCookieJar(request);
   const userId = await createSupabaseAuth(jar).currentUserId();
-  return { response, userId };
+  return { response: response(), userId };
 }
 
 /** The real sign-in service for one request, reading and writing session cookies through `jar`. */
@@ -140,13 +127,20 @@ export function createSupabaseAuth(jar: CookieJar): AuthService {
     },
 
     async updatePassword(newPassword): Promise<UpdatePasswordResult> {
+      // Only a session that a reset link created, and only for 15 minutes (ontology: reset_password
+      // takes the link). The "amr" claim of the signed access token says how and when the session
+      // was created; getClaims checks the signature, so page scripts cannot forge it.
       const { data } = await supabase().auth.getClaims();
-      if (!data) return { kind: "no_session" };
+      if (!data || !isFreshResetSession(data.claims.amr, Date.now() / 1000)) return { kind: "link_expired" };
       const { error } = await supabase().auth.updateUser({ password: newPassword });
       // "same_password": nothing to change, the password is already this one.
-      if (!error || error.code === "same_password") return { kind: "ok" };
-      if (error.code === "session_not_found" || error.code === "session_expired") return { kind: "no_session" };
-      throw unavailable(error);
+      if (error && error.code !== "same_password") {
+        if (error.code === "session_not_found" || error.code === "session_expired") return { kind: "link_expired" };
+        throw unavailable(error);
+      }
+      // End every session of the account, also one someone else may hold. The user signs in again.
+      await supabase().auth.signOut({ scope: "global" });
+      return { kind: "ok" };
     },
   };
 }
