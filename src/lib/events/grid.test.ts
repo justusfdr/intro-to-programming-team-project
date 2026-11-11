@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockBox, formatMinute, gridRange, HOUR_PX, MIN_BLOCK_PX, minuteOfLocal, placeWeek, slotAt } from "./grid";
+import { blockBox, formatMinute, gridRange, HOUR_PX, isBeforeGrid, MIN_BLOCK_PX, minuteOfLocal, placeWeek, slotAt } from "./grid";
 import type { WeekDay, WeekEvent } from "./types";
 
 const DATES = ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22"];
@@ -86,5 +86,18 @@ describe("placing events in the time grid", () => {
     const range = gridRange(placed);
     expect(range).toEqual({ startMin: 420, endMin: 1440 });
     expect(blockBox(placed[3][0], range)).toEqual({ top: 0, height: MIN_BLOCK_PX });
+  });
+
+  it("puts the after-midnight part above the grid when it ends before the first hour, and in the grid otherwise", () => {
+    const placed = placeWeek(
+      week({
+        2: [event("short", "2026-11-18T22:00", "2026-11-19T02:00", "2026-11-19")],
+        4: [event("long", "2026-11-20T23:00", "2026-11-21T08:00", "2026-11-21")],
+      }),
+    );
+    const range = gridRange(placed);
+    expect(isBeforeGrid(placed[3][0], range)).toBe(true); // 00:00–02:00, grid starts 07:00
+    expect(isBeforeGrid(placed[5][0], range)).toBe(false); // 00:00–08:00 reaches into the grid
+    expect(isBeforeGrid(placed[2][0], range)).toBe(false); // the start part is never a strip
   });
 });

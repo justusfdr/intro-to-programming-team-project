@@ -86,7 +86,9 @@ describe("calendar markup", () => {
       week({ 2: [event("n", "Night shift", "2026-11-18T22:00", "2026-11-19T02:00", { endDay: "2026-11-19" })] }),
     );
     expect(html).toContain('aria-label="Night shift, Wednesday 18 November, 22:00 to 02:00 the next day"');
-    expect(html).toMatch(/tabindex="-1" aria-hidden="true"[^>]*>/i);
+    // The part on Thursday is a strip above the grid here (see the next test): no tab stop, not read out.
+    expect(html.match(/aria-label="Night shift/g)).toHaveLength(1);
+    expect(html).toMatch(/tabindex="-1"[^>]*>Night shift, until 02:00</);
   });
 
   it("draws the now line and its time label on today", () => {
@@ -105,5 +107,26 @@ describe("calendar markup", () => {
     const html = render(week({}));
     expect(html.match(/role="status"/g)).toHaveLength(1);
     expect(html.indexOf('role="status"')).toBeGreaterThan(html.indexOf("data-grid-scroll"));
+  });
+
+  it("shows an after-midnight part that ends before the first hour as a strip above the grid, out of the tab order", () => {
+    const html = render(
+      week({ 3: [event("n", "Night shift at the library", "2026-11-19T22:00", "2026-11-20T02:00", { endDay: "2026-11-20" })] }),
+    );
+    expect(html).toMatch(/<div aria-hidden="true" class="flex border-b[^"]*">.*Earlier.*tabindex="-1"[^>]*>Night shift at the library, until 02:00<\/button>/s);
+    expect(html.indexOf("Night shift at the library, until 02:00")).toBeLessThan(html.indexOf("data-hour-grid"));
+  });
+
+  it("keeps titles on whole words: narrow lanes get one line with an ellipsis", () => {
+    const html = render(
+      week({
+        1: [
+          event("a", "Statistics revision", "2026-11-17T09:00", "2026-11-17T11:00"),
+          event("b", "Call with Lucas", "2026-11-17T10:00", "2026-11-17T10:30"),
+        ],
+      }),
+    );
+    expect(html).not.toMatch(/break-words|hyphens-auto/);
+    expect(html).toMatch(/class="block pr-4[^"]*truncate[^"]*">Statistics revision</);
   });
 });

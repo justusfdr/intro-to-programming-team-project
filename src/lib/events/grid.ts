@@ -123,6 +123,15 @@ export function blockBox(block: { startMin: number; endMin: number }, range: Gri
   return { top, height: Math.max(MIN_BLOCK_PX, minuteToPx(block.endMin, range) - top) };
 }
 
+/**
+ * True for the part of an event after midnight that ends before the first visible hour
+ * (for example 00:00 to 02:00 when the grid starts at 07:00). Drawn inside the grid it would look
+ * like a morning event, so the week shows it as a strip above the hours instead.
+ */
+export function isBeforeGrid(block: Placed, range: GridRange): boolean {
+  return block.continuesBefore && block.endMin <= range.startMin;
+}
+
 /** Full hours inside the range, for the hour lines and labels. */
 export function hourMarks(range: GridRange): number[] {
   const marks: number[] = [];

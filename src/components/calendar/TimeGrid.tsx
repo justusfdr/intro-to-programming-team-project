@@ -9,7 +9,7 @@
 // and the empty slots are decoration. A click on an empty slot (mouse or touch) creates an event
 // there; keyboard users use "New event".
 import type { MouseEvent } from "react";
-import { blockBox, formatMinute, hourMarks, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
+import { blockBox, formatMinute, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
 import type { WeekDay, WeekEvent } from "@/lib/events/types";
 import { Check, Warning } from "@/components/ui/icons";
 import { dayParts } from "@/lib/time/zoned";
@@ -64,7 +64,9 @@ function EventBlock({ block, range, dayLong, onOpen }: { block: Placed; range: G
       } ${done ? "text-ink-2" : "text-ink"}`}
     >
       <span
-        className={`block break-words hyphens-auto pr-4 text-[11px] font-medium leading-[14px] ${height >= 40 ? "line-clamp-2" : "truncate"} ${
+        // Whole words only: two lines when there is room, otherwise one line cut with an ellipsis.
+        // The button's accessible name carries the full title.
+        className={`block pr-4 text-[11px] font-medium leading-[14px] ${height >= 40 && block.lanes === 1 ? "line-clamp-2" : "truncate"} ${
           done ? "line-through" : ""
         }`}
       >
@@ -84,6 +86,9 @@ function EventBlock({ block, range, dayLong, onOpen }: { block: Placed; range: G
 export function TimeGrid({ days, placed, range, nowMin, selectedDay, onOpenEvent, onCreateAt }: Props) {
   const height = rangeHeight(range);
   const hours = hourMarks(range);
+  // After-midnight parts that end before the first visible hour: shown as strips above the grid.
+  const early = placed.map((blocks) => blocks.filter((b) => isBeforeGrid(b, range)));
+  const hasEarly = early.some((blocks) => blocks.length > 0);
   const showNow = nowMin !== null && nowMin >= range.startMin && nowMin < range.endMin;
 
   function createAt(e: MouseEvent<HTMLDivElement>, date: string) {
@@ -115,7 +120,29 @@ export function TimeGrid({ days, placed, range, nowMin, selectedDay, onOpenEvent
           })}
         </div>
 
-        <div className="relative flex">
+        {hasEarly && (
+          // Mouse only and not read out: each of these events is already listed on the day it starts.
+          <div aria-hidden className="flex border-b border-line-subtle">
+            <div className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] text-ink-3">Earlier</div>
+            {days.map((day, i) => (
+              <div key={day.date} className={`${day.date === selectedDay ? "flex" : "hidden"} min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:flex`}>
+                {early[i].map((block) => (
+                  <button
+                    key={block.event.id}
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => onOpenEvent(block.event)}
+                    className="line-clamp-2 rounded-md border border-dashed border-ink-3 bg-raised px-1.5 py-0.5 text-left text-[10px] leading-[13px] text-ink-2"
+                  >
+                    {`${block.event.title}, until ${block.event.endTime}`}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div data-hour-grid className="relative flex">
           {/* Hour axis. */}
           <div aria-hidden className="relative w-[52px] shrink-0" style={{ height }}>
             {hours
@@ -163,7 +190,7 @@ export function TimeGrid({ days, placed, range, nowMin, selectedDay, onOpenEvent
                 )}
                 {listed.length === 0 && <p className="sr-only">No events</p>}
                 <ul className="pointer-events-none absolute inset-0">
-                  {blocks.map((block) => (
+                  {blocks.filter((block) => !isBeforeGrid(block, range)).map((block) => (
                     <li key={`${block.event.id}-${block.continuesBefore ? "after" : "start"}`}>
                       <EventBlock block={block} range={range} dayLong={parts.long} onOpen={() => onOpenEvent(block.event)} />
                     </li>
