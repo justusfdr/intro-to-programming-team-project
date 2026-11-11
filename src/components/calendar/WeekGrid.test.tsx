@@ -1,6 +1,9 @@
 // The week view's markup, rendered on the server as the browser receives it.
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The event buttons use the router; outside a running Next.js app there is none, so give them a stand-in.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 import type { WeekData, WeekEvent } from "@/lib/events/types";
 import { Announcer } from "./Announcer";
 import { WeekGrid } from "./WeekGrid";
