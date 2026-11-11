@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conflictIds, type TimedEvent } from "./conflicts";
+import { conflictIds, overlaps, type TimedEvent } from "./conflicts";
 
 function event(id: string, start: string, end: string, mayOverlap = false): TimedEvent {
   return { id, startAt: new Date(`2026-11-16T${start}:00Z`), endAt: new Date(`2026-11-16T${end}:00Z`), mayOverlap };
@@ -31,5 +31,11 @@ describe("conflict mark (R10)", () => {
   it("does not depend on the order of the input", () => {
     const events = [event("b", "10:00", "12:00"), event("a", "09:00", "11:00")];
     expect(conflictIds(events)).toEqual(new Set(["a", "b"]));
+  });
+
+  it("overlaps(): touching ends are no overlap, one minute more is", () => {
+    expect(overlaps(event("a", "09:00", "10:00"), event("b", "10:00", "11:00"))).toBe(false);
+    expect(overlaps(event("b", "10:00", "11:00"), event("a", "09:00", "10:00"))).toBe(false);
+    expect(overlaps(event("a", "09:00", "10:01"), event("b", "10:00", "11:00"))).toBe(true);
   });
 });

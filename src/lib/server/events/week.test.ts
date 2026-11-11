@@ -76,6 +76,14 @@ describe("events of the week", () => {
     expect(lecture).toMatchObject({ startTime: "09:00", endTime: "10:30", startLocal: "2026-11-17T09:00", endDay: null });
   });
 
+  it("puts an evening event on its local day even when it is already the next day in UTC", async () => {
+    const nora = await app.signedInAs("nora@example.com", { timeZone: "America/New_York" });
+    await seedEvent(app.db, nora, { title: "Dinner", start: "2026-11-17T01:00:00Z", end: "2026-11-17T02:00:00Z" });
+    const week = await loadWeek(app.deps, nora);
+    expect(titlesByDay(week)["2026-11-16"]).toEqual(["Dinner"]); // Monday 20:00 in New York
+    expect(titlesByDay(week)["2026-11-17"]).toEqual([]);
+  });
+
   it("marks overlapping events with a conflict, but not 09:00–10:00 and 10:00–11:00 (R10)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await seedEvent(app.db, alice, { title: "A", start: "2026-11-17T09:00:00Z", end: "2026-11-17T10:00:00Z" });
