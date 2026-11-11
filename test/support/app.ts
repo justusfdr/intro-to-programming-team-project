@@ -12,11 +12,20 @@ export type TestApp = {
   auth: FakeAuth;
   deps: Deps;
   /**
-   * Everything an account action could change: rows in auth.users and the app tables, the fake's
-   * accounts (confirmed, password), e-mails sent and the session. Compare before and after a rejection.
+   * Everything an action could change: rows in auth.users and in every table of the app schema
+   * (found automatically, so new tables are included), the fake's accounts (confirmed, password),
+   * e-mails sent and the session. Compare before and after a rejection to prove nothing changed (R1).
    */
   snapshot(): Promise<Record<string, unknown>>;
-  /** Empties the database and the fake sign-in service. Call it in beforeEach. */
+  /**
+   * Creates a confirmed account (if it does not exist yet) and signs it in, replacing the current
+   * session. Returns the user id. Call it twice with different emails for two users; the session
+   * belongs to the last one.
+   */
+  signedInAs(email: string, options?: { timeZone?: string }): Promise<string>;
+  /** The fake clock's current time. */
+  now(): Date;
+  /** Empties the database and the fake sign-in service and sets the clock back. Call it in beforeEach. */
   reset(): Promise<void>;
   /** Moves the fake clock forward. */
   advance(ms: number): void;
@@ -25,7 +34,9 @@ export type TestApp = {
 
 export async function createTestApp(): Promise<TestApp> {
   const db = await createTestDb();
-  let now = Date.parse("2026-11-16T09:00:00Z");
+  // The fake clock starts at Monday 16 November 2026, 09:00 UTC, and reset() sets it back there.
+  const START = Date.parse("2026-11-16T09:00:00Z");
+  let now = START;
   const auth = new FakeAuth({
     now: () => now,
     onUserCreated: async ({ id, email, timeZone }) => {
@@ -35,21 +46,32 @@ export async function createTestApp(): Promise<TestApp> {
   return {
     db,
     auth,
-    deps: { auth, withUser: db.withUser },
+    deps: { auth, withUser: db.withUser, now: () => new Date(now) },
     async snapshot() {
-      const users = await db.admin("select id, email from auth.users order by email");
-      const profiles = await db.admin("select * from app.profiles order by id");
-      const settings = await db.admin("select * from app.settings order by user_id");
+      const tables: Record<string, unknown> = {};
+      const names = await db.admin<{ name: string }>(
+        "select table_name as name from information_schema.tables where table_schema = 'app' order by table_name",
+      );
+      // Table names come from the database itself, not from input.
+      for (const { name } of names) tables[name] = await db.admin(`select * from app.${name} order by 1`);
       return {
-        users,
-        profiles,
-        settings,
+        users: await db.admin("select id, email from auth.users order by email"),
+        tables,
         accounts: auth.accounts(),
         emails: [...auth.outbox],
         session: auth.session && { ...auth.session },
       };
     },
+    async signedInAs(email, options = {}) {
+      const password = "test-password";
+      if (!auth.hasUser(email)) await auth.addUser(email, password, { confirmed: true, timeZone: options.timeZone });
+      const result = await auth.signIn({ email, password });
+      if (result.kind !== "signed_in") throw new Error(`signedInAs: ${email} could not sign in (${result.kind})`);
+      return auth.session!.userId;
+    },
+    now: () => new Date(now),
     async reset() {
+      now = START;
       auth.reset();
       await db.admin("delete from auth.users");
     },
