@@ -2,7 +2,6 @@
 
 // Form of request_password_reset. It only collects the e-mail and shows the server's answer;
 // the rules are checked by the server (src/lib/server/actions/request-password-reset.ts).
-import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { Field } from "@/components/account/Field";
 import { FormMessage } from "@/components/account/FormMessage";
@@ -31,9 +30,13 @@ export function ForgotPasswordForm() {
         <FormMessage tone="success" text={result.message} />
         <p className="mt-4 text-sm text-ink-2">
           No e-mail?{" "}
-          <Link href="/forgot-password" className="font-medium text-ink underline underline-offset-2">
+          <button
+            type="button"
+            onClick={() => setResult(null)}
+            className="font-medium text-ink underline underline-offset-2"
+          >
             Try again
-          </Link>
+          </button>
         </p>
       </>
     );

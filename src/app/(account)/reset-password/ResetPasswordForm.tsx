@@ -3,15 +3,14 @@
 // Form of reset_password. It only collects the new password and shows the server's answer;
 // the rules are checked by the server (src/lib/server/actions/reset-password.ts).
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Field } from "@/components/account/Field";
 import { FormMessage } from "@/components/account/FormMessage";
 import { Button } from "@/components/ui/Button";
 import { postJson, type PostResult } from "@/lib/client/post-json";
+import { MESSAGES } from "@/lib/messages";
 
 export function ResetPasswordForm() {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PostResult | null>(null);
 
@@ -22,14 +21,22 @@ export function ResetPasswordForm() {
     const answer = await postJson("/api/auth/reset-password", {
       password: String(form.get("password") ?? ""),
     });
-    if (answer.ok) {
-      // The server has ended every session of the account. Refresh first, so the sign-in page reads the cleared cookies.
-      router.refresh();
-      router.push("/sign-in");
-      return;
-    }
     setResult(answer);
     setBusy(false);
+  }
+
+  if (result?.ok) {
+    // The server has ended every session of the account; the user signs in with the new password.
+    return (
+      <>
+        <FormMessage tone="success" text={MESSAGES.passwordSaved} />
+        <p className="mt-4 text-sm text-ink-2">
+          <Link href="/sign-in" className="font-medium text-ink underline underline-offset-2">
+            Sign in
+          </Link>
+        </p>
+      </>
+    );
   }
 
   return (

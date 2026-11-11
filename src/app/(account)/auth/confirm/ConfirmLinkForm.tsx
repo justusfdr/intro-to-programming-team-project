@@ -6,36 +6,25 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { Button } from "@/components/ui/Button";
-
-const NETWORK_ERROR = "We could not reach the server. Check your connection and try again.";
+import { postJson, type PostResult } from "@/lib/client/post-json";
 
 type Props = { tokenHash: string; type: "email" | "recovery" };
 
 export function ConfirmLinkForm({ tokenHash, type }: Props) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<{ message: string; status: number } | null>(null);
+  const [error, setError] = useState<PostResult | null>(null);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError(null);
-    try {
-      const response = await fetch("/api/auth/confirm", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tokenHash, type }),
-      });
-      const data = (await response.json().catch(() => ({}))) as { next?: unknown; message?: unknown };
-      if (response.ok && typeof data.next === "string") {
-        // A full page load, so the next page sees the new session cookie.
-        window.location.assign(data.next);
-        return;
-      }
-      const message = typeof data.message === "string" ? data.message : NETWORK_ERROR;
-      setError({ message, status: response.status });
-    } catch {
-      setError({ message: NETWORK_ERROR, status: 0 });
+    const answer = await postJson("/api/auth/confirm", { tokenHash, type });
+    if (answer.ok && answer.next) {
+      // A full page load, so the next page sees the new session cookie.
+      window.location.assign(answer.next);
+      return;
     }
+    setError(answer);
     setBusy(false);
   }
 

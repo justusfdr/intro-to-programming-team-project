@@ -18,6 +18,7 @@ export const MESSAGES = {
 
   // Not in the ontology (our wording, reported to the advisor).
   signUpDone: "We sent you a link. Open it to confirm your email.",
+  passwordSaved: "Your new password is saved. Sign in with it.",
   invalidEmail: "Enter a valid email address",
   passwordTooLong: "Password can be at most 72 characters",
   signInRequired: "Please sign in.",
