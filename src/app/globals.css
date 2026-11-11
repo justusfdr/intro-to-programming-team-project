@@ -1,26 +1,34 @@
 @import "tailwindcss";
 
 /*
-  Design tokens. In Tailwind: bg-canvas, text-ink-2, border-line, bg-raised …
+  Design tokens, taken over from the first prototype.
+  In Tailwind: bg-canvas, text-ink-2, border-line, bg-raised, bg-today, rounded-card …
 */
 @theme inline {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, monospace;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --color-ink: #101010;
   --color-ink-2: #616165;
-  --color-ink-3: #9e9ea2;
+  /* Darker than the prototype's #9e9ea2, so small grey text keeps a 4.5:1 contrast on white. */
+  --color-ink-3: #75757a;
   --color-canvas: #fcfcfd;
   --color-surface: #ffffff;
   --color-raised: #f6f6f7;
+  --color-muted: #ededef;
   --color-line: #e0e0e3;
   --color-line-subtle: #e8e8e8;
-  --color-success: #16a34a;
+  --color-today: #ff101a;
+  --color-success: #15803d;
   --color-success-soft: #ecfdf5;
-  --color-danger: #e11d48;
+  --color-danger: #be123c;
   --color-danger-soft: #fef2f2;
 
   --radius-card: 16px;
+  --radius-panel: 24px;
+
+  --shadow-float: 0 1px 2px rgb(16 16 16 / 0.04), 0 8px 24px -6px rgb(16 16 16 / 0.10);
+  --shadow-pop: 0 2px 4px rgb(16 16 16 / 0.04), 0 18px 48px -12px rgb(16 16 16 / 0.22);
 }
 
 :root {
@@ -35,6 +43,50 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Always keep room for the scrollbar, so the page does not jump when a dialog locks scrolling. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Large headings: set tight (h1 −0.04em, h2 −0.03em). */
+.tracking-display {
+  letter-spacing: -0.04em;
+}
 .tracking-heading {
   letter-spacing: -0.03em;
+}
+.tracking-snug {
+  letter-spacing: -0.015em;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin, quiet scrollbars. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+::selection {
+  background: rgb(16 16 16 / 0.12);
+}
+
+/* The event editor: a native dialog, a sheet from the bottom on phones and a floating card on wider screens. */
+dialog.event-editor::backdrop {
+  background: rgb(16 16 16 / 0.2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  dialog.event-editor[open] {
+    animation: editor-in 160ms ease-out;
+  }
+}
+
+@keyframes editor-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }

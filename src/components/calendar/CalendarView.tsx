@@ -1,0 +1,149 @@
+"use client";
+
+// The calendar screen in the prototype's layout: the title (month and year) with the week below it,
+// the toolbar (previous, next, Today, New event), on phones a day strip, then the time grid.
+// The data comes from the server (src/app/page.tsx); after an action the editor calls
+// router.refresh(), which loads the week again.
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, LinkButton } from "@/components/ui/Button";
+import { ChevronLeft, ChevronRight, Plus } from "@/components/ui/icons";
+import { formatMinute, gridRange, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
+import type { WeekData } from "@/lib/events/types";
+import { addDays, dayParts, isoWeekNumber, localDateTimeOf, weekTitle } from "@/lib/time/zoned";
+import { Announcer } from "./Announcer";
+import { EventEditor, type EditorState } from "./EventEditor";
+import { TimeGrid } from "./TimeGrid";
+
+type Props = {
+  week: WeekData;
+  /** The current local time from the server, "2026-11-16T09:12", so the first render matches it. */
+  nowLocal: string;
+  /** Start and end the "New event" button suggests (the next full hour). */
+  suggestion: { start: string; end: string };
+};
+
+/** "16–22 Nov" or "30 Nov – 6 Dec". */
+function weekRange(monday: string): string {
+  const sunday = addDays(monday, 6);
+  const month = (date: string) => new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
+  const a = dayParts(monday).day;
+  const b = dayParts(sunday).day;
+  return month(monday) === month(sunday) ? `${a}–${b} ${month(sunday)}` : `${a} ${month(monday)} – ${b} ${month(sunday)}`;
+}
+
+/** The local time "now", refreshed every minute (for the red line). */
+function useNowLocal(initial: string, timeZone: string): string {
+  const [now, setNow] = useState(initial);
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(localDateTimeOf(new Date(), timeZone)), 60_000);
+    return () => window.clearInterval(id);
+  }, [timeZone]);
+  return now;
+}
+
+/** "YYYY-MM-DDTHH:MM" for minute `min` of `date`; 24:00 becomes 00:00 of the next day. */
+function localAt(date: string, min: number): string {
+  return min >= 24 * 60 ? `${addDays(date, 1)}T00:00` : `${date}T${formatMinute(min)}`;
+}
+
+export function CalendarView({ week, nowLocal, suggestion }: Props) {
+  const now = useNowLocal(nowLocal, week.timeZone);
+  const today = now.slice(0, 10);
+  const todayInWeek = week.days.some((d) => d.date === today);
+  const [selectedDay, setSelectedDay] = useState(todayInWeek ? today : week.monday);
+  const [editor, setEditor] = useState<EditorState>(null);
+  const scrollStarted = useRef(false);
+
+  const placed = useMemo(() => placeWeek(week.days), [week.days]);
+  const range = useMemo(() => gridRange(placed), [placed]);
+  const nowMin = todayInWeek ? minuteOfLocal(now) : null;
+
+  // Once, on opening: scroll the grid so the current time (or the first event) is in view.
+  useEffect(() => {
+    if (scrollStarted.current) return;
+    scrollStarted.current = true;
+    const grid = document.querySelector<HTMLElement>("[data-grid-scroll]");
+    const first = placed.flat().map((b) => b.startMin);
+    const target = nowMin ?? (first.length > 0 ? Math.min(...first) : range.startMin);
+    // An hour and a half of lead time, snapped to a full hour so its line is not cut off.
+    if (grid) grid.scrollTop = Math.max(0, minuteToPx(Math.floor((target - 90) / 60) * 60, range));
+  }, [placed, nowMin, range]);
+
+  return (
+    <Announcer>
+      <div className="flex h-[calc(100dvh-57px)] min-h-[480px] flex-col gap-3 px-4 pt-4 pb-3 md:h-dvh md:px-6 md:pt-6 md:pb-5">
+        <header className="flex flex-col gap-3">
+          <div>
+            <h1 className="text-[26px] leading-[32px] font-semibold tracking-display text-ink md:text-[32px] md:leading-[38px]">
+              {weekTitle(week.monday)}
+            </h1>
+            <p className="mt-0.5 text-xs text-ink-2 md:text-sm">
+              Week {isoWeekNumber(week.monday)} · {weekRange(week.monday)} · Times in {week.timeZone}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1">
+              <LinkButton href={`/?week=${week.previous}`} variant="secondary" size="icon" aria-label="Previous week" title="Previous week">
+                <ChevronLeft />
+              </LinkButton>
+              <LinkButton href={`/?week=${week.next}`} variant="secondary" size="icon" aria-label="Next week" title="Next week">
+                <ChevronRight />
+              </LinkButton>
+            </div>
+            <LinkButton
+              href={`/?week=${week.thisWeek}`}
+              variant="secondary"
+              aria-current={week.monday === week.thisWeek ? "page" : undefined}
+            >
+              Today
+            </LinkButton>
+            <Button className="ml-auto" onClick={() => setEditor({ mode: "create", ...suggestion })}>
+              <Plus className="size-4" />
+              New event
+            </Button>
+          </div>
+        </header>
+
+        {/* Phones show one day at a time; this strip picks it. */}
+        <div role="group" aria-label="Day" className="grid grid-cols-7 gap-1 rounded-card border border-line-subtle bg-surface p-1 md:hidden">
+          {week.days.map((day) => {
+            const parts = dayParts(day.date);
+            const selected = day.date === selectedDay;
+            return (
+              <button
+                key={day.date}
+                type="button"
+                onClick={() => setSelectedDay(day.date)}
+                aria-label={`${parts.long}${day.isToday ? ", today" : ""}`}
+                aria-pressed={selected}
+                className="flex min-w-0 flex-col items-center gap-0.5 rounded-lg py-1 transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+              >
+                <span className="text-[11px] font-medium text-ink-3">{parts.weekday}</span>
+                <span
+                  className={`flex size-8 items-center justify-center rounded-full border text-sm font-semibold tabular ${
+                    day.isToday ? "border-transparent bg-today text-white" : selected ? "border-ink text-ink" : "border-transparent text-ink"
+                  }`}
+                >
+                  {parts.day}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="min-h-0 flex-1">
+          <TimeGrid
+            days={week.days}
+            placed={placed}
+            range={range}
+            nowMin={nowMin}
+            selectedDay={selectedDay}
+            onOpenEvent={(event) => setEditor({ mode: "edit", event })}
+            onCreateAt={(date, slot) => setEditor({ mode: "create", start: localAt(date, slot.startMin), end: localAt(date, slot.endMin) })}
+          />
+        </div>
+      </div>
+      <EventEditor state={editor} onClose={() => setEditor(null)} />
+    </Announcer>
+  );
+}

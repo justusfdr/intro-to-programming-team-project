@@ -33,7 +33,7 @@ export function ConfirmLinkForm({ tokenHash, type }: Props) {
       {type === "recovery" && (
         <p className="mb-4 text-sm text-ink-2">Set your new password within 15 minutes.</p>
       )}
-      <Button type="submit" className="w-full" disabled={busy}>
+      <Button type="submit" size="lg" className="w-full" disabled={busy}>
         {busy ? "Please wait…" : type === "email" ? "Confirm my email" : "Set a new password"}
       </Button>
       {error && (

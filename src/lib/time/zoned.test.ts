@@ -10,6 +10,9 @@ import {
   parseLocalDateTime,
   startOfLocalDate,
   weekOf,
+  weekTitle,
+  isoWeekNumber,
+  dayParts,
 } from "./zoned";
 
 const LISBON = "Europe/Lisbon";
@@ -92,5 +95,23 @@ describe("reading and showing local times", () => {
     expect(isLocalDate("2026-13-01")).toBe(false);
     expect(isLocalDate("2026-11-16x")).toBe(false);
     expect(dayLabel("2026-11-16")).toBe("Mon 16 Nov");
+  });
+});
+
+describe("titles and headings", () => {
+  it("names the week by its month, or both months when it spans two", () => {
+    expect(weekTitle("2026-11-16")).toBe("November 2026");
+    expect(weekTitle("2026-11-30")).toBe("Nov – Dec 2026");
+    expect(weekTitle("2026-12-28")).toBe("Dec 2026 – Jan 2027");
+  });
+
+  it("numbers weeks the ISO way", () => {
+    expect(isoWeekNumber("2026-11-16")).toBe(47);
+    expect(isoWeekNumber("2026-12-31")).toBe(53);
+    expect(isoWeekNumber("2027-01-04")).toBe(1);
+  });
+
+  it("gives the parts of a day heading", () => {
+    expect(dayParts("2026-11-16")).toEqual({ weekday: "Mon", day: 16, long: "Monday 16 November" });
   });
 });

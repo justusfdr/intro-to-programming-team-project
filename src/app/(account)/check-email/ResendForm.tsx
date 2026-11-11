@@ -24,7 +24,7 @@ export function ResendForm() {
     <form onSubmit={onSubmit} noValidate className="mt-6">
       <Field id="email" name="email" type="email" label="Email" autoComplete="email" required />
       {result && <FormMessage tone={result.ok ? "success" : "error"} text={result.message} />}
-      <Button type="submit" className="mt-6 w-full" disabled={busy}>
+      <Button type="submit" size="lg" className="mt-6 w-full" disabled={busy}>
         {busy ? "Sending…" : "Send a new link"}
       </Button>
     </form>

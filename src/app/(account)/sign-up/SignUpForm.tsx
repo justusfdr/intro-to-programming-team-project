@@ -64,7 +64,7 @@ export function SignUpForm() {
         required
       />
       {result && <FormMessage tone="error" text={result.message} />}
-      <Button type="submit" className="mt-6 w-full" disabled={busy}>
+      <Button type="submit" size="lg" className="mt-6 w-full" disabled={busy}>
         {busy ? "Creating account…" : "Create account"}
       </Button>
     </form>
