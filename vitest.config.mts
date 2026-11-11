@@ -11,7 +11,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.ts", "test/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}", "test/**/*.test.ts"],
     environment: "node",
     // Each test file starts its own in-process Postgres (about 1 GB of memory). Two at a time fits in 8 GB.
     maxWorkers: 2,

@@ -12,6 +12,13 @@ export const MESSAGES = {
   wrongCredentials: "Email or password is wrong",
   unconfirmed: "Confirm your email first. We sent you a link",
   resetRequested: "If this email is registered, we sent a link",
+  // ontology, section 5 (events) and R3, R4
+  titleLength: "Title must be 1 to 100 characters",
+  endAfterStart: "End must be after start",
+  atMost24Hours: "An event can last at most 24 hours",
+  notStarted: "You can mark an event done once it has started",
+  changedElsewhere: "Changed on another device. Reload to see the latest version",
+  notFound: "Not found",
   // ontology, section 7 (when a service is down)
   databaseDown: "Your data cannot be loaded right now.",
   emailDown: "We could not send the email. Try again later",
@@ -19,6 +26,8 @@ export const MESSAGES = {
   // Not in the ontology (our wording, reported to the advisor).
   signUpDone: "We sent you a link. Open it to confirm your email.",
   passwordSaved: "Your new password is saved. Sign in with it.",
+  eventSaved: "Event saved.",
+  eventDeleted: "Event deleted.",
   invalidEmail: "Enter a valid email address",
   passwordTooLong: "Password can be at most 72 characters",
   signInRequired: "Please sign in.",

@@ -21,13 +21,18 @@ export function sessionCookieOptions(options: CookieOptions = {}): CookieOptions
 }
 
 /** Cookie jar for route handlers: Next.js's cookie store of the current request. */
-export function storeCookieJar(store: {
-  getAll(): { name: string; value: string }[];
-  set(name: string, value: string, options: CookieOptions): unknown;
-}): CookieJar {
+export function storeCookieJar(
+  store: {
+    getAll(): { name: string; value: string }[];
+    set(name: string, value: string, options: CookieOptions): unknown;
+  },
+  { readOnly = false }: { readOnly?: boolean } = {},
+): CookieJar {
   return {
     getAll: () => store.getAll().map(({ name, value }) => ({ name, value })),
     setAll(cookies) {
+      // Pages (server components) cannot set cookies; the proxy already wrote any refreshed ones.
+      if (readOnly) return;
       // Cache headers are not needed here: every answer of a route handler is "no-store".
       for (const { name, value, options } of cookies) store.set(name, value, sessionCookieOptions(options));
     },

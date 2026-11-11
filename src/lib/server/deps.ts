@@ -11,9 +11,23 @@ import { withUser, type WithUser } from "./db";
 export type Deps = {
   auth: AuthService;
   withUser: WithUser;
+  /** The current time. Tests pass a clock they can move. */
+  now: () => Date;
 };
 
 /** The real services for the current request. Call it inside a route handler. */
 export async function realDeps(): Promise<Deps> {
-  return { auth: createSupabaseAuth(storeCookieJar(await cookies())), withUser };
+  return { auth: createSupabaseAuth(storeCookieJar(await cookies())), withUser, now: () => new Date() };
+}
+
+/**
+ * The real services for a page (server component). Pages may not set cookies; the proxy has
+ * already refreshed the session before the page runs, so the cookie jar only reads.
+ */
+export async function pageDeps(): Promise<Deps> {
+  return {
+    auth: createSupabaseAuth(storeCookieJar(await cookies(), { readOnly: true })),
+    withUser,
+    now: () => new Date(),
+  };
 }
