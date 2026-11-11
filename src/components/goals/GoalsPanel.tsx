@@ -13,9 +13,16 @@ import { GoalEditor, type GoalEditorState } from "./GoalEditor";
 
 type Props = { goals: GoalView[]; today: string };
 
-type ContentProps = { titleId: string; goals: GoalView[]; onNew: () => void; onClose: () => void; closeLabel: string };
+type ContentProps = {
+  titleId: string;
+  goals: GoalView[];
+  onNew: () => void;
+  onOpen: (goal: GoalView) => void;
+  onClose: () => void;
+  closeLabel: string;
+};
 
-function PanelContent({ titleId, goals, onNew, onClose, closeLabel }: ContentProps) {
+function PanelContent({ titleId, goals, onNew, onOpen, onClose, closeLabel }: ContentProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-1 px-4 pt-5 pb-3">
@@ -39,7 +46,7 @@ function PanelContent({ titleId, goals, onNew, onClose, closeLabel }: ContentPro
             </Button>
           </div>
         ) : (
-          goals.map((goal) => <GoalCard key={goal.id} goal={goal} />)
+          goals.map((goal) => <GoalCard key={goal.id} goal={goal} onOpen={() => onOpen(goal)} />)
         )}
       </div>
     </div>
@@ -64,11 +71,23 @@ export function GoalsPanel({ goals, today }: Props) {
     setEditor({ mode: "create", today });
   };
 
+  const openGoal = (goal: GoalView) => {
+    panels.openSheet(null);
+    setEditor({ mode: "edit", goal, today });
+  };
+
   return (
     <>
       {panels.isOpen("goals") && (
         <aside aria-labelledby="goals-panel-title" className="sticky top-0 hidden h-dvh w-[300px] shrink-0 border-l border-line-subtle bg-canvas xl:block">
-          <PanelContent titleId="goals-panel-title" goals={goals} onNew={newGoal} onClose={() => panels.toggle("goals")} closeLabel="Collapse goals" />
+          <PanelContent
+            titleId="goals-panel-title"
+            goals={goals}
+            onNew={newGoal}
+            onOpen={openGoal}
+            onClose={() => panels.toggle("goals")}
+            closeLabel="Collapse goals"
+          />
         </aside>
       )}
       <dialog
@@ -78,7 +97,16 @@ export function GoalsPanel({ goals, today }: Props) {
         onClick={(event) => event.target === sheet.current && panels.openSheet(null)}
         className="event-editor m-0 mt-auto h-[80dvh] max-h-none w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-canvas p-0 shadow-pop xl:hidden"
       >
-        {sheetOpen && <PanelContent titleId="goals-sheet-title" goals={goals} onNew={newGoal} onClose={() => panels.openSheet(null)} closeLabel="Close goals" />}
+        {sheetOpen && (
+          <PanelContent
+            titleId="goals-sheet-title"
+            goals={goals}
+            onNew={newGoal}
+            onOpen={openGoal}
+            onClose={() => panels.openSheet(null)}
+            closeLabel="Close goals"
+          />
+        )}
       </dialog>
       <GoalEditor state={editor} onClose={() => setEditor(null)} />
     </>

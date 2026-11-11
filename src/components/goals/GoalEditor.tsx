@@ -2,10 +2,9 @@
 
 // The goal editor: title, deadline, the auto-block switch and the weekly rules (R7). A native
 // <dialog> like the event editor: focus stays inside, Escape closes it, focus returns afterwards.
+// It creates a goal (create_goal) or edits one (edit_goal). In edit mode a rule that already exists
+// is removed at once (remove_rule), and the goal can be deleted after a confirmation (delete_goal).
 // It only collects the input and shows the server's answer; the server checks every rule.
-//
-// Build step 2 reference slice: creating a goal (create_goal). Editing, removing a rule and
-// deleting are added by the tasks in tasks-04.json.
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
@@ -13,11 +12,12 @@ import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
 import { Close, Plus, Trash } from "@/components/ui/icons";
 import { postJson, type PostResult } from "@/lib/client/post-json";
+import type { GoalDto, GoalView } from "@/lib/goals/types";
 
-/** One rule row as the form holds it (text fields keep what the user typed). */
-type RuleRow = { key: number; kind: "count" | "hours"; target: string; minMinutes: string };
+/** One rule row as the form holds it. `id` is set for a rule the server already has. */
+type RuleRow = { key: number; id?: string; kind: "count" | "hours"; target: string; minMinutes: string };
 
-export type GoalEditorState = { mode: "create"; today: string } | null;
+export type GoalEditorState = { mode: "create"; today: string } | { mode: "edit"; goal: GoalView; today: string } | null;
 
 const inputClass =
   "block h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10";
@@ -28,9 +28,21 @@ function newRule(): RuleRow {
   return { key: nextKey++, kind: "count", target: "2", minMinutes: "" };
 }
 
+/** A rule the server already has, filled in from the server's copy. */
+function ruleRow(rule: GoalView["rules"][number]): RuleRow {
+  return {
+    key: nextKey++,
+    id: rule.id,
+    kind: rule.kind,
+    target: String(rule.target),
+    minMinutes: rule.minMinutes === null ? "" : String(rule.minMinutes),
+  };
+}
+
 /** What the server receives for a rule. An empty target is sent as 0, so the server names the limit. */
 function ruleBody(rule: RuleRow) {
   return {
+    ...(rule.id ? { id: rule.id } : {}),
     kind: rule.kind,
     target: rule.target.trim() === "" ? 0 : Number(rule.target),
     minMinutes: rule.kind === "count" && rule.minMinutes.trim() !== "" ? Number(rule.minMinutes) : null,
@@ -56,7 +68,8 @@ export function GoalEditor({ state, onClose }: { state: GoalEditorState; onClose
       onClick={(event) => event.target === dialog.current && onClose()}
       className="event-editor m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-surface p-0 text-ink shadow-pop sm:m-auto sm:max-h-[calc(100dvh-2rem)] sm:w-[420px] sm:rounded-card"
     >
-      {state && <GoalForm state={state} onClose={onClose} />}
+      {/* A new key for every goal gives the form its own rows, fields and messages. */}
+      {state && <GoalForm key={state.mode === "edit" ? state.goal.id : "new"} state={state} onClose={onClose} />}
     </dialog>
   );
 }
@@ -64,9 +77,21 @@ export function GoalEditor({ state, onClose }: { state: GoalEditorState; onClose
 function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; onClose: () => void }) {
   const router = useRouter();
   const announce = useAnnounce();
-  const [rules, setRules] = useState<RuleRow[]>(() => [newRule()]);
+  const goal = state.mode === "edit" ? state.goal : null;
+  // The goal's updated_at as this device last saw it (R4). Removing a rule gives the goal a new one.
+  const [updatedAt, setUpdatedAt] = useState(goal?.updatedAt ?? "");
+  const [rules, setRules] = useState<RuleRow[]>(() => (goal ? goal.rules.map(ruleRow) : [newRule()]));
   const [result, setResult] = useState<PostResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (confirmingDelete) confirmButton.current?.focus();
+  }, [confirmingDelete]);
+
+  // An unchanged past deadline stays allowed when editing; the server checks it as well.
+  const minDeadline = goal && goal.deadline < state.today ? goal.deadline : state.today;
 
   function updateRule(key: number, change: Partial<RuleRow>) {
     setRules((current) => current.map((rule) => (rule.key === key ? { ...rule, ...change } : rule)));
@@ -75,13 +100,16 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    setBusy(true);
-    const answer = await postJson("/api/goals", {
+    const fields = {
       title: String(form.get("title") ?? ""),
       deadline: String(form.get("deadline") ?? ""),
       autoBlock: form.get("autoBlock") === "on",
       rules: rules.map(ruleBody),
-    });
+    };
+    setBusy(true);
+    const answer = goal
+      ? await postJson(`/api/goals/${goal.id}/edit`, { ...fields, updatedAt })
+      : await postJson("/api/goals", fields);
     setBusy(false);
     setResult(answer.ok ? null : answer);
     if (!answer.ok) return;
@@ -90,12 +118,44 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
     onClose();
   }
 
+  /** A rule the server does not have yet is only dropped here; a saved rule is removed at once. */
+  async function removeRule(rule: RuleRow) {
+    if (!rule.id) {
+      setRules((current) => current.filter((r) => r.key !== rule.key));
+      return;
+    }
+    setBusy(true);
+    const answer = await postJson(`/api/rules/${rule.id}/remove`, { updatedAt });
+    setBusy(false);
+    setResult(answer.ok ? null : answer);
+    if (!answer.ok) return;
+    const saved = (answer.data as { goal?: GoalDto } | undefined)?.goal;
+    if (saved) setUpdatedAt(saved.updatedAt);
+    announce(answer.message);
+    setRules((current) => current.filter((r) => r.key !== rule.key));
+    router.refresh();
+  }
+
+  async function deleteGoal() {
+    if (!goal) return;
+    setBusy(true);
+    const answer = await postJson(`/api/goals/${goal.id}/delete`, { updatedAt });
+    setBusy(false);
+    setResult(answer.ok ? null : answer);
+    if (!answer.ok) return;
+    announce(answer.message);
+    router.refresh();
+    onClose();
+  }
+
+  const stale = result?.status === 409 && result.message.startsWith("Changed on another device");
+
   return (
     <form onSubmit={save} noValidate className="flex max-h-[inherit] flex-col">
       <div className="scroll-thin flex flex-col gap-4 overflow-y-auto p-4">
         <div className="flex items-center gap-3">
           <h2 id="goal-editor-title" className="min-w-0 flex-1 text-[15px] font-semibold">
-            New goal
+            {goal ? "Edit goal" : "New goal"}
           </h2>
           <button
             type="button"
@@ -111,14 +171,21 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
           <label htmlFor="goal-title" className={eyebrow}>
             Title
           </label>
-          <input id="goal-title" name="title" placeholder="Run a half marathon" autoFocus className={inputClass} />
+          <input
+            id="goal-title"
+            name="title"
+            defaultValue={goal?.title ?? ""}
+            placeholder="Run a half marathon"
+            autoFocus
+            className={inputClass}
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="goal-deadline" className={eyebrow}>
             Deadline
           </label>
-          <input id="goal-deadline" name="deadline" type="date" min={state.today} className={inputClass} />
+          <input id="goal-deadline" name="deadline" type="date" defaultValue={goal?.deadline ?? ""} min={minDeadline} className={inputClass} />
         </div>
 
         <fieldset className="flex flex-col gap-2">
@@ -160,7 +227,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
                   aria-label={`Remove rule ${index + 1}`}
                   title="Remove rule"
                   disabled={rules.length === 1}
-                  onClick={() => setRules((current) => current.filter((r) => r.key !== rule.key))}
+                  onClick={() => removeRule(rule)}
                 >
                   <Trash />
                 </Button>
@@ -191,7 +258,13 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
         </fieldset>
 
         <label htmlFor="goal-auto-block" className="flex items-start gap-2 text-sm text-ink">
-          <input id="goal-auto-block" name="autoBlock" type="checkbox" className="mt-0.5 size-4 accent-ink" />
+          <input
+            id="goal-auto-block"
+            name="autoBlock"
+            type="checkbox"
+            defaultChecked={goal?.autoBlock ?? false}
+            className="mt-0.5 size-4 accent-ink"
+          />
           <span>
             Auto-block distracting sites during this goal&apos;s events
             <span className="block text-xs text-ink-3">Takes effect once the blocker is part of the app.</span>
@@ -199,15 +272,54 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
         </label>
 
         {result && <FormMessage tone="error" text={result.message} />}
+        {stale && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-fit"
+            onClick={() => {
+              router.refresh();
+              onClose();
+            }}
+          >
+            Reload
+          </Button>
+        )}
       </div>
 
-      <div className="flex items-center gap-2 border-t border-line-subtle bg-surface px-4 py-3">
-        <Button type="submit" size="sm" disabled={busy}>
-          {busy ? "Saving…" : "Add goal"}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Cancel
-        </Button>
+      <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-4 py-3">
+        {goal && confirmingDelete ? (
+          <>
+            <p className="w-full text-sm font-medium">{`Delete '${goal.title}'? Its events stay, without goal.`}</p>
+            <Button ref={confirmButton} variant="danger" size="sm" disabled={busy} onClick={deleteGoal}>
+              Yes, delete
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button type="submit" size="sm" disabled={busy}>
+              {busy ? "Saving…" : goal ? "Save" : "Add goal"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            {goal && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-auto size-8"
+                aria-label={`Delete ${goal.title}`}
+                title="Delete"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                <Trash />
+              </Button>
+            )}
+          </>
+        )}
       </div>
     </form>
   );
