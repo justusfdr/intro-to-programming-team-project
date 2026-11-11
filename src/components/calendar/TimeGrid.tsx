@@ -133,7 +133,11 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOp
 
         {hasEarly && (
           // Mouse only and not read out: each of these events is already listed on the day it starts.
-          <div aria-hidden className="flex border-b border-line-subtle">
+          // On phones the row shows only when the chosen day has such a strip.
+          <div
+            aria-hidden
+            className={`${early[days.findIndex((d) => d.date === selectedDay)]?.length ? "flex" : "hidden"} border-b border-line-subtle md:flex`}
+          >
             <div className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] text-ink-3">Earlier</div>
             {days.map((day, i) => (
               <div key={day.date} className={`${day.date === selectedDay ? "flex" : "hidden"} min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:flex`}>

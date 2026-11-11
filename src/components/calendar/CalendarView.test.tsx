@@ -123,7 +123,7 @@ describe("calendar markup", () => {
     const html = render(
       week({ 3: [event("n", "Night shift at the library", "2026-11-19T22:00", "2026-11-20T02:00", { endDay: "2026-11-20" })] }),
     );
-    expect(html).toMatch(/<div aria-hidden="true" class="flex border-b[^"]*">.*Earlier.*tabindex="-1"[^>]*>Night shift at the library, until 02:00<\/button>/s);
+    expect(html).toMatch(/<div aria-hidden="true" class="[^"]*border-b[^"]*md:flex">.*Earlier.*tabindex="-1"[^>]*>Night shift at the library, until 02:00<\/button>/s);
     expect(html.indexOf("Night shift at the library, until 02:00")).toBeLessThan(html.indexOf("data-hour-grid"));
   });
 

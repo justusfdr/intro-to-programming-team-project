@@ -89,19 +89,19 @@ export function GoalsPanel({ goals, today }: Props) {
 export function GoalsToggle() {
   const panels = usePanels();
   const open = panels.isOpen("goals");
+  // The wrappers decide which button shows (a class on the button itself would fight its own display).
   return (
     <>
-      <Button
-        variant="secondary"
-        className={`hidden xl:inline-flex ${open ? "border-ink" : ""}`}
-        aria-expanded={open}
-        onClick={() => panels.toggle("goals")}
-      >
-        Goals
-      </Button>
-      <Button variant="secondary" className="xl:hidden" aria-haspopup="dialog" onClick={() => panels.openSheet("goals")}>
-        Goals
-      </Button>
+      <div className="hidden xl:block">
+        <Button variant="secondary" className={open ? "border-ink" : ""} aria-expanded={open} onClick={() => panels.toggle("goals")}>
+          Goals
+        </Button>
+      </div>
+      <div className="xl:hidden">
+        <Button variant="secondary" aria-haspopup="dialog" onClick={() => panels.openSheet("goals")}>
+          Goals
+        </Button>
+      </div>
     </>
   );
 }
