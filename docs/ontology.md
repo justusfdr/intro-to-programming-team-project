@@ -4,7 +4,7 @@ A web app that brings calendar, goals and focused work together, and blocks dist
 Rule for coding agents: read this file first. Do not change it without the team's approval; propose the change and wait.
 
 ## Purpose and scope
-- **Problem and user.** A student in the exam phase (lectures, a statistics exam, half-marathon training) is constantly distracted and plans across three or four tools.
+- **Problem and user.** Anyone who wants to be more productive and is constantly distracted while planning across three or four tools: students, employees, self-employed people, in private life or at work. Example persona: a student in the exam phase (lectures, a statistics exam, half-marathon training).
 - **User journey.** Sign up, set goals with weekly rules, plan days, focus while sites are blocked, mark events done, see progress.
 - **One role:** the signed-in user. No admin. Nothing is shared between users.
 - **Two plans:** Free has everything except the AI chat; Pro adds it, paid through Stripe in test mode.
