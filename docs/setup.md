@@ -61,3 +61,5 @@ Our code relies on these answers from Supabase. Check them once with two test ad
 4. Open a confirmation link twice: the second time shows "This link has expired. Ask for a new one".
 5. Walk through both paths once: `/sign-up` → e-mail → "Confirm my email" → signed in on `/`; `/forgot-password` → e-mail → "Set a new password" → new password (within 15 minutes) → `/sign-in`.
 6. A session from a reset link carries the method `recovery` with a timestamp in its `amr` claim: open a reset link, then set a new password; it must work. (If it says "This link has expired", the claim is missing and setting passwords is blocked; tell the team.)
+7. The week page (`/`), signed in with a confirmed account: add "Statistics revision" today 09:00 to 11:00; edit it; mark it done (only possible once it has started); delete it. Then open the same account in a second browser, change an event in one and save an old version of it in the other: the second save must say "Changed on another device. Reload to see the latest version".
+8. With two confirmed accounts, each sees only their own events.
