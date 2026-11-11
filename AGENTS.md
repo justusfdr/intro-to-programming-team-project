@@ -17,8 +17,8 @@
 
 ## Stack and commands
 - Next.js with TypeScript, Supabase, Chrome extension in JavaScript. See `README.md`.
-- Run the app: _to be added_
-- Run the tests: _to be added_
+- Run the app: `npm run dev` (needs `.env.local`, see `docs/setup.md`)
+- Run the tests: `npm test`; all checks: `npm run check`
 
 ## Style
 - Write code comments, messages and reports in plain human language.

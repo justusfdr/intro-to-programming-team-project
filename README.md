@@ -2,9 +2,16 @@
 
 Team project for Introduction to Programming at Nova SBE.
 
-We build a web app that brings a calendar, goals with weekly rules and focus sessions together, and a Chrome extension that blocks distracting websites while the user works. Pro users also get an AI chat, typed or spoken, that plans their days and answers questions about how they spent their time. The app has no name yet.
+We build a web app that brings a calendar, goals with weekly rules and focus sessions together, and a Chrome extension that blocks distracting websites while the user works. Pro users also get an AI chat, typed or spoken, that plans their days and answers questions about how they spent their time. The app is called **Lock In**.
 
-**Status:** this repository currently holds the plan (`docs/ontology.md`). The code follows.
+**Status:** build step 1 in progress: accounts (spec 01).
+
+## Run it
+Needs Node.js 24 and npm.
+1. `npm install`
+2. Run the tests: `npm test` (a temporary in-process database and a fake sign-in service; no Supabase, no secrets).
+3. Run all checks (lint, types, tests, build): `npm run check`
+4. Run the app: `npm run dev`, then open http://localhost:3000. Signing in needs a Supabase project and `.env.local`; see `docs/setup.md`.
 
 ## How we work
 1. `docs/ontology.md` is the plan. Features are built from it, never the other way round. It changes only with the team's approval.
@@ -45,6 +52,6 @@ A new account has an empty calendar and no goals; its block list starts with six
 ## Submission (to fill in)
 - Deployed URL: _to be added_
 - Team: Justus Friederichs (student number _to be added_), Lucas (_surname and student number to be added_), Emily (_surname and student number to be added_)
-- Run the app locally: _command to be added_
-- Run the tests: _command to be added_
-- Secrets: they go into `.env.local`, which is never committed. `.env.example` will list their names once the code lands.
+- Run the app locally: `npm run dev`
+- Run the tests: `npm test`
+- Secrets: they go into `.env.local`, which is never committed. `.env.example` lists their names. Supabase setup: `docs/setup.md`.
