@@ -80,4 +80,11 @@ describe("placing events in the time grid", () => {
     expect(slotAt(-10, range)).toEqual({ startMin: 420, endMin: 480 });
     expect(slotAt(30 * HOUR_PX, { startMin: 0, endMin: 1440 })).toEqual({ startMin: 1380, endMin: 1440 });
   });
+
+  it("does not widen the hours for the part of an event after midnight; that block starts at the top", () => {
+    const placed = placeWeek(week({ 2: [event("late", "2026-11-18T22:00", "2026-11-19T02:00", "2026-11-19")] }));
+    const range = gridRange(placed);
+    expect(range).toEqual({ startMin: 420, endMin: 1440 });
+    expect(blockBox(placed[3][0], range)).toEqual({ top: 0, height: MIN_BLOCK_PX });
+  });
 });

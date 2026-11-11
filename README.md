@@ -12,6 +12,7 @@ Needs Node.js 24 and npm.
 2. Run the tests: `npm test` (a temporary in-process database and a fake sign-in service; no Supabase, no secrets).
 3. Run all checks (lint, types, tests, build): `npm run check`
 4. Run the app: `npm run dev`, then open http://localhost:3000. Signing in needs a Supabase project and `.env.local`; see `docs/setup.md`.
+5. Look at the pages without signing in: `npm run build`, then `PREVIEW_OUT=/some/folder npm run previews` writes stand-alone HTML files with sample data (a development tool in `scripts/preview/`; the app never uses it).
 
 ## How we work
 1. `docs/ontology.md` is the plan. Features are built from it, never the other way round. It changes only with the team's approval.
@@ -44,7 +45,7 @@ We start with a small part that works end to end and grow it step by step. Each 
 A new account has an empty calendar and no goals; its block list starts with six sites the user can change. For the presentation we prepare demo accounts with example data; they are created and confirmed beforehand.
 
 ## Interface notes
-- Panels next to the calendar (goals, AI chat) can be collapsed and expanded.
+- Panels next to the calendar (goals, AI chat) can be collapsed and expanded. The app shell (`src/components/shell/AppShell.tsx`) has a `panels` slot for them; build step 1 shows none.
 - Goal progress is shown as "this week x of y", a strip of weeks and a countdown, not as a line chart.
 - When a chat message fails, the typed text stays in the input field.
 - Settings are reworked last.

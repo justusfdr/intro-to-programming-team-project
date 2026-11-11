@@ -64,7 +64,7 @@ function EventBlock({ block, range, dayLong, onOpen }: { block: Placed; range: G
       } ${done ? "text-ink-2" : "text-ink"}`}
     >
       <span
-        className={`block break-words pr-4 text-[11px] font-medium leading-[14px] ${height >= 40 ? "line-clamp-2" : "truncate"} ${
+        className={`block break-words hyphens-auto pr-4 text-[11px] font-medium leading-[14px] ${height >= 40 ? "line-clamp-2" : "truncate"} ${
           done ? "line-through" : ""
         }`}
       >

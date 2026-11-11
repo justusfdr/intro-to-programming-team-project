@@ -96,11 +96,14 @@ export function placeWeek(days: WeekDay[]): Placed[][] {
   });
 }
 
-/** The hours to show: 07:00 to 22:00, widened to whole hours so that every block fits. */
+/**
+ * The hours to show: 07:00 to 22:00, widened to whole hours so that every event's start fits.
+ * The part of an event after midnight does not widen it: that block starts at the top of the grid.
+ */
 export function gridRange(placed: Placed[][]): GridRange {
   let { startMin, endMin } = DEFAULT_RANGE;
   for (const block of placed.flat()) {
-    startMin = Math.min(startMin, Math.floor(block.startMin / 60) * 60);
+    if (!block.continuesBefore) startMin = Math.min(startMin, Math.floor(block.startMin / 60) * 60);
     endMin = Math.max(endMin, Math.ceil(block.endMin / 60) * 60);
   }
   return { startMin: Math.max(0, startMin), endMin: Math.min(DAY_MIN, endMin) };
@@ -114,9 +117,9 @@ export function rangeHeight(range: GridRange): number {
   return ((range.endMin - range.startMin) / 60) * HOUR_PX;
 }
 
-/** Top and height of a block, in pixels. */
+/** Top and height of a block, in pixels. A block that starts before the first hour starts at the top. */
 export function blockBox(block: { startMin: number; endMin: number }, range: GridRange): { top: number; height: number } {
-  const top = minuteToPx(block.startMin, range);
+  const top = minuteToPx(Math.max(block.startMin, range.startMin), range);
   return { top, height: Math.max(MIN_BLOCK_PX, minuteToPx(block.endMin, range) - top) };
 }
 
