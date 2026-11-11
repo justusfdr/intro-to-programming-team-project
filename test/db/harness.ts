@@ -23,7 +23,7 @@ export interface TestDb {
   /** Runs SQL as the database owner, bypassing row-level security. For setup and checks in tests only. */
   admin<T extends Row = Row>(sql: string, params?: unknown[]): Promise<T[]>;
   /** Creates a user the way Supabase Auth does (a row in auth.users); returns the id. */
-  createUser(email: string, options?: { timeZone?: string; confirmed?: boolean }): Promise<string>;
+  createUser(email: string, options?: { id?: string; timeZone?: string; confirmed?: boolean }): Promise<string>;
   close(): Promise<void>;
 }
 
@@ -46,9 +46,9 @@ export async function createTestDb(): Promise<TestDb> {
     async createUser(email, options = {}) {
       const meta = options.timeZone === undefined ? {} : { time_zone: options.timeZone };
       const rows = await admin<{ id: string }>(
-        `insert into auth.users (email, raw_user_meta_data, email_confirmed_at)
-         values ($1, $2, $3) returning id`,
-        [email, JSON.stringify(meta), options.confirmed ? new Date().toISOString() : null],
+        `insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at)
+         values (coalesce($1::uuid, gen_random_uuid()), $2, $3, $4) returning id`,
+        [options.id ?? null, email, JSON.stringify(meta), options.confirmed ? new Date().toISOString() : null],
       );
       return rows[0].id;
     },

@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/*
+  Design tokens. In Tailwind: bg-canvas, text-ink-2, border-line, bg-raised …
+*/
+@theme inline {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, monospace;
+
+  --color-ink: #101010;
+  --color-ink-2: #616165;
+  --color-ink-3: #9e9ea2;
+  --color-canvas: #fcfcfd;
+  --color-surface: #ffffff;
+  --color-raised: #f6f6f7;
+  --color-line: #e0e0e3;
+  --color-line-subtle: #e8e8e8;
+  --color-success: #16a34a;
+  --color-success-soft: #ecfdf5;
+  --color-danger: #e11d48;
+  --color-danger-soft: #fef2f2;
+
+  --radius-card: 16px;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tracking-heading {
+  letter-spacing: -0.03em;
+}
