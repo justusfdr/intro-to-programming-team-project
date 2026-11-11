@@ -15,12 +15,16 @@ export function notFound(): ActionError {
 }
 
 /**
- * The user's event with this id, locked until the transaction ends (so a second device waits
- * instead of changing it at the same moment). Throws "Not found" otherwise.
+ * The user's event with this id. Throws "Not found" otherwise.
+ * By default the row is locked until the transaction ends, so a second device that changes the
+ * same event at the same moment waits. Pass { lock: false } when you only read.
  */
-export async function findOwnEvent(query: Query, id: string): Promise<EventRow> {
+export async function findOwnEvent(query: Query, id: string, { lock = true }: { lock?: boolean } = {}): Promise<EventRow> {
   if (!UUID.test(id)) throw notFound();
-  const [row] = await query<EventRow>(`select ${EVENT_COLUMNS} from app.events where id = $1 for update`, [id]);
+  const [row] = await query<EventRow>(
+    `select ${EVENT_COLUMNS} from app.events where id = $1${lock ? " for update" : ""}`,
+    [id],
+  );
   if (!row) throw notFound();
   return row;
 }
