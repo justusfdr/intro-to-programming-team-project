@@ -53,7 +53,7 @@ export function SignInForm() {
           </Link>
         </p>
       )}
-      <Button type="submit" className="mt-6 w-full" disabled={busy}>
+      <Button type="submit" size="lg" className="mt-6 w-full" disabled={busy}>
         {busy ? "Signing in…" : "Sign in"}
       </Button>
     </form>

@@ -59,7 +59,7 @@ export function ResetPasswordForm() {
           </Link>
         </p>
       )}
-      <Button type="submit" className="mt-6 w-full" disabled={busy}>
+      <Button type="submit" size="lg" className="mt-6 w-full" disabled={busy}>
         {busy ? "Saving…" : "Save new password"}
       </Button>
     </form>

@@ -1,8 +1,11 @@
 // Sends a form's data to one of our route handlers and returns the message to show.
 // The server decides everything; this only carries the answer back to the page.
 
-/** `next`: the page the server says to open next, if any (only a path on our own site). */
-export type PostResult = { ok: boolean; status: number; message: string; next?: string };
+/**
+ * `next`: the page the server says to open next, if any (only a path on our own site).
+ * `data`: the whole answer, for actions that return what they saved (for example { event }).
+ */
+export type PostResult = { ok: boolean; status: number; message: string; next?: string; data?: unknown };
 
 const NETWORK_ERROR = "We could not reach the server. Check your connection and try again.";
 
@@ -22,7 +25,7 @@ export async function postJson(path: string, body: unknown): Promise<PostResult>
     });
     const data = (await response.json().catch(() => ({}))) as { message?: unknown; next?: unknown };
     const message = typeof data.message === "string" ? data.message : response.ok ? "" : NETWORK_ERROR;
-    return { ok: response.ok, status: response.status, message, next: ownPath(data.next) };
+    return { ok: response.ok, status: response.status, message, next: ownPath(data.next), data };
   } catch {
     return { ok: false, status: 0, message: NETWORK_ERROR };
   }

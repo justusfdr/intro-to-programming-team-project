@@ -148,3 +148,38 @@ export function dayLabel(date: LocalDate): string {
     new Date(Date.UTC(y, m - 1, d)),
   );
 }
+
+function utcDateOf(date: LocalDate): Date {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function format(date: LocalDate, options: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(utcDateOf(date));
+}
+
+/** The parts a day heading shows: "Mon", 16, and "Monday 16 November" for screen readers. */
+export function dayParts(date: LocalDate): { weekday: string; day: number; long: string } {
+  return {
+    weekday: format(date, { weekday: "short" }),
+    day: Number(date.slice(8, 10)),
+    long: format(date, { weekday: "long", day: "numeric", month: "long" }),
+  };
+}
+
+/** The ISO week number (weeks start on Monday; week 1 holds the year's first Thursday). */
+export function isoWeekNumber(date: LocalDate): number {
+  const thursday = utcDateOf(addDays(mondayOf(date), 3));
+  const firstOfYear = Date.UTC(thursday.getUTCFullYear(), 0, 1);
+  return Math.floor((thursday.getTime() - firstOfYear) / (7 * 24 * 60 * 60 * 1000)) + 1;
+}
+
+/** The calendar's title for the week from `monday`: "November 2026", "Nov – Dec 2026" or "Dec 2026 – Jan 2027". */
+export function weekTitle(monday: LocalDate): string {
+  const sunday = addDays(monday, 6);
+  if (monday.slice(0, 7) === sunday.slice(0, 7)) return format(monday, { month: "long", year: "numeric" });
+  if (monday.slice(0, 4) === sunday.slice(0, 4)) {
+    return `${format(monday, { month: "short" })} – ${format(sunday, { month: "short", year: "numeric" })}`;
+  }
+  return `${format(monday, { month: "short", year: "numeric" })} – ${format(sunday, { month: "short", year: "numeric" })}`;
+}

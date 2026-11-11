@@ -46,7 +46,7 @@ export function ForgotPasswordForm() {
     <form onSubmit={onSubmit} noValidate>
       <Field id="email" name="email" type="email" label="Email" autoComplete="email" required />
       {result && <FormMessage tone="error" text={result.message} />}
-      <Button type="submit" className="mt-6 w-full" disabled={busy}>
+      <Button type="submit" size="lg" className="mt-6 w-full" disabled={busy}>
         {busy ? "Sending…" : "Send reset link"}
       </Button>
     </form>
