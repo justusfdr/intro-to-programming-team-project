@@ -2,6 +2,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { WeekData, WeekEvent } from "@/lib/events/types";
+import { Announcer } from "./Announcer";
 import { WeekGrid } from "./WeekGrid";
 import { WeekNav } from "./WeekNav";
 
@@ -67,5 +68,15 @@ describe("week view markup", () => {
     expect(html).toContain('href="/?week=2026-11-09"');
     expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*href="\/\?week=2026-11-16">This week/);
     expect(html).toContain('href="/?week=2026-11-23"');
+  });
+
+  it("keeps one status region outside the event list, so messages survive an event leaving the list", () => {
+    const html = renderToStaticMarkup(
+      <Announcer>
+        <WeekGrid week={week([event({})])} />
+      </Announcer>,
+    );
+    expect(html.indexOf('role="status"')).toBeGreaterThan(-1);
+    expect(html.indexOf('role="status"')).toBeLessThan(html.indexOf("<ol"));
   });
 });

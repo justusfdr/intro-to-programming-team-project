@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 type Variant = "primary" | "secondary" | "ghost";
 
@@ -13,7 +13,8 @@ const variants: Record<Variant, string> = {
   ghost: "text-ink-2 hover:text-ink hover:bg-raised",
 };
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; children: ReactNode };
+// ComponentProps includes `ref` (React 19 passes it like any other prop).
+type ButtonProps = ComponentProps<"button"> & { variant?: Variant; children: ReactNode };
 
 export function Button({ variant = "primary", className = "", type = "button", ...rest }: ButtonProps) {
   return <button type={type} className={`${base} ${variants[variant]} ${className}`} {...rest} />;

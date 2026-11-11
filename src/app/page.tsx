@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { SignOutButton } from "@/components/account/SignOutButton";
+import { Announcer } from "@/components/calendar/Announcer";
 import { CreateEvent } from "@/components/calendar/CreateEvent";
 import { WeekGrid } from "@/components/calendar/WeekGrid";
 import { WeekNav } from "@/components/calendar/WeekNav";
@@ -49,7 +50,9 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
         </div>
       </header>
       <div className="mt-6">
-        <WeekGrid week={week} />
+        <Announcer>
+          <WeekGrid week={week} />
+        </Announcer>
       </div>
       <div className="mt-8 max-w-xl">
         <CreateEvent initial={suggestion} />

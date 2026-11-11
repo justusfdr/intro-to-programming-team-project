@@ -2,7 +2,7 @@
 
 // delete_event on the week page: a "Delete" button asks "Delete '<title>'?" in place, with
 // "Yes, delete" (focused when the question opens) and "Cancel". Escape or Cancel closes the question.
-// After a delete "Event deleted." is announced and the week reloads. A rejection shows its message;
+// After a delete "Event deleted." is announced (page-level, see Announcer.tsx) and the week reloads. A rejection shows its message;
 // after "Changed on another device" the question also offers "Reload" to see the latest version.
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -10,6 +10,7 @@ import { FormMessage } from "@/components/account/FormMessage";
 import { Button } from "@/components/ui/Button";
 import { postJson } from "@/lib/client/post-json";
 import type { WeekEvent } from "@/lib/events/types";
+import { useAnnounce } from "./Announcer";
 
 type Failure = { message: string; conflict: boolean };
 
@@ -18,7 +19,7 @@ export function DeleteEvent({ event }: { event: WeekEvent }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
-  const [deleted, setDeleted] = useState<string | null>(null);
+  const announce = useAnnounce();
 
   // Moves keyboard focus onto "Yes, delete" when the question opens.
   useEffect(() => {
@@ -38,19 +39,11 @@ export function DeleteEvent({ event }: { event: WeekEvent }) {
     if (answer.ok) {
       setAsking(false);
       setFailure(null);
-      setDeleted(answer.message);
+      announce(answer.message);
       router.refresh();
     } else {
       setFailure({ message: answer.message, conflict: answer.status === 409 });
     }
-  }
-
-  if (deleted) {
-    return (
-      <p role="status" className="w-full rounded-xl bg-success-soft px-3 py-2 text-sm text-success">
-        {deleted}
-      </p>
-    );
   }
 
   if (!asking) {
