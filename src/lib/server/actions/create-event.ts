@@ -10,6 +10,7 @@ import type { Deps } from "@/lib/server/deps";
 import { handleAction } from "@/lib/server/errors";
 import { checkEventFields, EventFields } from "@/lib/server/events/input";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
+import { assertOwnGoal } from "@/lib/server/goals/own-goal";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { readTimeZone } from "@/lib/server/settings";
@@ -27,13 +28,16 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
     return deps.withUser(userId, async (query) => {
       // The form sends local times; the user's time zone turns them into instants (stored in UTC).
       const event = checkEventFields(body.data, await readTimeZone(query));
+      // The goal must be the user's own, else "Not found" (R3).
+      const goalId = event.goalId ?? null;
+      await assertOwnGoal(query, goalId);
 
       // user_id, status ("planned"), source ("app") and updated_at are filled in by the database.
       const [row] = await query<EventRow>(
-        `insert into app.events (title, start_at, end_at, may_overlap)
-         values ($1, $2, $3, $4)
+        `insert into app.events (title, start_at, end_at, may_overlap, goal_id)
+         values ($1, $2, $3, $4, $5)
          returning ${EVENT_COLUMNS}`,
-        [event.title, event.startAt, event.endAt, event.mayOverlap],
+        [event.title, event.startAt, event.endAt, event.mayOverlap ?? false, goalId],
       );
       return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(row) }, 201);
     });

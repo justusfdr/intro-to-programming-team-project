@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { Announcer } from "@/components/calendar/Announcer";
 import { CalendarView } from "@/components/calendar/CalendarView";
+import { GoalsPanel } from "@/components/goals/GoalsPanel";
 import { AppShell } from "@/components/shell/AppShell";
+import { PanelState } from "@/components/shell/PanelState";
 import { pageDeps } from "@/lib/server/deps";
 import { loadWeek } from "@/lib/server/events/week";
+import { loadGoals } from "@/lib/server/goals/load";
 import { localDateTimeOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -20,6 +24,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   const { week: requested } = await searchParams;
   const week = await loadWeek(deps, userId, typeof requested === "string" ? requested : undefined);
+  const goals = await loadGoals(deps, userId);
 
   const now = deps.now();
   // "New event" suggests the next full hour, one hour long.
@@ -29,9 +34,19 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     end: localDateTimeOf(new Date(nextHour.getTime() + HOUR), week.timeZone),
   };
 
+  const nowLocal = localDateTimeOf(now, week.timeZone);
   return (
-    <AppShell current="/">
-      <CalendarView week={week} nowLocal={localDateTimeOf(now, week.timeZone)} suggestion={suggestion} />
-    </AppShell>
+    <Announcer>
+      <PanelState>
+        <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} today={nowLocal.slice(0, 10)} />}>
+          <CalendarView
+            week={week}
+            nowLocal={nowLocal}
+            suggestion={suggestion}
+            goals={goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }))}
+          />
+        </AppShell>
+      </PanelState>
+    </Announcer>
   );
 }

@@ -26,10 +26,10 @@ export async function findOwnEvent(query: Query, id: string): Promise<EventRow> 
 }
 
 /**
- * R4: the change must carry the updated_at the device last saw. If the row has changed since
+ * R4 (events and goals): the change must carry the updated_at the device last saw. If the row has changed since
  * (another device saved first), the change is rejected and the first change stays.
  */
-export function assertUnchangedSince(row: EventRow, updatedAt: string): void {
+export function assertUnchangedSince(row: { updated_at: Date }, updatedAt: string): void {
   if (new Date(row.updated_at).getTime() !== Date.parse(updatedAt)) {
     throw new ActionError(409, "changed_elsewhere", MESSAGES.changedElsewhere);
   }

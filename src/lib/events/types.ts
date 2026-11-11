@@ -9,6 +9,8 @@ export type EventDto = {
   endAt: string;
   mayOverlap: boolean;
   status: EventStatus;
+  /** The goal the event belongs to, or null. */
+  goalId: string | null;
   /** Sent back with every edit and delete, so the server can see whether the row changed since (R4). */
   updatedAt: string;
 };

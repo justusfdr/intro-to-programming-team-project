@@ -4,7 +4,7 @@ Team project for Introduction to Programming at Nova SBE.
 
 We build a web app that brings a calendar, goals with weekly rules and focus sessions together, and a Chrome extension that blocks distracting websites while the user works. Pro users also get an AI chat, typed or spoken, that plans their days and answers questions about how they spent their time. The app is called **Lock In**.
 
-**Status:** build step 1 is complete in code: accounts (spec 01) and the week calendar with events (spec 02). It is deployed once the Supabase project exists (`docs/setup.md`).
+**Status:** build steps 1 and 2 are complete in code: accounts, the week calendar with events, and goals with weekly rules and progress (specs 01 to 03). They are deployed once the Supabase project exists (`docs/setup.md`).
 
 ## Run it
 Needs Node.js 24 and npm.
@@ -45,7 +45,7 @@ We start with a small part that works end to end and grow it step by step. Each 
 A new account has an empty calendar and no goals; its block list starts with six sites the user can change. For the presentation we prepare demo accounts with example data; they are created and confirmed beforehand.
 
 ## Interface notes
-- Panels next to the calendar (goals, AI chat) can be collapsed and expanded. The app shell (`src/components/shell/AppShell.tsx`) has a `panels` slot for them; build step 1 shows none.
+- Panels next to the calendar (goals, AI chat) can be collapsed and expanded. The app shell (`src/components/shell/AppShell.tsx`) has a slot on each side: goals on the left (build step 2), the AI chat later on the right.
 - Goal progress is shown as "this week x of y", a strip of weeks and a countdown, not as a line chart.
 - When a chat message fails, the typed text stays in the input field.
 - Settings are reworked last.

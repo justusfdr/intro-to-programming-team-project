@@ -6,8 +6,9 @@ import { Logo } from "./Logo";
 
 // The frame of every signed-in page, in the prototype's layout: a sidebar on wider screens
 // (mark and name, navigation, account at the bottom) and a slim top bar on phones.
-// Navigation shows only what exists. Later steps add their pages to NAV, and their side panels
-// (goals, AI chat) through `panels`: they sit to the right of the page and collapse on their own.
+// Navigation shows only what exists. Later steps add their pages to NAV. Side panels go in as in
+// the prototype: the goals panel to the left of the page (`panelsLeft`), the AI chat panel later to
+// the right (`panelsRight`); each collapses on its own.
 
 const NAV = [{ href: "/", label: "Calendar", icon: CalendarIcon }] as const;
 
@@ -15,11 +16,13 @@ type Props = {
   /** The address of the current page, to mark it in the navigation. */
   current: string;
   children: ReactNode;
-  /** Side panels next to the page (none in build step 1). */
-  panels?: ReactNode;
+  /** Side panels between the sidebar and the page (the goals panel). */
+  panelsLeft?: ReactNode;
+  /** Side panels to the right of the page (the AI chat panel, in a later step). */
+  panelsRight?: ReactNode;
 };
 
-export function AppShell({ current, children, panels }: Props) {
+export function AppShell({ current, children, panelsLeft, panelsRight }: Props) {
   return (
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-line-subtle bg-canvas px-3 py-4 md:flex">
@@ -57,8 +60,9 @@ export function AppShell({ current, children, panels }: Props) {
           <SignOutButton compact />
         </header>
         <div className="flex min-h-0 min-w-0 flex-1">
+          {panelsLeft}
           <main className="min-w-0 flex-1">{children}</main>
-          {panels}
+          {panelsRight}
         </div>
       </div>
     </div>

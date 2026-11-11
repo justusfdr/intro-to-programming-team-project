@@ -5,6 +5,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { WeekData, WeekEvent } from "@/lib/events/types";
+import { Announcer } from "./Announcer";
 import { CalendarView } from "./CalendarView";
 
 // The editor uses the router; outside a running Next.js app there is none, so give it a stand-in.
@@ -20,6 +21,7 @@ function event(id: string, title: string, start: string, end: string, fields: Pa
     endAt: "",
     mayOverlap: false,
     status: "planned",
+    goalId: null,
     updatedAt: "2026-11-15T10:00:00.000Z",
     conflict: false,
     startTime: start.slice(11),
@@ -43,8 +45,16 @@ function week(byDay: Record<number, WeekEvent[]>): WeekData {
 }
 
 function render(data: WeekData) {
+  // The page puts the calendar inside the Announcer (one status region for the calendar and the panels).
   return renderToStaticMarkup(
-    <CalendarView week={data} nowLocal="2026-11-17T12:10" suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }} />,
+    <Announcer>
+      <CalendarView
+        week={data}
+        nowLocal="2026-11-17T12:10"
+        suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }}
+        goals={[{ id: "g1", title: "Run a half marathon", colorIndex: 0 }]}
+      />
+    </Announcer>,
   );
 }
 
@@ -113,7 +123,7 @@ describe("calendar markup", () => {
     const html = render(
       week({ 3: [event("n", "Night shift at the library", "2026-11-19T22:00", "2026-11-20T02:00", { endDay: "2026-11-20" })] }),
     );
-    expect(html).toMatch(/<div aria-hidden="true" class="flex border-b[^"]*">.*Earlier.*tabindex="-1"[^>]*>Night shift at the library, until 02:00<\/button>/s);
+    expect(html).toMatch(/<div aria-hidden="true" class="[^"]*border-b[^"]*md:flex">.*Earlier.*tabindex="-1"[^>]*>Night shift at the library, until 02:00<\/button>/s);
     expect(html.indexOf("Night shift at the library, until 02:00")).toBeLessThan(html.indexOf("data-hour-grid"));
   });
 
@@ -128,5 +138,22 @@ describe("calendar markup", () => {
     );
     expect(html).not.toMatch(/break-words|hyphens-auto/);
     expect(html).toMatch(/class="block pr-4[^"]*truncate[^"]*">Statistics revision</);
+  });
+
+  it("gives an event of a goal the goal's colour and names the goal; other events stay neutral", () => {
+    const html = render(
+      week({
+        0: [
+          event("a", "Long run", "2026-11-16T07:00", "2026-11-16T08:00", { goalId: "g1" }),
+          event("b", "Dentist", "2026-11-16T10:00", "2026-11-16T11:00"),
+        ],
+      }),
+    );
+    expect(html).toMatch(/aria-label="Long run, Monday 16 November, 07:00 to 08:00, goal Run a half marathon"[^>]*class="[^"]*bg-rose-50/);
+    expect(html).toMatch(/aria-label="Dentist, Monday 16 November, 10:00 to 11:00"[^>]*class="[^"]*bg-raised/);
+  });
+
+  it("has a Goals button in the toolbar for the goals panel", () => {
+    expect(render(week({}))).toMatch(/aria-expanded="true"[^>]*>Goals<\/button>/);
   });
 });
