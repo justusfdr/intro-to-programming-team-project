@@ -59,4 +59,5 @@ Our code relies on these answers from Supabase. Check them once with two test ad
 2. Sign in with an **unconfirmed** account and the right password: "Confirm your email first. We sent you a link".
 3. Ask for a second confirmation link within 60 seconds: "Please wait a minute before asking again".
 4. Open a confirmation link twice: the second time shows "This link has expired. Ask for a new one".
-5. A session from a reset link carries the method `recovery` with a timestamp in its `amr` claim: open a reset link, then set a new password; it must work. (If it says "This link has expired", the claim is missing and setting passwords is blocked; tell the team.)
+5. Walk through both paths once: `/sign-up` → e-mail → "Confirm my email" → signed in on `/`; `/forgot-password` → e-mail → "Set a new password" → new password (within 15 minutes) → `/sign-in`.
+6. A session from a reset link carries the method `recovery` with a timestamp in its `amr` claim: open a reset link, then set a new password; it must work. (If it says "This link has expired", the claim is missing and setting passwords is blocked; tell the team.)
