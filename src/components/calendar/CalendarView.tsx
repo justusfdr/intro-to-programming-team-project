@@ -9,8 +9,9 @@ import { Button, LinkButton } from "@/components/ui/Button";
 import { ChevronLeft, ChevronRight, Plus } from "@/components/ui/icons";
 import { formatMinute, gridRange, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
 import type { WeekData } from "@/lib/events/types";
+import type { GoalLabel } from "./TimeGrid";
 import { addDays, dayParts, isoWeekNumber, localDateTimeOf, weekTitle } from "@/lib/time/zoned";
-import { Announcer } from "./Announcer";
+import { GoalsToggle } from "@/components/goals/GoalsPanel";
 import { EventEditor, type EditorState } from "./EventEditor";
 import { TimeGrid } from "./TimeGrid";
 
@@ -20,6 +21,8 @@ type Props = {
   nowLocal: string;
   /** Start and end the "New event" button suggests (the next full hour). */
   suggestion: { start: string; end: string };
+  /** The user's goals, for the colour and name of an event's goal. */
+  goals: GoalLabel[];
 };
 
 /** "16–22 Nov" or "30 Nov – 6 Dec". */
@@ -46,7 +49,7 @@ function localAt(date: string, min: number): string {
   return min >= 24 * 60 ? `${addDays(date, 1)}T00:00` : `${date}T${formatMinute(min)}`;
 }
 
-export function CalendarView({ week, nowLocal, suggestion }: Props) {
+export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
   const now = useNowLocal(nowLocal, week.timeZone);
   const today = now.slice(0, 10);
   const todayInWeek = week.days.some((d) => d.date === today);
@@ -70,7 +73,7 @@ export function CalendarView({ week, nowLocal, suggestion }: Props) {
   }, [placed, nowMin, range]);
 
   return (
-    <Announcer>
+    <>
       <div className="flex h-[calc(100dvh-57px)] min-h-[480px] flex-col gap-3 px-4 pt-4 pb-3 md:h-dvh md:px-6 md:pt-6 md:pb-5">
         <header className="flex flex-col gap-3">
           <div>
@@ -97,6 +100,7 @@ export function CalendarView({ week, nowLocal, suggestion }: Props) {
             >
               Today
             </LinkButton>
+            <GoalsToggle />
             <Button className="ml-auto" onClick={() => setEditor({ mode: "create", ...suggestion })}>
               <Plus className="size-4" />
               New event
@@ -138,12 +142,13 @@ export function CalendarView({ week, nowLocal, suggestion }: Props) {
             range={range}
             nowMin={nowMin}
             selectedDay={selectedDay}
+            goals={goals}
             onOpenEvent={(event) => setEditor({ mode: "edit", event })}
             onCreateAt={(date, slot) => setEditor({ mode: "create", start: localAt(date, slot.startMin), end: localAt(date, slot.endMin) })}
           />
         </div>
       </div>
       <EventEditor state={editor} onClose={() => setEditor(null)} />
-    </Announcer>
+    </>
   );
 }

@@ -12,6 +12,7 @@ function event(id: string, start: string, end: string, endDay: string | null = n
     endAt: "",
     mayOverlap: false,
     status: "planned",
+    goalId: null,
     updatedAt: "",
     conflict: false,
     startTime: start.slice(11),

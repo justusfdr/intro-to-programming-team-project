@@ -12,9 +12,14 @@ import type { MouseEvent } from "react";
 import { blockBox, formatMinute, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
 import type { WeekDay, WeekEvent } from "@/lib/events/types";
 import { Check, Warning } from "@/components/ui/icons";
+import { goalColor } from "@/lib/goals/colors";
 import { dayParts } from "@/lib/time/zoned";
 
+/** What the grid needs of a goal: its name and its place in the list (for the colour). */
+export type GoalLabel = { id: string; title: string; colorIndex: number };
+
 type Props = {
+  goals: GoalLabel[];
   days: WeekDay[];
   placed: Placed[][];
   range: GridRange;
@@ -27,17 +32,22 @@ type Props = {
 };
 
 /** The block's accessible name: everything the block shows, in words. */
-function blockLabel(block: Placed, dayLong: string): string {
+function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined): string {
   const { event } = block;
   const end = event.endDay ? `${event.endTime} the next day` : event.endTime;
   const parts = [`${event.title}, ${dayLong}, ${event.startTime} to ${end}`];
+  if (goal) parts.push(`goal ${goal.title}`);
   if (event.conflict) parts.push("overlaps another event");
   if (event.status === "done") parts.push("done");
   return parts.join(", ");
 }
 
-function EventBlock({ block, range, dayLong, onOpen }: { block: Placed; range: GridRange; dayLong: string; onOpen: () => void }) {
+type BlockProps = { block: Placed; range: GridRange; dayLong: string; goal: GoalLabel | undefined; onOpen: () => void };
+
+function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
   const { event } = block;
+  // Events of a goal take the goal's colour; others stay neutral. A conflict adds a red edge and an icon.
+  const colors = goal ? goalColor(goal.colorIndex).block : "bg-raised border-line-subtle text-ink";
   const { top, height } = blockBox(block, range);
   const done = event.status === "done";
   const time = `${block.continuesBefore ? "…" : event.startTime} – ${block.continuesAfter ? `${event.endTime}+1` : event.endTime}`;
@@ -49,7 +59,7 @@ function EventBlock({ block, range, dayLong, onOpen }: { block: Placed; range: G
         e.stopPropagation();
         onOpen();
       }}
-      aria-label={blockLabel(block, dayLong)}
+      aria-label={blockLabel(block, dayLong, goal)}
       // The part after midnight repeats an event already in the list: mouse only, not a second tab stop.
       tabIndex={block.continuesBefore ? -1 : undefined}
       aria-hidden={block.continuesBefore || undefined}
@@ -60,8 +70,8 @@ function EventBlock({ block, range, dayLong, onOpen }: { block: Placed; range: G
         width: `calc(${100 / block.lanes}% - 4px)`,
       }}
       className={`pointer-events-auto absolute z-[2] overflow-hidden rounded-lg border px-1.5 py-1 text-left transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40 ${
-        event.conflict ? "border-danger border-l-[3px] bg-danger-soft" : "border-line-subtle bg-raised"
-      } ${done ? "text-ink-2" : "text-ink"}`}
+        colors
+      } ${event.conflict ? "border-l-[3px] border-l-danger" : ""} ${done ? "opacity-70" : ""}`}
     >
       <span
         // Whole words only: two lines when there is room, otherwise one line cut with an ellipsis.
@@ -72,7 +82,7 @@ function EventBlock({ block, range, dayLong, onOpen }: { block: Placed; range: G
       >
         {event.title}
       </span>
-      {height >= 44 && <span className="block truncate text-[10px] leading-[13px] tabular text-ink-2">{time}</span>}
+      {height >= 44 && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{time}</span>}
       {(event.conflict || done) && (
         <span className="absolute right-1 top-1 flex items-center gap-0.5">
           {event.conflict && <Warning className="size-3 text-danger" />}
@@ -83,7 +93,8 @@ function EventBlock({ block, range, dayLong, onOpen }: { block: Placed; range: G
   );
 }
 
-export function TimeGrid({ days, placed, range, nowMin, selectedDay, onOpenEvent, onCreateAt }: Props) {
+export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOpenEvent, onCreateAt }: Props) {
+  const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
   const height = rangeHeight(range);
   const hours = hourMarks(range);
   // After-midnight parts that end before the first visible hour: shown as strips above the grid.
@@ -192,7 +203,13 @@ export function TimeGrid({ days, placed, range, nowMin, selectedDay, onOpenEvent
                 <ul className="pointer-events-none absolute inset-0">
                   {blocks.filter((block) => !isBeforeGrid(block, range)).map((block) => (
                     <li key={`${block.event.id}-${block.continuesBefore ? "after" : "start"}`}>
-                      <EventBlock block={block} range={range} dayLong={parts.long} onOpen={() => onOpenEvent(block.event)} />
+                      <EventBlock
+                        block={block}
+                        range={range}
+                        dayLong={parts.long}
+                        goal={goalOf(block.event.goalId)}
+                        onOpen={() => onOpenEvent(block.event)}
+                      />
                     </li>
                   ))}
                 </ul>

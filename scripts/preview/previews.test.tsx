@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { createTestApp } from "@test/support/app";
 import { seedEvent } from "@test/support/events";
+import { seedGoal } from "@test/support/goals";
 
 // Outside a running Next.js app there is no router: plain stand-ins for links and the router.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -67,7 +68,12 @@ iframe{width:390px;height:844px;border:0;border-radius:36px;background:#fff;box-
 
 it("writes the preview files", async () => {
   const styles = builtStyles();
+  const { Announcer } = await import("@/components/calendar/Announcer");
   const { CalendarView } = await import("@/components/calendar/CalendarView");
+  const { GoalsPanel } = await import("@/components/goals/GoalsPanel");
+  const { GoalEditor } = await import("@/components/goals/GoalEditor");
+  const { PanelState } = await import("@/components/shell/PanelState");
+  const { loadGoals } = await import("@/lib/server/goals/load");
   const { EventEditor } = await import("@/components/calendar/EventEditor");
   const { AppShell } = await import("@/components/shell/AppShell");
   const { default: SignInPage } = await import("@/app/(account)/sign-in/page");
@@ -77,30 +83,69 @@ it("writes the preview files", async () => {
   // A sample week for Monday 16 to Sunday 22 November 2026, seen on Tuesday at 12:10 in Lisbon.
   const app = await createTestApp();
   const user = await app.signedInAs("preview@example.com", { timeZone: "Europe/Lisbon" });
-  const add = (title: string, start: string, end: string, extra: { mayOverlap?: boolean; status?: "planned" | "done" } = {}) =>
-    seedEvent(app.db, user, { title, start: `2026-11-${start}:00Z`, end: `2026-11-${end}:00Z`, ...extra });
-  await add("Statistics lecture", "16T09:00", "16T10:30", { status: "done" });
-  await add("Gym", "16T18:00", "16T19:00", { status: "done" });
-  await add("Statistics revision", "17T09:00", "17T11:00");
-  await add("Call with Lucas", "17T10:00", "17T10:30");
-  await add("Lunch with Emily", "17T12:30", "17T13:30");
-  await add("Group project", "17T14:00", "17T19:00");
-  await add("Coffee", "18T08:00", "18T08:15");
-  await add("Half-marathon training", "18T18:00", "18T19:30");
-  await add("Lab session", "19T10:00", "19T12:00");
-  await add("Night shift at the library", "19T22:00", "20T02:00");
-  await add("Team meeting", "20T15:00", "20T16:00", { mayOverlap: true });
-  await add("Study group", "20T15:30", "20T16:30", { mayOverlap: true });
-  await add("Long run", "21T08:30", "21T10:00");
+  // Three goals, created in earlier weeks, so the strips have history.
+  const exam = await seedGoal(app.db, user, {
+    title: "Pass the statistics exam",
+    deadline: "2026-12-18",
+    createdAt: "2026-10-26T10:00:00Z",
+    rules: [{ kind: "hours", target: 6 }],
+  });
+  const run = await seedGoal(app.db, user, {
+    title: "Run a half marathon",
+    deadline: "2027-03-14",
+    createdAt: "2026-11-03T10:00:00Z",
+    autoBlock: true,
+    rules: [{ kind: "count", target: 2, minMinutes: 45 }],
+  });
+  const project = await seedGoal(app.db, user, {
+    title: "Finish the group project",
+    deadline: "2026-11-28",
+    createdAt: "2026-11-09T10:00:00Z",
+    rules: [{ kind: "count", target: 3 }],
+  });
+  type Extra = { mayOverlap?: boolean; status?: "planned" | "done"; goalId?: string };
+  const add = (title: string, start: string, end: string, extra: Extra = {}) =>
+    seedEvent(app.db, user, { title, start: `2026-${start}:00Z`, end: `2026-${end}:00Z`, ...extra });
+  // Earlier weeks, for the strips: the exam goal met in one week and missed in another; one run (A1-like) last week.
+  await add("Revision", "10-27T09:00", "10-27T15:00", { status: "done", goalId: exam.id });
+  await add("Revision", "11-03T09:00", "11-03T11:00", { status: "done", goalId: exam.id });
+  await add("Revision", "11-10T09:00", "11-10T15:30", { status: "done", goalId: exam.id });
+  await add("Run", "11-10T07:00", "11-10T07:50", { status: "done", goalId: run.id });
+  await add("Run", "11-12T07:00", "11-12T07:40", { status: "done", goalId: run.id });
+  await add("Project work", "11-11T14:00", "11-11T16:00", { status: "done", goalId: project.id });
+  // This week.
+  await add("Statistics lecture", "11-16T09:00", "11-16T10:30", { status: "done", goalId: exam.id });
+  await add("Gym", "11-16T18:00", "11-16T19:00", { status: "done" });
+  await add("Statistics revision", "11-17T09:00", "11-17T11:00", { status: "done", goalId: exam.id });
+  await add("Call with Lucas", "11-17T10:00", "11-17T10:30");
+  await add("Lunch with Emily", "11-17T12:30", "11-17T13:30");
+  await add("Group project", "11-17T14:00", "11-17T19:00", { goalId: project.id });
+  await add("Coffee", "11-18T08:00", "11-18T08:15");
+  await add("Half-marathon training", "11-18T18:00", "11-18T19:30", { goalId: run.id });
+  await add("Lab session", "11-19T10:00", "11-19T12:00", { goalId: exam.id });
+  await add("Night shift at the library", "11-19T22:00", "11-20T02:00");
+  await add("Team meeting", "11-20T15:00", "11-20T16:00", { mayOverlap: true, goalId: project.id });
+  await add("Study group", "11-20T15:30", "11-20T16:30", { mayOverlap: true, goalId: exam.id });
+  await add("Long run", "11-21T08:30", "11-21T10:00", { goalId: run.id });
   app.advance(27 * 60 * 60 * 1000 + 10 * 60 * 1000); // Tuesday 17 November, 12:10
   const week = await loadWeek(app.deps, user, "2026-11-16");
+  const goals = await loadGoals(app.deps, user);
   await app.close();
 
   const calendar = () =>
     renderToStaticMarkup(
-      <AppShell current="/">
-        <CalendarView week={week} nowLocal="2026-11-17T12:10" suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }} />
-      </AppShell>,
+      <Announcer>
+        <PanelState>
+          <AppShell current="/" panels={<GoalsPanel goals={goals} today="2026-11-17" />}>
+            <CalendarView
+              week={week}
+              nowLocal="2026-11-17T12:10"
+              suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }}
+              goals={goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }))}
+            />
+          </AppShell>
+        </PanelState>
+      </Announcer>,
     );
 
   mkdirSync(OUT, { recursive: true });
@@ -123,8 +168,21 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     page("Event editor", `${calendar()}<div class="preview-dim"></div>${editorMarkup}`, styles, dim),
   );
 
+  // The goal editor, open for a new goal (same static-dialog treatment as the event editor).
+  const goalEditorMarkup = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: "2026-11-17" }} onClose={() => {}} />).replace(
+    "<dialog",
+    "<dialog open",
+  );
+  const centred = `.preview-dim{position:fixed;inset:0;background:rgb(16 16 16/.2);z-index:65}
+dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
+@media (min-width:640px){dialog.event-editor[open]{inset:0;margin:auto;height:fit-content}}`;
+  writeFileSync(
+    join(OUT, "goal-editor.html"),
+    page("Goal editor", `${calendar()}<div class="preview-dim"></div>${goalEditorMarkup}`, styles, centred),
+  );
+
   writeFileSync(join(OUT, "sign-in.html"), page("Sign in", renderToStaticMarkup(<SignInPage />), styles));
   writeFileSync(join(OUT, "sign-up.html"), page("Sign up", renderToStaticMarkup(<SignUpPage />), styles));
 
-  expect(readdirSync(OUT)).toEqual(expect.arrayContaining(["week-desktop.html", "week-phone.html", "event-editor.html", "sign-in.html", "sign-up.html"]));
+  expect(readdirSync(OUT)).toEqual(expect.arrayContaining(["week-desktop.html", "week-phone.html", "event-editor.html", "goal-editor.html", "sign-in.html", "sign-up.html"]));
 });
