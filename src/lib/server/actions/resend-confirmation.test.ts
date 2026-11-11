@@ -113,3 +113,19 @@ describe("resend_confirmation rejected (nothing changes)", () => {
     expect(await snapshot()).toEqual(before);
   });
 });
+
+describe("resend_confirmation stays neutral under the 60-second limit (R30)", () => {
+  // Added in review: the limit must look the same for every address, or a second request would reveal
+  // which addresses have an unconfirmed account.
+  it("answers an unknown address asked twice within 60 seconds exactly like an unconfirmed account", async () => {
+    await app.auth.addUser("ivy@example.com", PASSWORD);
+
+    const known = [await read(await send({ email: "ivy@example.com" })), await read(await send({ email: "ivy@example.com" }))];
+    const before = await app.snapshot();
+    const unknown = [await read(await send({ email: "zoe@example.com" })), await read(await send({ email: "zoe@example.com" }))];
+
+    expect(unknown).toEqual(known);
+    expect(unknown[1]).toEqual({ status: 429, body: { error: "too_soon", message: "Please wait a minute before asking again" } });
+    expect(await app.snapshot()).toEqual(before);
+  });
+});

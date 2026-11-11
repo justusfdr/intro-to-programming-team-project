@@ -11,6 +11,11 @@ export type TestApp = {
   db: TestDb;
   auth: FakeAuth;
   deps: Deps;
+  /**
+   * Everything an account action could change: rows in auth.users and the app tables, the fake's
+   * accounts (confirmed, password), e-mails sent and the session. Compare before and after a rejection.
+   */
+  snapshot(): Promise<Record<string, unknown>>;
   /** Empties the database and the fake sign-in service. Call it in beforeEach. */
   reset(): Promise<void>;
   /** Moves the fake clock forward. */
@@ -31,6 +36,19 @@ export async function createTestApp(): Promise<TestApp> {
     db,
     auth,
     deps: { auth, withUser: db.withUser },
+    async snapshot() {
+      const users = await db.admin("select id, email from auth.users order by email");
+      const profiles = await db.admin("select * from app.profiles order by id");
+      const settings = await db.admin("select * from app.settings order by user_id");
+      return {
+        users,
+        profiles,
+        settings,
+        accounts: auth.accounts(),
+        emails: [...auth.outbox],
+        session: auth.session && { ...auth.session },
+      };
+    },
     async reset() {
       auth.reset();
       await db.admin("delete from auth.users");

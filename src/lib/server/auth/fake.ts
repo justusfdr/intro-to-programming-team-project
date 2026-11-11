@@ -91,6 +91,13 @@ export class FakeAuth implements AuthService {
     return this.users.get(email)?.confirmed ?? false;
   }
 
+  /** Every account with its state, sorted by email: lets a test prove that nothing changed. */
+  accounts(): { email: string; confirmed: boolean; password: string }[] {
+    return [...this.users.values()]
+      .map(({ email, confirmed, password }) => ({ email, confirmed, password }))
+      .sort((x, y) => x.email.localeCompare(y.email));
+  }
+
   hasUser(email: string): boolean {
     return this.users.has(email);
   }
