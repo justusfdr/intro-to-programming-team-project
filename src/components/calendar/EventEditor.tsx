@@ -10,7 +10,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
-import { Button } from "@/components/ui/Button";
+import { Button, LinkButton } from "@/components/ui/Button";
 import { Check, Close, Trash, Warning } from "@/components/ui/icons";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import type { EventDto, WeekEvent } from "@/lib/events/types";
@@ -263,6 +263,11 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
               <Button variant="secondary" size="sm" disabled={busy} onClick={toggleDone}>
                 {event.status === "done" ? "Mark not done" : "Mark done"}
               </Button>
+            )}
+            {event && (
+              <LinkButton href={`/focus?event=${event.id}`} variant="secondary" size="sm">
+                Start focus
+              </LinkButton>
             )}
             {event && (
               <Button

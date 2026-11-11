@@ -1,0 +1,58 @@
+import { describe, expect, it } from "vitest";
+import {
+  clockText,
+  focusedMinutes,
+  isSessionLength,
+  lengthForEvent,
+  minutesText,
+  pausedSecondsAfterResume,
+  plannedEnd,
+  secondsLeft,
+  type SessionTimes,
+} from "./session-time";
+
+const at = (time: string) => new Date(`2026-11-16T${time}:00Z`);
+
+function session(fields: Partial<SessionTimes>): SessionTimes {
+  return { status: "running", plannedMinutes: 60, startedAt: at("09:00"), pausedAt: null, pausedSeconds: 0, endedAt: null, ...fields };
+}
+
+describe("session arithmetic (R12, R13)", () => {
+  it("knows the five lengths only", () => {
+    for (const length of [15, 30, 60, 90, 120]) expect(isSessionLength(length)).toBe(true);
+    for (const other of [25, 0, 61, "60", null, 60.5]) expect(isSessionLength(other)).toBe(false);
+  });
+
+  it("A2: 60 minutes from 09:00, paused 09:20 to 09:30, ended 09:55: focused 45 minutes", () => {
+    const paused = session({ status: "paused", pausedAt: at("09:20") });
+    const pausedSeconds = pausedSecondsAfterResume(paused, at("09:30"));
+    expect(pausedSeconds).toBe(600);
+    const ended = session({ status: "finished", pausedSeconds, endedAt: at("09:55") });
+    expect(focusedMinutes(ended, at("12:00"))).toBe(45);
+  });
+
+  it("rounds focused time down to whole minutes", () => {
+    const ended = session({ status: "finished", endedAt: new Date(at("09:00").getTime() + 59_999) });
+    expect(focusedMinutes(ended, at("12:00"))).toBe(0);
+  });
+
+  it("ends a running session at start + planned minutes + paused time", () => {
+    expect(plannedEnd(session({ pausedSeconds: 600 })).toISOString()).toBe(at("10:10").toISOString());
+  });
+
+  it("counts down only while running: a paused session keeps its time left", () => {
+    expect(secondsLeft(session({}), at("09:15"))).toBe(45 * 60);
+    const paused = session({ status: "paused", pausedAt: at("09:15") });
+    expect(secondsLeft(paused, at("11:00"))).toBe(45 * 60);
+    expect(secondsLeft(session({}), at("11:00"))).toBe(0);
+  });
+
+  it("suggests the shortest length that covers an event, at most 120", () => {
+    expect([lengthForEvent(10), lengthForEvent(45), lengthForEvent(60), lengthForEvent(240)]).toEqual([15, 60, 60, 120]);
+  });
+
+  it("writes minutes and timers for people", () => {
+    expect([minutesText(45), minutesText(60), minutesText(90)]).toEqual(["45 min", "1 h", "1 h 30 min"]);
+    expect([clockText(1499), clockText(3900)]).toEqual(["24:59", "1:05:00"]);
+  });
+});

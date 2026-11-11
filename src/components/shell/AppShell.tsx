@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SignOutButton } from "@/components/account/SignOutButton";
-import { CalendarIcon } from "@/components/ui/icons";
+import { CalendarIcon, TimerIcon } from "@/components/ui/icons";
 import { Logo } from "./Logo";
 
 // The frame of every signed-in page, in the prototype's layout: a sidebar on wider screens
@@ -10,7 +10,10 @@ import { Logo } from "./Logo";
 // the prototype: the goals panel to the left of the page (`panelsLeft`), the AI chat panel later to
 // the right (`panelsRight`); each collapses on its own.
 
-const NAV = [{ href: "/", label: "Calendar", icon: CalendarIcon }] as const;
+const NAV = [
+  { href: "/", label: "Calendar", icon: CalendarIcon },
+  { href: "/focus", label: "Focus", icon: TimerIcon },
+] as const;
 
 type Props = {
   /** The address of the current page, to mark it in the navigation. */
