@@ -38,7 +38,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   return (
     <Announcer>
       <PanelState>
-        <AppShell current="/" panels={<GoalsPanel goals={goals} today={nowLocal.slice(0, 10)} />}>
+        <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} today={nowLocal.slice(0, 10)} />}>
           <CalendarView
             week={week}
             nowLocal={nowLocal}

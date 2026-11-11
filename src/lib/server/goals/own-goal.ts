@@ -20,10 +20,14 @@ export async function findOwnGoal(query: Query, id: string): Promise<GoalRow> {
   return row;
 }
 
-/** The user's rule (with its goal), locked. "Not found" otherwise. */
+/**
+ * The user's rule (with its goal). "Not found" otherwise. Not locked: actions lock the GOAL with
+ * findOwnGoal, always before they change its rules, so two actions on one goal take turns in the
+ * same order and cannot block each other forever (deadlock).
+ */
 export async function findOwnRule(query: Query, id: string): Promise<RuleRow> {
   if (!UUID.test(id)) throw notFound();
-  const [row] = await query<RuleRow>("select id, goal_id from app.rules where id = $1 for update", [id]);
+  const [row] = await query<RuleRow>("select id, goal_id from app.rules where id = $1", [id]);
   if (!row) throw notFound();
   return row;
 }

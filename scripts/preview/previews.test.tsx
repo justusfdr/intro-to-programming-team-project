@@ -136,7 +136,7 @@ it("writes the preview files", async () => {
     renderToStaticMarkup(
       <Announcer>
         <PanelState>
-          <AppShell current="/" panels={<GoalsPanel goals={goals} today="2026-11-17" />}>
+          <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} today="2026-11-17" />}>
             <CalendarView
               week={week}
               nowLocal="2026-11-17T12:10"
@@ -156,7 +156,13 @@ it("writes the preview files", async () => {
   // The editor open on the revision that overlaps the call. A static page cannot open a modal
   // dialog, so the dialog is shown with the `open` attribute and a dimmed layer is drawn behind it.
   const revision = week.days[1].events.find((e) => e.title === "Statistics revision")!;
-  const editorMarkup = renderToStaticMarkup(<EventEditor state={{ mode: "edit", event: revision }} onClose={() => {}} />).replace(
+  const editorMarkup = renderToStaticMarkup(
+    <EventEditor
+      state={{ mode: "edit", event: revision }}
+      goals={goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }))}
+      onClose={() => {}}
+    />,
+  ).replace(
     "<dialog",
     "<dialog open",
   );

@@ -36,15 +36,19 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
       assertUnchangedSince(row, body.data.updatedAt);
 
       const event = checkEventFields(body.data, await readTimeZone(query));
-      // The goal must be the user's own, else "Not found" (R3).
-      await assertOwnGoal(query, event.goalId);
+      // The goal must be the user's own, else "Not found" (R3). Left out of the body: the goal stays.
+      if (event.goalId !== undefined) await assertOwnGoal(query, event.goalId);
 
       // updated_at is set again by the database trigger; the user never sets it.
       const [updated] = await query<EventRow>(
-        `update app.events set title = $2, start_at = $3, end_at = $4, may_overlap = $5, goal_id = $6
-         where id = $1
-         returning ${EVENT_COLUMNS}`,
-        [id, event.title, event.startAt, event.endAt, event.mayOverlap, event.goalId],
+        // may_overlap and goal_id change only when the body names them ($7: whether it names the goal).
+        `update app.events
+            set title = $2, start_at = $3, end_at = $4,
+                may_overlap = coalesce($5, may_overlap),
+                goal_id = case when $7 then $6 else goal_id end
+          where id = $1
+          returning ${EVENT_COLUMNS}`,
+        [id, event.title, event.startAt, event.endAt, event.mayOverlap ?? null, event.goalId ?? null, event.goalId !== undefined],
       );
       return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(updated) });
     });

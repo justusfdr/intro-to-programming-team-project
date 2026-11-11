@@ -29,9 +29,9 @@ export function removeRule(request: Request, deps: Pick<Deps, "auth" | "withUser
     if (!body.ok) return body.response;
 
     return deps.withUser(userId, async (query) => {
-      // Locks the rule until the transaction ends. "Not found" for another user's or a missing rule (R3).
+      // "Not found" for another user's or a missing rule (R3).
       const rule = await findOwnRule(query, ruleId);
-      // Locks the goal too, so a second device waits instead of racing.
+      // Locks the goal, so a second device waits instead of racing.
       const goal = await findOwnGoal(query, rule.goal_id);
       assertUnchangedSince(goal, body.data.updatedAt);
 

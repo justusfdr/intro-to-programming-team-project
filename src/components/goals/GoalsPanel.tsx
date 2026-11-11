@@ -79,7 +79,7 @@ export function GoalsPanel({ goals, today }: Props) {
   return (
     <>
       {panels.isOpen("goals") && (
-        <aside aria-labelledby="goals-panel-title" className="sticky top-0 hidden h-dvh w-[300px] shrink-0 border-l border-line-subtle bg-canvas xl:block">
+        <aside aria-labelledby="goals-panel-title" className="sticky top-0 hidden h-dvh w-[280px] shrink-0 border-r border-line-subtle bg-canvas xl:block">
           <PanelContent
             titleId="goals-panel-title"
             goals={goals}

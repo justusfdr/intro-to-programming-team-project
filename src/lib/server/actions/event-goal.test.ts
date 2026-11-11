@@ -93,10 +93,11 @@ describe("edit_event with a goal", () => {
     expect(await eventsOf(app.db, alice)).toMatchObject([{ goal_id: null }]);
   });
 
-  it("saves goal_id null when goalId is left out (the old body keeps working)", async () => {
+  // Changed in review: an edit that does not mention the goal keeps it (it used to clear it).
+  it("keeps the event's goal and may_overlap when the body leaves them out", async () => {
     const alice = await app.signedInAs("alice@example.com", { timeZone: "Europe/Lisbon" });
     const run = await seedGoal(app.db, alice, HALF_MARATHON);
-    const { id } = await seedEvent(app.db, alice, { ...SEED, goalId: run.id });
+    const { id } = await seedEvent(app.db, alice, { ...SEED, goalId: run.id, mayOverlap: true });
 
     const answer = await read(
       await editEvent(
@@ -112,7 +113,7 @@ describe("edit_event with a goal", () => {
     );
 
     expect(answer.status).toBe(200);
-    expect(await eventsOf(app.db, alice)).toMatchObject([{ goal_id: null }]);
+    expect(await eventsOf(app.db, alice)).toMatchObject([{ goal_id: run.id, may_overlap: true, title: "Statistics revision" }]);
   });
 });
 

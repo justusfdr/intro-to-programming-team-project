@@ -22,8 +22,8 @@ export type EditorState = { mode: "create"; start: string; end: string } | { mod
 
 type Props = {
   state: EditorState;
-  /** The user's goals, for the Goal list ("No goal" is always there). Empty when none are passed. */
-  goals?: GoalLabel[];
+  /** The user's goals, for the Goal list ("No goal" is always there). */
+  goals: GoalLabel[];
   onClose: () => void;
 };
 
@@ -41,7 +41,7 @@ function Eyebrow({ children, htmlFor }: { children: string; htmlFor?: string }) 
   );
 }
 
-export function EventEditor({ state, goals = [], onClose }: Props) {
+export function EventEditor({ state, goals, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const open = state !== null;
 

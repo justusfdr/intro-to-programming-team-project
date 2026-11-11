@@ -17,7 +17,18 @@ export const EventFields = z.object({
   goalId: z.string().max(40).nullable().optional(),
 });
 
-export type CheckedEvent = { title: string; startAt: Date; endAt: Date; mayOverlap: boolean; goalId: string | null };
+/**
+ * mayOverlap and goalId are undefined when the body leaves them out. create_event then uses the
+ * defaults (false, no goal); edit_event keeps what the event has, so an edit that does not mention
+ * them never changes them. goalId null means "no goal".
+ */
+export type CheckedEvent = {
+  title: string;
+  startAt: Date;
+  endAt: Date;
+  mayOverlap: boolean | undefined;
+  goalId: string | null | undefined;
+};
 
 const MAX_LENGTH_MS = 24 * 60 * 60 * 1000;
 
@@ -35,5 +46,5 @@ export function checkEventFields(fields: z.infer<typeof EventFields>, timeZone: 
   if (endAt.getTime() - startAt.getTime() > MAX_LENGTH_MS) {
     throw new ActionError(400, "too_long", MESSAGES.atMost24Hours);
   }
-  return { title, startAt, endAt, mayOverlap: fields.mayOverlap ?? false, goalId: fields.goalId ?? null };
+  return { title, startAt, endAt, mayOverlap: fields.mayOverlap, goalId: fields.goalId };
 }

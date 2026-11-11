@@ -29,14 +29,15 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
       // The form sends local times; the user's time zone turns them into instants (stored in UTC).
       const event = checkEventFields(body.data, await readTimeZone(query));
       // The goal must be the user's own, else "Not found" (R3).
-      await assertOwnGoal(query, event.goalId);
+      const goalId = event.goalId ?? null;
+      await assertOwnGoal(query, goalId);
 
       // user_id, status ("planned"), source ("app") and updated_at are filled in by the database.
       const [row] = await query<EventRow>(
         `insert into app.events (title, start_at, end_at, may_overlap, goal_id)
          values ($1, $2, $3, $4, $5)
          returning ${EVENT_COLUMNS}`,
-        [event.title, event.startAt, event.endAt, event.mayOverlap, event.goalId],
+        [event.title, event.startAt, event.endAt, event.mayOverlap ?? false, goalId],
       );
       return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(row) }, 201);
     });
