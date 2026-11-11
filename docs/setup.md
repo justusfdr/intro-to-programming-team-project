@@ -10,7 +10,7 @@ Keep every key and password in your password manager. Never paste them into the 
 ## 2. Create the tables
 1. Open **SQL Editor** in the project.
 2. Run each file in `supabase/migrations/` in name order (oldest first): open the file, copy all of it, paste it into a new query, press **Run**. Each file runs only once.
-3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles` and `settings`.
+3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles`, `settings` and `events`.
 4. Open **Project Settings > Data API**. Under **Exposed schemas**, `app` must **not** be listed. Do not add it. (Our server is the only way to our tables.)
 
 ## 3. Switch on e-mail confirmation
