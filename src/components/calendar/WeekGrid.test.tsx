@@ -82,4 +82,10 @@ describe("week view markup", () => {
     expect(html.indexOf('role="status"')).toBeGreaterThan(-1);
     expect(html.indexOf('role="status"')).toBeLessThan(html.indexOf("<ol"));
   });
+
+  it("gives every event its actions as real buttons with visible text", () => {
+    const html = renderToStaticMarkup(<WeekGrid week={week([event({}), event({ id: "e2", status: "done" })])} />);
+    for (const label of [">Mark done<", ">Mark not done<", ">Edit<", ">Delete<"]) expect(html).toContain(label);
+    expect(html).not.toMatch(/<div[^>]*onClick/);
+  });
 });
