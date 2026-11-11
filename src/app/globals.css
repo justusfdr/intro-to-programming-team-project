@@ -18,7 +18,8 @@
   --color-muted: #ededef;
   --color-line: #e0e0e3;
   --color-line-subtle: #e8e8e8;
-  --color-today: #ff101a;
+  /* Slightly darker than the prototype's #ff101a, so white text on it keeps a 4.5:1 contrast. */
+  --color-today: #e5000f;
   --color-success: #15803d;
   --color-success-soft: #ecfdf5;
   --color-danger: #be123c;
