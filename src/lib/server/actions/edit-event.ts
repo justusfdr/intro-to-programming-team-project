@@ -12,6 +12,7 @@ import { handleAction } from "@/lib/server/errors";
 import { checkEventFields, EventFields } from "@/lib/server/events/input";
 import { assertUnchangedSince, findOwnEvent } from "@/lib/server/events/own-event";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
+import { assertOwnGoal } from "@/lib/server/goals/own-goal";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { readTimeZone } from "@/lib/server/settings";
@@ -35,13 +36,15 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
       assertUnchangedSince(row, body.data.updatedAt);
 
       const event = checkEventFields(body.data, await readTimeZone(query));
+      // The goal must be the user's own, else "Not found" (R3).
+      await assertOwnGoal(query, event.goalId);
 
       // updated_at is set again by the database trigger; the user never sets it.
       const [updated] = await query<EventRow>(
-        `update app.events set title = $2, start_at = $3, end_at = $4, may_overlap = $5
+        `update app.events set title = $2, start_at = $3, end_at = $4, may_overlap = $5, goal_id = $6
          where id = $1
          returning ${EVENT_COLUMNS}`,
-        [id, event.title, event.startAt, event.endAt, event.mayOverlap],
+        [id, event.title, event.startAt, event.endAt, event.mayOverlap, event.goalId],
       );
       return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(updated) });
     });

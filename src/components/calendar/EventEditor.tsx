@@ -15,11 +15,17 @@ import { Check, Close, Trash, Warning } from "@/components/ui/icons";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import type { EventDto, WeekEvent } from "@/lib/events/types";
 import { useAnnounce } from "./Announcer";
+import type { GoalLabel } from "./TimeGrid";
 
 /** What the editor shows: a new event with suggested times, or an existing event. */
 export type EditorState = { mode: "create"; start: string; end: string } | { mode: "edit"; event: WeekEvent } | null;
 
-type Props = { state: EditorState; onClose: () => void };
+type Props = {
+  state: EditorState;
+  /** The user's goals, for the Goal list ("No goal" is always there). Empty when none are passed. */
+  goals?: GoalLabel[];
+  onClose: () => void;
+};
 
 const inputClass =
   "block h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10";
@@ -35,7 +41,7 @@ function Eyebrow({ children, htmlFor }: { children: string; htmlFor?: string }) 
   );
 }
 
-export function EventEditor({ state, onClose }: Props) {
+export function EventEditor({ state, goals = [], onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const open = state !== null;
 
@@ -57,12 +63,12 @@ export function EventEditor({ state, onClose }: Props) {
       className="event-editor m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-surface p-0 text-ink shadow-pop sm:mt-4 sm:mr-4 sm:ml-auto sm:max-h-[calc(100dvh-2rem)] sm:w-[360px] sm:rounded-card"
     >
       {/* A new key for every event gives the form fresh fields and messages. */}
-      {state && <EditorBody key={state.mode === "edit" ? state.event.id : "new"} state={state} onClose={onClose} />}
+      {state && <EditorBody key={state.mode === "edit" ? state.event.id : "new"} state={state} goals={goals} onClose={onClose} />}
     </dialog>
   );
 }
 
-function EditorBody({ state, onClose }: { state: Exclude<EditorState, null>; onClose: () => void }) {
+function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, null>; goals: GoalLabel[]; onClose: () => void }) {
   const router = useRouter();
   const announce = useAnnounce();
   // The event as last saved: marking done updates it, so a later save carries the new updated_at (R4).
@@ -78,8 +84,14 @@ function EditorBody({ state, onClose }: { state: Exclude<EditorState, null>; onC
 
   const prefix = event ? event.id : "new";
   const initial = event
-    ? { title: event.title, start: event.startLocal, end: event.endLocal, mayOverlap: event.mayOverlap }
-    : { title: "", start: state.mode === "create" ? state.start : "", end: state.mode === "create" ? state.end : "", mayOverlap: false };
+    ? { title: event.title, start: event.startLocal, end: event.endLocal, mayOverlap: event.mayOverlap, goalId: event.goalId ?? "" }
+    : {
+        title: "",
+        start: state.mode === "create" ? state.start : "",
+        end: state.mode === "create" ? state.end : "",
+        mayOverlap: false,
+        goalId: "",
+      };
 
   /** Sends one action; on success announces the message, closes the editor and reloads the week. */
   async function run(path: string, body: unknown, { close = true } = {}) {
@@ -102,6 +114,8 @@ function EditorBody({ state, onClose }: { state: Exclude<EditorState, null>; onC
       start: String(form.get("start") ?? ""),
       end: String(form.get("end") ?? ""),
       mayOverlap: form.get("mayOverlap") === "on",
+      // "" is "No goal": the server takes null.
+      goalId: String(form.get("goal") ?? "") || null,
     };
     if (event) await run(`/api/events/${event.id}/edit`, { ...values, updatedAt: event.updatedAt });
     else await run("/api/events", values);
@@ -193,6 +207,18 @@ function EditorBody({ state, onClose }: { state: Exclude<EditorState, null>; onC
             />
             May overlap other events
           </label>
+        </section>
+
+        <section className="flex flex-col gap-1.5">
+          <Eyebrow htmlFor={`${prefix}-goal`}>Goal</Eyebrow>
+          <select id={`${prefix}-goal`} name="goal" defaultValue={initial.goalId} className={inputClass}>
+            <option value="">No goal</option>
+            {goals.map((goal) => (
+              <option key={goal.id} value={goal.id}>
+                {goal.title}
+              </option>
+            ))}
+          </select>
         </section>
 
         {result && <FormMessage tone="error" text={result.message} />}

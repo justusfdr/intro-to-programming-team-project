@@ -148,7 +148,7 @@ export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
           />
         </div>
       </div>
-      <EventEditor state={editor} onClose={() => setEditor(null)} />
+      <EventEditor state={editor} goals={goals} onClose={() => setEditor(null)} />
     </>
   );
 }

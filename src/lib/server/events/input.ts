@@ -13,9 +13,11 @@ export const EventFields = z.object({
   start: z.string().max(32),
   end: z.string().max(32),
   mayOverlap: z.boolean().optional(),
+  /** The goal of the event, or null for none. Checked against the user's goals by the action (R3). */
+  goalId: z.string().max(40).nullable().optional(),
 });
 
-export type CheckedEvent = { title: string; startAt: Date; endAt: Date; mayOverlap: boolean };
+export type CheckedEvent = { title: string; startAt: Date; endAt: Date; mayOverlap: boolean; goalId: string | null };
 
 const MAX_LENGTH_MS = 24 * 60 * 60 * 1000;
 
@@ -33,5 +35,5 @@ export function checkEventFields(fields: z.infer<typeof EventFields>, timeZone: 
   if (endAt.getTime() - startAt.getTime() > MAX_LENGTH_MS) {
     throw new ActionError(400, "too_long", MESSAGES.atMost24Hours);
   }
-  return { title, startAt, endAt, mayOverlap: fields.mayOverlap ?? false };
+  return { title, startAt, endAt, mayOverlap: fields.mayOverlap ?? false, goalId: fields.goalId ?? null };
 }
