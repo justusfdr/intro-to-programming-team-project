@@ -1,16 +1,17 @@
 "use client";
 
 // Card "Focus blocker" in Settings, copied from the prototype's site-blocker card: status pill, the block
-// list with add and remove, and how to install the extension. Moved here from the Focus page (spec 12),
+// list with add and remove, and how to install the extension: a download of the extension set to this
+// app, and a guide in five steps (spec 18). Moved here from the Focus page (spec 12),
 // which keeps a small status chip. No on/off switch: when blocking runs is calculated (R15).
 // The server checks every rule (spec 05); this only sends the input and shows the answer.
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
-import { Lock, ShieldCheck, X } from "lucide-react";
+import { Check, Copy, Download, Lock, ShieldCheck, X } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { useDisplay } from "@/components/shell/DisplayProvider";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonClass } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { MESSAGES } from "@/lib/messages";
@@ -145,24 +146,119 @@ export function BlockerCard({ data }: { data: BlockerData }) {
   );
 }
 
+/** One step of the guide: its number, a short title, and what to do. */
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+  return (
+    <li className="relative flex gap-3 pb-5 last:pb-0">
+      {/* The line down to the next step. */}
+      <span aria-hidden="true" className="absolute bottom-0 left-[13px] top-8 w-px bg-line-subtle [li:last-child>&]:hidden" />
+      <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-semibold tabular text-white">
+        {n}
+      </span>
+      <div className="min-w-0 flex-1 pt-0.5">
+        <p className="text-sm font-medium text-ink">
+          <span className="sr-only">Step {n}: </span>
+          {title}
+        </p>
+        <div className="mt-1 space-y-2 text-sm text-ink-2">{children}</div>
+      </div>
+    </li>
+  );
+}
+
+/** Chrome does not open chrome:// links from a website, so the address is copied instead. */
+function CopyAddress({ address }: { address: string }) {
+  const announce = useAnnounce();
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      announce("Copied");
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // No clipboard access (an old browser, or not allowed): the address stays readable next to the button.
+    }
+  }
+
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5">
+      <Code>{address}</Code>
+      <button
+        type="button"
+        onClick={copy}
+        className={`inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-line-subtle bg-surface px-2 text-[11px] font-medium text-ink-2 hover:bg-raised hover:text-ink ${FOCUS}`}
+      >
+        {copied ? <Check className="size-3" strokeWidth={2.2} aria-hidden="true" /> : <Copy className="size-3" strokeWidth={2} aria-hidden="true" />}
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </span>
+  );
+}
+
 function InstallSteps() {
   return (
     <>
-      <ol className="list-decimal space-y-1.5 pl-5 text-sm text-ink-2">
-        <li>
-          Get the extension folder from the project (the folder <Code>extension</Code>).
-        </li>
-        <li>
-          In Chrome, open <Code>chrome://extensions</Code> and turn on Developer mode.
-        </li>
-        <li>
-          Click Load unpacked and choose the <Code>extension</Code> folder.
-        </li>
-        <li>Stay signed in to Lock In in the same Chrome profile. Within a minute this card says &ldquo;Blocker connected&rdquo;.</li>
+      <p className="mb-4 text-sm text-ink-2">Takes about two minutes. You need Google Chrome on this computer.</p>
+      <ol className="list-none">
+        <Step n={1} title="Download the extension">
+          <p>
+            <a href="/api/extension/download" download className={buttonClass("primary", "sm")}>
+              <Download className="size-3.5" strokeWidth={2} aria-hidden="true" />
+              Download extension
+            </a>
+          </p>
+          <p>
+            Open the downloaded file <Code>lock-in-blocker.zip</Code> to unpack it. You get a folder <Code>lock-in-blocker</Code>. Move it to a place
+            where it can stay, for example Documents: Chrome loads the extension from that folder every time.
+          </p>
+        </Step>
+        <Step n={2} title="Open Chrome&rsquo;s extensions page">
+          <p>
+            Copy this address and paste it into Chrome&rsquo;s address bar: <CopyAddress address="chrome://extensions" />
+          </p>
+        </Step>
+        <Step n={3} title="Turn on Developer mode">
+          <p>
+            It is the switch at the top right of that page. Chrome needs it for extensions that do not come from its store.
+          </p>
+        </Step>
+        <Step n={4} title="Load the folder">
+          <p>
+            Click <strong className="font-medium text-ink">Load unpacked</strong> at the top left and choose the folder <Code>lock-in-blocker</Code>.
+            &ldquo;Lock In Blocker&rdquo; appears in the list.
+          </p>
+        </Step>
+        <Step n={5} title="Done">
+          <p>
+            Stay signed in to Lock In in the same Chrome profile. Within a minute this card says &ldquo;Blocker connected&rdquo;.
+          </p>
+        </Step>
       </ol>
+
+      <details className="group mt-5 rounded-lg bg-raised px-3 py-2">
+        <summary className={`cursor-pointer rounded text-sm font-medium text-ink ${FOCUS}`}>Still &ldquo;Not connected&rdquo; after a minute?</summary>
+        <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-ink-2">
+          <li>
+            <strong className="font-medium text-ink">Not in Chrome?</strong> The blocker does not work in Safari, Firefox or other browsers. Open Lock In
+            in Chrome and sign in there.
+          </li>
+          <li>
+            <strong className="font-medium text-ink">Another Chrome profile?</strong> The extension and your Lock In sign-in must be in the same profile.
+          </li>
+          <li>
+            <strong className="font-medium text-ink">Third-party cookies blocked?</strong> In Chrome&rsquo;s settings, under Privacy and security, Third-party
+            cookies, add this site to &ldquo;Sites allowed to use third-party cookies&rdquo;.
+          </li>
+          <li>
+            <strong className="font-medium text-ink">Folder moved or deleted?</strong> Chrome then loses the extension. Load the folder again (step 4).
+          </li>
+        </ul>
+      </details>
+
       <p className="mt-3 text-xs text-ink-3">
-        The blocker works only in Chrome on this computer, and only if Chrome allows third-party cookies for this site. It is a help, not a lock: you
-        can end a session or edit the list at any time.
+        The blocker works only in Chrome on this computer. It is a help, not a lock: you can end a session or edit the list at any time.
       </p>
     </>
   );

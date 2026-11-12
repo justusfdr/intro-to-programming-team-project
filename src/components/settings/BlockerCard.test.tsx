@@ -43,6 +43,17 @@ describe("blocker card", () => {
     expect(html).toContain("Install on another computer");
   });
 
+  it("offers the extension as a download and the guide in five steps (spec 18)", () => {
+    const html = renderToStaticMarkup(<BlockerCard data={{ ...DATA, connected: false }} />);
+    expect(html).toMatch(/<a href="\/api\/extension\/download" download=""[^>]*>.*Download extension<\/a>/s);
+    const steps = ["Download the extension", "Open Chrome’s extensions page", "Turn on Developer mode", "Load the folder", "Done"].map((title) => html.indexOf(title));
+    expect(steps.every((at) => at >= 0)).toBe(true);
+    expect([...steps].sort((a, b) => a - b)).toEqual(steps);
+    expect(html).toContain(">chrome://extensions</code>");
+    expect(html).toMatch(/<button type="button"[^>]*>.*Copy<\/button>/s);
+    expect(html).toContain("The blocker does not work in Safari, Firefox or other browsers.");
+  });
+
   it("can be reached from the Focus page's chip (#blocker)", () => {
     expect(renderToStaticMarkup(<BlockerCard data={DATA} />)).toMatch(/^<div class="[^"]*scroll-mt-6[^"]*" id="blocker" role="region"/);
   });
