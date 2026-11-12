@@ -41,8 +41,16 @@ The names are listed in `.env.example`.
    - `SUPABASE_PUBLISHABLE_KEY`: **Project Settings > API Keys**, the publishable key (`sb_publishable_…`).
    - `DATABASE_URL`: **Connect** (top of the dashboard) **> Transaction pooler** (port 6543). Replace `[YOUR-PASSWORD]` with the database password from step 1.
    - `APP_URL`: `http://localhost:3000`.
+   - `DATABASE_CA_CERT` (optional, recommended): the database's certificate. In the dashboard open
+     **Project Settings > Database**, section **SSL configuration**, and click **Download certificate**. Put the
+     whole file content in the variable (on one line, write `\n` for each line break). With it the app checks
+     that it really talks to your database (certificate and host name); without it the connection is still
+     encrypted, but not checked, and the server log says so once at start.
+   - In the same section switch on **Enforce SSL on incoming connections**, so the database itself refuses
+     unencrypted connections. The app always encrypts (except for a database on `localhost`), whatever the
+     connection string says.
 2. Never use the secret key (`sb_secret_…`) or the old `service_role` key. The app does not need them.
-3. On Vercel: **Project > Settings > Environment Variables**, add the same four names. `APP_URL` is the deployed address there, without a slash at the end.
+3. On Vercel: **Project > Settings > Environment Variables**, add the same names (`DATABASE_CA_CERT` too, if you use it). `APP_URL` is the deployed address there, without a slash at the end.
 
 ## 7. Confirm a test account by hand
 The built-in e-mail sender allows only **2 e-mails per hour** for the whole project. To confirm a test account without an e-mail:
