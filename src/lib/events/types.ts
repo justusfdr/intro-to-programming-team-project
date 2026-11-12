@@ -5,18 +5,27 @@ export type EventStatus = "planned" | "done";
 export type EventDto = {
   id: string;
   title: string;
-  startAt: string;
-  endAt: string;
+  /** R29: an all-day event has a first and last day and no times; a timed event the other way round. */
+  allDay: boolean;
+  startAt: string | null;
+  endAt: string | null;
+  firstDay: string | null;
+  lastDay: string | null;
   mayOverlap: boolean;
   status: EventStatus;
   /** The goal the event belongs to, or null. */
   goalId: string | null;
+  /** Events of one series share it (R28); null for a single event. */
+  seriesId: string | null;
   /** Sent back with every edit and delete, so the server can see whether the row changed since (R4). */
   updatedAt: string;
 };
 
-/** An event as the week view shows it: the event plus what is calculated for display. */
-export type WeekEvent = EventDto & {
+/** A timed event as the week view shows it: the event plus what is calculated for display. */
+export type WeekEvent = Omit<EventDto, "startAt" | "endAt"> & {
+  allDay: false;
+  startAt: string;
+  endAt: string;
   /** R10: overlaps another event and either may not overlap. Calculated, never saved. */
   conflict: boolean;
   /** Local start and end time, "09:00". */
@@ -29,7 +38,18 @@ export type WeekEvent = EventDto & {
   endLocal: string;
 };
 
-export type WeekDay = { date: string; label: string; isToday: boolean; events: WeekEvent[] };
+/** An all-day event as the week view shows it (R29): on each day from its first to its last day. */
+export type AllDayEvent = Omit<EventDto, "startAt" | "endAt" | "firstDay" | "lastDay"> & {
+  allDay: true;
+  firstDay: string;
+  lastDay: string;
+};
+
+/** Any event the calendar can open in the editor. */
+export type CalendarEvent = WeekEvent | AllDayEvent;
+
+/** A day of the week: its timed events (by start, R2) and the all-day events covering it. */
+export type WeekDay = { date: string; label: string; isToday: boolean; events: WeekEvent[]; allDay: AllDayEvent[] };
 
 export type WeekData = {
   timeZone: string;

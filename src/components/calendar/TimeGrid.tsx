@@ -10,7 +10,7 @@
 // there; keyboard users use "New event".
 import type { MouseEvent } from "react";
 import { blockBox, formatMinute, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
-import type { WeekDay, WeekEvent } from "@/lib/events/types";
+import type { AllDayEvent, CalendarEvent, WeekDay } from "@/lib/events/types";
 import { Check, Warning } from "@/components/ui/icons";
 import { goalColor } from "@/lib/goals/colors";
 import { dayParts } from "@/lib/time/zoned";
@@ -27,7 +27,7 @@ type Props = {
   nowMin: number | null;
   /** On phones only this day's column is shown (the day strip above chooses it). */
   selectedDay: string;
-  onOpenEvent: (event: WeekEvent) => void;
+  onOpenEvent: (event: CalendarEvent) => void;
   onCreateAt: (date: string, slot: { startMin: number; endMin: number }) => void;
 };
 
@@ -93,6 +93,61 @@ function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
   );
 }
 
+/** "Exam week, all day, Monday 16 November to Friday 20 November". */
+function allDayLabel(event: AllDayEvent): string {
+  const first = dayParts(event.firstDay).long;
+  const days = event.lastDay === event.firstDay ? first : `${first} to ${dayParts(event.lastDay).long}`;
+  return `${event.title}, all day, ${days}`;
+}
+
+const allDayClass =
+  "block w-full truncate rounded-md border border-line bg-raised px-1.5 py-0.5 text-left text-[11px] font-medium leading-[15px] text-ink hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40";
+
+type AllDayRowProps = { days: WeekDay[]; selectedDay: string; onOpenEvent: (event: CalendarEvent) => void };
+
+/**
+ * All-day events (R29) in a row above the hours: on wider screens one bar per event across its days
+ * of this week, on phones the chosen day's events. Each event is one button with its days in words.
+ */
+function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
+  const events = [...new Map(days.flatMap((d) => d.allDay).map((e) => [e.id, e])).values()];
+  if (events.length === 0) return null;
+  const chosen = days.find((d) => d.date === selectedDay)?.allDay ?? [];
+  const columnOf = (date: string) => days.findIndex((d) => d.date === date);
+
+  return (
+    <section aria-label="All day" className={`${chosen.length ? "flex" : "hidden"} border-b border-line-subtle md:flex`}>
+      <div aria-hidden className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] leading-[12px] font-medium text-ink-2">
+        All day
+      </div>
+      {/* Phones: the chosen day only. */}
+      <ul className="flex min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:hidden">
+        {chosen.map((event) => (
+          <li key={event.id}>
+            <button type="button" aria-label={allDayLabel(event)} onClick={() => onOpenEvent(event)} className={allDayClass}>
+              {event.title}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {/* Wider screens: bars across the days, packed into as few rows as fit. */}
+      <ul className="hidden min-w-0 flex-1 grid-cols-7 gap-y-0.5 border-l border-line-subtle py-1 [grid-auto-flow:row_dense] md:grid">
+        {events.map((event) => {
+          const first = event.firstDay < days[0].date ? 0 : columnOf(event.firstDay);
+          const last = event.lastDay > days[6].date ? 6 : columnOf(event.lastDay);
+          return (
+            <li key={event.id} style={{ gridColumn: `${first + 1} / ${last + 2}` }} className="min-w-0 px-0.5">
+              <button type="button" aria-label={allDayLabel(event)} onClick={() => onOpenEvent(event)} className={allDayClass}>
+                {event.firstDay < days[0].date ? `… ${event.title}` : event.title}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOpenEvent, onCreateAt }: Props) {
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
   const height = rangeHeight(range);
@@ -131,14 +186,17 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOp
           })}
         </div>
 
+        <AllDayRow days={days} selectedDay={selectedDay} onOpenEvent={onOpenEvent} />
+
         {hasEarly && (
           // Mouse only and not read out: each of these events is already listed on the day it starts.
-          // On phones the row shows only when the chosen day has such a strip.
+          // On phones the row shows only when the chosen day has such a strip. Dashed, with "until",
+          // so it does not read like the solid all-day bars above it.
           <div
             aria-hidden
             className={`${early[days.findIndex((d) => d.date === selectedDay)]?.length ? "flex" : "hidden"} border-b border-line-subtle md:flex`}
           >
-            <div className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] text-ink-3">Earlier</div>
+            <div className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] leading-[12px] text-ink-3">{`Before ${formatMinute(range.startMin)}`}</div>
             {days.map((day, i) => (
               <div key={day.date} className={`${day.date === selectedDay ? "flex" : "hidden"} min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:flex`}>
                 {early[i].map((block) => (

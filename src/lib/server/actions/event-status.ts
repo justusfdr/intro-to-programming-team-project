@@ -36,6 +36,8 @@ export function markEventDone(request: Request, deps: StatusDeps, id: string): P
 
     return deps.withUser(userId, async (query) => {
       const row = await findOwnEvent(query, id);
+      // R29: an all-day event stays planned.
+      if (row.all_day || !row.start_at) throw new ActionError(409, "all_day", MESSAGES.allDayNotDone);
       // An event may be marked done once it has started; the start moment itself counts as started.
       if (deps.now().getTime() < new Date(row.start_at).getTime()) {
         throw new ActionError(409, "not_started", MESSAGES.notStarted);

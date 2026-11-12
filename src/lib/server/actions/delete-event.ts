@@ -4,6 +4,8 @@ import "server-only";
 //   1. same-origin check   2. signed in (R3)   3. read and shape-check the body
 //   4. inside withUser: find the user's event ("Not found" otherwise, R3), check it has not changed
 //      since the device last saw it (R4), delete it   5. one answer per outcome.
+// Scope (R28): "this" deletes the one event; "this_and_following" also the later events of its
+// series, in the same transaction. The two-device check is on the event the user opened.
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
@@ -13,7 +15,10 @@ import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 
 /** The updated_at the device last saw (R4). */
-const DeleteBody = z.object({ updatedAt: z.string().max(40) });
+const DeleteBody = z.object({
+  updatedAt: z.string().max(40),
+  scope: z.enum(["this", "this_and_following"]).optional(),
+});
 
 export function deleteEvent(request: Request, deps: Pick<Deps, "auth" | "withUser">, id: string): Promise<Response> {
   return handleAction(async () => {
@@ -30,6 +35,10 @@ export function deleteEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
       const row = await findOwnEvent(query, id);
       assertUnchangedSince(row, body.data.updatedAt);
 
+      if (body.data.scope === "this_and_following" && row.series_id && row.start_at) {
+        await query("delete from app.events where series_id = $1 and start_at >= $2", [row.series_id, row.start_at]);
+        return jsonOk({ message: MESSAGES.seriesDeleted });
+      }
       await query(`delete from app.events where id = $1`, [id]);
       return jsonOk({ message: MESSAGES.eventDeleted });
     });

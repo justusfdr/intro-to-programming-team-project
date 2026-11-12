@@ -3,7 +3,7 @@ import "server-only";
 // Data for the week view: the signed-in user's events of one week, grouped by the day they start
 // in the user's time zone (R2), with the calculated conflict mark (R10).
 import { conflictIds } from "@/lib/events/conflicts";
-import type { WeekData, WeekEvent } from "@/lib/events/types";
+import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
 import type { Deps } from "@/lib/server/deps";
 import { readTimeZone } from "@/lib/server/settings";
 import { addDays, dayLabel, isLocalDate, localDateOf, localDateTimeOf, localTimeOf, mondayOf, weekOf } from "@/lib/time/zoned";
@@ -23,16 +23,37 @@ export async function loadWeek(deps: Pick<Deps, "withUser" | "now">, userId: str
 
     // Events last at most 24 hours, so loading one day more on each side finds every event that
     // overlaps an event of this week, also across the week's edges (for the conflict mark).
+    // Only timed events have a start (all-day events are read below and get no conflict mark, R29).
     const rows = await query<EventRow>(
       `select ${EVENT_COLUMNS} from app.events
-        where start_at >= $1 and start_at < $2
+        where not all_day and start_at >= $1 and start_at < $2
         order by start_at, end_at, id`,
       [new Date(week.startsAt.getTime() - DAY_MS), new Date(week.endsAt.getTime() + DAY_MS)],
     );
-    const events = rows.map(toEventDto);
+    const events = rows.map(toEventDto).map((e) => ({ ...e, allDay: false as const, startAt: e.startAt!, endAt: e.endAt! }));
     const marked = conflictIds(
       events.map((e) => ({ id: e.id, startAt: new Date(e.startAt), endAt: new Date(e.endAt), mayOverlap: e.mayOverlap })),
     );
+
+    // All-day events covering any day of the week (R2: each day from the first to the last).
+    const allDayRows = await query<EventRow>(
+      `select ${EVENT_COLUMNS} from app.events
+        where all_day and first_day <= $2::date and last_day >= $1::date
+        order by first_day, last_day desc, title, id`,
+      [week.monday, week.days[6]],
+    );
+    const allDay: AllDayEvent[] = allDayRows.map(toEventDto).map((e) => ({
+      id: e.id,
+      title: e.title,
+      allDay: true as const,
+      firstDay: e.firstDay!,
+      lastDay: e.lastDay!,
+      mayOverlap: e.mayOverlap,
+      status: e.status,
+      goalId: e.goalId,
+      seriesId: e.seriesId,
+      updatedAt: e.updatedAt,
+    }));
 
     const shown: WeekEvent[] = events.map((e) => {
       const start = new Date(e.startAt);
@@ -59,8 +80,9 @@ export async function loadWeek(deps: Pick<Deps, "withUser" | "now">, userId: str
         date,
         label: dayLabel(date),
         isToday: date === today,
-        // An event belongs to the day it starts (R2).
+        // A timed event belongs to the day it starts; an all-day event to each of its days (R2).
         events: shown.filter((e) => e.startLocal.slice(0, 10) === date),
+        allDay: allDay.filter((e) => e.firstDay <= date && date <= e.lastDay),
       })),
     };
   });

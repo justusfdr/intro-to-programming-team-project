@@ -69,3 +69,4 @@ Our code relies on these answers from Supabase. Check them once with two test ad
     - Chrome must allow third-party cookies for the app's address (Chrome settings, Privacy and security, Third-party cookies, "Sites allowed to use third-party cookies"). Otherwise the extension gets "not signed in" and blocks nothing.
     - `EXTENSION_ID` stays empty unless the key in `extension/manifest.json` is replaced.
 12. Analytics: after a few sessions (and a blocked visit during one), the Analytics page shows the week's focus time, sessions, score and blocked visits; a day without sessions shows "–".
+13. All-day and repeating events: add an all-day "Exam week" from Monday to Friday; it shows in the "All day" row above the hours and cannot be marked done. Add a weekly event on Tuesday and Thursday for four weeks; delete one of its later events with "This and following events": that event and the later ones go, the earlier ones stay.

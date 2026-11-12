@@ -25,7 +25,8 @@ export async function loadFocus(deps: Pick<Deps, "withUser" | "now">, userId: st
     let forEvent: FocusData["forEvent"] = null;
     if (eventId && UUID.test(eventId)) {
       const [event] = await query<{ id: string; title: string; minutes: number }>(
-        "select id, title, extract(epoch from end_at - start_at)::int / 60 as minutes from app.events where id = $1",
+        // Only a timed event suggests a session; an all-day event is ignored here.
+        "select id, title, extract(epoch from end_at - start_at)::int / 60 as minutes from app.events where id = $1 and not all_day",
         [eventId],
       );
       if (event) forEvent = { id: event.id, title: event.title, suggestedMinutes: lengthForEvent(event.minutes) };

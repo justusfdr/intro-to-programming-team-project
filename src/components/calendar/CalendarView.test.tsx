@@ -4,7 +4,7 @@
 // marks in words and not only colour, week links, one status region outside the grid).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { WeekData, WeekEvent } from "@/lib/events/types";
+import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
 import { Announcer } from "./Announcer";
 import { CalendarView } from "./CalendarView";
 
@@ -21,6 +21,10 @@ function event(id: string, title: string, start: string, end: string, fields: Pa
     endAt: "",
     mayOverlap: false,
     status: "planned",
+    allDay: false,
+    firstDay: null,
+    lastDay: null,
+    seriesId: null,
     goalId: null,
     updatedAt: "2026-11-15T10:00:00.000Z",
     conflict: false,
@@ -33,14 +37,18 @@ function event(id: string, title: string, start: string, end: string, fields: Pa
   };
 }
 
-function week(byDay: Record<number, WeekEvent[]>): WeekData {
+function allDay(id: string, title: string, firstDay: string, lastDay: string): AllDayEvent {
+  return { id, title, allDay: true, firstDay, lastDay, mayOverlap: false, status: "planned", goalId: null, seriesId: null, updatedAt: "2026-11-15T10:00:00.000Z" };
+}
+
+function week(byDay: Record<number, WeekEvent[]>, allDayEvents: AllDayEvent[] = []): WeekData {
   return {
     timeZone: "Europe/Lisbon",
     monday: "2026-11-16",
     previous: "2026-11-09",
     next: "2026-11-23",
     thisWeek: "2026-11-16",
-    days: DAYS.map((date, i) => ({ date, label: date, isToday: i === 1, events: byDay[i] ?? [] })),
+    days: DAYS.map((date, i) => ({ date, label: date, isToday: i === 1, events: byDay[i] ?? [], allDay: allDayEvents.filter((e) => e.firstDay <= date && date <= e.lastDay) })),
   };
 }
 
@@ -123,7 +131,7 @@ describe("calendar markup", () => {
     const html = render(
       week({ 3: [event("n", "Night shift at the library", "2026-11-19T22:00", "2026-11-20T02:00", { endDay: "2026-11-20" })] }),
     );
-    expect(html).toMatch(/<div aria-hidden="true" class="[^"]*border-b[^"]*md:flex">.*Earlier.*tabindex="-1"[^>]*>Night shift at the library, until 02:00<\/button>/s);
+    expect(html).toMatch(/<div aria-hidden="true" class="[^"]*border-b[^"]*md:flex">.*Before \d\d:00.*tabindex="-1"[^>]*>Night shift at the library, until 02:00<\/button>/s);
     expect(html.indexOf("Night shift at the library, until 02:00")).toBeLessThan(html.indexOf("data-hour-grid"));
   });
 
@@ -155,5 +163,33 @@ describe("calendar markup", () => {
 
   it("has a Goals button in the toolbar for the goals panel", () => {
     expect(render(week({}))).toMatch(/aria-expanded="true"[^>]*>Goals<\/button>/);
+  });
+
+  it("shows an all-day event once in an 'All day' row above the hours, as a bar across its days with its days in words", () => {
+    const html = render(week({}, [allDay("x", "Exam week", "2026-11-16", "2026-11-20")]));
+    const label = 'aria-label="Exam week, all day, Monday 16 November to Friday 20 November"';
+    // One button for wider screens (a bar over columns 1 to 5) and one in the phone list; each is hidden at the other size.
+    expect(html.split(label)).toHaveLength(3);
+    expect(html).toMatch(/<li style="grid-column:1 \/ 6"[^>]*><button type="button" aria-label="Exam week, all day/);
+    expect(html).toMatch(/<section aria-label="All day"/);
+    expect(html.indexOf('aria-label="All day"')).toBeLessThan(html.indexOf("data-hour-grid"));
+    expect(html).not.toContain("tabindex=\"-1\"");
+  });
+
+  it("starts the bar at Monday for an all-day event from the week before, with a mark that it continues", () => {
+    const html = render(week({}, [allDay("t", "Trip", "2026-11-10", "2026-11-17")]));
+    expect(html).toMatch(/<li style="grid-column:1 \/ 3"[^>]*><button[^>]*aria-label="Trip, all day, Tuesday 10 November to Tuesday 17 November"[^>]*>… Trip</);
+  });
+
+  it("puts the 'All day' row above the 'Before' strip, and names them differently", () => {
+    const html = render(
+      week({ 3: [event("n", "Night shift", "2026-11-19T22:00", "2026-11-20T02:00", { endDay: "2026-11-20" })] }, [allDay("x", "Exam week", "2026-11-16", "2026-11-20")]),
+    );
+    expect(html.indexOf(">All day<")).toBeGreaterThan(-1);
+    expect(html.indexOf(">All day<")).toBeLessThan(html.search(/>Before \d\d:00</));
+  });
+
+  it("has no all-day row in a week without all-day events", () => {
+    expect(render(week({}))).not.toContain('aria-label="All day"');
   });
 });
