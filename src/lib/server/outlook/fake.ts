@@ -151,7 +151,7 @@ function toOutlook(outlookId: string, event: OutgoingEvent): OutlookEvent {
     endAt: event.endAt,
     firstDay: event.firstDay,
     lastDay: event.lastDay,
-    location: null,
+    location: event.location ?? null,
     transactionId: event.transactionId,
   };
 }

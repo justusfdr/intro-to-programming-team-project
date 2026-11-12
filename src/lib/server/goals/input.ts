@@ -1,8 +1,10 @@
 import "server-only";
 
 // The checks shared by create_goal and edit_goal (ontology section 5, R7), in the ontology's order:
-// title, at least one rule, the deadline, then each rule. Each throws the ontology's message.
+// title, at least one rule, the deadline, then each rule, then the look (colour, icon, why it matters).
+// Each throws the ontology's message.
 import { z } from "zod";
+import { isGoalColor, isGoalIcon, type GoalColorName, type GoalIconName } from "@/lib/goals/style";
 import { MESSAGES } from "@/lib/messages";
 import { ActionError } from "@/lib/server/errors";
 import { isLocalDate, type LocalDate } from "@/lib/time/zoned";
@@ -15,16 +17,35 @@ const RuleFields = z.object({
   minMinutes: z.number().nullable().optional(),
 });
 
-/** The body shape. At most 10 rules: more makes no sense for a weekly goal and keeps the body small. */
+/**
+ * The body shape. At most 10 rules: more makes no sense for a weekly goal and keeps the body small.
+ * Colour, icon and why are optional: left out, a new goal gets the defaults and an edit keeps them.
+ * A colour of null means "calculated from the goal's place in the list".
+ */
 export const GoalFields = z.object({
   title: z.string().max(1000),
   deadline: z.string().max(10),
   autoBlock: z.boolean().optional(),
   rules: z.array(RuleFields).max(10),
+  color: z.string().max(40).nullable().optional(),
+  icon: z.string().max(40).optional(),
+  why: z.string().max(2000).optional(),
 });
 
+/** R35: "Why it matters" is at most 200 characters. */
+const MAX_WHY = 200;
+
 export type CheckedRule = { id?: string; kind: "count" | "hours"; target: number; minMinutes: number | null };
-export type CheckedGoal = { title: string; deadline: LocalDate; autoBlock: boolean; rules: CheckedRule[] };
+export type CheckedGoal = {
+  title: string;
+  deadline: LocalDate;
+  autoBlock: boolean;
+  rules: CheckedRule[];
+  /** undefined: not sent (an edit keeps the saved value, a new goal gets the default). */
+  color: GoalColorName | null | undefined;
+  icon: GoalIconName | undefined;
+  why: string | undefined;
+};
 
 function checkRule(rule: z.infer<typeof RuleFields>): CheckedRule {
   const minMinutes = rule.minMinutes ?? null;
@@ -66,5 +87,22 @@ export function checkGoalFields(
     throw new ActionError(400, "deadline_past", MESSAGES.deadlinePast);
   }
 
-  return { title, deadline: fields.deadline, autoBlock: fields.autoBlock ?? false, rules: fields.rules.map(checkRule) };
+  const rules = fields.rules.map(checkRule);
+
+  if (fields.color !== undefined && fields.color !== null && !isGoalColor(fields.color)) {
+    throw new ActionError(400, "goal_color", MESSAGES.goalColor);
+  }
+  if (fields.icon !== undefined && !isGoalIcon(fields.icon)) throw new ActionError(400, "goal_icon", MESSAGES.goalIcon);
+  const why = fields.why?.trim();
+  if (why !== undefined && [...why].length > MAX_WHY) throw new ActionError(400, "why_length", MESSAGES.whyLength);
+
+  return {
+    title,
+    deadline: fields.deadline,
+    autoBlock: fields.autoBlock ?? false,
+    rules,
+    color: fields.color as GoalColorName | null | undefined,
+    icon: fields.icon as GoalIconName | undefined,
+    why,
+  };
 }

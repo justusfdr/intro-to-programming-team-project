@@ -23,9 +23,12 @@ export function extensionState(request: Request, deps: Pick<Deps, "auth" | "with
 
     return deps.withUser(userId, async (query) => {
       // R18: the app shows "Blocker not connected" when this has not happened for 2 minutes.
-      await query("select app.mark_extension_seen()");
-      const sites = await readBlockedSites(query);
-      const state = await readBlockingState(query, now);
+      // The three are independent and sent together.
+      const [, sites, state] = await Promise.all([
+        query("select app.mark_extension_seen()"),
+        readBlockedSites(query),
+        readBlockingState(query, now),
+      ]);
       return jsonOk({
         sites: sites.map((site) => site.domain),
         blockingOn: state.blockingOn,

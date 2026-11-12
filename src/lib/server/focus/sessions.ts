@@ -8,8 +8,8 @@ import { notFound } from "@/lib/server/events/own-event";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The columns every session read selects (with the linked event's title, if any). */
-export const SESSION_COLUMNS = `s.id, s.event_id, e.title as event_title, s.planned_minutes, s.status, s.started_at,
+/** The columns every session read selects (with the linked event's title and goal, if any). */
+export const SESSION_COLUMNS = `s.id, s.event_id, e.title as event_title, e.goal_id as event_goal_id, s.planned_minutes, s.status, s.started_at,
   s.paused_at, s.paused_seconds, s.ended_at, s.rating`;
 export const SESSION_FROM = "app.focus_sessions s left join app.events e on e.id = s.event_id";
 
@@ -17,6 +17,7 @@ export type SessionRow = {
   id: string;
   event_id: string | null;
   event_title: string | null;
+  event_goal_id: string | null;
   planned_minutes: number;
   status: "running" | "paused" | "finished";
   started_at: Date;
@@ -33,6 +34,7 @@ export function toSessionDto(row: SessionRow): SessionDto {
     id: row.id,
     eventId: row.event_id,
     eventTitle: row.event_title,
+    eventGoalId: row.event_goal_id,
     plannedMinutes: row.planned_minutes,
     status: row.status,
     startedAt: new Date(row.started_at).toISOString(),

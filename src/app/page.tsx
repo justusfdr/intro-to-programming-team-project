@@ -1,32 +1,38 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Announcer } from "@/components/calendar/Announcer";
+import { LiveProvider } from "@/components/live/Live";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoalsPanel } from "@/components/goals/GoalsPanel";
 import { AppShell } from "@/components/shell/AppShell";
 import { PanelState } from "@/components/shell/PanelState";
+import { Welcome } from "@/components/shell/Welcome";
+import { outlookConfigured } from "@/lib/server/config";
 import { pageDeps } from "@/lib/server/deps";
-import { loadWeek } from "@/lib/server/events/week";
-import { loadGoals } from "@/lib/server/goals/load";
-import { loadTasks } from "@/lib/server/tasks/load";
+import { readAddress } from "@/lib/events/views";
+import { loadCalendarPage } from "@/lib/server/pages/load";
 import { localDateTimeOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Calendar" };
 
 const HOUR = 60 * 60 * 1000;
 
-// The calendar (spec 02). The page reads the signed-in user's week on the server through withUser;
-// after an action the editor calls router.refresh(), which runs this page again with fresh data.
-export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ week?: string | string[] }> }) {
+// The calendar (specs 02 and 14). The address names the view and the day (/?view=day&date=2026-11-18;
+// without them the default view from the settings and today). The page reads exactly those days, the
+// goals and the tasks on the server in one transaction (src/lib/server/pages/load.ts). After an action
+// the screen shows the answer at once and router.refresh() runs this page again in the background.
+export default async function CalendarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string | string[]; date?: string | string[]; week?: string | string[] }>;
+}) {
   const deps = await pageDeps();
   // The proxy already sends signed-out visitors away; the page checks again (R3).
   const userId = await deps.auth.currentUserId();
   if (!userId) redirect("/sign-in");
 
-  const { week: requested } = await searchParams;
-  const week = await loadWeek(deps, userId, typeof requested === "string" ? requested : undefined);
-  const goals = await loadGoals(deps, userId);
-  const tasks = await loadTasks(deps, userId);
+  const address = readAddress(await searchParams);
+  const { display, week, goals, tasks, showWelcome } = await loadCalendarPage(deps, userId, address.date, address.view);
 
   const now = deps.now();
   // "New event" suggests the next full hour, one hour long.
@@ -39,16 +45,20 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const nowLocal = localDateTimeOf(now, week.timeZone);
   return (
     <Announcer>
-      <PanelState>
-        <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
-          <CalendarView
-            week={week}
-            nowLocal={nowLocal}
-            suggestion={suggestion}
-            goals={goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }))}
-          />
-        </AppShell>
-      </PanelState>
+      <LiveProvider>
+        <PanelState>
+          <AppShell current="/" display={display} panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
+            <CalendarView
+              week={week}
+              nowLocal={nowLocal}
+              suggestion={suggestion}
+              goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
+              outlookAvailable={outlookConfigured()}
+            />
+          </AppShell>
+          {showWelcome && <Welcome timeFormat={display.timeFormat} />}
+        </PanelState>
+      </LiveProvider>
     </Announcer>
   );
 }

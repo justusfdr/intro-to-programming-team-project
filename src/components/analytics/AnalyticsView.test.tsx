@@ -1,4 +1,5 @@
 // The Analytics page's markup: the numbers, "–" for no sessions, and a table and list behind the charts.
+// Rewritten for the prototype-style branch (spec 12): days and weeks are month-first ("Mon, Nov 16", "Nov 16 – 22").
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { weekAnalytics } from "@/lib/analytics/score";
@@ -38,7 +39,8 @@ describe("Analytics page", () => {
   it("has a table with a row per day and the same numbers, and hides the bars from screen readers", () => {
     const html = render({});
     expect(html.match(/<tr class="border-b border-line-subtle last:border-0/g)).toHaveLength(7);
-    expect(html).toMatch(/<th scope="row"[^>]*>Mon 16<span[^>]*>\(today\)<\/span><\/th><td[^>]*>45 min<\/td><td[^>]*>1<\/td><td[^>]*>65<\/td><td[^>]*>2<\/td>/);
+    expect(html).toContain("Week 47 · Nov 16 – 22");
+    expect(html).toMatch(/<th scope="row"[^>]*>Mon, Nov 16<span[^>]*>\(today\)<\/span><\/th><td[^>]*>45 min<\/td><td[^>]*>1<\/td><td[^>]*>65<\/td><td[^>]*>2<\/td>/);
     expect(html).toMatch(/<div aria-hidden="true" class="mt-4 grid h-40/);
   });
 

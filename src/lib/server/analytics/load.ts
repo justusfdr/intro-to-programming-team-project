@@ -5,6 +5,7 @@ import "server-only";
 import { weekAnalytics, type Attempt, type FinishedSession } from "@/lib/analytics/score";
 import type { AnalyticsData } from "@/lib/analytics/types";
 import { focusedMinutes } from "@/lib/focus/session-time";
+import type { Query } from "@/lib/server/db";
 import type { Deps } from "@/lib/server/deps";
 import { settleSessions, timesOf, type SessionRow } from "@/lib/server/focus/sessions";
 import { readTimeZone } from "@/lib/server/settings";
@@ -14,41 +15,49 @@ export async function loadAnalytics(deps: Pick<Deps, "withUser" | "now">, userId
   const now = deps.now();
   // A session that reached its planned length finishes first, so it counts (R13).
   await settleSessions(deps, userId, now);
-  return deps.withUser(userId, async (query) => {
-    const timeZone = await readTimeZone(query);
-    const today = localDateOf(now, timeZone);
-    const week = weekOf(requested && isLocalDate(requested) ? requested : today, timeZone);
+  return deps.withUser(userId, (query) => readAnalytics(query, now, requested, readTimeZone(query)));
+}
 
-    // Finished sessions that started this week (a session belongs to the day it starts).
-    const rows = await query<SessionRow>(
-      `select id, null as event_id, null as event_title, planned_minutes, status, started_at, paused_at, paused_seconds, ended_at, rating
-         from app.focus_sessions
-        where status = 'finished' and started_at >= $1 and started_at < $2`,
-      [week.startsAt, week.endsAt],
-    );
-    const sessions: FinishedSession[] = rows.map((row) => ({
-      startedAt: new Date(row.started_at),
-      endedAt: new Date(row.ended_at!),
-      plannedMinutes: row.planned_minutes,
-      focusedMinutes: focusedMinutes(timesOf(row), now),
-    }));
+/** The same reads inside a transaction that is already open; call settleSessions before it. */
+export async function readAnalytics(
+  query: Query,
+  now: Date,
+  requested: string | undefined,
+  timeZoneRead: string | Promise<string>,
+): Promise<AnalyticsData> {
+  const timeZone = await timeZoneRead;
+  const today = localDateOf(now, timeZone);
+  const week = weekOf(requested && isLocalDate(requested) ? requested : today, timeZone);
 
-    // Attempts of the week, and those after it that still lie inside one of this week's sessions.
-    const latestEnd = sessions.reduce((latest, s) => (s.endedAt > latest ? s.endedAt : latest), week.endsAt);
-    const attemptRows = await query<{ domain: string; attempted_at: Date }>(
-      "select domain, attempted_at from app.blocked_attempts where attempted_at >= $1 and attempted_at <= $2",
-      [week.startsAt, latestEnd],
-    );
-    const attempts: Attempt[] = attemptRows.map((a) => ({ domain: a.domain, attemptedAt: new Date(a.attempted_at) }));
+  // Finished sessions that started this week (a session belongs to the day it starts).
+  const rows = await query<SessionRow>(
+    `select id, null as event_id, null as event_title, planned_minutes, status, started_at, paused_at, paused_seconds, ended_at, rating
+       from app.focus_sessions
+      where status = 'finished' and started_at >= $1 and started_at < $2`,
+    [week.startsAt, week.endsAt],
+  );
+  const sessions: FinishedSession[] = rows.map((row) => ({
+    startedAt: new Date(row.started_at),
+    endedAt: new Date(row.ended_at!),
+    plannedMinutes: row.planned_minutes,
+    focusedMinutes: focusedMinutes(timesOf(row), now),
+  }));
 
-    return {
-      timeZone,
-      monday: week.monday,
-      previous: addDays(week.monday, -7),
-      next: addDays(week.monday, 7),
-      thisWeek: mondayOf(today),
-      today: week.days.includes(today) ? today : null,
-      analytics: weekAnalytics(sessions, attempts, week.monday, timeZone),
-    };
-  });
+  // Attempts of the week, and those after it that still lie inside one of this week's sessions.
+  const latestEnd = sessions.reduce((latest, s) => (s.endedAt > latest ? s.endedAt : latest), week.endsAt);
+  const attemptRows = await query<{ domain: string; attempted_at: Date }>(
+    "select domain, attempted_at from app.blocked_attempts where attempted_at >= $1 and attempted_at <= $2",
+    [week.startsAt, latestEnd],
+  );
+  const attempts: Attempt[] = attemptRows.map((a) => ({ domain: a.domain, attemptedAt: new Date(a.attempted_at) }));
+
+  return {
+    timeZone,
+    monday: week.monday,
+    previous: addDays(week.monday, -7),
+    next: addDays(week.monday, 7),
+    thisWeek: mondayOf(today),
+    today: week.days.includes(today) ? today : null,
+    analytics: weekAnalytics(sessions, attempts, week.monday, timeZone),
+  };
 }

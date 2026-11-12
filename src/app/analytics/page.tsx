@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
 import { AppShell } from "@/components/shell/AppShell";
-import { loadAnalytics } from "@/lib/server/analytics/load";
 import { pageDeps } from "@/lib/server/deps";
+import { loadAnalyticsPage } from "@/lib/server/pages/load";
 
 export const metadata: Metadata = { title: "Analytics" };
 
@@ -15,10 +15,11 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   if (!userId) redirect("/sign-in");
 
   const { week } = await searchParams;
-  const data = await loadAnalytics(deps, userId, typeof week === "string" ? week : undefined);
+  // Everything in one transaction (src/lib/server/pages/load.ts).
+  const { display, analytics: data } = await loadAnalyticsPage(deps, userId, typeof week === "string" ? week : undefined);
 
   return (
-    <AppShell current="/analytics">
+    <AppShell current="/analytics" display={display}>
       <AnalyticsView data={data} />
     </AppShell>
   );

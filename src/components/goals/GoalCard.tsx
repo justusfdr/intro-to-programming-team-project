@@ -4,12 +4,12 @@
 // countdown and "Auto-block on".
 // Every status is said in words and shown with a symbol, so nothing depends on colour alone.
 import { useId, type ReactNode } from "react";
-import { Check, ChevronRight, Close } from "@/components/ui/icons";
+import { Check, ChevronRight, X } from "lucide-react";
 import { goalColor } from "@/lib/goals/colors";
 import type { StripWeek, WeekStatus } from "@/lib/goals/progress";
 import { weekShare } from "@/lib/goals/share";
 import type { GoalView } from "@/lib/goals/types";
-import { dayParts } from "@/lib/time/zoned";
+import { fmtDayMonth } from "@/lib/time/display";
 import { GoalRow } from "./GoalRow";
 import { GoalTile } from "./GoalTile";
 
@@ -17,13 +17,12 @@ const STATUS_WORD: Record<WeekStatus, string> = { met: "met", missed: "missed", 
 
 function StatusMark({ status }: { status: WeekStatus }) {
   if (status === "met") return <Check className="size-2.5 text-success" strokeWidth={3} />;
-  if (status === "missed") return <Close className="size-2.5 text-danger" strokeWidth={3} />;
+  if (status === "missed") return <X className="size-2.5 text-danger" strokeWidth={3} />;
   return <span aria-hidden className="block size-1.5 rounded-full border border-ink-3" />;
 }
 
 function WeekCell({ week }: { week: StripWeek }) {
-  const { day } = dayParts(week.monday);
-  const month = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" }).format(new Date(`${week.monday}T00:00:00Z`));
+  const date = fmtDayMonth(week.monday);
   const box =
     week.status === "met"
       ? "border-success/40 bg-success-soft"
@@ -33,9 +32,9 @@ function WeekCell({ week }: { week: StripWeek }) {
   return (
     <li
       className={`flex size-4 items-center justify-center rounded-[4px] border ${box} ${week.isCurrent ? "ring-[1.5px] ring-ink/70 ring-offset-1" : ""}`}
-      title={`Week of ${day} ${month}: ${STATUS_WORD[week.status]}`}
+      title={`Week of ${date}: ${STATUS_WORD[week.status]}`}
     >
-      <span className="sr-only">{`Week of ${day} ${month}${week.isCurrent ? " (this week)" : ""}: ${STATUS_WORD[week.status]}`}</span>
+      <span className="sr-only">{`Week of ${date}${week.isCurrent ? " (this week)" : ""}: ${STATUS_WORD[week.status]}`}</span>
       <StatusMark status={week.status} />
     </li>
   );
@@ -56,7 +55,7 @@ type Props = {
 };
 
 export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks, children }: Props) {
-  const color = goalColor(goal.colorIndex);
+  const color = goalColor(goal.look.color);
   const passed = goal.progress.countdown === "Deadline passed";
   const share = weekShare(goal.progress.thisWeek);
   const bodyId = useId();
@@ -78,7 +77,7 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks,
             <ChevronRight className={`size-3.5 transition-transform ${collapsed ? "" : "rotate-90"}`} strokeWidth={2.2} />
           </button>
         )}
-        <GoalTile colorIndex={goal.colorIndex} />
+        <GoalTile look={goal.look} />
         {onOpen ? (
           <button
             type="button"
@@ -104,7 +103,7 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks,
           {/* This week: the rule rows and the strip of weeks, one block. */}
           <ul className="flex flex-col">
             {goal.progress.thisWeek.map((rule) => (
-              <GoalRow key={rule.ruleId} colorIndex={goal.colorIndex} done={rule.status === "met"} struck={rule.status === "met"} doneLabel="met" compact>
+              <GoalRow key={rule.ruleId} color={goal.look.color} done={rule.status === "met"} struck={rule.status === "met"} doneLabel="met" compact>
                 {rule.text}
               </GoalRow>
             ))}

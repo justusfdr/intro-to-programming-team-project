@@ -33,8 +33,9 @@ export function editTask(request: Request, deps: Pick<Deps, "auth" | "withUser" 
 
     return deps.withUser(userId, async (query) => {
       // Locks the task until the transaction ends, so a second device waits instead of racing.
-      const current = await findOwnTask(query, id);
-      const today = localDateOf(deps.now(), await readTimeZone(query));
+      // Sent together with the time zone (read first: it has no parameter, so it does not hold the other up).
+      const [timeZone, current] = await Promise.all([readTimeZone(query), findOwnTask(query, id)]);
+      const today = localDateOf(deps.now(), timeZone);
       const task = checkTaskFields(body.data, today, current.due_date);
       await assertOwnGoal(query, task.goalId);
 

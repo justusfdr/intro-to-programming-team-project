@@ -1,4 +1,5 @@
 // The shape of a focus session as the server sends it to the page. Times are ISO strings in UTC.
+import type { GoalLook } from "@/lib/goals/style";
 import type { SessionStatus } from "./session-time";
 
 export type SessionDto = {
@@ -6,6 +7,8 @@ export type SessionDto = {
   eventId: string | null;
   /** The linked event's title, or null for a session without event. */
   eventTitle: string | null;
+  /** The linked event's goal, or null. */
+  eventGoalId: string | null;
   plannedMinutes: number;
   status: SessionStatus;
   startedAt: string;
@@ -24,6 +27,10 @@ export type FocusData = {
   recent: (SessionDto & { focusedMinutes: number })[];
   /** The event to focus on, when the page was opened from an event. */
   forEvent: { id: string; title: string; suggestedMinutes: number } | null;
+  /** The goal of `forEvent`, or null. */
+  forEventGoalId: string | null;
+  /** The user's goals with their look, to show a session's goal (name, icon, colour). */
+  goals: { id: string; title: string; look: GoalLook }[];
   /** "now" from the server, so the timer starts in step with it. */
   now: string;
 };

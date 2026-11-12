@@ -26,9 +26,22 @@ export function isPublic(pathname: string): boolean {
   return matches(pathname, ACCOUNT_API) || ACCOUNT_PAGES.some((page) => matches(pathname, page));
 }
 
-/** Without a session: pages go to the sign-in page, data requests get 401. */
-export function guard(pathname: string, signedIn: boolean): GuardDecision {
+/**
+ * The framework's own addresses in development: the hot-reload websocket (/_next/webpack-hmr) and the
+ * error overlay's helpers (/__nextjs_…). They carry no user data. Sent to the sign-in page, they only
+ * fill the browser console with errors while signed out. In production they are not let through here.
+ */
+export function isDevFrameworkPath(pathname: string): boolean {
+  return pathname.startsWith("/_next/") || pathname.startsWith("/__nextjs");
+}
+
+/**
+ * Without a session: pages go to the sign-in page, data requests get 401.
+ * `development`: true only while running `next dev`; then the framework's own addresses pass.
+ */
+export function guard(pathname: string, signedIn: boolean, options: { development?: boolean } = {}): GuardDecision {
   if (signedIn || isPublic(pathname)) return { kind: "allow" };
+  if (options.development && isDevFrameworkPath(pathname)) return { kind: "allow" };
   if (matches(pathname, "/api")) return { kind: "unauthorized" };
   return { kind: "redirect", to: SIGN_IN_PAGE };
 }

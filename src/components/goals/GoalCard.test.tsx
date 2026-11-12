@@ -1,4 +1,5 @@
 // The goal card's markup (R9): texts as in the ontology, every status in words, nothing by colour alone.
+// Rewritten for the prototype-style branch (spec 12): week labels are month-first ("Week of Nov 2").
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { GoalView } from "@/lib/goals/types";
@@ -11,6 +12,10 @@ const GOAL: GoalView = {
   autoBlock: true,
   updatedAt: "2026-11-15T10:00:00.000Z",
   colorIndex: 1,
+  color: "teal",
+  icon: "footprints",
+  why: "",
+  look: { color: "teal", icon: "footprints" },
   rules: [
     { id: "r1", kind: "count", target: 2, minMinutes: 45 },
     { id: "r2", kind: "hours", target: 6, minMinutes: null },
@@ -41,14 +46,15 @@ describe("goal card", () => {
   });
 
   it("says every week's status in words, marks this week, and draws a symbol for met and missed", () => {
-    expect(html).toContain("Week of 2 Nov: met");
-    expect(html).toContain("Week of 9 Nov: missed");
-    expect(html).toContain("Week of 16 Nov (this week): open");
+    expect(html).toContain("Week of Nov 2: met");
+    expect(html).toContain("Week of Nov 9: missed");
+    expect(html).toContain("Week of Nov 16 (this week): open");
     expect(html.match(/<svg/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("uses the goal's calculated colour and mentions auto-block", () => {
+  it("uses the goal's own colour and icon (spec 13) and mentions auto-block", () => {
     expect(html).toContain("bg-teal-500");
+    expect(html).toMatch(/bg-teal-50 text-teal-700[^"]*"><svg[^>]*lucide-footprints/);
     expect(html).toContain("Auto-block on");
   });
 

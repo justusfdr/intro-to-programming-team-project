@@ -1,7 +1,7 @@
 import "server-only";
 
 // The checks shared by create_event and edit_event (ontology section 5, R28, R29), in the
-// ontology's order: title; for a timed event end after start and at most 24 hours; for an all-day
+// ontology's order: title; location up to 200 characters; for a timed event end after start and at most 24 hours; for an all-day
 // event last day not before first, at most 31 days, no goal; for a series the end date and at most
 // 100 dates. Each throws the ontology's message.
 import { z } from "zod";
@@ -25,6 +25,8 @@ export const EventFields = z.object({
   mayOverlap: z.boolean().optional(),
   /** The goal of the event, or null for none. Checked against the user's goals by the action (R3). */
   goalId: z.string().max(40).nullable().optional(),
+  /** Where it takes place; empty or null means none. Left out: unchanged (edit) or none (create). */
+  location: z.string().max(1000).nullable().optional(),
   repeat: z
     .object({
       frequency: z.enum(["daily", "weekly", "monthly"]),
@@ -48,10 +50,11 @@ export type CheckedTimed = {
   endAt: Date;
   mayOverlap: boolean | undefined;
   goalId: string | null | undefined;
+  location: string | null | undefined;
 };
 
 /** A checked all-day event: days only, no times, no goal (R29). */
-export type CheckedAllDay = { allDay: true; title: string; firstDay: LocalDate; lastDay: LocalDate };
+export type CheckedAllDay = { allDay: true; title: string; firstDay: LocalDate; lastDay: LocalDate; location: string | null | undefined };
 
 export type CheckedEvent = CheckedTimed | CheckedAllDay;
 
@@ -67,9 +70,18 @@ function checkTitle(fields: Fields): string {
   return title;
 }
 
+/** The location trimmed, null for none, undefined when the body leaves it out; at most 200 characters. */
+function checkLocation(fields: Fields): string | null | undefined {
+  if (fields.location === undefined) return undefined;
+  const location = (fields.location ?? "").trim();
+  if ([...location].length > 200) throw new ActionError(400, "location_length", MESSAGES.locationLength);
+  return location === "" ? null : location;
+}
+
 /** Checks one event's fields and turns local times into instants in `timeZone`. */
 export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent {
   const title = checkTitle(fields);
+  const location = checkLocation(fields);
 
   if (fields.allDay) {
     if (!fields.firstDay || !fields.lastDay || !isLocalDate(fields.firstDay) || !isLocalDate(fields.lastDay)) throw badRequest();
@@ -77,7 +89,7 @@ export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent
     const days = Math.round((Date.parse(fields.lastDay) - Date.parse(fields.firstDay)) / DAY_MS) + 1;
     if (days > 31) throw new ActionError(400, "too_many_days", MESSAGES.atMost31Days);
     if (fields.goalId) throw new ActionError(400, "all_day_goal", MESSAGES.allDayNoGoal);
-    return { allDay: true, title, firstDay: fields.firstDay, lastDay: fields.lastDay };
+    return { allDay: true, title, firstDay: fields.firstDay, lastDay: fields.lastDay, location };
   }
 
   const startAt = fields.start ? parseLocalDateTime(fields.start, timeZone) : null;
@@ -85,7 +97,7 @@ export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent
   if (!startAt || !endAt) throw badRequest();
   if (endAt <= startAt) throw new ActionError(400, "end_before_start", MESSAGES.endAfterStart);
   if (endAt.getTime() - startAt.getTime() > MAX_LENGTH_MS) throw new ActionError(400, "too_long", MESSAGES.atMost24Hours);
-  return { allDay: false, title, startAt, endAt, mayOverlap: fields.mayOverlap, goalId: fields.goalId };
+  return { allDay: false, title, startAt, endAt, mayOverlap: fields.mayOverlap, goalId: fields.goalId, location };
 }
 
 /**

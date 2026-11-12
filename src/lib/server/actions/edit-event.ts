@@ -7,6 +7,9 @@ import "server-only";
 // Status, source, user_id and series_id are never changed here (status only goes back to planned
 // when a timed event becomes all-day, which can never be done, R29).
 //
+// The location (up to 200 characters, empty means none) is set through app.set_event_location; left
+// out of the body, it stays as it is.
+//
 // Scope (R28): "this" changes the one event. "this_and_following" changes this event and the later
 // ones of its series in one transaction; every event keeps its own date and gets the new times.
 // The two-device check is on the event the user opened; the whole change is one step (R4).
@@ -34,7 +37,7 @@ const EditBody = EventFields.partial({ title: true }).extend({
 });
 
 /** Fields that Outlook owns for an imported event (R11). */
-const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "repeat"] as const;
+const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "repeat"] as const;
 
 const badRequest = () => new ActionError(400, "bad_request", MESSAGES.badRequest);
 
@@ -50,9 +53,10 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
 
     return deps.withUser(userId, async (query) => {
       // Locks the row until the transaction ends, so a second device waits instead of racing.
-      const row = await findOwnEvent(query, id);
+      // The time zone is read in the same round (first: it has no parameter); an Outlook event does not need it.
+      const [timeZone, row] = await Promise.all([readTimeZone(query), findOwnEvent(query, id)]);
 
-      // R11: an Outlook event keeps its title, times and days from Outlook; only the goal changes here.
+      // R11: an Outlook event keeps its title, times, days and location from Outlook; only the goal changes here.
       if (row.source === "outlook") {
         if (OUTLOOK_FIELDS.some((field) => body.data[field] !== undefined)) {
           throw new ActionError(409, "outlook_event", MESSAGES.changeInOutlook);
@@ -71,14 +75,20 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
       assertUnchangedSince(row, body.data.updatedAt);
       if (body.data.title === undefined) throw badRequest();
 
-      const timeZone = await readTimeZone(query);
       const event = checkEventFields({ ...body.data, title: body.data.title }, timeZone);
       // No repeat rule is stored; to extend a series, create a new one (R28).
       if (body.data.repeat) throw badRequest();
 
+      // The location, when the body names it, goes through the database's narrow function (it changes
+      // nothing else and refuses Outlook events); the update below then returns the row with it.
+      const setLocation = async (eventId: string) => {
+        if (event.location !== undefined) await query("select app.set_event_location($1, $2)", [eventId, event.location]);
+      };
+
       if (event.allDay) {
         // A series is timed (R29: all-day events never repeat); the form does not offer this.
         if (row.series_id) throw badRequest();
+        await setLocation(id);
         const [updated] = await query<EventRow>(
           `update app.events
               set title = $2, all_day = true, start_at = null, end_at = null, first_day = $3, last_day = $4,
@@ -103,6 +113,7 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
         const template = templateOf(event.startAt, event.endAt, timeZone);
         let opened: EventRow | undefined;
         for (const other of later) {
+          await setLocation(other.id);
           const { startAt, endAt } = timesOn(localDateOf(new Date(other.start_at!), timeZone), template, timeZone);
           const [updated] = await query<EventRow>(
             `update app.events
@@ -118,6 +129,7 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
       }
 
       // updated_at is set again by the database trigger; the user never sets it.
+      await setLocation(id);
       const [updated] = await query<EventRow>(
         // may_overlap and goal_id change only when the body names them ($7: whether it names the goal).
         `update app.events

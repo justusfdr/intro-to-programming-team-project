@@ -3,22 +3,15 @@
 // from finished sessions and blocked attempts (R19, R20); the charts are drawn with plain markup and
 // hidden from screen readers, because the table and the list next to them say the same.
 import { LinkButton } from "@/components/ui/Button";
-import { ChevronLeft, ChevronRight } from "@/components/ui/icons";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { scoreText, type Totals } from "@/lib/analytics/score";
 import type { AnalyticsData } from "@/lib/analytics/types";
 import { minutesText } from "@/lib/focus/session-time";
-import { addDays, dayParts, isoWeekNumber } from "@/lib/time/zoned";
+import { fmtDateShort, fmtWeekRange, fmtWeekday } from "@/lib/time/display";
+import { isoWeekNumber } from "@/lib/time/zoned";
 
 const card = "rounded-card border border-line-subtle bg-surface p-5";
 const eyebrow = "text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3";
-
-function weekRange(monday: string): string {
-  const sunday = addDays(monday, 6);
-  const month = (date: string) => new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
-  return month(monday) === month(sunday)
-    ? `${dayParts(monday).day}–${dayParts(sunday).day} ${month(sunday)}`
-    : `${dayParts(monday).day} ${month(monday)} – ${dayParts(sunday).day} ${month(sunday)}`;
-}
 
 function Tile({ label, value, today }: { label: string; value: string; today: string | null }) {
   return (
@@ -42,15 +35,15 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
         <div>
           <h1 className="text-[28px] leading-[34px] font-semibold tracking-display text-ink md:text-[32px] md:leading-[38px]">Analytics</h1>
           <p className="mt-1 text-sm text-ink-2">
-            Week {isoWeekNumber(data.monday)} · {weekRange(data.monday)} · Times in {data.timeZone}
+            Week {isoWeekNumber(data.monday)} · {fmtWeekRange(data.monday)}
           </p>
         </div>
         <nav aria-label="Weeks" className="flex items-center gap-1.5">
           <LinkButton href={`/analytics?week=${data.previous}`} variant="secondary" size="icon" aria-label="Previous week" title="Previous week">
-            <ChevronLeft />
+            <ChevronLeft className="size-4" />
           </LinkButton>
           <LinkButton href={`/analytics?week=${data.next}`} variant="secondary" size="icon" aria-label="Next week" title="Next week">
-            <ChevronRight />
+            <ChevronRight className="size-4" />
           </LinkButton>
           <LinkButton href={`/analytics?week=${data.thisWeek}`} variant="secondary" aria-current={data.monday === data.thisWeek ? "page" : undefined}>
             This week
@@ -78,7 +71,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
                 <div key={day.date} className="flex h-full flex-col items-center justify-end gap-1">
                   <span className="text-[10px] tabular text-ink-3">{day.focusedMinutes > 0 ? minutesText(day.focusedMinutes) : ""}</span>
                   <span className={`w-full max-w-9 rounded-t-[5px] ${day.date === data.today ? "bg-ink" : "bg-ink/20"}`} style={{ height }} />
-                  <span className={`text-[11px] ${day.date === data.today ? "font-semibold text-ink" : "text-ink-3"}`}>{dayParts(day.date).weekday}</span>
+                  <span className={`text-[11px] ${day.date === data.today ? "font-semibold text-ink" : "text-ink-3"}`}>{fmtWeekday(day.date)}</span>
                 </div>
               );
             })}
@@ -99,7 +92,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
               {analytics.days.map((day) => (
                 <tr key={day.date} className={`border-b border-line-subtle last:border-0 ${day.date === data.today ? "font-semibold" : ""}`}>
                   <th scope="row" className="py-2 font-normal">
-                    {dayParts(day.date).weekday} {dayParts(day.date).day}
+                    {fmtDateShort(day.date)}
                     {day.date === data.today && <span className="ml-1 text-xs text-ink-3">(today)</span>}
                   </th>
                   <td className="py-2 text-right">{minutesText(day.focusedMinutes)}</td>

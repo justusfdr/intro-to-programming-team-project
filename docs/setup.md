@@ -41,8 +41,16 @@ The names are listed in `.env.example`.
    - `SUPABASE_PUBLISHABLE_KEY`: **Project Settings > API Keys**, the publishable key (`sb_publishable_…`).
    - `DATABASE_URL`: **Connect** (top of the dashboard) **> Transaction pooler** (port 6543). Replace `[YOUR-PASSWORD]` with the database password from step 1.
    - `APP_URL`: `http://localhost:3000`.
+   - `DATABASE_CA_CERT` (optional, recommended): the database's certificate. In the dashboard open
+     **Project Settings > Database**, section **SSL configuration**, and click **Download certificate**. Put the
+     whole file content in the variable (on one line, write `\n` for each line break). With it the app checks
+     that it really talks to your database (certificate and host name); without it the connection is still
+     encrypted, but not checked, and the server log says so once at start.
+   - In the same section switch on **Enforce SSL on incoming connections**, so the database itself refuses
+     unencrypted connections. The app always encrypts (except for a database on `localhost`), whatever the
+     connection string says.
 2. Never use the secret key (`sb_secret_…`) or the old `service_role` key. The app does not need them.
-3. On Vercel: **Project > Settings > Environment Variables**, add the same four names. `APP_URL` is the deployed address there, without a slash at the end.
+3. On Vercel: **Project > Settings > Environment Variables**, add the same names (`DATABASE_CA_CERT` too, if you use it). `APP_URL` is the deployed address there, without a slash at the end.
 
 ## 7. Confirm a test account by hand
 The built-in e-mail sender allows only **2 e-mails per hour** for the whole project. To confirm a test account without an e-mail:
@@ -74,16 +82,17 @@ Our code relies on these answers from Supabase. Check them once with two test ad
 15. Outlook (after section 9): open the calendar, press **Outlook**, then **Connect Outlook**, sign in at Microsoft and allow access. Back in the calendar it says "Outlook connected." and your Outlook events appear with an arrow-into-tray mark. Add an event in the app: it appears in Outlook within a few seconds. Rename an event in Outlook, reload the calendar after 5 minutes: the new name shows. Press **Outlook** → **Disconnect Outlook**: the Outlook events leave the calendar, and what the app wrote stays in Outlook.
 
 ## 9. Register the app at Microsoft (Outlook)
-Without this, everything else works; only the **Outlook** button cannot connect.
+Without this, everything else works; the **Outlook calendar** card in Settings then says "Outlook is not set up on this server yet".
 
-1. Sign in at **entra.microsoft.com** (Microsoft's portal for app registrations; a personal Microsoft account works) and open **App registrations** → **New registration**.
+1. Sign in at **entra.microsoft.com** (Microsoft's portal for app registrations) and open **App registrations** → **New registration**. Since June 2024 Microsoft requires every app registration to live in a directory (a Microsoft Entra tenant). Work and school accounts already have one. A purely personal Microsoft account (Outlook.com, Hotmail) has none: create one first, for example by signing up for the free Microsoft 365 Developer Program or an Azure free account with that personal account, then register the app in the directory it creates. Users with personal accounts can still connect afterwards, because of the account type chosen in step 2.
 2. **Name:** Lock In. **Supported account types:** "Accounts in any organizational directory and personal Microsoft accounts".
 3. **Redirect URI:** platform **Web**, address `http://localhost:3000/api/outlook/callback`. Press **Register**.
 4. Open **Authentication** and add a second Web redirect URI: the deployed address followed by `/api/outlook/callback`, for example `https://your-app.vercel.app/api/outlook/callback`. It must match `APP_URL` exactly. Save.
 5. Copy the **Application (client) ID** from **Overview** into `MICROSOFT_CLIENT_ID`.
 6. **Certificates & secrets** → **New client secret** (24 months). Copy its **Value** at once (it is shown only once) into `MICROSOFT_CLIENT_SECRET`. Put a reminder in your calendar a month before it expires.
 7. **API permissions** → **Add a permission** → **Microsoft Graph** → **Delegated permissions**: tick `Calendars.ReadWrite` and `offline_access`. Nothing else (no mail, no contacts). Remove `User.Read` if it is listed; the app does not need it.
-8. Make the encryption key: run `openssl rand -base64 32` in a terminal and put the result into `OUTLOOK_TOKEN_KEY`. Keep it in your password manager. If it changes, every user must connect Outlook again.
-9. Put the same three values into Vercel (**Settings → Environment Variables**) and deploy again.
-10. Work or school accounts: some organisations only allow apps their IT has approved. Then Microsoft says so on its page, and the app shows "Outlook was not connected". Ask the IT, or use a personal account for the demo.
+8. Optional: `MICROSOFT_TENANT`. Leave it unset for the default `common` (personal accounts and any work or school directory). Set it to your directory's tenant id or domain only if sign-ins must stay inside one organisation. (The name is `MICROSOFT_TENANT`, not `MICROSOFT_TENANT_ID`.)
+9. Make the encryption key: run `openssl rand -base64 32` in a terminal and put the result into `OUTLOOK_TOKEN_KEY`. Keep it in your password manager. If it changes, every user must connect Outlook again.
+10. Put the same three values (and `MICROSOFT_TENANT` if you set it) into Vercel (**Settings → Environment Variables**) and deploy again.
+11. Work or school accounts: some organisations only allow apps their IT has approved. Then Microsoft says so on its page, and the app shows "Outlook was not connected". Ask the IT, or use a personal account for the demo.
 

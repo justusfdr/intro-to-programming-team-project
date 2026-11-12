@@ -1,4 +1,5 @@
 // The shape of an event as the server sends it to the page. Times are ISO strings in UTC.
+import type { View } from "./views";
 
 export type EventStatus = "planned" | "done";
 
@@ -62,13 +63,29 @@ export type WeekDay = { date: string; label: string; isToday: boolean; events: W
 /** The Outlook connection as the calendar shows it (never the stored access). */
 export type OutlookView = { status: "none" | "connected" | "needs_reconnect"; lastSyncedAt: string | null };
 
+/**
+ * What the calendar shows (spec 14): one day, one week or the month's six weeks. The name stays
+ * "week" from the time the calendar had only that view.
+ */
 export type WeekData = {
   timeZone: string;
   outlook: OutlookView;
+  /** The view and the day it is built around (the address's day, or today). */
+  view: View;
+  date: string;
+  /** Today in the user's time zone. */
+  today: string;
+  /** The Monday of the week that holds `date`. */
   monday: string;
+  /** The day the previous and next buttons go to: a day, a week (its Monday) or a month earlier or later. */
   previous: string;
   next: string;
   /** The Monday of the current week (for "This week"). */
   thisWeek: string;
   days: WeekDay[];
+  /**
+   * Events of the day before the first shown day that run past midnight into it. They belong to that
+   * day (R2) and are only drawn as their part after midnight.
+   */
+  lead: WeekEvent[];
 };

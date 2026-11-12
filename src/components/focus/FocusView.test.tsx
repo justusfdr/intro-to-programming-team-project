@@ -1,10 +1,19 @@
 // The Focus page's markup in each state (spec 04): start, running, paused, rating, recent sessions.
+// Rewritten for the prototype-style branch (spec 12): the blocker card moved to Settings; the page keeps
+// the prototype's small status chip that links there, and recent sessions show month-first dates.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { FocusData, SessionDto } from "@/lib/focus/types";
 import { afterRejection, FocusView } from "./FocusView";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 
 const NOW = "2026-11-16T09:15:00.000Z";
 
@@ -13,6 +22,7 @@ function session(fields: Partial<SessionDto>): SessionDto {
     id: "s1",
     eventId: null,
     eventTitle: null,
+    eventGoalId: null,
     plannedMinutes: 60,
     status: "running",
     startedAt: "2026-11-16T09:00:00.000Z",
@@ -25,9 +35,9 @@ function session(fields: Partial<SessionDto>): SessionDto {
 }
 
 function render(data: Partial<FocusData>) {
-  // The blocker card has its own test (BlockerCard.test.tsx); here it only has to be there.
+  // The blocker card lives in Settings (its own test); here only the chip that links there.
   const blocker = { sites: [], connected: true, blockingOn: false, blockingUntil: null, timeZone: "Europe/Lisbon" };
-  return renderToStaticMarkup(<FocusView data={{ active: null, recent: [], forEvent: null, now: NOW, ...data }} blocker={blocker} />);
+  return renderToStaticMarkup(<FocusView data={{ active: null, recent: [], forEvent: null, forEventGoalId: null, goals: [], now: NOW, ...data }} blocker={blocker} />);
 }
 
 describe("Focus page", () => {
@@ -53,6 +63,21 @@ describe("Focus page", () => {
     expect(html).not.toContain("Start focus");
   });
 
+  it("shows the session's goal as in the prototype: tile and name above the title, its icon in the ring, the ring in its colour (spec 13)", () => {
+    const goals = [{ id: "g1", title: "Run a half marathon", look: { color: "teal" as const, icon: "footprints" as const } }];
+    const html = render({ goals, active: session({ eventId: "e1", eventTitle: "Easy run", eventGoalId: "g1" }) });
+    expect(html).toMatch(/lucide-footprints[\s\S]*Run a half marathon[\s\S]*Easy run/);
+    expect(html).toContain("stroke-teal-500");
+    expect(html).toMatch(/lucide-footprints[^"]*text-teal-600/);
+
+    const noGoal = render({ goals, active: session({ eventId: "e2", eventTitle: "Dentist" }) });
+    expect(noGoal).toContain("No goal");
+    expect(noGoal).not.toContain("stroke-teal-500");
+
+    const start = render({ goals, forEvent: { id: "e1", title: "Easy run", suggestedMinutes: 60 }, forEventGoalId: "g1" });
+    expect(start).toMatch(/lucide-footprints[\s\S]*Run a half marathon[\s\S]*Easy run/);
+  });
+
   it("shows a paused session as paused, with Resume and the time left frozen", () => {
     const html = render({ active: session({ status: "paused", pausedAt: "2026-11-16T09:05:00.000Z" }) });
     expect(html).toContain('aria-label="55:00 left"');
@@ -71,6 +96,14 @@ describe("Focus page", () => {
     expect(html.match(/aria-pressed="false"/g)).toHaveLength(6);
     expect(html).toContain("Not rated");
     expect(html).toContain("Rated 0 of 5");
+    expect(html).toContain(">Fri, Nov 13</span>");
+  });
+
+  it("shows the blocker as a small chip that links to the blocker settings, not the whole card", () => {
+    const html = render({});
+    expect(html).toMatch(/<a href="\/settings#blocker"[^>]*>.*0 sites on your block list.*<\/a>/);
+    expect(html).not.toContain("Blocked sites");
+    expect(html).not.toContain('name="domain"');
   });
 
   it("reloads after 'This session has already ended' or 'Not found', and keeps the page for other rejections", () => {

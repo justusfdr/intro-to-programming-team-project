@@ -33,10 +33,12 @@ export function addTask(request: Request, deps: Pick<Deps, "auth" | "withUser" |
 
     try {
       return await deps.withUser(userId, async (query) => {
-        const today = localDateOf(deps.now(), await readTimeZone(query));
+        // Both reads are sent together; the checks below keep their order (and so their messages).
+        const [timeZone, openTasks] = await Promise.all([readTimeZone(query), countOpenTasks(query)]);
+        const today = localDateOf(deps.now(), timeZone);
         const task = checkTaskFields(body.data, today);
         await assertOwnGoal(query, task.goalId);
-        assertRoomForOpenTask(await countOpenTasks(query));
+        assertRoomForOpenTask(openTasks);
 
         // user_id, status, done_at, created_at and updated_at are filled in by the database.
         const [saved] = await query<TaskRow>(

@@ -67,13 +67,15 @@ type PendingRow = {
   end_at: Date | null;
   first_day: string | null;
   last_day: string | null;
+  location: string | null;
   outlook_id: string | null;
   updated_at: Date;
 };
 
 /**
  * Sends what Outlook does not have yet (R26): deletions of sent app events, then app and assistant
- * events that have not ended and are new or changed since they were sent. Throws OutlookRefusedError
+ * events that have not ended and are new or changed since they were sent (never demo events, spec 13,
+ * as in the prototype). Throws OutlookRefusedError
  * or OutlookUnavailableError for the whole run; single events that must wait simply stay pending.
  */
 async function sendPending(deps: Deps, userId: string, service: OutlookService, accessToken: string): Promise<number> {
@@ -85,9 +87,10 @@ async function sendPending(deps: Deps, userId: string, service: OutlookService, 
       [MAX_SENT_PER_RUN],
     );
     const events = await q<PendingRow>(
-      `select id, title, all_day, start_at, end_at, first_day::text as first_day, last_day::text as last_day, outlook_id, updated_at
+      `select id, title, all_day, start_at, end_at, first_day::text as first_day, last_day::text as last_day, location, outlook_id, updated_at
          from app.events
         where source <> 'outlook'
+          and not demo
           and (outlook_id is null or outlook_sent_version is distinct from updated_at)
           and (case when all_day then last_day >= $2::date else end_at > $1 end)
         order by coalesce(start_at, first_day::timestamptz), id
@@ -108,6 +111,7 @@ async function sendPending(deps: Deps, userId: string, service: OutlookService, 
         endAt: e.end_at ? new Date(e.end_at).toISOString() : null,
         firstDay: e.first_day,
         lastDay: e.last_day,
+        location: e.location,
         transactionId: e.id,
       };
       return e.outlook_id ? { kind: "update", ref: e.id, outlookId: e.outlook_id, event } : { kind: "create", ref: e.id, event };

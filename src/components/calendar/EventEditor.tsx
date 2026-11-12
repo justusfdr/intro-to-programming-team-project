@@ -1,135 +1,127 @@
 "use client";
 
-// The event editor, in the prototype's style (spec 10): a panel at the right edge on wider screens and
-// a sheet from the bottom on phones. It is a native <dialog>: the browser keeps keyboard focus inside it,
-// closes it on Escape and puts the focus back where it was when it opened.
+// The event editor, in the prototype's frame and behaviour (spec 16; its components/calendar/
+// EventEditor.tsx): a 360 px card floating next to the block on wider screens, a sheet from the bottom
+// on phones (FloatingPanel: Esc and a click outside close it, the focus goes back).
 //
-// It creates an event or a series (create_event), or edits, deletes and marks done an existing one
-// (edit_event, delete_event, mark_event_done, mark_event_planned). An event can be all day (first and
-// last day, no times, no goal, R29). For an event of a series, saving and deleting first ask
-// "This event" or "This and following events" (R28). It only collects the input and shows the
-// server's answer; the server checks every rule.
+// An existing event has no Save button: every change is saved at once with edit_event and the
+// updated_at the screen last saw (R4), shown in the calendar straight away and put back with the
+// ontology's message when the server refuses (editor/useEventSave.ts). An event of a series asks
+// "This event" or "This and following events" first, in the footer (R28). An Outlook event changes
+// only its goal and done status (R11).
+//
+// A new event is made by the small "New event" card; its "Add details" opens this editor with what was
+// filled in, for repeating, all-day, location or overlap. "Add event" creates it (create_event) and the
+// editor then edits the saved event.
+//
+// The sections, in the prototype's order: header (goal tile, title, close), chips, WHEN, GOAL,
+// LOCATION, then ours: OVERLAP. Each is its own component in ./editor, so a later section (to-dos,
+// notes, the rating, the travel line) is one more entry in the list.
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent, type Ref } from "react";
+import { useState, type ReactNode, type Ref } from "react";
+import { Play, Trash2 } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
+import { useLive } from "@/components/live/Live";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { GoalTile } from "@/components/goals/GoalTile";
-import { CalendarIcon, Check, Close, ImportedIcon, NotSentIcon, PinIcon, Play, Trash, Warning } from "@/components/ui/icons";
-import { formatMinute } from "@/lib/events/grid";
-import { minutesText } from "@/lib/focus/session-time";
-import { MESSAGES } from "@/lib/messages";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
-import type { CalendarEvent, EventDto } from "@/lib/events/types";
-import { addDays, dayParts } from "@/lib/time/zoned";
+import type { CalendarEvent } from "@/lib/events/types";
+import { addDays } from "@/lib/time/zoned";
 import { useAnnounce } from "./Announcer";
+import { EditorChips } from "./editor/EditorChips";
+import { EditorHeader } from "./editor/EditorHeader";
+import { GoalSection } from "./editor/GoalSection";
+import { LocationSection } from "./editor/LocationSection";
+import { OverlapSection } from "./editor/OverlapSection";
+import { useEventSave } from "./editor/useEventSave";
+import { createBody, eventFromAnswer, newValues, type EventValues } from "./editor/values";
+import { RepeatFields, WhenSection, type Frequency } from "./editor/WhenSection";
+import { savedEventChange } from "./event-changes";
+import { FloatingPanel, type Anchor } from "./FloatingPanel";
 import type { GoalLabel } from "./TimeGrid";
 
-/** What the editor shows: a new event with suggested times, or an existing event. */
+export type { Frequency } from "./editor/WhenSection";
+
+/** What the editor shows, and where it floats: a new event with what the small card filled in, or an existing event. */
 export type EditorState =
-  /** `repeat` is the choice the Repeat list starts with (default: does not repeat). */
-  | { mode: "create"; start: string; end: string; repeat?: Frequency }
-  | { mode: "edit"; event: CalendarEvent }
+  | { mode: "create"; start: string; end: string; repeat?: Frequency; title?: string; goalId?: string | null; anchor: Anchor }
+  | { mode: "edit"; event: CalendarEvent; anchor: Anchor }
   | null;
 
-type Props = {
-  state: EditorState;
-  /** The user's goals, for the Goal list ("No goal" is always there). */
+type Common = {
+  /** The user's goals, for the goal chips ("No goal" is always there). */
   goals: GoalLabel[];
+  timeZone: string;
+  /** Today in the user's time zone (the month calendar marks it). */
+  today: string;
   /** Connected to Outlook: after a change the editor asks the server to send it right away (R26). */
   outlookConnected?: boolean;
   onClose: () => void;
 };
 
-const inputClass =
-  "block h-10 w-full min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10";
-/** A box that shows a value as text, in the same frame as the fields. */
-const boxClass = "flex min-h-10 items-center gap-2.5 rounded-lg border border-line bg-surface px-3 py-2 text-sm";
-const eyebrowClass = "text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3";
+type Props = Common & {
+  state: EditorState;
+  /** The event as the calendar shows it now (with the latest re-read), or null. */
+  shown?: CalendarEvent | null;
+  /** One event was deleted (not "this and following"): the calendar offers Undo. */
+  onDeleted?: (event: CalendarEvent) => void;
+  /** A change was refused after the editor closed: the calendar shows the message. */
+  onRefused?: (message: string) => void;
+  /** A new event was added: the editor goes on with it. */
+  onCreated?: (event: CalendarEvent) => void;
+};
 
-function Eyebrow({ children, htmlFor }: { children: string; htmlFor?: string }) {
-  const className = eyebrowClass;
-  return htmlFor ? (
-    <label htmlFor={htmlFor} className={className}>
-      {children}
-    </label>
-  ) : (
-    <p className={className}>{children}</p>
-  );
+/** The card width on wider screens, as in the prototype. */
+const WIDTH = 360;
+
+export function EventEditor({ state, shown, onDeleted, onRefused, onCreated, ...common }: Props) {
+  if (!state) return null;
+  if (state.mode === "edit") {
+    return <EditEventCard key={state.event.id} event={state.event} anchor={state.anchor} shown={shown} onDeleted={onDeleted} onRefused={onRefused} {...common} />;
+  }
+  return <NewEventCard key={`${state.start}-${state.end}`} draft={state} anchor={state.anchor} onCreated={onCreated} {...common} />;
 }
 
-export function EventEditor({ state, goals, outlookConnected = false, onClose }: Props) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const open = state !== null;
-
-  // Open and close the native dialog together with the state.
-  useEffect(() => {
-    const element = dialog.current;
-    if (!element) return;
-    if (open && !element.open) element.showModal();
-    if (!open && element.open) element.close();
-  }, [open]);
-
+/** The card's frame, as in the prototype: the sections, then the footer that sticks to the bottom. */
+function Card({ sections, footer }: { sections: ReactNode; footer: ReactNode }) {
   return (
-    <dialog
-      ref={dialog}
-      aria-labelledby="editor-title"
-      onClose={onClose}
-      // A click on the dimmed area around the card closes it, like the prototype.
-      onClick={(event) => event.target === dialog.current && onClose()}
-      className="event-editor m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-surface p-0 text-ink shadow-pop sm:my-2 sm:mr-2 sm:ml-auto sm:h-[calc(100dvh-1rem)] sm:max-h-none sm:w-[380px] sm:rounded-[20px]"
-    >
-      {/* A new key for every event gives the form fresh fields and messages. */}
-      {state && (
-        <EditorBody
-          key={state.mode === "edit" ? state.event.id : "new"}
-          state={state}
-          goals={goals}
-          outlookConnected={outlookConnected}
-          onClose={onClose}
-        />
-      )}
-    </dialog>
+    <>
+      <div className="flex flex-col gap-4 p-4">{sections}</div>
+      {footer && <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-4 py-3">{footer}</div>}
+    </>
   );
 }
 
-export type Frequency = "none" | "daily" | "weekly" | "monthly";
-
-const WEEKDAYS: { day: Weekday; short: string; long: string }[] = [
-  { day: 1, short: "Mon", long: "Monday" },
-  { day: 2, short: "Tue", long: "Tuesday" },
-  { day: 3, short: "Wed", long: "Wednesday" },
-  { day: 4, short: "Thu", long: "Thursday" },
-  { day: 5, short: "Fri", long: "Friday" },
-  { day: 6, short: "Sat", long: "Saturday" },
-  { day: 7, short: "Sun", long: "Sunday" },
-];
-
-/** What the footer asks before an action on an event of a series: save these values, or delete. */
-type ScopeQuestion = { kind: "save"; values: Record<string, unknown> } | { kind: "delete" } | null;
-
-/** The form's starting values. Timed and all-day fields both get values, so the switch can flip. */
-function initialValues(state: Exclude<EditorState, null>) {
-  if (state.mode === "create") {
-    const day = state.start.slice(0, 10);
-    return { title: "", start: state.start, end: state.end, firstDay: day, lastDay: day, allDay: false, mayOverlap: false, goalId: "" };
+/** In its floating panel, or bare (`anchor` null: the previews and markup tests draw it themselves). */
+function Frame({ anchor, label, onClose, children }: { anchor: Anchor | null; label: string; onClose: () => void; children: ReactNode }) {
+  if (!anchor) {
+    return (
+      <div role="dialog" aria-label={label}>
+        {children}
+      </div>
+    );
   }
-  const event = state.event;
-  if (event.allDay) {
-    const { firstDay, lastDay } = event;
-    return { title: event.title, start: `${firstDay}T09:00`, end: `${firstDay}T10:00`, firstDay, lastDay, allDay: true, mayOverlap: false, goalId: "" };
-  }
-  const day = event.startLocal.slice(0, 10);
-  return {
-    title: event.title,
-    start: event.startLocal,
-    end: event.endLocal,
-    firstDay: day,
-    lastDay: day,
-    allDay: false,
-    mayOverlap: event.mayOverlap,
-    goalId: event.goalId ?? "",
-  };
+  return (
+    <FloatingPanel anchor={anchor} label={label} width={WIDTH} onClose={onClose}>
+      {children}
+    </FloatingPanel>
+  );
+}
+
+/** The server's refusal, with "Reload" when another device saved first (R4). */
+function Refusal({ result, onReload }: { result: PostResult | null; onReload: () => void }) {
+  if (!result) return null;
+  const stale = result.status === 409 && result.message.startsWith("Changed on another device");
+  return (
+    <div className="flex flex-col gap-2">
+      <FormMessage tone="error" text={result.message} />
+      {stale && (
+        <Button variant="secondary" size="sm" className="w-fit" onClick={onReload}>
+          Reload
+        </Button>
+      )}
+    </div>
+  );
 }
 
 type SeriesQuestionProps = {
@@ -160,488 +152,157 @@ export function SeriesQuestion({ kind, title, busy, firstButton, onAnswer, onCan
   );
 }
 
-/** When an Outlook event takes place, in words (its editor shows it as text, R11). */
-function whenText(event: CalendarEvent): string {
-  if (event.allDay) {
-    const first = dayParts(event.firstDay).long;
-    return event.lastDay === event.firstDay ? `${first}, all day` : `${first} to ${dayParts(event.lastDay).long}, all day`;
-  }
-  const end = event.endDay ? `${event.endTime} the next day` : event.endTime;
-  return `${dayParts(event.startLocal.slice(0, 10)).long}, ${event.startTime} to ${end}`;
-}
+type EditProps = Common & {
+  event: CalendarEvent;
+  /** Null: drawn without the floating panel (previews, markup tests). */
+  anchor: Anchor | null;
+  shown?: CalendarEvent | null;
+  onDeleted?: (event: CalendarEvent) => void;
+  onRefused?: (message: string) => void;
+};
 
-type BodyProps = { state: Exclude<EditorState, null>; goals: GoalLabel[]; outlookConnected: boolean; onClose: () => void };
-
-const DAY = 24 * 60;
-
-/** Minutes from midnight of the start's day: "2026-11-17T09:30" gives 570. */
-function minuteOf(local: string): number {
-  return Number(local.slice(11, 13)) * 60 + Number(local.slice(14, 16));
-}
-
-/** The end in minutes from midnight of the start's day; past midnight it is more than 24 hours. */
-function endMinuteOf(start: string, end: string): number {
-  const length = Math.round((Date.parse(`${end}:00Z`) - Date.parse(`${start}:00Z`)) / 60_000);
-  return Number.isFinite(length) ? minuteOf(start) + length : minuteOf(start) + 60;
-}
-
-/** "YYYY-MM-DDTHH:MM" for minute `min` from midnight of `date`; minutes past 24 hours go to the next day. */
-function localAt(date: string, min: number): string {
-  return `${addDays(date, Math.floor(min / DAY))}T${formatMinute(((min % DAY) + DAY) % DAY)}`;
-}
-
-/** Every quarter of an hour of the day, plus `value` if it is between them. */
-function startOptions(value: number): number[] {
-  const options = Array.from({ length: DAY / 15 }, (_, i) => i * 15);
-  return options.includes(value) ? options : [...options, value].sort((a, b) => a - b);
-}
-
-/** Every quarter of an hour up to 24 hours after the start, plus `value` if it is between them. */
-function endOptions(start: number, value: number): number[] {
-  const options = Array.from({ length: DAY / 15 }, (_, i) => start + (i + 1) * 15);
-  return options.includes(value) ? options : [...options, value].sort((a, b) => a - b);
-}
-
-const switchClass =
-  "relative h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-line transition-colors checked:bg-ink before:absolute before:top-0.5 before:left-0.5 before:size-4 before:rounded-full before:bg-white before:shadow-sm before:transition-transform checked:before:translate-x-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-1";
-
-const chipClass = "inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-medium";
-
-function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
+/** An existing event: every change is saved at once. */
+export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, today, outlookConnected = false, onClose, onDeleted, onRefused }: EditProps) {
   const router = useRouter();
-  const announce = useAnnounce();
-  // The event as last saved: marking done updates it, so a later save carries the new updated_at (R4).
-  const [event, setEvent] = useState<CalendarEvent | null>(state.mode === "edit" ? state.event : null);
-  const [result, setResult] = useState<PostResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [question, setQuestion] = useState<ScopeQuestion>(null);
-  const confirmButton = useRef<HTMLButtonElement>(null);
+  const save = useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose });
+  const { event, values } = save;
+  const fromOutlook = event.source === "outlook";
+  const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);
 
-  const initial = initialValues(state);
-  const [allDay, setAllDay] = useState(initial.allDay);
-  // Date, start and end are followed: the end list counts from the start, and the weekly repeat shows
-  // the first date's weekday (always included, R28).
-  const [date, setDate] = useState(initial.start.slice(0, 10));
-  const [startMin, setStartMin] = useState(minuteOf(initial.start));
-  const [endMin, setEndMin] = useState(endMinuteOf(initial.start, initial.end));
-  const [goalId, setGoalId] = useState(initial.goalId);
-  const [frequency, setFrequency] = useState<Frequency>(state.mode === "create" ? (state.repeat ?? "none") : "none");
-  const [weekdays, setWeekdays] = useState<Weekday[]>([]);
+  const sections = [
+    <EditorHeader
+      key="header"
+      look={look}
+      title={fromOutlook ? event.title : values.title}
+      editable={!fromOutlook}
+      onType={(title) => save.change({ title }, true)}
+      onDone={(title) => (title === undefined ? save.commit(true) : save.change({ title }))}
+      onClose={save.close}
+    />,
+    <EditorChips key="chips" event={event} />,
+    <WhenSection key="when" event={event} values={values} onChange={(patch) => save.change(patch)} todayKey={today} />,
+    // All-day events have no goal (R29).
+    !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => save.change({ goalId })} />,
+    <LocationSection
+      key="location"
+      value={fromOutlook ? (event.location ?? "") : values.location}
+      editable={!fromOutlook}
+      onType={(location) => save.change({ location }, true)}
+      onDone={() => save.commit(true)}
+    />,
+    !values.allDay && !fromOutlook && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => save.change({ mayOverlap })} />,
+    <Refusal
+      key="refusal"
+      result={save.result}
+      onReload={() => {
+        router.refresh();
+        onClose();
+      }}
+    />,
+  ];
 
-  useEffect(() => {
-    if (confirmingDelete || question) confirmButton.current?.focus();
-  }, [confirmingDelete, question]);
-
-  const prefix = event ? event.id : "new";
-  const inSeries = Boolean(event?.seriesId);
-  // R11: an Outlook event keeps title, times and days from Outlook; here only its goal and done status.
-  const fromOutlook = event?.source === "outlook";
-  const firstWeekday = /^\d{4}-\d{2}-\d{2}$/.test(date) ? weekdayOf(date) : null;
-  const tileColor = allDay ? null : (goals.find((goal) => goal.id === goalId)?.colorIndex ?? null);
-
-  /** Sends one action; on success announces the message, closes the editor and reloads the week. */
-  async function run(path: string, body: unknown, { close = true } = {}) {
-    setBusy(true);
-    const answer = await postJson(path, body);
-    setBusy(false);
-    setQuestion(null);
-    setResult(answer.ok ? null : answer);
-    if (!answer.ok) return null;
-    if (answer.message) announce(answer.message);
-    router.refresh();
-    // The change goes to Outlook now, not at the next sync; the week reloads once it is there.
-    if (outlookConnected && !fromOutlook) void postJson("/api/outlook/send", {}).then(() => router.refresh());
-    if (close) onClose();
-    return answer;
-  }
-
-  async function save(formEvent: FormEvent<HTMLFormElement>) {
-    formEvent.preventDefault();
-    const form = new FormData(formEvent.currentTarget);
-    if (event && fromOutlook) {
-      return run(`/api/events/${event.id}/edit`, { goalId: String(form.get("goal") ?? "") || null, updatedAt: event.updatedAt });
-    }
-    const title = String(form.get("title") ?? "");
-    const values: Record<string, unknown> = allDay
-      ? { title, allDay: true, firstDay: String(form.get("firstDay") ?? ""), lastDay: String(form.get("lastDay") ?? "") }
-      : {
-          title,
-          start: localAt(date, startMin),
-          end: localAt(date, endMin),
-          mayOverlap: form.get("mayOverlap") === "on",
-          // "" is "No goal": the server takes null.
-          goalId: String(form.get("goal") ?? "") || null,
-        };
-    if (!event && !allDay && frequency !== "none") {
-      values.repeat = {
-        frequency,
-        weekdays: frequency === "weekly" ? [...new Set([...weekdays, ...(firstWeekday ? [firstWeekday] : [])])].sort((a, b) => a - b) : [],
-        until: String(form.get("until") ?? ""),
-      };
-    }
-    if (!event) return run("/api/events", values);
-    // An event of a series: ask first (R28).
-    if (inSeries) return setQuestion({ kind: "save", values });
-    return run(`/api/events/${event.id}/edit`, { ...values, updatedAt: event.updatedAt });
-  }
-
-  function answerScope(scope: "this" | "this_and_following") {
-    if (!event || !question) return;
-    if (question.kind === "save") return run(`/api/events/${event.id}/edit`, { ...question.values, updatedAt: event.updatedAt, scope });
-    return run(`/api/events/${event.id}/delete`, { updatedAt: event.updatedAt, scope });
-  }
-
-  async function toggleDone() {
-    if (!event) return;
-    setBusy(true);
-    const answer = await postJson(`/api/events/${event.id}/${event.status === "done" ? "planned" : "done"}`, {});
-    setBusy(false);
-    setResult(answer.ok ? null : answer);
-    if (!answer.ok) return;
-    // Keep the editor open (as in the prototype) and show the new state.
-    const saved = (answer.data as { event?: EventDto } | undefined)?.event;
-    if (saved) setEvent({ ...event, status: saved.status, updatedAt: saved.updatedAt });
-    router.refresh();
-  }
-
-  /** A new start keeps the event's length. */
-  function moveStart(next: number) {
-    setEndMin(next + (endMin - startMin));
-    setStartMin(next);
-  }
-
-  const stale = result?.status === 409 && result.message.startsWith("Changed on another device");
-  const conflict = event && !event.allDay && event.conflict;
+  // All-day events cannot be done and do not suggest a focus session (R29); Outlook events are deleted in Outlook (R11).
+  const timed = !event.allDay;
+  const footer = save.ask ? (
+    <SeriesQuestion kind={save.ask.kind} title={event.title} busy={save.busy} onAnswer={save.answer} onCancel={save.cancelAsk} />
+  ) : timed || !fromOutlook ? (
+    <>
+      {timed && (
+        <LinkButton href={`/focus?event=${event.id}`} size="sm">
+          <Play className="size-3.5" strokeWidth={2} />
+          Start focus
+        </LinkButton>
+      )}
+      {timed && (
+        <Button size="sm" variant="secondary" onClick={save.toggleDone}>
+          {event.status === "done" ? "Reopen" : "Mark done"}
+        </Button>
+      )}
+      {!fromOutlook && (
+        <Button size="icon" variant="ghost" className="ml-auto" aria-label="Delete event" title="Delete" disabled={save.busy} onClick={save.remove}>
+          <Trash2 className="size-4" strokeWidth={1.8} />
+        </Button>
+      )}
+    </>
+  ) : null;
 
   return (
-    <form onSubmit={save} noValidate className="flex h-full max-h-[inherit] flex-col">
-      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 pt-5 pb-6">
-        <div className="flex flex-col gap-2.5">
-          <div className="flex items-center gap-3">
-            <h2 id="editor-title" className="sr-only">
-              {event ? `Edit ${event.title}` : "New event"}
-            </h2>
-            <GoalTile colorIndex={tileColor} size="lg" />
-            <div className="min-w-0 flex-1">
-              {fromOutlook ? (
-                <p className="truncate py-0.5 text-[15px] font-semibold leading-6 text-ink">{initial.title}</p>
-              ) : (
-                <>
-                  <label htmlFor={`${prefix}-title`} className="sr-only">
-                    Title
-                  </label>
-                  <input
-                    id={`${prefix}-title`}
-                    name="title"
-                    defaultValue={initial.title}
-                    placeholder="Event title"
-                    autoFocus
-                    className="-mx-1.5 block w-full min-w-0 rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold leading-6 text-ink placeholder:text-ink-3 hover:bg-raised focus:bg-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
-                  />
-                </>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
-            >
-              <Close />
-            </button>
-          </div>
+    <Frame anchor={anchor} label={`Event: ${event.title}`} onClose={save.close}>
+      <Card sections={sections} footer={footer} />
+    </Frame>
+  );
+}
 
-          {event && (event.status === "done" || conflict || inSeries || fromOutlook || event.notSent) && (
-            <div className="flex flex-wrap gap-1.5">
-              {event.status === "done" && (
-                <span className={`${chipClass} bg-success-soft text-success`}>
-                  <Check className="size-3" strokeWidth={2.5} /> Done
-                </span>
-              )}
-              {inSeries && <span className={`${chipClass} bg-raised text-ink-2`}>Repeating</span>}
-              {fromOutlook && (
-                <span className={`${chipClass} bg-raised text-ink-2`}>
-                  <ImportedIcon className="size-3" /> From Outlook
-                </span>
-              )}
-              {event.notSent && (
-                <span className={`${chipClass} bg-danger-soft text-danger`}>
-                  <NotSentIcon className="size-3" /> Not sent to Outlook
-                </span>
-              )}
-              {conflict && (
-                <span className={`${chipClass} bg-danger-soft text-danger`}>
-                  <Warning className="size-3" /> Overlaps another event
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+type NewProps = Common & {
+  draft: { start: string; end: string; repeat?: Frequency; title?: string; goalId?: string | null };
+  anchor: Anchor | null;
+  onCreated?: (event: CalendarEvent) => void;
+};
 
-        {event && fromOutlook ? (
-          <>
-            <section className="flex flex-col gap-2">
-              <Eyebrow>When</Eyebrow>
-              <p className={`${boxClass} text-ink`}>
-                <CalendarIcon className="size-4 shrink-0 text-ink-3" />
-                {whenText(event)}
-              </p>
-              <p className="text-xs text-ink-2">{MESSAGES.changeInOutlook}</p>
-            </section>
-            {event.location && (
-              <section className="flex flex-col gap-2">
-                <Eyebrow>Location</Eyebrow>
-                <p className={`${boxClass} text-ink`}>
-                  <PinIcon className="size-4 shrink-0 text-ink-3" />
-                  {event.location}
-                </p>
-              </section>
-            )}
-          </>
-        ) : (
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Eyebrow>When</Eyebrow>
-              {/* A series is timed (R29), so its events do not offer the switch. */}
-              {!inSeries && (
-                <label htmlFor={`${prefix}-all-day`} className="flex cursor-pointer items-center gap-2 text-xs font-medium text-ink-2">
-                  All day
-                  <input
-                    id={`${prefix}-all-day`}
-                    type="checkbox"
-                    role="switch"
-                    checked={allDay}
-                    onChange={(e) => setAllDay(e.target.checked)}
-                    className={switchClass}
-                  />
-                </label>
-              )}
-            </div>
-            {allDay ? (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex min-w-0 flex-col gap-1">
-                  <label htmlFor={`${prefix}-first-day`} className="text-xs text-ink-2">First day</label>
-                  <input id={`${prefix}-first-day`} name="firstDay" type="date" defaultValue={initial.firstDay} className={inputClass} />
-                </div>
-                <div className="flex min-w-0 flex-col gap-1">
-                  <label htmlFor={`${prefix}-last-day`} className="text-xs text-ink-2">Last day</label>
-                  <input id={`${prefix}-last-day`} name="lastDay" type="date" defaultValue={initial.lastDay} className={inputClass} />
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="relative">
-                  <label htmlFor={`${prefix}-date`} className="sr-only">
-                    Date
-                  </label>
-                  <CalendarIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />
-                  <input
-                    id={`${prefix}-date`}
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className={`${inputClass} pl-9`}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="min-w-0">
-                    <label htmlFor={`${prefix}-start`} className="sr-only">
-                      Starts
-                    </label>
-                    <select id={`${prefix}-start`} value={startMin} onChange={(e) => moveStart(Number(e.target.value))} className={`${inputClass} tabular`}>
-                      {startOptions(startMin).map((min) => (
-                        <option key={min} value={min}>
-                          {formatMinute(min)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="min-w-0">
-                    <label htmlFor={`${prefix}-end`} className="sr-only">
-                      Ends
-                    </label>
-                    <select id={`${prefix}-end`} value={endMin} onChange={(e) => setEndMin(Number(e.target.value))} className={`${inputClass} tabular`}>
-                      {endOptions(startMin, endMin).map((min) => (
-                        <option key={min} value={min}>
-                          {`${formatMinute(((min % DAY) + DAY) % DAY)} · ${min > startMin ? minutesText(min - startMin) : "0 min"}${min >= DAY ? " (next day)" : ""}`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
-          </section>
-        )}
+/** A new event from "Add details": filled in here, then "Add event" creates it (create_event). */
+export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookConnected = false, onClose, onCreated }: NewProps) {
+  const live = useLive();
+  const announce = useAnnounce();
+  const [values, setValues] = useState(() => newValues(draft));
+  const [frequency, setFrequency] = useState<Frequency>(draft.repeat ?? "none");
+  const [weekdays, setWeekdays] = useState<Weekday[]>([]);
+  const [until, setUntil] = useState(() => addDays(draft.start.slice(0, 10), 28));
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<PostResult | null>(null);
+  const change = (patch: Partial<EventValues>) => setValues((v) => ({ ...v, ...patch }));
+  const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);
 
-        {/* Repeat (R28): only when creating a timed event; a series is never extended later. */}
-        {!event && !allDay && (
-          <section className="flex flex-col gap-2">
-            <Eyebrow htmlFor="new-repeat">Repeat</Eyebrow>
-            <select id="new-repeat" value={frequency} onChange={(e) => setFrequency(e.target.value as Frequency)} className={inputClass}>
-              <option value="none">Does not repeat</option>
-              <option value="daily">Every day</option>
-              <option value="weekly">Every week</option>
-              <option value="monthly">Every month</option>
-            </select>
-            {frequency === "weekly" && (
-              <fieldset className="flex flex-wrap gap-1.5">
-                <legend className="sr-only">On these days</legend>
-                {WEEKDAYS.map(({ day, short, long }) => {
-                  const fixed = day === firstWeekday;
-                  const checked = fixed || weekdays.includes(day);
-                  return (
-                    <label
-                      key={day}
-                      title={fixed ? `${long}: the first date's day, always included` : long}
-                      className={`flex h-8 min-w-11 cursor-pointer items-center justify-center rounded-full border px-2.5 text-xs font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink/30 ${
-                        checked ? "border-ink bg-ink text-surface" : "border-line-subtle text-ink-2 hover:bg-raised"
-                      } ${fixed ? "cursor-default opacity-80" : ""}`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        aria-label={long}
-                        checked={checked}
-                        disabled={fixed}
-                        onChange={(e) => setWeekdays((days) => (e.target.checked ? [...days, day] : days.filter((d) => d !== day)))}
-                      />
-                      {short}
-                    </label>
-                  );
-                })}
-              </fieldset>
-            )}
-            {frequency !== "none" && (
-              <div className="grid grid-cols-[4.5rem_1fr] items-center gap-2 text-xs text-ink-2">
-                <label htmlFor="new-until">Until</label>
-                <input id="new-until" name="until" type="date" defaultValue={addDays(initial.firstDay, 28)} className={inputClass} />
-              </div>
-            )}
-          </section>
-        )}
+  async function add() {
+    const first = weekdayOf(values.date);
+    const repeat =
+      frequency === "none"
+        ? null
+        : { frequency, weekdays: frequency === "weekly" ? [...new Set([...weekdays, first])].sort((a, b) => a - b) : [], until };
+    setBusy(true);
+    const answer = await live.run({ send: () => postJson("/api/events", createBody(values, repeat)), fromAnswer: savedEventChange });
+    setBusy(false);
+    if (!answer.ok) return setResult(answer);
+    if (answer.message) announce(answer.message);
+    if (outlookConnected) void postJson("/api/outlook/send", {}).then(() => live.refresh());
+    // A single event stays open in the editor, now saving each change; a series waits for the re-read.
+    const series = (answer.data as { count?: unknown } | undefined)?.count !== undefined;
+    const created = series ? null : eventFromAnswer(answer, timeZone);
+    if (created && onCreated) onCreated(created);
+    else onClose();
+  }
 
-        {/* All-day events have no goal (R29). The chips are radio inputs named "goal", like a list. */}
-        {!allDay && (
-          <fieldset className="flex min-w-0 flex-col gap-2">
-            <legend className={`${eyebrowClass} mb-2`}>Goal</legend>
-            <div className="flex flex-wrap gap-1.5">
-              {[{ id: "", title: "No goal", colorIndex: null as number | null }, ...goals].map((goal) => (
-                <label
-                  key={goal.id || "none"}
-                  className={`inline-flex h-8 max-w-full cursor-pointer items-center gap-1.5 rounded-full border pr-3 pl-1.5 text-[13px] transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink/30 ${
-                    goalId === goal.id ? "border-ink font-medium text-ink" : "border-line-subtle text-ink-2 hover:bg-raised"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="goal"
-                    value={goal.id}
-                    checked={goalId === goal.id}
-                    onChange={() => setGoalId(goal.id)}
-                    className="sr-only"
-                  />
-                  <GoalTile colorIndex={goal.colorIndex} size="xs" />
-                  <span className="min-w-0 truncate">{goal.title}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        )}
+  const sections = [
+    <EditorHeader key="header" look={look} title={values.title} editable onType={(title) => change({ title })} onDone={(title) => title !== undefined && change({ title })} onClose={onClose} />,
+    <WhenSection key="when" event={null} values={values} onChange={change} todayKey={today}>
+      {/* Repeat (R28): only when creating a timed event; a series is never extended later. */}
+      {!values.allDay && (
+        <RepeatFields
+          date={values.date}
+          frequency={frequency}
+          weekdays={weekdays}
+          until={until}
+          todayKey={today}
+          onFrequency={setFrequency}
+          onWeekdays={setWeekdays}
+          onUntil={setUntil}
+        />
+      )}
+    </WhenSection>,
+    !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => change({ goalId })} />,
+    <LocationSection key="location" value={values.location} editable onType={(location) => change({ location })} onDone={() => {}} />,
+    !values.allDay && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => change({ mayOverlap })} />,
+    <Refusal key="refusal" result={result} onReload={onClose} />,
+  ];
 
-        {!allDay && !fromOutlook && (
-          <section className="flex flex-col gap-2">
-            <Eyebrow>Overlap</Eyebrow>
-            <label htmlFor={`${prefix}-may-overlap`} className="flex cursor-pointer items-center gap-2.5 text-sm text-ink">
-              <input
-                id={`${prefix}-may-overlap`}
-                name="mayOverlap"
-                type="checkbox"
-                defaultChecked={initial.mayOverlap}
-                className="size-4 accent-ink"
-              />
-              May overlap other events
-            </label>
-          </section>
-        )}
+  const footer = (
+    <Button size="sm" disabled={busy || values.title.trim() === ""} onClick={() => void add()}>
+      {busy ? "Adding…" : "Add event"}
+    </Button>
+  );
 
-        {result && <FormMessage tone="error" text={result.message} />}
-        {stale && (
-          <Button
-            variant="secondary"
-            size="sm"
-            className="w-fit"
-            onClick={() => {
-              router.refresh();
-              onClose();
-            }}
-          >
-            Reload
-          </Button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-5 py-3.5">
-        {question && event ? (
-          <SeriesQuestion
-            kind={question.kind}
-            title={event.title}
-            busy={busy}
-            firstButton={confirmButton}
-            onAnswer={answerScope}
-            onCancel={() => setQuestion(null)}
-          />
-        ) : confirmingDelete && event ? (
-          <>
-            <p className="w-full text-sm font-medium">{`Delete '${event.title}'?`}</p>
-            <Button
-              ref={confirmButton}
-              variant="danger"
-              size="sm"
-              disabled={busy}
-              onClick={() => run(`/api/events/${event.id}/delete`, { updatedAt: event.updatedAt })}
-            >
-              Yes, delete
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <>
-            {!(fromOutlook && event?.allDay) && (
-              <Button type="submit" size="sm" disabled={busy}>
-                {busy ? "Saving…" : event ? "Save" : "Add event"}
-              </Button>
-            )}
-            {/* All-day events cannot be done and do not suggest a focus session (R29). */}
-            {event && !event.allDay && (
-              <LinkButton href={`/focus?event=${event.id}`} variant="secondary" size="sm">
-                <Play className="size-3.5" />
-                Start focus
-              </LinkButton>
-            )}
-            {event && !event.allDay && (
-              <Button variant="secondary" size="sm" disabled={busy} onClick={toggleDone}>
-                {event.status === "done" ? "Reopen" : "Mark done"}
-              </Button>
-            )}
-            {event && !fromOutlook && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="ml-auto size-8 text-ink-3"
-                aria-label={`Delete ${event.title}`}
-                title="Delete"
-                onClick={() => (inSeries ? setQuestion({ kind: "delete" }) : setConfirmingDelete(true))}
-              >
-                <Trash />
-              </Button>
-            )}
-          </>
-        )}
-      </div>
-    </form>
+  return (
+    <Frame anchor={anchor} label="New event" onClose={onClose}>
+      <Card sections={sections} footer={footer} />
+    </Frame>
   );
 }

@@ -24,6 +24,9 @@
   --color-success-soft: #ecfdf5;
   --color-danger: #be123c;
   --color-danger-soft: #fef2f2;
+  /* The prototype's warning pair; the text colour is darker than its #d97706 for a 4.5:1 contrast. */
+  --color-warning: #b45309;
+  --color-warning-soft: #fffbeb;
 
   --radius-card: 16px;
   --radius-panel: 24px;
@@ -82,6 +85,18 @@ dialog.event-editor::backdrop {
 @media (prefers-reduced-motion: no-preference) {
   dialog.event-editor[open] {
     animation: editor-in 160ms ease-out;
+  }
+}
+
+/* The welcome dialog (spec 13): the page behind it dimmed and slightly blurred, as in the prototype. */
+dialog.welcome::backdrop {
+  background: rgb(16 16 16 / 0.3);
+  backdrop-filter: blur(2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  dialog.welcome[open] {
+    animation: editor-in 200ms ease-out;
   }
 }
 

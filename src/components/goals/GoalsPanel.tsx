@@ -8,9 +8,11 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { usePanels } from "@/components/shell/PanelState";
 import { Button } from "@/components/ui/Button";
-import { ChevronRight, Close, Plus } from "@/components/ui/icons";
+import { ChevronRight, Plus, Target, X } from "lucide-react";
 import { COLLAPSED_KEY, readCollapsed, toggleCollapsed } from "@/lib/goals/collapsed";
+import { nextGoalColor } from "@/lib/goals/style";
 import type { GoalView } from "@/lib/goals/types";
+import { useLiveTasks } from "@/components/live/Live";
 import { openCount, sortTasks } from "@/lib/tasks/order";
 import type { TaskDto } from "@/lib/tasks/types";
 import { GoalCard, OpenTaskCount } from "./GoalCard";
@@ -58,10 +60,10 @@ function PanelContent({ titleId, goals, tasks, today, collapsed, onToggle, onNew
           Goals
         </h2>
         <Button variant="ghost" size="icon" className="size-8 text-ink-3" aria-label="New goal" title="New goal" onClick={onNew}>
-          <Plus />
+          <Plus className="size-4" />
         </Button>
         <Button variant="ghost" size="icon" className="size-8 text-ink-3" aria-label={closeLabel} title={closeLabel} onClick={onClose}>
-          <Close />
+          <X className="size-4" />
         </Button>
       </div>
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-1 pb-6">
@@ -77,7 +79,7 @@ function PanelContent({ titleId, goals, tasks, today, collapsed, onToggle, onNew
               onToggle={() => onToggle(goal.id)}
               openTasks={openCount(own)}
             >
-              <TaskList tasks={own} goalId={goal.id} colorIndex={goal.colorIndex} sectionTitle={goal.title} today={today} goals={goalOptions} />
+              <TaskList tasks={own} goalId={goal.id} color={goal.look.color} sectionTitle={goal.title} today={today} goals={goalOptions} />
             </GoalCard>
           );
         })}
@@ -130,14 +132,14 @@ function InboxSection({
         >
           <ChevronRight className={`size-3.5 transition-transform ${collapsed ? "" : "rotate-90"}`} strokeWidth={2.2} />
         </button>
-        <GoalTile colorIndex={null} icon="inbox" />
+        <GoalTile look={null} inbox />
         <h3 className="ml-1 min-w-0 flex-1 truncate text-[15px] font-semibold tracking-snug text-ink">Inbox</h3>
         <OpenTaskCount count={openCount(tasks)} />
       </div>
       <div aria-hidden className="mt-1.5 h-[3px] rounded-full bg-muted" />
       {!collapsed && (
         <div id={bodyId}>
-          <TaskList tasks={tasks} goalId={null} colorIndex={null} sectionTitle="Inbox" today={today} goals={goals} />
+          <TaskList tasks={tasks} goalId={null} color={null} sectionTitle="Inbox" today={today} goals={goals} />
         </div>
       )}
     </section>
@@ -183,7 +185,9 @@ function useCollapsed(goalIds: string[]): [string[], (goalId: string) => void] {
   return [collapsed, toggle];
 }
 
-export function GoalsPanel({ goals, tasks, today }: Props) {
+export function GoalsPanel({ goals, tasks: serverTasks, today }: Props) {
+  // The tasks with the changes of actions whose re-read has not arrived yet (components/live/Live.tsx).
+  const tasks = useLiveTasks(serverTasks);
   const panels = usePanels();
   const [editor, setEditor] = useState<GoalEditorState>(null);
   const sheet = useRef<HTMLDialogElement>(null);
@@ -199,7 +203,7 @@ export function GoalsPanel({ goals, tasks, today }: Props) {
 
   const newGoal = () => {
     panels.openSheet(null);
-    setEditor({ mode: "create", today });
+    setEditor({ mode: "create", today, color: nextGoalColor(goals.map((goal) => goal.look.color)) });
   };
 
   const openGoal = (goal: GoalView) => {
@@ -252,7 +256,17 @@ export function GoalsPanel({ goals, tasks, today }: Props) {
   );
 }
 
-/** The toolbar button: collapses or opens the panel on wide screens, opens the sheet on smaller ones. */
+/** The prototype's round panel toggle (target icon); with its name once the calendar column is wide. */
+function toggleClass(active: boolean): string {
+  return `inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-full border text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 @3xl:px-3 ${
+    active ? "border-line bg-raised text-ink" : "border-line bg-surface text-ink-2 hover:bg-raised hover:text-ink"
+  }`;
+}
+
+/**
+ * The toolbar button, as in the prototype: collapses or shows the column on wide screens, opens the
+ * sheet on smaller ones.
+ */
 export function GoalsToggle() {
   const panels = usePanels();
   const open = panels.isOpen("goals");
@@ -260,14 +274,31 @@ export function GoalsToggle() {
   return (
     <>
       <div className="hidden xl:block">
-        <Button variant="secondary" className={open ? "border-ink" : ""} aria-expanded={open} onClick={() => panels.toggle("goals")}>
-          Goals
-        </Button>
+        <button
+          type="button"
+          aria-label="Goals"
+          title={`${open ? "Hide" : "Show"} goals`}
+          aria-pressed={open}
+          onClick={() => panels.toggle("goals")}
+          className={toggleClass(open)}
+        >
+          <Target className="size-4" strokeWidth={2} />
+          <span className="hidden @3xl:inline">Goals</span>
+        </button>
       </div>
       <div className="xl:hidden">
-        <Button variant="secondary" aria-haspopup="dialog" onClick={() => panels.openSheet("goals")}>
-          Goals
-        </Button>
+        <button
+          type="button"
+          aria-label="Goals"
+          title="Open goals"
+          aria-haspopup="dialog"
+          aria-expanded={panels.sheet === "goals"}
+          onClick={() => panels.openSheet("goals")}
+          className={toggleClass(panels.sheet === "goals")}
+        >
+          <Target className="size-4" strokeWidth={2} />
+          <span className="hidden @3xl:inline">Goals</span>
+        </button>
       </div>
     </>
   );

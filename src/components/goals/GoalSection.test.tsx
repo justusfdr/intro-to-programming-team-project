@@ -12,6 +12,10 @@ const GOAL: GoalView = {
   autoBlock: false,
   updatedAt: "2026-11-15T10:00:00.000Z",
   colorIndex: 0,
+  color: null,
+  icon: "rocket",
+  why: "",
+  look: { color: "rose", icon: "rocket" },
   rules: [
     { id: "r1", kind: "count", target: 2, minMinutes: null },
     { id: "r2", kind: "hours", target: 6, minMinutes: null },
