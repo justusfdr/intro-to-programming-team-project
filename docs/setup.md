@@ -68,3 +68,4 @@ Our code relies on these answers from Supabase. Check them once with two test ad
 11. The blocker: in `extension/config.js` set `APP_URL` to the deployed address, then load the `extension` folder in Chrome (see `extension/README.md`). Sign in to the app in the same Chrome profile; within a minute the Focus page says "Blocker connected". Start a 15-minute session and open youtube.com: Chrome shows the block page.
     - Chrome must allow third-party cookies for the app's address (Chrome settings, Privacy and security, Third-party cookies, "Sites allowed to use third-party cookies"). Otherwise the extension gets "not signed in" and blocks nothing.
     - `EXTENSION_ID` stays empty unless the key in `extension/manifest.json` is replaced.
+12. Analytics: after a few sessions (and a blocked visit during one), the Analytics page shows the week's focus time, sessions, score and blocked visits; a day without sessions shows "–".

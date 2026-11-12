@@ -58,3 +58,8 @@ export const TimerIcon = (p: IconProps) => (
 );
 export const Play = (p: IconProps) => <Icon {...p}><path d="M7 4.5v15l12-7.5-12-7.5Z" /></Icon>;
 export const Pause = (p: IconProps) => <Icon {...p}><path d="M8 5v14M16 5v14" /></Icon>;
+export const ChartIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3" />
+  </Icon>
+);
