@@ -50,7 +50,8 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
 
     return deps.withUser(userId, async (query) => {
       // Locks the row until the transaction ends, so a second device waits instead of racing.
-      const row = await findOwnEvent(query, id);
+      // The time zone is read in the same round (first: it has no parameter); an Outlook event does not need it.
+      const [timeZone, row] = await Promise.all([readTimeZone(query), findOwnEvent(query, id)]);
 
       // R11: an Outlook event keeps its title, times and days from Outlook; only the goal changes here.
       if (row.source === "outlook") {
@@ -71,7 +72,6 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
       assertUnchangedSince(row, body.data.updatedAt);
       if (body.data.title === undefined) throw badRequest();
 
-      const timeZone = await readTimeZone(query);
       const event = checkEventFields({ ...body.data, title: body.data.title }, timeZone);
       // No repeat rule is stored; to extend a series, create a new one (R28).
       if (body.data.repeat) throw badRequest();

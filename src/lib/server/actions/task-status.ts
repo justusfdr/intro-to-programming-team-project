@@ -49,9 +49,10 @@ export function reopenTask(request: Request, deps: StatusDeps, id: string): Prom
 
     try {
       return await deps.withUser(userId, async (query) => {
-        const task = await findOwnTask(query, id);
+        // Both reads are sent together; the checks keep their order.
+        const [openTasks, task] = await Promise.all([countOpenTasks(query), findOwnTask(query, id)]);
         if (task.status !== "done") throw notPossible();
-        assertRoomForOpenTask(await countOpenTasks(query));
+        assertRoomForOpenTask(openTasks);
         const [saved] = await query<TaskRow>(`update app.tasks set status = 'open' where id = $1 returning ${TASK_COLUMNS}`, [task.id]);
         return jsonOk({ message: MESSAGES.taskReopened, task: toTaskDto(saved) });
       });

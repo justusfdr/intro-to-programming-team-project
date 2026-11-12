@@ -3,7 +3,6 @@
 // Each test also shows the number the page needed before (its separate loaders one after another),
 // checks that the data is the same, and that the reads are sent together after the identity statement.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createWithUser, type Driver } from "@/lib/server/db/with-user";
 import { loadAnalytics } from "@/lib/server/analytics/load";
 import { loadBlocker } from "@/lib/server/blocker/page";
 import { welcomeDue } from "@/lib/server/demo/rows";
@@ -15,6 +14,7 @@ import { readDisplay } from "@/lib/server/settings";
 import { loadSettingsPage } from "@/lib/server/settings-page";
 import { loadTasks } from "@/lib/server/tasks/load";
 import { createTestApp, type TestApp } from "@test/support/app";
+import { countingWithUser, type Sent } from "@test/support/counting";
 import { seedEvent, seedAllDay } from "@test/support/events";
 import { HALF_MARATHON, seedGoal } from "@test/support/goals";
 import { seedSession } from "@test/support/sessions";
@@ -35,30 +35,10 @@ beforeEach(async () => {
   await app.reset(); // Monday 16 November 2026, 09:00 UTC
 });
 
-type Sent = { sql: string; withParams: boolean; answersBefore: number };
-
-/**
- * The app's withUser on a driver that counts transactions and records, per transaction, each
- * statement and how many answers had come back when it was sent (0 = sent together with the first).
- */
+/** The app's withUser on the counting driver, with the test clock. */
 function counted(): { deps: Pick<Deps, "withUser" | "now">; transactions: Sent[][] } {
-  const transactions: Sent[][] = [];
-  const driver: Driver = {
-    transaction(fn) {
-      const sent: Sent[] = [];
-      transactions.push(sent);
-      let answers = 0;
-      return app.db.driver.transaction((run) =>
-        fn((sql, params) => {
-          sent.push({ sql, withParams: params.length > 0, answersBefore: answers });
-          return run(sql, params).finally(() => {
-            answers += 1;
-          });
-        }),
-      );
-    },
-  };
-  return { deps: { withUser: createWithUser(driver), now: app.deps.now }, transactions };
+  const { withUser, transactions } = countingWithUser(app.db);
+  return { deps: { withUser, now: app.deps.now }, transactions };
 }
 
 /** Every transaction starts with the identity statement, before anything else. */
