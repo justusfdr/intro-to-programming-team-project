@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { createTestApp } from "@test/support/app";
-import { seedEvent } from "@test/support/events";
+import { seedAllDay, seedEvent } from "@test/support/events";
 import { seedGoal } from "@test/support/goals";
 
 // Outside a running Next.js app there is no router: plain stand-ins for links and the router.
@@ -74,7 +74,7 @@ it("writes the preview files", async () => {
   const { GoalEditor } = await import("@/components/goals/GoalEditor");
   const { PanelState } = await import("@/components/shell/PanelState");
   const { loadGoals } = await import("@/lib/server/goals/load");
-  const { EventEditor } = await import("@/components/calendar/EventEditor");
+  const { EventEditor, SeriesQuestion } = await import("@/components/calendar/EventEditor");
   const { AppShell } = await import("@/components/shell/AppShell");
   const { default: SignInPage } = await import("@/app/(account)/sign-in/page");
   const { default: SignUpPage } = await import("@/app/(account)/sign-up/page");
@@ -127,6 +127,16 @@ it("writes the preview files", async () => {
   await add("Team meeting", "11-20T15:00", "11-20T16:00", { mayOverlap: true, goalId: project.id });
   await add("Study group", "11-20T15:30", "11-20T16:30", { mayOverlap: true, goalId: exam.id });
   await add("Long run", "11-21T08:30", "11-21T10:00", { goalId: run.id });
+  // Spec 07: two all-day events and a weekly series (Monday and Wednesday 16:00 to 17:00).
+  await seedAllDay(app.db, user, { title: "Exam week", firstDay: "2026-11-18", lastDay: "2026-11-20" });
+  await seedAllDay(app.db, user, { title: "Trip to Porto", firstDay: "2026-11-21", lastDay: "2026-11-22" });
+  await seedAllDay(app.db, user, { title: "Library closed", firstDay: "2026-11-20", lastDay: "2026-11-20" });
+  for (const day of ["11-16", "11-18", "11-23", "11-25"]) {
+    await app.db.admin(
+      "insert into app.events (user_id, title, start_at, end_at, series_id) values ($1, 'Statistics tutorial', $2, $3, 'a7c1e0f2-3b4d-4e5f-8a9b-0c1d2e3f4a5b')",
+      [user, `2026-${day}T16:00:00Z`, `2026-${day}T17:00:00Z`],
+    );
+  }
   app.advance(27 * 60 * 60 * 1000 + 10 * 60 * 1000); // Tuesday 17 November, 12:10
   const week = await loadWeek(app.deps, user, "2026-11-16");
   const goals = await loadGoals(app.deps, user);
@@ -173,6 +183,32 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     join(OUT, "event-editor.html"),
     page("Event editor", `${calendar()}<div class="preview-dim"></div>${editorMarkup}`, styles, dim),
   );
+
+  // Spec 07: a new event with the repeat controls (weekly; Tuesday is the first date's day).
+  const goalLabels = goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }));
+  const repeatMarkup = renderToStaticMarkup(
+    <EventEditor state={{ mode: "create", start: "2026-11-17T09:00", end: "2026-11-17T10:00", repeat: "weekly" }} goals={goalLabels} onClose={() => {}} />,
+  ).replace("<dialog", "<dialog open");
+  writeFileSync(join(OUT, "event-editor-repeat.html"), page("Repeat", `${calendar()}<div class="preview-dim"></div>${repeatMarkup}`, styles, dim));
+
+  // Spec 07: an all-day event in the editor.
+  const examWeek = week.days[2].allDay.find((e) => e.title === "Exam week")!;
+  const allDayMarkup = renderToStaticMarkup(<EventEditor state={{ mode: "edit", event: examWeek }} goals={goalLabels} onClose={() => {}} />).replace(
+    "<dialog",
+    "<dialog open",
+  );
+  writeFileSync(join(OUT, "event-editor-all-day.html"), page("All day", `${calendar()}<div class="preview-dim"></div>${allDayMarkup}`, styles, dim));
+
+  // Spec 07: the question after Delete on an event of a series (the footer as it looks then).
+  const tutorial = week.days[0].events.find((e) => e.title === "Statistics tutorial")!;
+  const footer = '<div class="flex flex-wrap items-center gap-2 border-t';
+  const seriesMarkup = renderToStaticMarkup(<EventEditor state={{ mode: "edit", event: tutorial }} goals={goalLabels} onClose={() => {}} />)
+    .replace("<dialog", "<dialog open")
+    .replace(/(<div class="flex flex-wrap items-center gap-2 border-t[^"]*">).*(<\/div><\/form>)/s, (_m, open: string, close: string) =>
+      `${open}${renderToStaticMarkup(<SeriesQuestion kind="delete" title={tutorial.title} busy={false} onAnswer={() => {}} onCancel={() => {}} />)}${close}`,
+    );
+  if (!seriesMarkup.includes(footer) || !seriesMarkup.includes("This and following events")) throw new Error("series question not placed");
+  writeFileSync(join(OUT, "event-editor-series.html"), page("Series", `${calendar()}<div class="preview-dim"></div>${seriesMarkup}`, styles, dim));
 
   // The goal editor, open for a new goal (same static-dialog treatment as the event editor).
   const goalEditorMarkup = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: "2026-11-17" }} onClose={() => {}} />).replace(

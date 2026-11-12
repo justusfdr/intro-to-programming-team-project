@@ -13,7 +13,8 @@ export async function loadGoals(deps: Pick<Deps, "withUser" | "now">, userId: st
     const goals = await readGoals(query);
     // Only done events of a goal count (R8).
     const events = await query<{ goal_id: string; start_at: Date; end_at: Date }>(
-      "select goal_id, start_at, end_at from app.events where status = 'done' and goal_id is not null",
+      // All-day events never count for rules (R29); they cannot be done or have a goal anyway.
+      "select goal_id, start_at, end_at from app.events where status = 'done' and goal_id is not null and not all_day",
     );
     const doneByGoal = new Map<string, DoneEvent[]>();
     for (const e of events) {

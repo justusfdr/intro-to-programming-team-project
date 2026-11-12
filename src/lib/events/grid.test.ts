@@ -12,6 +12,10 @@ function event(id: string, start: string, end: string, endDay: string | null = n
     endAt: "",
     mayOverlap: false,
     status: "planned",
+    allDay: false,
+    firstDay: null,
+    lastDay: null,
+    seriesId: null,
     goalId: null,
     updatedAt: "",
     conflict: false,
@@ -24,7 +28,7 @@ function event(id: string, start: string, end: string, endDay: string | null = n
 }
 
 function week(byDay: Record<number, WeekEvent[]>): WeekDay[] {
-  return DATES.map((date, i) => ({ date, label: date, isToday: false, events: byDay[i] ?? [] }));
+  return DATES.map((date, i) => ({ date, label: date, isToday: false, events: byDay[i] ?? [], allDay: [] }));
 }
 
 describe("placing events in the time grid", () => {

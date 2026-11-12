@@ -22,7 +22,7 @@ export async function readBlockingState(query: Query, now: Date) {
   const events = await query<{ start_at: Date; end_at: Date }>(
     `select e.start_at, e.end_at
        from app.events e join app.goals g on g.id = e.goal_id
-      where g.auto_block and e.start_at <= $1 and e.end_at > $1 and e.start_at > $1::timestamptz - interval '24 hours'`,
+      where g.auto_block and not e.all_day and e.start_at <= $1 and e.end_at > $1 and e.start_at > $1::timestamptz - interval '24 hours'`,
     [now],
   );
   return blockingState({
