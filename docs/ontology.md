@@ -1,5 +1,5 @@
 # Team project: Ontology
-Draft of 10 November 2026. On the branch `prototype-style` (a variant for the team to compare with `main`): display settings, R34 and the details of `update_settings` and `delete_account` added 12 Nov 2026 (spec 12).
+Draft of 10 November 2026. On the branch `prototype-style` (a variant for the team to compare with `main`): display settings, R34 and the details of `update_settings` and `delete_account` added 12 Nov 2026 (spec 12); a goal's colour, icon and why, the demo week and the welcome (R35, R36, `load_demo`, `remove_demo`, `start_fresh`) added 12 Nov 2026 (spec 13).
 A web app that brings calendar, goals and focused work together, and blocks distracting websites in Chrome.
 Rule for coding agents: read this file first. Do not change it without the team's approval; propose the change and wait.
 
@@ -13,7 +13,7 @@ Rule for coding agents: read this file first. Do not change it without the team'
 | Concept | What it is | Fixed, Saved or Calculated |
 |---|---|---|
 | **user** (core) | The person with an account. | Saved |
-| **goal** (core) | Something to reach by a deadline, with one or more rules and optional auto-block. | Saved |
+| **goal** (core) | Something to reach by a deadline, with one or more rules and optional auto-block, shown in its own colour and icon. | Saved |
 | **rule** (core) | A weekly requirement of a goal: a number of events or of hours per week. | Saved |
 | **event** (core) | A calendar block, timed or all-day. A timed event may have a goal and belong to a series. | Saved |
 | **focus_session** (core) | Concentrated work with a timer, with or without an event. | Saved |
@@ -24,11 +24,12 @@ Rule for coding agents: read this file first. Do not change it without the team'
 | draft_plan | The assistant's proposal of events within the next 14 days. Becomes events only when accepted. | Saved |
 | calendar_connection | The link to the user's Outlook calendar, read and write. | Saved |
 | settings | Side item: time zone and travel details. | Saved |
+| demo week | Sample goals, tasks and events a new account can load ("Explore the demo") and remove again; each such row is marked `demo`. | Saved (a mark on the rows) |
 | plan | Free or Pro. Which one a user has is saved on the user. | Fixed |
 
-**Fixed content:** session lengths 15, 30, 60, 90, 120 minutes; the two plans (Free, Pro); the default block list of a new account (youtube.com, instagram.com, tiktok.com, x.com, reddit.com, facebook.com), which the user can edit.
+**Fixed content:** session lengths 15, 30, 60, 90, 120 minutes; the ten goal colours (rose, teal, indigo, amber, emerald, pink, sky, violet, orange, slate) and ten goal icons (rocket, footprints, heart, video, book, dumbbell, briefcase, graduation, palette, code); the demo week (R36); the two plans (Free, Pro); the default block list of a new account (youtube.com, instagram.com, tiktok.com, x.com, reddit.com, facebook.com), which the user can edit.
 
-**Calculated, never saved:** rule status, goal progress, blocking on or off, focus score, travel time, analytics, R31's chat totals, task overdue.
+**Calculated, never saved:** a goal's colour when none is saved (R35), whether the welcome shows, rule status, goal progress, blocking on or off, focus score, travel time, analytics, R31's chat totals, task overdue.
 
 ## 2 Relationships
 - Every saved row belongs to one user, who has one plan, one settings row, up to 50 blocked sites, at most one calendar connection, one open draft and one running or paused session.
@@ -40,11 +41,11 @@ Rule for coding agents: read this file first. Do not change it without the team'
 Times in UTC, shown in the user's time zone. Lengths in minutes. Every table has `id` (uuid) and, except user, `user_id`.
 
 - **user**: `email` text, `status` `unconfirmed`/`confirmed` (kept by Supabase Auth), `plan` `free`/`pro`, `stripe_customer_id` text or empty, `chat_count_date` date and `chat_count` integer (3), `extension_seen_at` timestamp or empty
-- **settings**: `time_zone` text, from the browser at sign-up, or "Europe/Lisbon" if it gives none or an invalid one, `home_address` text or empty, `travel_mode` `driving`/`cycling`/`walking` (default `driving`), `travel_buffer_minutes` integer 0 to 120 (10), `time_format` `12h`/`24h` (default `12h`), `day_start_hour` integer 0 to 23 (7) and `day_end_hour` integer 1 to 24 (21), the end after the start (the calendar's visible hours)
-- **goal**: `title` text 1 to 80 characters, `deadline` date ("2027-03-14"), `auto_block` boolean (false), `created_at`, `updated_at` timestamps
+- **settings**: `time_zone` text, from the browser at sign-up, or "Europe/Lisbon" if it gives none or an invalid one, `home_address` text or empty, `travel_mode` `driving`/`cycling`/`walking` (default `driving`), `travel_buffer_minutes` integer 0 to 120 (10), `time_format` `12h`/`24h` (default `12h`), `day_start_hour` integer 0 to 23 (7) and `day_end_hour` integer 1 to 24 (21), the end after the start (the calendar's visible hours), `welcome_answered` boolean (false)
+- **goal**: `title` text 1 to 80 characters, `deadline` date ("2027-03-14"), `auto_block` boolean (false), `color` one of the ten or empty (then calculated, R35), `icon` one of the ten (`rocket`), `why` text up to 200 characters or empty ("Stay fit, even when the semester gets busy."), `demo` boolean (false), `created_at`, `updated_at` timestamps
 - **rule**: `goal_id` → goal, `kind` `count`/`hours`, `target` decimal (2), `min_minutes` integer or empty, only for `count` (45)
-- **task**: `title` text 1 to 100 characters, `goal_id` → goal or empty, `due_date` date or empty ("2026-11-20"), `status` `open`/`done`, `done_at` timestamp (empty while open), `created_at`, `updated_at`
-- **event**: `title` text 1 to 100 characters, `all_day` boolean (false), `start_at`, `end_at` timestamps, empty if all-day ("2026-11-16 09:00", "11:00"), `first_day`, `last_day` dates, only if all-day, `goal_id` → goal or empty, `location` text or empty, `may_overlap` boolean (false), `status` `planned`/`done`, `source` `app`/`assistant`/`outlook`, `series_id` uuid or empty, `outlook_id` text or empty, `updated_at`
+- **task**: `title` text 1 to 100 characters, `goal_id` → goal or empty, `due_date` date or empty ("2026-11-20"), `status` `open`/`done`, `done_at` timestamp (empty while open), `demo` boolean (false), `created_at`, `updated_at`
+- **event**: `title` text 1 to 100 characters, `all_day` boolean (false), `start_at`, `end_at` timestamps, empty if all-day ("2026-11-16 09:00", "11:00"), `first_day`, `last_day` dates, only if all-day, `goal_id` → goal or empty, `location` text or empty, `may_overlap` boolean (false), `status` `planned`/`done`, `source` `app`/`assistant`/`outlook`, `series_id` uuid or empty, `outlook_id` text or empty, `demo` boolean (false), `updated_at`
 - **focus_session**: `event_id` → event or empty, `planned_minutes` integer (60), `status` `running`/`paused`/`finished`, `started_at`, `paused_at` (empty while running), `paused_seconds` integer (600), `ended_at` (empty until finished), `rating` integer 0 to 5 or empty (4)
 - **blocked_site**: `domain` text ("instagram.com")
 - **blocked_attempt**: `domain` text, `attempted_at` timestamp ("2026-11-16 10:15")
@@ -76,7 +77,8 @@ The first six actions need no sign-in; all others need it and touch only the use
 | `reset_password` | link, new password | Link valid and unused; password ≥ 8 characters | New password saved | "This link has expired. Ask for a new one" / "Password needs at least 8 characters" |
 | `update_settings` | settings | Buffer whole 0 to 120; time zone known; home address up to 200 characters or empty; visible hours as section 3 | Saved | "Buffer must be 0 to 120 minutes" / "Choose a time zone from the list" / "Home address can be at most 200 characters" / "Visible hours must be whole hours, from 0 to 24, ending after they start" |
 | `delete_account` | confirmation (the word "DELETE" typed) | Plan `free`; "DELETE" typed | All the user's rows and the sign-in account deleted; signed out | "Cancel Pro before deleting your account" / "Type DELETE to confirm" |
-| `create_goal`, `edit_goal` | title, deadline, auto_block, rules | Title 1 to 80; deadline not past when set or changed; at least one rule (R7) | Goal and rules saved together | "Title must be 1 to 80 characters" / "Add at least one rule" / "The deadline cannot be in the past" / "Target must be 1 to 14 events" / "Target must be 0.5 to 60 hours" / "Minimum length must be 15 to 240 minutes" |
+| `create_goal`, `edit_goal` | title, deadline, auto_block, rules; color, icon, why (R35) | Title 1 to 80; deadline not past when set or changed; at least one rule (R7); color and icon from the ten; why up to 200 characters | Goal and rules saved together | "Title must be 1 to 80 characters" / "Add at least one rule" / "The deadline cannot be in the past" / "Target must be 1 to 14 events" / "Target must be 0.5 to 60 hours" / "Minimum length must be 15 to 240 minutes" / "Choose a color from the list" / "Choose an icon from the list" / "Why it matters can be at most 200 characters" |
+| `load_demo` | none ("Explore the demo") | No demo rows in the account; room for the demo's 7 open tasks (R32) | The demo week (R36) saved in one step, every row marked `demo`; welcome answered | "The demo is already loaded" / "You can have at most 100 open tasks" |
 | `add_task`, `edit_task` | title, goal or none, due date or none | Title 1 to 100; due date not past when set or changed; `add_task`: under 100 open tasks (R32) | Saved (`add_task`: `open`) | "Title must be 1 to 100 characters" / "The due date cannot be in the past" / "You can have at most 100 open tasks" |
 | `complete_task`, `reopen_task` | task | Complete: `open`. Reopen: `done`; under 100 open tasks | `done` / `open` | "Not possible in this state" / "You can have at most 100 open tasks" |
 | `remove_rule` | rule | Goal keeps one rule | Rule deleted | "A goal needs at least one rule" |
@@ -93,7 +95,7 @@ The first six actions need no sign-in; all others need it and touch only the use
 | `connect_outlook` | Microsoft sign-in | User grants read and write access at Microsoft | Connection saved; import runs; app events are written (R26) | "Outlook was not connected" |
 | `upgrade_to_pro`, `cancel_pro` | none | Plan `free` / `pro` | Stripe test checkout opens (plan changes as R25) / subscription ends after the paid period | "You already have Pro" / "You do not have Pro" |
 
-**Always allowed:** `sign_out`; `delete_goal` (its rules are deleted; its events and tasks stay, without goal); `delete_task`; `remove_blocked_site` (past attempts stay); `clear_chat` (all messages and drafts are deleted; events stay); `disconnect_outlook` (R26).
+**Always allowed:** `sign_out`; `remove_demo` (deletes every row marked `demo`, also changed ones; the user's own rows stay, those under a demo goal without goal); `start_fresh` (welcome answered, nothing else); `delete_goal` (its rules are deleted; its events and tasks stay, without goal); `delete_task`; `remove_blocked_site` (past attempts stay); `clear_chat` (all messages and drafts are deleted; events stay); `disconnect_outlook` (R26).
 
 **By itself:** `sync_outlook` when the calendar opens, at most every 5 minutes, 7 days back to 60 ahead, also sending unsent app events. `finish_session` (R13). `record_attempt` for each stopped page on the list. `update_plan` (R25). `remove_done_tasks` (R33).
 
@@ -156,6 +158,10 @@ The first six actions need no sign-in; all others need it and touch only the use
 **Display**
 - **R34** Times are shown as the user's `time_format` says: 12-hour by default ("9am", "1:30pm", a range "9 – 10:30am", an end with its length "1:30pm · 1h"), or 24-hour ("9:00", "13:30"). Dates are month-first ("Nov 16", "Mon, Nov 16", "Monday, November 16"). The calendar shows the hours from `day_start_hour` to `day_end_hour`, widened when an event starts outside them. Only the screen changes: stored values, the values of form fields and server messages keep their form.
 
+**Goal look and demo week**
+- **R35** Every goal has a colour and an icon from the ten of each, and may have a short "why it matters". A goal without a saved colour (made before this, or on `main`) is shown in the colour calculated from its place in the user's list, oldest first (rose, teal, violet, amber, sky, green, then again); without a saved icon, the rocket. Every place that shows a goal uses its colour and icon; "No goal" is a grey tile with a briefcase.
+- **R36** The demo week, written by `load_demo` as the user (every rule and limit applies), relative to today in the user's time zone: the goals "Grow my YouTube channel" (rose, video, 6 hours a week), "Run a half marathon under 2h" (teal, footprints, 4 hours) and "Launch app v2" (indigo, rocket, 8 hours), each with a deadline 35 days from today; 9 tasks (7 open, 2 done; 2 in the Inbox) due today, tomorrow, this Friday (today if passed), this Sunday or in 9 days; 20 events Monday to Saturday of the current week, 11 with a goal, those already ended `done` except one "Admin" block. No guests, milestones, ratings, focus sessions or locations. Demo events are never sent to Outlook. The welcome dialog shows to an account that has not answered it and has no goals, events or tasks; "Explore the demo" (`load_demo`) or "Start fresh" (`start_fresh`) answers it for good.
+
 **Tasks**
 - **R32** A task belongs to one of the user's goals or to none; tasks without a goal are listed under "Inbox". At most 100 open tasks per user. A task never counts for a rule and never appears in the calendar.
 - **R33** Under each goal the open tasks come first, by due date (earliest first, tasks without a date last), then the done tasks, struck through. A due date before today (in the user's time zone) is marked overdue. A done task is deleted by itself 7 days after it was done.
@@ -202,6 +208,9 @@ The first six actions need no sign-in; all others need it and touch only the use
 | A15 | Goal "Half marathon" exists; no tasks | `add_task` "Buy running shoes" for that goal, due 20 Nov; then `complete_task` | Listed under the goal, count 1; after completing: struck through, count 0 |
 | A16 | 100 open tasks | `add_task` | "You can have at most 100 open tasks"; nothing saved |
 | A17 | A goal with two tasks | `delete_goal` | Both tasks are listed under "Inbox" |
+| A18 | Goal "Run a half marathon" without a saved colour, second in the list | `edit_goal` with color "lime"; then with color "teal", icon "footprints", why "Stay fit" | "Choose a color from the list", nothing saved (shown teal, calculated); then saved, shown teal with footprints everywhere |
+| A19 | New account, Wednesday 18 Nov 13:00, own task "Call the bank" | `load_demo`; `load_demo` again; edit a demo task's title; `remove_demo` | 3 goals, 9 more tasks, 20 events (10 done); second: "The demo is already loaded", nothing changed; after removing: only "Call the bank" is left, the welcome stays answered |
+| A20 | New account | Opens the calendar; chooses "Start fresh"; opens the calendar again | Welcome shows once; nothing added; not shown again |
 
 ## 9 Open decisions
 Each with its default.
