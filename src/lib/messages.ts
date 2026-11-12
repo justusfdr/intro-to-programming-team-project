@@ -33,6 +33,9 @@ export const MESSAGES = {
   hoursTarget: "Target must be 0.5 to 60 hours",
   minMinutes: "Minimum length must be 15 to 240 minutes",
   lastRule: "A goal needs at least one rule",
+  // ontology, section 5 (tasks); "Title must be 1 to 100 characters" and "Not possible in this state" are shared
+  duePast: "The due date cannot be in the past",
+  tooManyTasks: "You can have at most 100 open tasks",
   // ontology, section 5 (focus sessions)
   sessionRunning: "A session is already running",
   chooseLength: "Choose 15, 30, 60, 90 or 120 minutes",
@@ -64,6 +67,10 @@ export const MESSAGES = {
   goalSaved: "Goal saved.",
   goalDeleted: "Goal deleted.",
   ruleRemoved: "Rule removed.",
+  taskSaved: "Task saved.",
+  taskDone: "Task done.",
+  taskReopened: "Task reopened.",
+  taskDeleted: "Task deleted.",
   sessionStarted: "Focus session started.",
   sessionPaused: "Paused.",
   sessionResumed: "Resumed.",
