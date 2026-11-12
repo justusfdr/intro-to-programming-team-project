@@ -8,7 +8,7 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { usePanels } from "@/components/shell/PanelState";
 import { Button } from "@/components/ui/Button";
-import { ChevronRight, Plus, X } from "lucide-react";
+import { ChevronRight, Plus, Target, X } from "lucide-react";
 import { COLLAPSED_KEY, readCollapsed, toggleCollapsed } from "@/lib/goals/collapsed";
 import { nextGoalColor } from "@/lib/goals/style";
 import type { GoalView } from "@/lib/goals/types";
@@ -256,7 +256,17 @@ export function GoalsPanel({ goals, tasks: serverTasks, today }: Props) {
   );
 }
 
-/** The toolbar button: collapses or opens the panel on wide screens, opens the sheet on smaller ones. */
+/** The prototype's round panel toggle (target icon); with its name once the calendar column is wide. */
+function toggleClass(active: boolean): string {
+  return `inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-full border text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 @3xl:px-3 ${
+    active ? "border-line bg-raised text-ink" : "border-line bg-surface text-ink-2 hover:bg-raised hover:text-ink"
+  }`;
+}
+
+/**
+ * The toolbar button, as in the prototype: collapses or shows the column on wide screens, opens the
+ * sheet on smaller ones.
+ */
 export function GoalsToggle() {
   const panels = usePanels();
   const open = panels.isOpen("goals");
@@ -264,14 +274,31 @@ export function GoalsToggle() {
   return (
     <>
       <div className="hidden xl:block">
-        <Button variant="secondary" className={open ? "border-ink" : ""} aria-expanded={open} onClick={() => panels.toggle("goals")}>
-          Goals
-        </Button>
+        <button
+          type="button"
+          aria-label="Goals"
+          title={`${open ? "Hide" : "Show"} goals`}
+          aria-pressed={open}
+          onClick={() => panels.toggle("goals")}
+          className={toggleClass(open)}
+        >
+          <Target className="size-4" strokeWidth={2} />
+          <span className="hidden @3xl:inline">Goals</span>
+        </button>
       </div>
       <div className="xl:hidden">
-        <Button variant="secondary" aria-haspopup="dialog" onClick={() => panels.openSheet("goals")}>
-          Goals
-        </Button>
+        <button
+          type="button"
+          aria-label="Goals"
+          title="Open goals"
+          aria-haspopup="dialog"
+          aria-expanded={panels.sheet === "goals"}
+          onClick={() => panels.openSheet("goals")}
+          className={toggleClass(panels.sheet === "goals")}
+        >
+          <Target className="size-4" strokeWidth={2} />
+          <span className="hidden @3xl:inline">Goals</span>
+        </button>
       </div>
     </>
   );

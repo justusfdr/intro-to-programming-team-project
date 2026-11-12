@@ -1,14 +1,15 @@
 "use client";
 
-// The week as a time grid, in the prototype's layout: an hour axis, seven day columns with weekday
-// and date (today in red), events as blocks placed by start and length, and the current-time line.
-// Layout maths: src/lib/events/grid.ts.
+// The day and week views as a time grid, in the prototype's layout: an hour axis, one or seven day
+// columns (the week with weekday and date over each, today in red, a click opens that day), events as
+// blocks placed by start and length, and the current-time line. Layout maths: src/lib/events/grid.ts.
 //
 // For screen readers and the keyboard, each day is a labelled list of its events in time order,
 // and each event is a button whose name says title, day, time and marks. The hour axis, the lines
 // and the empty slots are decoration. A click on an empty slot (mouse or touch) creates an event
 // there; keyboard users use "New event".
 import type { MouseEvent } from "react";
+import Link from "next/link";
 import { blockBox, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
 import type { AllDayEvent, CalendarEvent, WeekDay } from "@/lib/events/types";
 import { CalendarDays, Check, TriangleAlert } from "lucide-react";
@@ -31,6 +32,8 @@ type Props = {
   nowMin: number | null;
   /** On phones only this day's column is shown (the day strip above chooses it). */
   selectedDay: string;
+  /** The week view shows weekday and date over each column, each a link to that day (the day view has its strip instead). */
+  dayHref?: (date: string) => string;
   onOpenEvent: (event: CalendarEvent) => void;
   onCreateAt: (date: string, slot: { startMin: number; endMin: number }) => void;
 };
@@ -159,10 +162,14 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
         ))}
       </ul>
       {/* Wider screens: bars across the days, packed into as few rows as fit. */}
-      <ul className="hidden min-w-0 flex-1 grid-cols-7 gap-y-0.5 border-l border-line-subtle py-1 [grid-auto-flow:row_dense] md:grid">
+      <ul
+        className="hidden min-w-0 flex-1 gap-y-0.5 border-l border-line-subtle py-1 [grid-auto-flow:row_dense] md:grid"
+        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}
+      >
         {events.map((event) => {
+          const end = days.length - 1;
           const first = event.firstDay < days[0].date ? 0 : columnOf(event.firstDay);
-          const last = event.lastDay > days[6].date ? 6 : columnOf(event.lastDay);
+          const last = event.lastDay > days[end].date ? end : columnOf(event.lastDay);
           return (
             <li key={event.id} style={{ gridColumn: `${first + 1} / ${last + 2}` }} className="min-w-0 px-0.5">
               <button type="button" aria-label={allDayLabel(event)} onClick={() => onOpenEvent(event)} className={allDayClass}>
@@ -179,7 +186,7 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
   );
 }
 
-export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOpenEvent, onCreateAt }: Props) {
+export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, dayHref, onOpenEvent, onCreateAt }: Props) {
   const { timeFormat } = useDisplay();
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
   const height = rangeHeight(range);
@@ -198,25 +205,32 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOp
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-card border border-line-subtle bg-surface select-none">
       <div data-grid-scroll className="scroll-thin relative min-h-0 flex-1 overflow-y-auto">
-        {/* Weekday and date over each column (wider screens; phones use the day strip). */}
-        <div aria-hidden className="sticky top-0 z-20 hidden border-b border-line-subtle bg-surface md:flex">
-          <div className="w-[52px] shrink-0" />
-          {days.map((day) => {
-            const parts = dayParts(day.date);
-            return (
-              <div key={day.date} className="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2">
-                <span className="text-[11px] font-medium text-ink-3">{parts.weekday}</span>
-                <span
-                  className={`flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular ${
-                    day.isToday ? "bg-today text-white" : "text-ink"
-                  }`}
+        {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip). */}
+        {dayHref && (
+          <div className="sticky top-0 z-20 hidden border-b border-line-subtle bg-surface md:flex">
+            <div className="w-[52px] shrink-0" />
+            {days.map((day) => {
+              const parts = dayParts(day.date);
+              return (
+                <Link
+                  key={day.date}
+                  href={dayHref(day.date)}
+                  aria-label={`Open ${fmtDateLong(day.date)}`}
+                  className="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md py-2 transition hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
                 >
-                  {parts.day}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                  <span className="text-[11px] font-medium text-ink-3">{parts.weekday}</span>
+                  <span
+                    className={`flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular ${
+                      day.isToday ? "bg-today text-white" : "text-ink"
+                    }`}
+                  >
+                    {parts.day}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
         <AllDayRow days={days} selectedDay={selectedDay} onOpenEvent={onOpenEvent} />
 

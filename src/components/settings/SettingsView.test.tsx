@@ -24,6 +24,7 @@ const DATA: SettingsPageData = {
   outlook: { status: "none", lastSyncedAt: null },
   today: "2026-11-17",
   hasDemo: false,
+  defaultView: "week",
 };
 
 const BLOCKER: BlockerData = { sites: [{ id: "1", domain: "youtube.com" }], connected: false, blockingOn: false, blockingUntil: null, timeZone: "Europe/Lisbon" };
@@ -67,6 +68,15 @@ describe("settings page", () => {
     expect(html).toMatch(/<input type="radio"[^>]*checked=""[^>]*value="cycling"/);
     expect(html).toContain('<option value="15" selected="">15 min</option>');
     expect(html).toContain("Example: 1:30pm");
+  });
+
+  it("offers the calendar's default view first in Preferences, Day, Week or Month, with the saved one chosen (spec 14)", () => {
+    const html = render();
+    expect(html.indexOf(">Default view<")).toBeGreaterThan(-1);
+    expect(html.indexOf(">Default view<")).toBeLessThan(html.indexOf(">Time format<"));
+    expect(html).toMatch(/<input type="radio"[^>]*checked=""[^>]*value="week"/);
+    for (const label of ["Day", "Week", "Month"]) expect(html).toMatch(new RegExp(`value="${label.toLowerCase()}"[^>]*/>${label}</label>|value="${label.toLowerCase()}"[^>]*/><span[^>]*>${label}`));
+    expect(render({ ...DATA, defaultView: "month" })).toMatch(/<input type="radio"[^>]*checked=""[^>]*value="month"/);
   });
 
   it("shows hours in 24-hour form when that is the setting", () => {

@@ -1,4 +1,4 @@
-// Layout maths of the week's time grid: where each event block sits and how tall it is.
+// Layout maths of the time grid (day and week views): where each event block sits and how tall it is.
 // Pure functions, no React. Positions come from the local wall-clock times the server already
 // worked out (startLocal, endLocal), so the grid needs no time-zone code of its own.
 // Ported from the first prototype's calendar (hour height, lanes for overlapping events, click slots).
@@ -67,9 +67,18 @@ function assignLanes(blocks: { startMin: number; endMin: number }[]): { lane: nu
   return out;
 }
 
-/** The blocks of every day of the week, in time order, with their lanes. */
-export function placeWeek(days: WeekDay[]): Placed[][] {
+/**
+ * The blocks of every shown day (one day or a week), in time order, with their lanes. `lead` are the
+ * events of the day before the first day that run past midnight into it: their part after midnight.
+ */
+export function placeWeek(days: WeekDay[], lead: readonly WeekEvent[] = []): Placed[][] {
   const perDay: Omit<Placed, "lane" | "lanes">[][] = days.map(() => []);
+  for (const event of lead) {
+    const endMin = minuteOfLocal(event.endLocal);
+    if (days.length > 0 && event.endDay === days[0].date && endMin > 0) {
+      perDay[0].push({ event, startMin: 0, endMin, continuesBefore: true, continuesAfter: false });
+    }
+  }
   days.forEach((day, i) => {
     for (const event of day.events) {
       const startMin = minuteOfLocal(event.startLocal);

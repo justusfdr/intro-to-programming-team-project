@@ -23,7 +23,7 @@ export function SettingsView({
       <PageHeader title="Settings" subtitle="Calendar, preferences, travel, the focus blocker and your account." />
       <div className="flex max-w-3xl flex-col gap-4">
         <OutlookCard outlook={data.outlook} outlookAvailable={data.outlookAvailable} today={data.today} timeZone={data.settings.timeZone} />
-        <PreferencesCard settings={data.settings} timeZones={timeZones} />
+        <PreferencesCard settings={data.settings} defaultView={data.defaultView} timeZones={timeZones} />
         <TravelCard settings={data.settings} />
         <BlockerCard data={blocker} />
         <YourAccountCard hasDemo={data.hasDemo} />

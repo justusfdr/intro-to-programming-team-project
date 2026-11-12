@@ -5,6 +5,9 @@
 // Rewritten for the prototype-style branch (spec 12): times as the prototype shows them ("9am", 12-hour
 // by default, 24-hour when the setting says so), dates month-first ("Monday, November 16"), and the
 // Outlook status as the prototype's small chip that links to Settings.
+// Rewritten again for spec 14 (step 4a): the toolbar in the prototype's shapes (round goals toggle,
+// Day | Week | Month, round "+"), view and day in the address, the day view with its strip and the
+// month grid.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
@@ -50,12 +53,55 @@ function week(byDay: Record<number, WeekEvent[]>, allDayEvents: AllDayEvent[] = 
   return {
     timeZone: "Europe/Lisbon",
     outlook,
+    view: "week",
+    date: "2026-11-17",
+    today: "2026-11-17",
     monday: "2026-11-16",
     previous: "2026-11-09",
     next: "2026-11-23",
     thisWeek: "2026-11-16",
     days: DAYS.map((date, i) => ({ date, label: date, isToday: i === 1, events: byDay[i] ?? [], allDay: allDayEvents.filter((e) => e.firstDay <= date && date <= e.lastDay) })),
+    lead: [],
   };
+}
+
+/** One day (spec 14): Wednesday 18 November, with the events of the day before that run into it. */
+function day(events: WeekEvent[], lead: WeekEvent[] = [], allDayEvents: AllDayEvent[] = []): WeekData {
+  const date = "2026-11-18";
+  return {
+    ...week({}),
+    view: "day",
+    date,
+    previous: "2026-11-17",
+    next: "2026-11-19",
+    days: [{ date, label: date, isToday: false, events, allDay: allDayEvents }],
+    lead,
+  };
+}
+
+/** The month grid of November 2026: Monday 26 October to Sunday 6 December. */
+function month(byDate: Record<string, WeekEvent[]>, allDayEvents: AllDayEvent[] = [], lead: WeekEvent[] = []): WeekData {
+  const dates = Array.from({ length: 42 }, (_, i) => new Date(Date.UTC(2026, 9, 26 + i)).toISOString().slice(0, 10));
+  return {
+    ...week({}),
+    view: "month",
+    date: "2026-11-17",
+    previous: "2026-10-17",
+    next: "2026-12-17",
+    days: dates.map((date) => ({
+      date,
+      label: date,
+      isToday: date === "2026-11-17",
+      events: byDate[date] ?? [],
+      allDay: allDayEvents.filter((e) => e.firstDay <= date && date <= e.lastDay),
+    })),
+    lead,
+  };
+}
+
+/** Every link to `href` ("&" written "&amp;" as in the markup), with what follows it up to its end. */
+function links(html: string, href: string): string[] {
+  return [...html.matchAll(/<a [^>]*>.*?<\/a>/gs)].map((m) => m[0]).filter((a) => a.includes(`href="${href.replaceAll("&", "&amp;")}"`));
 }
 
 function render(data: WeekData, options: { display?: Display; outlookAvailable?: boolean } = {}) {
@@ -145,12 +191,33 @@ describe("calendar markup", () => {
     expect(html).toContain(">9 – 10:30am<");
   });
 
-  it("links to the previous and next week and to this week, and has a New event button", () => {
+  it("links to the previous and next week and to today, with view and day in the address, and has a round New event button", () => {
     const html = render(week({}));
-    expect(html).toMatch(/href="\/\?week=2026-11-09"[^>]*aria-label="Previous week"|aria-label="Previous week"[^>]*href="\/\?week=2026-11-09"/);
-    expect(html).toMatch(/href="\/\?week=2026-11-23"/);
-    expect(html).toMatch(/aria-current="page"[^>]*href="\/\?week=2026-11-16"|href="\/\?week=2026-11-16"[^>]*aria-current="page"/);
-    expect(html).toMatch(/<button[^>]*>.*New event<\/button>/);
+    expect(links(html, "/?view=week&date=2026-11-09")[0]).toContain('aria-label="Previous week"');
+    expect(links(html, "/?view=week&date=2026-11-23")[0]).toContain('aria-label="Next week"');
+    expect(links(html, "/?view=week")[0]).toMatch(/aria-current="date".*>Today<\/a>/);
+    // Round "+" (its name in words; the word shows only once the column is wide).
+    expect(html).toMatch(/<button[^>]*aria-label="New event"[^>]*>.*<svg.*<span class="hidden @3xl:inline">New event<\/span><\/button>/s);
+    expect(html).not.toMatch(/Plan week|Coach/);
+  });
+
+
+  it("has the Day | Week | Month switch, the shown view marked, each keeping the day", () => {
+    const html = render(week({}));
+    expect(html).toMatch(/<nav aria-label="View"/);
+    expect(links(html, "/?view=day&date=2026-11-17").some((a) => a.endsWith(">Day</a>") && !a.includes("aria-current"))).toBe(true);
+    expect(links(html, "/?view=week&date=2026-11-17").some((a) => a.endsWith(">Week</a>") && a.includes('aria-current="page"'))).toBe(true);
+    expect(links(html, "/?view=month&date=2026-11-17").some((a) => a.endsWith(">Month</a>"))).toBe(true);
+  });
+
+  it("makes the title a button that opens a month calendar to jump to a day", () => {
+    expect(render(week({}))).toMatch(/<h1[^>]*><button type="button" aria-haspopup="dialog" aria-expanded="false" title="Jump to a date"[^>]*><span[^>]*>November 2026<\/span><svg/);
+  });
+
+  it("opens a day from the week's day headers", () => {
+    const html = render(week({}));
+    expect(links(html, "/?view=day&date=2026-11-16").some((a) => a.includes('aria-label="Open Monday, November 16"'))).toBe(true);
+    expect(html.match(/aria-label="Open [A-Z][a-z]+day, November \d+"/g)).toHaveLength(7);
   });
 
   it("keeps one status region outside the grid", () => {
@@ -193,8 +260,11 @@ describe("calendar markup", () => {
     expect(html).toMatch(/aria-label="Dentist, Monday, November 16, 10am to 11am"[^>]*class="[^"]*bg-raised/);
   });
 
-  it("has a Goals button in the toolbar for the goals panel", () => {
-    expect(render(week({}))).toMatch(/aria-expanded="true"[^>]*>Goals<\/button>/);
+  it("has the prototype's round goals toggle with the target icon in the toolbar", () => {
+    const html = render(week({}));
+    expect(html).toMatch(/<button type="button" aria-label="Goals" title="Hide goals" aria-pressed="true"[^>]*><svg[^>]*lucide-target/);
+    expect(html).toMatch(/<button type="button" aria-label="Goals" title="Open goals" aria-haspopup="dialog" aria-expanded="false"/);
+    expect(html).not.toMatch(/>Goals<\/button>/);
   });
 
   it("shows an all-day event once in an 'All day' row above the hours, as a bar across its days with its days in words", () => {
@@ -247,5 +317,84 @@ describe("calendar markup", () => {
     const connected = render(week({}, [], { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }), { outlookAvailable: true });
     expect(connected).toContain(">Outlook · Last synced 8:40am</a>");
     expect(connected).toContain('aria-label="Sync Outlook now"');
+  });
+});
+
+describe("day view (spec 14)", () => {
+  it("shows one labelled day with the day in the subtitle, the strip above it, and steps by a day", () => {
+    const html = render(day([event("a", "Lab session", "2026-11-18T10:00", "2026-11-18T12:00")]));
+    expect(html).toContain(">November 2026<");
+    expect(html).toContain("Wednesday, Nov 18 · Week 47");
+    expect(html).toContain("Wed, Nov 18 · Week 47");
+    expect(html.match(/<section aria-label="[A-Z][a-z]+day, November \d+/g)).toEqual(['<section aria-label="Wednesday, November 18']);
+    expect(html).toContain('aria-label="Lab session, Wednesday, November 18, 10am to 12pm"');
+    expect(links(html, "/?view=day&date=2026-11-17").some((a) => a.includes('aria-label="Previous day"'))).toBe(true);
+    expect(links(html, "/?view=day&date=2026-11-19").some((a) => a.includes('aria-label="Next day"'))).toBe(true);
+    expect(links(html, "/?view=day&date=2026-11-18").some((a) => a.endsWith(">Day</a>") && a.includes('aria-current="page"'))).toBe(true);
+    // No weekday headers over the grid: the strip does that.
+    expect(html).not.toContain('aria-label="Open Wednesday');
+  });
+
+  it("has the prototype's strip of the week's seven days, the shown day marked and today in red", () => {
+    const html = render(day([]));
+    const strip = html.slice(html.indexOf('aria-label="Days of the week"'), html.indexOf("data-grid-scroll"));
+    expect(strip.match(/<a /g)).toHaveLength(7);
+    expect(links(strip, "/?view=day&date=2026-11-18")[0]).toContain('aria-current="date"');
+    expect(strip).toMatch(/aria-label="Tuesday, November 17, today"[^>]*>.*bg-today/s);
+  });
+
+  it("draws the part after midnight of an event from the day before, not as a second tab stop", () => {
+    const night = event("n", "Night shift", "2026-11-17T22:00", "2026-11-18T09:00", { endDay: "2026-11-18" });
+    const html = render(day([], [night]));
+    expect(html).toMatch(/tabindex="-1" aria-hidden="true"[^>]*>.*Night shift/s);
+    expect(html).toContain("… – 9am");
+  });
+
+  it("shows the day's all-day events above the hours", () => {
+    const html = render(day([], [], [allDay("x", "Exam week", "2026-11-16", "2026-11-20")]));
+    expect(html).toContain('aria-label="Exam week, all day, Monday, November 16 to Friday, November 20"');
+    expect(html).toMatch(/style="grid-template-columns:repeat\(1, minmax\(0, 1fr\)\)"/);
+  });
+});
+
+describe("month view (spec 14)", () => {
+  it("shows the 6 × 7 grid with weekday names, each date a link to its day, today marked", () => {
+    const html = render(month({}));
+    expect(html.match(/aria-label="Open [A-Z][a-z]+day, [A-Z][a-z]+ \d+(, today)?"/g)).toHaveLength(42);
+    expect(links(html, "/?view=day&date=2026-10-26")[0]).toContain('aria-label="Open Monday, October 26"');
+    expect(html).toMatch(/aria-label="Open Tuesday, November 17, today"[^>]*class="[^"]*bg-today/);
+    expect(html).toMatch(/>Mon<\/div>.*>Sun<\/div>/s);
+    // Days outside the month are grey.
+    expect(html).toMatch(/aria-label="Open Monday, October 26"[^>]*class="[^"]*text-ink-3/);
+    // No subtitle under the title, and the switch marks Month.
+    expect(html).not.toContain("Week 47");
+    expect(html).toMatch(/aria-current="page"[^>]*>Month<\/a>/);
+    expect(links(html, "/?view=month&date=2026-12-17")[0]).toContain('aria-label="Next month"');
+  });
+
+  it("lists events as rows '7:30am Title' with the goal's colour dot, and dots for phones", () => {
+    const html = render(month({ "2026-11-16": [event("r", "Easy run", "2026-11-16T07:30", "2026-11-16T08:15", { goalId: "g1" })] }));
+    expect(html).toMatch(/<button type="button" aria-label="Easy run, 7:30 – 8:15am"[^>]*><span class="size-1.5 shrink-0 rounded-full bg-teal-500"><\/span><span class="shrink-0 tabular text-ink-3">7:30am<\/span><span[^>]*>Easy run<\/span>/);
+    expect(html).toMatch(/<div aria-hidden="true" class="[^"]*@min-\[532px\]:hidden"><span class="size-1.5 shrink-0 rounded-full bg-teal-500">/);
+  });
+
+  it("shows '+N more' when a day has more events than fit, as a button that opens the day", () => {
+    const many = Array.from({ length: 6 }, (_, i) => event(`e${i}`, `Event ${i}`, `2026-11-18T0${i + 1}:00`, `2026-11-18T0${i + 1}:30`));
+    const html = render(month({ "2026-11-18": many }));
+    // 600 px before the first measurement: 3 rows fit a cell, so 2 events and "+4 more".
+    expect(html).toMatch(/aria-label="4 more on Wed, Nov 18"[^>]*>\+4 more<\/button>/);
+  });
+
+  it("puts an all-day event on each of its days and an event past midnight on both days", () => {
+    const night = event("n", "Night shift", "2026-11-19T22:00", "2026-11-20T02:00", { endDay: "2026-11-20" });
+    const html = render(month({ "2026-11-19": [night] }, [allDay("x", "Exam week", "2026-11-18", "2026-11-20")]));
+    expect(html.match(/aria-label="Exam week, all day"/g)).toHaveLength(3);
+    expect(html).toContain('aria-label="Night shift, 10pm – 2am"');
+    expect(html).toMatch(/aria-label="Night shift, until 2am" tabindex="-1"/);
+  });
+
+  it("puts an event of the day before the grid on its first day", () => {
+    const late = event("l", "Late film", "2026-10-25T23:00", "2026-10-26T01:00", { endDay: "2026-10-26" });
+    expect(render(month({}, [], [late]))).toContain('aria-label="Late film, until 1am"');
   });
 });
