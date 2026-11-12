@@ -2,7 +2,7 @@
 
 Team project for Introduction to Programming at Nova SBE.
 
-We build a web app that brings a calendar, goals with weekly rules and focus sessions together, and a Chrome extension that blocks distracting websites while the user works. Pro users also get an AI chat, typed or spoken, that plans their days and answers questions about how they spent their time. The app is called **Lock In**.
+We build a web app that brings a calendar, goals with weekly rules and focus sessions together, and a Chrome extension that blocks distracting websites while the user works. Pro users also get an AI chat, typed or spoken, that plans their days and answers questions about how they spent their time. The app is called **LockedIn**.
 
 **Status:** build steps 1 to 5 are complete in code: accounts, the week calendar with events, goals with weekly rules and progress, focus sessions, the blocker with its Chrome extension, analytics with the focus score, all-day and repeating events, and Outlook in both directions (specs 01 to 08). Outlook needs a Microsoft app registration (`docs/setup.md`, section 9); without it the app works without Outlook. Everything is deployed once the Supabase project exists (`docs/setup.md`).
 

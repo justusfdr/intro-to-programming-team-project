@@ -17,7 +17,7 @@ chrome.runtime
     if (!status) return;
     const back = document.getElementById("back");
     back.href = `${status.appUrl}/focus`;
-    back.textContent = "Back to Lock In";
+    back.textContent = "Back to LockedIn";
     if (Number.isFinite(status.blockingUntil)) {
       const until = document.getElementById("until");
       const time = new Date(status.blockingUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });

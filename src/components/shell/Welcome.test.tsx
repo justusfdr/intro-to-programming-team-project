@@ -12,13 +12,13 @@ const render = (step: 1 | 2 | 3) => renderToStaticMarkup(<Welcome timeFormat="12
 describe("welcome dialog", () => {
   it("is a dialog named after the app, with the step said in words", () => {
     const html = render(1);
-    expect(html).toMatch(/^<dialog aria-label="Welcome to Lock In"/);
+    expect(html).toMatch(/^<dialog aria-label="Welcome to LockedIn"/);
     expect(html).toContain('<span class="sr-only">Step 1 of 3</span>');
   });
 
   it("step 1: the prototype's title, the three cards and Skip intro / Next", () => {
     const html = render(1);
-    expect(html).toContain("Welcome to Lock In");
+    expect(html).toContain("Welcome to LockedIn");
     expect(html).toContain("Turn big goals into focused hours.");
     for (const word of [">Goals<", ">Plan<", ">Focus<", ">Skip intro<", ">Next<"]) expect(html).toContain(word);
   });

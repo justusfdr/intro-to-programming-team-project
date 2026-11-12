@@ -51,7 +51,7 @@ Each needs a short addition to the ontology first (on its branch), then the buil
 - **To try it in a browser** you need the file `.env.local` from Justus. It is never committed.
 - **Do not touch** the existing tests of the server, the database and the rules. New database files may only
   add; they never change or remove what exists.
-- **Names:** no other app's name and no old working title anywhere in the repository. The app is "Lock In".
+- **Names:** no other app's name and no old working title anywhere in the repository. The app is "LockedIn".
 - **Security stays as it is:** the browser never talks to the database; every rule is checked on the server
   and in the database; keys live only in environment variables on the server.
 - **Merge** only after we confirmed it together.

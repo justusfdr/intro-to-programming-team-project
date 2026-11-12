@@ -85,7 +85,7 @@ Our code relies on these answers from Supabase. Check them once with two test ad
 Without this, everything else works; the **Outlook calendar** card in Settings then says "Outlook is not set up on this server yet".
 
 1. Sign in at **entra.microsoft.com** (Microsoft's portal for app registrations) and open **App registrations** → **New registration**. Since June 2024 Microsoft requires every app registration to live in a directory (a Microsoft Entra tenant). Work and school accounts already have one. A purely personal Microsoft account (Outlook.com, Hotmail) has none: create one first, for example by signing up for the free Microsoft 365 Developer Program or an Azure free account with that personal account, then register the app in the directory it creates. Users with personal accounts can still connect afterwards, because of the account type chosen in step 2.
-2. **Name:** Lock In. **Supported account types:** "Accounts in any organizational directory and personal Microsoft accounts".
+2. **Name:** LockedIn. **Supported account types:** "Accounts in any organizational directory and personal Microsoft accounts".
 3. **Redirect URI:** platform **Web**, address `http://localhost:3000/api/outlook/callback`. Press **Register**.
 4. Open **Authentication** and add a second Web redirect URI: the deployed address followed by `/api/outlook/callback`, for example `https://your-app.vercel.app/api/outlook/callback`. It must match `APP_URL` exactly. Save.
 5. Copy the **Application (client) ID** from **Overview** into `MICROSOFT_CLIENT_ID`.

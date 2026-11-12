@@ -158,7 +158,7 @@ function InstallSteps() {
         <li>
           Click Load unpacked and choose the <Code>extension</Code> folder.
         </li>
-        <li>Stay signed in to Lock In in the same Chrome profile. Within a minute this card says &ldquo;Blocker connected&rdquo;.</li>
+        <li>Stay signed in to LockedIn in the same Chrome profile. Within a minute this card says &ldquo;Blocker connected&rdquo;.</li>
       </ol>
       <p className="mt-3 text-xs text-ink-3">
         The blocker works only in Chrome on this computer, and only if Chrome allows third-party cookies for this site. It is a help, not a lock: you

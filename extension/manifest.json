@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Lock In Blocker",
-  "short_name": "Lock In",
+  "name": "LockedIn Blocker",
+  "short_name": "LockedIn",
   "version": "1.0.0",
-  "description": "Blocks the sites on your Lock In block list while you focus. Lock In decides when; this extension only follows.",
+  "description": "Blocks the sites on your LockedIn block list while you focus. LockedIn decides when; this extension only follows.",
   "minimum_chrome_version": "121",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv2IrjGZ6HxNlfEwD3W+p2HfzCYJUeLUQrLoVkm6A98+8DWqQKzLBHk9kLQbpJur1FFu7XPFANF58nipLg0881BKvF5F8qj3VSDyDEJfK8rri03zekto3IIE4/Rn3enUTYH+JyJgnpuo78EgfrOQ6OIrR6ncEF0Epg2s2oOMuaG0yhn2Phec73Xp7GHz/u/tBND1Gvd13oWQz4GtmW6Cfd8mRJzJhb9jkPtXMpUUp4hrIVVuY+LjWarCzVLO+pbu0j5DWsD4/7nXsysr0m/47S/vzhSD7XsCp7F8uYXF/h4oRUSGlxw4zhGhLCgJIxBXypvSXC+RmfCP7YRkxY5PsoQIDAQAB",
   "permissions": ["declarativeNetRequest", "alarms", "storage"],

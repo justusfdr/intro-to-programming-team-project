@@ -1,6 +1,6 @@
-# Lock In Blocker (Chrome extension)
+# LockedIn Blocker (Chrome extension)
 
-While you focus, Chrome stops the sites on your Lock In block list. Lock In decides when; the
+While you focus, Chrome stops the sites on your LockedIn block list. LockedIn decides when; the
 extension only follows (spec 05, ontology R15 to R18). Plain JavaScript, Manifest V3, no build step,
 no code from anywhere else.
 
@@ -9,7 +9,7 @@ no code from anywhere else.
    `http://localhost:3000` while working locally. No slash at the end. This is the only setting.
 2. In Chrome, open `chrome://extensions` and switch on **Developer mode**.
 3. Choose **Load unpacked** and pick this `extension` folder.
-4. Sign in to Lock In in the same Chrome profile. Within a minute the Focus page says "Blocker connected".
+4. Sign in to LockedIn in the same Chrome profile. Within a minute the Focus page says "Blocker connected".
 
 The extension's id is always `dghmihlicabdooieaknglfjlidpjjfki`: it follows from the public key in
 `manifest.json` (`"key"`). The server accepts requests only from that id. If the key is ever
@@ -59,4 +59,4 @@ value, or simply open the listed site itself. A reload of the block page within 
   nothing is blocked. Allow cookies for the app's address (Chrome settings, Privacy and security,
   Third-party cookies, "Sites allowed to use third-party cookies").
 - **Other extensions:** an extension with access to all sites can act on the app's pages in your
-  name anyway. Lock In cannot protect against that; install only extensions you trust.
+  name anyway. LockedIn cannot protect against that; install only extensions you trust.
