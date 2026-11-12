@@ -269,7 +269,7 @@ export function TaskForm({
         aria-invalid={error ? true : undefined}
         className={inputClass}
       />
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <div className="mt-1.5 flex flex-col gap-1.5">
         <input
           type="date"
           value={dueDate}
@@ -277,10 +277,10 @@ export function TaskForm({
           onChange={(event) => setDueDate(event.target.value)}
           aria-label="Due date (optional)"
           title="Due date (optional)"
-          className={`${inputClass} w-[9.5rem] flex-none`}
+          className={inputClass}
         />
         {task && (
-          <select value={goal} onChange={(event) => setGoal(event.target.value)} aria-label="Goal" className={`${inputClass} w-auto min-w-0 flex-1`}>
+          <select value={goal} onChange={(event) => setGoal(event.target.value)} aria-label="Goal" className={inputClass}>
             <option value="">Inbox (no goal)</option>
             {goals.map((option) => (
               <option key={option.id} value={option.id}>

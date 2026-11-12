@@ -309,6 +309,16 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     ),
   );
 
+  // The goals column with tasks at phone width: the same content the phone sheet shows.
+  const sheetMarkup = renderToStaticMarkup(
+    <Announcer>
+      <PanelState>
+        <GoalsPanel goals={goals} tasks={tasks} today="2026-11-17" />
+      </PanelState>
+    </Announcer>,
+  ).replace("sticky top-0 hidden h-dvh w-[280px]", "block h-dvh w-full");
+  writeFileSync(join(OUT, "goals-tasks-phone.html"), phoneFrame("Goals with tasks", page("Goals with tasks", sheetMarkup, styles)));
+
   // The goal editor, open for a new goal (same static-dialog treatment as the event editor).
   const goalEditorMarkup = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: "2026-11-17" }} onClose={() => {}} />).replace(
     "<dialog",
