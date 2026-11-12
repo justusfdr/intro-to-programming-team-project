@@ -35,6 +35,16 @@ export function supabaseConfigured(): boolean {
   return read("SUPABASE_URL") !== "" && read("SUPABASE_PUBLISHABLE_KEY") !== "";
 }
 
+/**
+ * The id of our Chrome extension. Not a secret: it follows from the public key in
+ * extension/manifest.json. Set EXTENSION_ID only if that key is ever replaced.
+ */
+export const DEFAULT_EXTENSION_ID = "dghmihlicabdooieaknglfjlidpjjfki";
+
+export function extensionId(): string {
+  return read("EXTENSION_ID") || DEFAULT_EXTENSION_ID;
+}
+
 /** Connection string of the database (Supabase transaction pooler). A secret. */
 export function databaseUrl(): string {
   return required("DATABASE_URL");

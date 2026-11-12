@@ -101,3 +101,21 @@ export function postJson(path: string, body: unknown, headers: Record<string, st
 export async function read(response: Response): Promise<{ status: number; body: Record<string, unknown> }> {
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
+
+/** The id of our extension in the tests (the committed default). */
+export const EXTENSION_ORIGIN = "chrome-extension://dghmihlicabdooieaknglfjlidpjjfki";
+
+/** A POST as our extension's service worker sends it (blocker design): its Origin, Sec-Fetch-Site "none". */
+export function fromExtension(path: string, body: unknown = {}, headers: Record<string, string> = {}): Request {
+  return new Request(`${OWN_ORIGIN}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      host: "localhost:3000",
+      origin: EXTENSION_ORIGIN,
+      "sec-fetch-site": "none",
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+}

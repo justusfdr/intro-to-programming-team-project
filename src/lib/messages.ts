@@ -33,6 +33,11 @@ export const MESSAGES = {
   notPossible: "Not possible in this state",
   sessionEnded: "This session has already ended",
   ratingRange: "Rating must be a whole number from 0 to 5",
+  // ontology, section 5 and R18 (block list and blocker)
+  invalidSite: "This is not a valid website",
+  alreadyListed: "Already on your list",
+  tooManySites: "You can block at most 50 sites",
+  blockerNotConnected: "Blocker not connected: nothing is being blocked",
   // ontology, section 7 (when a service is down)
   databaseDown: "Your data cannot be loaded right now.",
   emailDown: "We could not send the email. Try again later",
@@ -52,6 +57,8 @@ export const MESSAGES = {
   sessionTooShort: "Under one minute of focus, so it was not saved.",
   sessionCancelled: "Session cancelled. Nothing was saved.",
   ratingSaved: "Rating saved.",
+  siteAdded: "Added to your block list.",
+  siteRemoved: "Removed from your block list.",
   invalidEmail: "Enter a valid email address",
   passwordTooLong: "Password can be at most 72 characters",
   signInRequired: "Please sign in.",
