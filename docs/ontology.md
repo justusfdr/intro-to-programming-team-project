@@ -5,7 +5,7 @@ Rule for coding agents: read this file first. Do not change it without the team'
 
 ## Purpose and scope
 - **Problem and user.** Anyone who wants to be more productive and is constantly distracted while planning across three or four tools: students, employees, self-employed people, in private life or at work. Example persona: a student in the exam phase (lectures, a statistics exam, half-marathon training).
-- **User journey.** Sign up, set goals with weekly rules, plan days, focus while sites are blocked, mark events done, see progress.
+- **User journey.** Sign up, set goals with weekly rules, note tasks, plan days, focus while sites are blocked, mark events done, see progress.
 - **One role:** the signed-in user. No admin. Nothing is shared between users.
 - **Two plans:** Free has everything except the AI chat; Pro adds it, paid through Stripe in test mode.
 
@@ -18,6 +18,7 @@ Rule for coding agents: read this file first. Do not change it without the team'
 | **event** (core) | A calendar block, timed or all-day. A timed event may have a goal and belong to a series. | Saved |
 | **focus_session** (core) | Concentrated work with a timer, with or without an event. | Saved |
 | **blocked_site** (core) | A website on the user's block list. | Saved |
+| task | A to-do with an optional due date. It belongs to one goal or to none (then it is listed under "Inbox"). | Saved |
 | blocked_attempt | A visit to a blocked site that the extension stopped. | Saved |
 | chat_message | A message in the AI chat, from the user or the assistant. An assistant message may carry one draft. | Saved |
 | draft_plan | The assistant's proposal of events within the next 14 days. Becomes events only when accepted. | Saved |
@@ -27,12 +28,13 @@ Rule for coding agents: read this file first. Do not change it without the team'
 
 **Fixed content:** session lengths 15, 30, 60, 90, 120 minutes; the two plans (Free, Pro); the default block list of a new account (youtube.com, instagram.com, tiktok.com, x.com, reddit.com, facebook.com), which the user can edit.
 
-**Calculated, never saved:** rule status, goal progress, blocking on or off, focus score, travel time, analytics, R31's chat totals.
+**Calculated, never saved:** rule status, goal progress, blocking on or off, focus score, travel time, analytics, R31's chat totals, task overdue.
 
 ## 2 Relationships
 - Every saved row belongs to one user, who has one plan, one settings row, up to 50 blocked sites, at most one calendar connection, one open draft and one running or paused session.
 - A goal has one or more rules. A timed event belongs to at most one goal. A focus session belongs to at most one event. Events of one series share a `series_id`.
 - An assistant message carries at most one draft plan. An accepted draft plan creates events.
+- A goal has any number of tasks. A task belongs to at most one goal. A user has at most 100 open tasks.
 
 ## 3 Data model
 Times in UTC, shown in the user's time zone. Lengths in minutes. Every table has `id` (uuid) and, except user, `user_id`.
@@ -41,6 +43,7 @@ Times in UTC, shown in the user's time zone. Lengths in minutes. Every table has
 - **settings**: `time_zone` text, from the browser at sign-up, or "Europe/Lisbon" if it gives none or an invalid one, `home_address` text or empty, `travel_mode` `driving`/`cycling`/`walking` (default `driving`), `travel_buffer_minutes` integer 0 to 120 (10)
 - **goal**: `title` text 1 to 80 characters, `deadline` date ("2027-03-14"), `auto_block` boolean (false), `created_at`, `updated_at` timestamps
 - **rule**: `goal_id` → goal, `kind` `count`/`hours`, `target` decimal (2), `min_minutes` integer or empty, only for `count` (45)
+- **task**: `title` text 1 to 100 characters, `goal_id` → goal or empty, `due_date` date or empty ("2026-11-20"), `status` `open`/`done`, `done_at` timestamp (empty while open), `created_at`, `updated_at`
 - **event**: `title` text 1 to 100 characters, `all_day` boolean (false), `start_at`, `end_at` timestamps, empty if all-day ("2026-11-16 09:00", "11:00"), `first_day`, `last_day` dates, only if all-day, `goal_id` → goal or empty, `location` text or empty, `may_overlap` boolean (false), `status` `planned`/`done`, `source` `app`/`assistant`/`outlook`, `series_id` uuid or empty, `outlook_id` text or empty, `updated_at`
 - **focus_session**: `event_id` → event or empty, `planned_minutes` integer (60), `status` `running`/`paused`/`finished`, `started_at`, `paused_at` (empty while running), `paused_seconds` integer (600), `ended_at` (empty until finished), `rating` integer 0 to 5 or empty (4)
 - **blocked_site**: `domain` text ("instagram.com")
@@ -53,6 +56,7 @@ Times in UTC, shown in the user's time zone. Lengths in minutes. Every table has
 ## 4 Statuses
 - **user `status`**: starts `unconfirmed` (`sign_up`). → `confirmed` (`confirm_email`).
 - **event**: starts `planned`. `planned` → `done` (`mark_event_done`) → `planned` (`mark_event_planned`). All-day events stay `planned`.
+- **task**: starts `open` (`add_task`). `open` → `done` (`complete_task`) → `open` (`reopen_task`). A done task is deleted by itself 7 days after it was done (R33).
 - **focus_session**: starts `running` (`start_session`). `running` ⇄ `paused` (`pause_session`, `resume_session`). `running` or `paused` → `finished` (`end_session`, or by itself, R13). `cancel_session`, or less than one focused minute, deletes the row.
 - **draft_plan**: starts `open` (`send_message` with a draft answer). `open` → `accepted` (`accept_draft`), `rejected` (`reject_draft`) or `replaced` (the next draft answer). `clear_chat` deletes it.
 - **calendar_connection**: starts `connected` (`connect_outlook`). → `needs_reconnect` when Microsoft refuses the stored access → `connected` (`connect_outlook`). `disconnect_outlook` deletes it.
@@ -73,6 +77,8 @@ The first six actions need no sign-in; all others need it and touch only the use
 | `update_settings` | settings | Buffer whole 0 to 120 | Saved | "Buffer must be 0 to 120 minutes" |
 | `delete_account` | confirmation | Plan `free` | All the user's rows deleted | "Cancel Pro before deleting your account" |
 | `create_goal`, `edit_goal` | title, deadline, auto_block, rules | Title 1 to 80; deadline not past when set or changed; at least one rule (R7) | Goal and rules saved together | "Title must be 1 to 80 characters" / "Add at least one rule" / "The deadline cannot be in the past" / "Target must be 1 to 14 events" / "Target must be 0.5 to 60 hours" / "Minimum length must be 15 to 240 minutes" |
+| `add_task`, `edit_task` | title, goal or none, due date or none | Title 1 to 100; due date not past when set or changed; `add_task`: under 100 open tasks (R32) | Saved (`add_task`: `open`) | "Title must be 1 to 100 characters" / "The due date cannot be in the past" / "You can have at most 100 open tasks" |
+| `complete_task`, `reopen_task` | task | Complete: `open`. Reopen: `done`; under 100 open tasks | `done` / `open` | "Not possible in this state" / "You can have at most 100 open tasks" |
 | `remove_rule` | rule | Goal keeps one rule | Rule deleted | "A goal needs at least one rule" |
 | `create_event` | title; start and end, or first and last day (`all_day`); goal, location, may_overlap; repeat, weekdays, repeat_until | Title 1 to 100; timed: start before end, at most 24 h; R28, R29 | Saved, `source` `app` (a series in one step); sent to Outlook if connected | "Title must be 1 to 100 characters" / "End must be after start" / "An event can last at most 24 hours" / "The last day cannot be before the first day" / "An all-day event can last at most 31 days" / "All-day events have no goal" / "A repeating event can have at most 100 dates" / "The end date cannot be before the first date" |
 | `edit_event`, `delete_event` | event, updated_at, scope `this`/`this_and_following` | Edit: same checks as `create_event`; Outlook events: goal only (R11); not changed elsewhere (R4) | Saved or deleted (scope as R28), also in Outlook | As `create_event` / "Change this event in Outlook" / "Changed on another device. Reload to see the latest version" |
@@ -87,9 +93,9 @@ The first six actions need no sign-in; all others need it and touch only the use
 | `connect_outlook` | Microsoft sign-in | User grants read and write access at Microsoft | Connection saved; import runs; app events are written (R26) | "Outlook was not connected" |
 | `upgrade_to_pro`, `cancel_pro` | none | Plan `free` / `pro` | Stripe test checkout opens (plan changes as R25) / subscription ends after the paid period | "You already have Pro" / "You do not have Pro" |
 
-**Always allowed:** `sign_out`; `delete_goal` (its rules are deleted; its events stay, without goal); `remove_blocked_site` (past attempts stay); `clear_chat` (all messages and drafts are deleted; events stay); `disconnect_outlook` (R26).
+**Always allowed:** `sign_out`; `delete_goal` (its rules are deleted; its events and tasks stay, without goal); `delete_task`; `remove_blocked_site` (past attempts stay); `clear_chat` (all messages and drafts are deleted; events stay); `disconnect_outlook` (R26).
 
-**By itself:** `sync_outlook` when the calendar opens, at most every 5 minutes, 7 days back to 60 ahead, also sending unsent app events. `finish_session` (R13). `record_attempt` for each stopped page on the list. `update_plan` (R25).
+**By itself:** `sync_outlook` when the calendar opens, at most every 5 minutes, 7 days back to 60 ahead, also sending unsent app events. `finish_session` (R13). `record_attempt` for each stopped page on the list. `update_plan` (R25). `remove_done_tasks` (R33).
 
 ## 6 Rules
 **General**
@@ -128,7 +134,7 @@ The first six actions need no sign-in; all others need it and touch only the use
 
 **AI chat**
 - **R21** Pro only. At most 20 messages (`send_message`) per user per calendar day in the user's time zone, counted in the database. The provider account has a spending limit.
-- **R22** Sent to Claude with every message: the last 10 messages, goals with deadlines and rules, events from today to 14 days ahead (title, start, end, `may_overlap`, `all_day`), R31's totals, the time zone. Not sent: email, password, locations, block list, payment data. The chat page says what is sent.
+- **R22** Sent to Claude with every message: the last 10 messages, goals with deadlines and rules, events from today to 14 days ahead (title, start, end, `may_overlap`, `all_day`), R31's totals, the time zone. Not sent: email, password, locations, block list, payment data, tasks. The chat page says what is sent.
 - **R23** An answer is a text (changes nothing) or a draft. Every proposed event must be timed, start between now and the end of the 14th day from today (on 16 Nov: until 30 Nov 24:00), start before it ends, last 15 minutes to 8 hours, not overlap another proposal or a timed event with `may_overlap` = false, and use only the user's goals; at most 30. One failed check rejects the whole answer (R1).
 - **R24** Voice: the browser's own speech recognition (English, Chrome) fills the editable input field. Our server receives text only.
 
@@ -147,12 +153,17 @@ The first six actions need no sign-in; all others need it and touch only the use
 **AI chat: questions about the past**
 - **R31** For every message the server, not Claude, adds up the current week and the 7 before: per week and goal, minutes of `done` timed events and focused minutes of finished sessions (a session counts for its event's goal, else "no goal"); for `done` events without a goal, minutes per title, only the 20 titles with the most minutes. Limit: the assistant sees only these totals, no single past events, nothing older than 8 weeks.
 
+**Tasks**
+- **R32** A task belongs to one of the user's goals or to none; tasks without a goal are listed under "Inbox". At most 100 open tasks per user. A task never counts for a rule and never appears in the calendar.
+- **R33** Under each goal the open tasks come first, by due date (earliest first, tasks without a date last), then the done tasks, struck through. A due date before today (in the user's time zone) is marked overdue. A done task is deleted by itself 7 days after it was done.
+
 ## 7 What is saved, where, and who can see it
 - **Email, password:** Supabase Auth, the password only as a hash (it cannot be turned back into the password).
 - **All rows of section 3:** Supabase (Postgres) with row-level security. Seen only by the owner.
 - **Outlook access:** encrypted in `calendar_connection`, read only by our server; never in the browser or extension.
 - **Card details:** Stripe only; we keep `stripe_customer_id` and `plan`.
 - **AI chat:** messages and drafts saved; R22's data goes to the provider of Claude.
+- **Tasks:** saved in the database, visible only to their user (R3).
 - **Extension:** Chrome's storage holds the block list and blocking state, on that computer only.
 
 **Secrets:** Claude API key, Supabase service key and connection string, Microsoft client secret, the key that encrypts the Outlook access, the routing service key, Stripe secret and webhook keys, the e-mail sender's password. Only on the server as environment variables, never in the public repository, the browser or the extension. After a leak: revoke the key, create a new one, check the provider's usage.
@@ -185,17 +196,19 @@ The first six actions need no sign-in; all others need it and touch only the use
 | A12 | No events | Weekly Tue and Thu 09:00–10:00, first date Tue 17 Nov 2026, until 18 Dec; then `delete_event` `this_and_following` on Tue 8 Dec; then daily with 101 dates | 10 events, one `series_id`; 6 remain (17, 19, 24, 26 Nov, 1, 3 Dec); daily: "A repeating event can have at most 100 dates", nothing saved |
 | A13 | All-day "Exam week" Mon 16 to Fri 20 Nov; Tue 09:00–11:00 event of an `auto_block` goal; no session | Extension asks Tue 10:00 and Wed 10:00 | No conflict mark; Tue: blocked until 11:00; Wed: not blocked |
 | A14 | Account `unconfirmed`; no account for "x@example.com" | `sign_in`; `request_password_reset` for "x@example.com" | "Confirm your email first. We sent you a link"; "If this email is registered, we sent a link", no email sent |
+| A15 | Goal "Half marathon" exists; no tasks | `add_task` "Buy running shoes" for that goal, due 20 Nov; then `complete_task` | Listed under the goal, count 1; after completing: struck through, count 0 |
+| A16 | 100 open tasks | `add_task` | "You can have at most 100 open tasks"; nothing saved |
+| A17 | A goal with two tasks | `delete_goal` | Both tasks are listed under "Inbox" |
 
 ## 9 Open decisions
 Each with its default.
-- To-do lists next to goals? Left out of the first version.
 - Public transport for travel time? Not offered.
 - Price of Pro? €5 per month, test mode, no trial.
 - E-mail sender: built-in or our own? Our own sender before step 1 is deployed; its password is a secret.
 - Does finishing a session mark its event done? No, the user marks it.
 
 ## 10 Out of scope
-Booking-page integrations; chat-tool status; calendar subscription links (ICS); coach recommendations, an evening check-in and a weekly review (our prototype had them); admin accounts, sharing, social features; a native phone app; calendars other than Outlook; other sign-in methods; habit, sport and cycle tracking; dark mode; games; screen-time measurement; travel stopovers.
+Booking-page integrations; chat-tool status; calendar subscription links (ICS); coach recommendations, an evening check-in and a weekly review (our prototype had them); admin accounts, sharing, social features; a native phone app; calendars other than Outlook; other sign-in methods; habit, sport and cycle tracking; dark mode; games; screen-time measurement; travel stopovers; sub-tasks; repeating tasks; putting a task into the calendar; to-dos and notes inside an event.
 
 ## Where this comes from
 Team meeting of 7 Nov 2026; our decisions of 10 Nov; the teaching staff's answers; the course wiki.
