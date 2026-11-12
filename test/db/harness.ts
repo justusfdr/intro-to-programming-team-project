@@ -20,6 +20,8 @@ function migrations(): string[] {
 export interface TestDb {
   /** The same helper the app uses, running on the test database. */
   withUser: WithUser;
+  /** The driver under withUser, for tests that wrap it (for example to count transactions). */
+  driver: Driver;
   /** Runs SQL as the database owner, bypassing row-level security. For setup and checks in tests only. */
   admin<T extends Row = Row>(sql: string, params?: unknown[]): Promise<T[]>;
   /** Creates a user the way Supabase Auth does (a row in auth.users); returns the id. */
@@ -42,6 +44,7 @@ export async function createTestDb(): Promise<TestDb> {
 
   return {
     withUser: createWithUser(driver),
+    driver,
     admin,
     async createUser(email, options = {}) {
       const meta = options.timeZone === undefined ? {} : { time_zone: options.timeZone };

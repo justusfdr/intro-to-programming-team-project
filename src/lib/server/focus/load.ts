@@ -6,6 +6,7 @@ import "server-only";
 import { focusedMinutes, lengthForEvent } from "@/lib/focus/session-time";
 import type { FocusData } from "@/lib/focus/types";
 import { lookOf } from "@/lib/goals/style";
+import type { Query } from "@/lib/server/db";
 import type { Deps } from "@/lib/server/deps";
 import { readGoals } from "@/lib/server/goals/rows";
 import { settleSessions, SESSION_COLUMNS, SESSION_FROM, timesOf, toSessionDto, type SessionRow } from "./sessions";
@@ -17,36 +18,48 @@ export async function loadFocus(deps: Pick<Deps, "withUser" | "now">, userId: st
   const now = deps.now();
   // The same order as every session action: finish due sessions (saved on their own), then read.
   await settleSessions(deps, userId, now);
-  return deps.withUser(userId, async (query) => {
+  return deps.withUser(userId, (query) => readFocus(query, now, eventId));
+}
 
-    const [active] = await query<SessionRow>(`select ${SESSION_COLUMNS} from ${SESSION_FROM} where s.status in ('running', 'paused')`);
-    const recent = await query<SessionRow>(
+/**
+ * The same reads inside a transaction that is already open; call settleSessions before it.
+ * The reads are started together; the one with a parameter (the event) comes last, because the
+ * driver sends it only after asking for its parameter types (see db/with-user.ts).
+ */
+export async function readFocus(query: Query, now: Date, eventId?: string): Promise<FocusData> {
+  // Opened from an event: only the user's own event counts; anything else is ignored.
+  const wantsEvent = eventId !== undefined && UUID.test(eventId);
+  const [actives, recent, goalRows, events] = await Promise.all([
+    query<SessionRow>(`select ${SESSION_COLUMNS} from ${SESSION_FROM} where s.status in ('running', 'paused')`),
+    query<SessionRow>(
       `select ${SESSION_COLUMNS} from ${SESSION_FROM} where s.status = 'finished' order by s.ended_at desc, s.id limit ${RECENT}`,
-    );
+    ),
+    readGoals(query),
+    wantsEvent
+      ? query<{ id: string; title: string; minutes: number; goal_id: string | null }>(
+          // Only a timed event suggests a session; an all-day event is ignored here.
+          "select id, title, extract(epoch from end_at - start_at)::int / 60 as minutes, goal_id from app.events where id = $1 and not all_day",
+          [eventId],
+        )
+      : Promise.resolve([]),
+  ]);
+  const [active] = actives;
 
-    // Opened from an event: only the user's own event counts; anything else is ignored.
-    let forEvent: FocusData["forEvent"] = null;
-    let forEventGoalId: string | null = null;
-    if (eventId && UUID.test(eventId)) {
-      const [event] = await query<{ id: string; title: string; minutes: number; goal_id: string | null }>(
-        // Only a timed event suggests a session; an all-day event is ignored here.
-        "select id, title, extract(epoch from end_at - start_at)::int / 60 as minutes, goal_id from app.events where id = $1 and not all_day",
-        [eventId],
-      );
-      if (event) {
-        forEvent = { id: event.id, title: event.title, suggestedMinutes: lengthForEvent(event.minutes) };
-        forEventGoalId = event.goal_id;
-      }
-    }
-    const goals = (await readGoals(query)).map(({ goal }, index) => ({ id: goal.id, title: goal.title, look: lookOf(goal, index) }));
+  let forEvent: FocusData["forEvent"] = null;
+  let forEventGoalId: string | null = null;
+  const [event] = events;
+  if (event) {
+    forEvent = { id: event.id, title: event.title, suggestedMinutes: lengthForEvent(event.minutes) };
+    forEventGoalId = event.goal_id;
+  }
+  const goals = goalRows.map(({ goal }, index) => ({ id: goal.id, title: goal.title, look: lookOf(goal, index) }));
 
-    return {
-      active: active ? toSessionDto(active) : null,
-      recent: recent.map((row) => ({ ...toSessionDto(row), focusedMinutes: focusedMinutes(timesOf(row), now) })),
-      forEvent,
-      forEventGoalId,
-      goals,
-      now: now.toISOString(),
-    };
-  });
+  return {
+    active: active ? toSessionDto(active) : null,
+    recent: recent.map((row) => ({ ...toSessionDto(row), focusedMinutes: focusedMinutes(timesOf(row), now) })),
+    forEvent,
+    forEventGoalId,
+    goals,
+    now: now.toISOString(),
+  };
 }

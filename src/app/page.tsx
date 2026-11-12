@@ -8,32 +8,28 @@ import { PanelState } from "@/components/shell/PanelState";
 import { Welcome } from "@/components/shell/Welcome";
 import { outlookConfigured } from "@/lib/server/config";
 import { pageDeps } from "@/lib/server/deps";
-import { welcomeDue } from "@/lib/server/demo/rows";
-import { readDisplay } from "@/lib/server/settings";
-import { loadWeek } from "@/lib/server/events/week";
-import { loadGoals } from "@/lib/server/goals/load";
-import { loadTasks } from "@/lib/server/tasks/load";
+import { loadCalendarPage } from "@/lib/server/pages/load";
 import { localDateTimeOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Calendar" };
 
 const HOUR = 60 * 60 * 1000;
 
-// The calendar (spec 02). The page reads the signed-in user's week on the server through withUser;
-// after an action the editor calls router.refresh(), which runs this page again with fresh data.
+// The calendar (spec 02). The page reads the signed-in user's week, goals and tasks on the server in
+// one transaction (src/lib/server/pages/load.ts). After an action the screen shows the answer at once
+// and router.refresh() runs this page again in the background with fresh data.
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ week?: string | string[] }> }) {
   const deps = await pageDeps();
   // The proxy already sends signed-out visitors away; the page checks again (R3).
   const userId = await deps.auth.currentUserId();
   if (!userId) redirect("/sign-in");
-  const display = await deps.withUser(userId, readDisplay);
 
   const { week: requested } = await searchParams;
-  const week = await loadWeek(deps, userId, typeof requested === "string" ? requested : undefined);
-  const goals = await loadGoals(deps, userId);
-  const tasks = await loadTasks(deps, userId);
-  // A new account (no goals, events or tasks, welcome never answered) sees the welcome (spec 13).
-  const showWelcome = await deps.withUser(userId, welcomeDue);
+  const { display, week, goals, tasks, showWelcome } = await loadCalendarPage(
+    deps,
+    userId,
+    typeof requested === "string" ? requested : undefined,
+  );
 
   const now = deps.now();
   // "New event" suggests the next full hour, one hour long.

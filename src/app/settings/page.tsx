@@ -3,9 +3,8 @@ import { redirect } from "next/navigation";
 import { Announcer } from "@/components/calendar/Announcer";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { AppShell } from "@/components/shell/AppShell";
-import { loadBlocker } from "@/lib/server/blocker/page";
 import { pageDeps } from "@/lib/server/deps";
-import { loadSettingsPage } from "@/lib/server/settings-page";
+import { loadSettingsPageAll } from "@/lib/server/pages/load";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -25,13 +24,12 @@ export default async function SettingsPage() {
   const userId = await deps.auth.currentUserId();
   if (!userId) redirect("/sign-in");
 
-  const data = await loadSettingsPage(deps, userId);
-  const blocker = await loadBlocker(deps, userId);
-  const { timeFormat, dayStartHour, dayEndHour } = data.settings;
+  // Everything in one transaction (src/lib/server/pages/load.ts).
+  const { display, page: data, blocker } = await loadSettingsPageAll(deps, userId);
 
   return (
     <Announcer>
-      <AppShell current="/settings" display={{ timeFormat, dayStartHour, dayEndHour }}>
+      <AppShell current="/settings" display={display}>
         <SettingsView data={data} blocker={blocker} timeZones={knownTimeZones()} />
       </AppShell>
     </Announcer>

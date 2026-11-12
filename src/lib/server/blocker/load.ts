@@ -15,16 +15,19 @@ export async function readBlockedSites(query: Query): Promise<BlockedSite[]> {
 
 /** R15 at `now`. Call settleSessions first, so an overdue session no longer counts as running. */
 export async function readBlockingState(query: Query, now: Date) {
-  const [running] = await query<{ started_at: Date; planned_minutes: number; paused_seconds: number }>(
-    "select started_at, planned_minutes, paused_seconds from app.focus_sessions where status = 'running'",
-  );
-  // Events last at most 24 hours, so only those starting in the last day can be in progress.
-  const events = await query<{ start_at: Date; end_at: Date }>(
-    `select e.start_at, e.end_at
-       from app.events e join app.goals g on g.id = e.goal_id
-      where g.auto_block and not e.all_day and e.start_at <= $1 and e.end_at > $1 and e.start_at > $1::timestamptz - interval '24 hours'`,
-    [now],
-  );
+  // Both reads are started together.
+  const [[running], events] = await Promise.all([
+    query<{ started_at: Date; planned_minutes: number; paused_seconds: number }>(
+      "select started_at, planned_minutes, paused_seconds from app.focus_sessions where status = 'running'",
+    ),
+    // Events last at most 24 hours, so only those starting in the last day can be in progress.
+    query<{ start_at: Date; end_at: Date }>(
+      `select e.start_at, e.end_at
+         from app.events e join app.goals g on g.id = e.goal_id
+        where g.auto_block and not e.all_day and e.start_at <= $1 and e.end_at > $1 and e.start_at > $1::timestamptz - interval '24 hours'`,
+      [now],
+    ),
+  ]);
   return blockingState({
     now,
     runningSessionEnd: running
