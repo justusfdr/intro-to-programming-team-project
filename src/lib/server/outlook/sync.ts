@@ -67,6 +67,7 @@ type PendingRow = {
   end_at: Date | null;
   first_day: string | null;
   last_day: string | null;
+  location: string | null;
   outlook_id: string | null;
   updated_at: Date;
 };
@@ -86,7 +87,7 @@ async function sendPending(deps: Deps, userId: string, service: OutlookService, 
       [MAX_SENT_PER_RUN],
     );
     const events = await q<PendingRow>(
-      `select id, title, all_day, start_at, end_at, first_day::text as first_day, last_day::text as last_day, outlook_id, updated_at
+      `select id, title, all_day, start_at, end_at, first_day::text as first_day, last_day::text as last_day, location, outlook_id, updated_at
          from app.events
         where source <> 'outlook'
           and not demo
@@ -110,6 +111,7 @@ async function sendPending(deps: Deps, userId: string, service: OutlookService, 
         endAt: e.end_at ? new Date(e.end_at).toISOString() : null,
         firstDay: e.first_day,
         lastDay: e.last_day,
+        location: e.location,
         transactionId: e.id,
       };
       return e.outlook_id ? { kind: "update", ref: e.id, outlookId: e.outlook_id, event } : { kind: "create", ref: e.id, event };

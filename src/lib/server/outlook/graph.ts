@@ -155,6 +155,7 @@ export function graphBody(event: OutgoingEvent, create: boolean): Record<string,
   return {
     subject: event.title,
     ...times,
+    ...(event.location !== undefined ? { location: { displayName: event.location ?? "" } } : {}),
     ...(create ? { transactionId: event.transactionId, showAs: "busy", isReminderOn: false } : {}),
   };
 }

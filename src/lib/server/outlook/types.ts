@@ -38,6 +38,8 @@ export type OutgoingEvent = {
   endAt: string | null;
   firstDay: string | null;
   lastDay: string | null;
+  /** Where it takes place; null clears it in Outlook. Left out: Outlook's location is not touched. */
+  location?: string | null;
   /** Our event id: Outlook creates an event only once per transactionId. */
   transactionId: string;
 };

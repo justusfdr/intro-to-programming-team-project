@@ -25,6 +25,7 @@ export const MESSAGES = {
   tooManyDates: "A repeating event can have at most 100 dates",
   untilBeforeFirst: "The end date cannot be before the first date",
   allDayNotDone: "All-day events cannot be marked done",
+  locationLength: "Location can be at most 200 characters",
   // ontology, section 5 (goals and rules)
   goalTitleLength: "Title must be 1 to 80 characters",
   addRule: "Add at least one rule",
