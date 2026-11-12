@@ -7,6 +7,7 @@ import { createTestApp, OWN_ORIGIN, postJson, read, type TestApp } from "@test/s
 import { seedEvent } from "@test/support/events";
 import { seedGoal } from "@test/support/goals";
 import { seedOpenTasks, seedTask } from "@test/support/tasks";
+import { welcomeDue } from "@/lib/server/demo/rows";
 import { loadWeek } from "@/lib/server/events/week";
 import { loadDemo } from "./load-demo";
 import { sendOutlookNow } from "./outlook";
@@ -346,5 +347,34 @@ describe("demo events and Outlook", () => {
     const week = await loadWeek(app.deps, alice);
     const all = week.days.flatMap((d) => d.events);
     expect(all.filter((e) => e.notSent).map((e) => e.title)).toEqual(["My own event"]);
+  });
+});
+
+describe("when the welcome shows", () => {
+  const due = (userId: string) => app.db.withUser(userId, welcomeDue);
+
+  it("shows for a new account, and not again once answered with either choice", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    expect(await due(alice)).toBe(true);
+    await fresh();
+    expect(await due(alice)).toBe(false);
+
+    const bob = await app.signedInAs("bob@example.com");
+    expect(await due(bob)).toBe(true);
+    await load();
+    await remove(); // the account is empty again, but the welcome was answered
+    expect(await due(bob)).toBe(false);
+  });
+
+  it("does not show for an account that already has a goal, an event or a task", async () => {
+    const withGoal = await app.signedInAs("goal@example.com");
+    await seedGoal(app.db, withGoal, { deadline: "2027-03-14", rules: [{ kind: "count", target: 2 }] });
+    const withEvent = await app.signedInAs("event@example.com");
+    await seedEvent(app.db, withEvent, { start: "2026-11-17T10:00:00Z", end: "2026-11-17T11:00:00Z" });
+    const withTask = await app.signedInAs("task@example.com");
+    await seedTask(app.db, withTask);
+    const empty = await app.signedInAs("empty@example.com");
+
+    expect([await due(withGoal), await due(withEvent), await due(withTask), await due(empty)]).toEqual([false, false, false, true]);
   });
 });

@@ -23,6 +23,7 @@ const DATA: SettingsPageData = {
   outlookAvailable: false,
   outlook: { status: "none", lastSyncedAt: null },
   today: "2026-11-17",
+  hasDemo: false,
 };
 
 const BLOCKER: BlockerData = { sites: [{ id: "1", domain: "youtube.com" }], connected: false, blockingOn: false, blockingUntil: null, timeZone: "Europe/Lisbon" };
@@ -86,5 +87,15 @@ describe("settings page", () => {
     expect(asking).toMatch(/<label for="([^"]+)"[^>]*>Type DELETE to confirm<\/label><input id="\1"/);
     expect(asking).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Delete account<\/button>/);
     expect(asking).toContain("This cannot be undone.");
+  });
+
+  it("offers 'Remove the demo data' only while demo data is left, and its question says changed demo items go too (spec 13)", () => {
+    expect(render()).not.toContain("Remove the demo data");
+    expect(render({ ...DATA, hasDemo: true })).toMatch(/aria-expanded="false"[^>]*>.*Remove the demo data<\/button>/);
+    const asking = renderToStaticMarkup(<YourAccountCard hasDemo defaultAskingDemo />);
+    expect(asking).toContain('role="group" aria-label="Remove the demo data"');
+    expect(asking).toContain("Demo items you changed are removed too. Everything you added yourself stays.");
+    expect(asking).toMatch(/>Cancel<\/button>/);
+    expect(asking).toMatch(/>Remove<\/button>/);
   });
 });

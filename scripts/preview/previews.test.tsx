@@ -267,6 +267,7 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     outlookAvailable: false,
     outlook: { status: "none", lastSyncedAt: null },
     today: "2026-11-17",
+    hasDemo: true,
   };
   const settingsBlocker = {
     sites: ["youtube.com", "instagram.com", "tiktok.com", "x.com", "reddit.com", "facebook.com"].map((domain, i) => ({ id: String(i), domain })),

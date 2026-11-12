@@ -25,4 +25,6 @@ export type SettingsPageData = {
   outlook: { status: "none" | "connected" | "needs_reconnect"; lastSyncedAt: string | null };
   /** Today in the user's time zone, for "Last synced …". */
   today: string;
+  /** The account still has rows from "Explore the demo" (spec 13): offer "Remove the demo data". */
+  hasDemo: boolean;
 };

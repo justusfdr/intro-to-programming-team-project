@@ -1,9 +1,10 @@
 import "server-only";
 
 // Data for the settings page (spec 12): the settings row, the plan, the Outlook connection's state
-// (never the stored access) and whether Outlook is set up on this server.
+// (never the stored access), whether Outlook is set up on this server, and whether demo data is left.
 import type { Deps } from "@/lib/server/deps";
 import { outlookConfigured } from "@/lib/server/config";
+import { hasDemoRows } from "@/lib/server/demo/rows";
 import { readOutlookState } from "@/lib/server/outlook/sync";
 import { readSettings } from "@/lib/server/settings";
 import type { SettingsPageData } from "@/lib/settings/types";
@@ -19,6 +20,7 @@ export async function loadSettingsPage(deps: Pick<Deps, "withUser" | "now">, use
       outlookAvailable: outlookConfigured(),
       outlook: await readOutlookState(query),
       today: localDateOf(deps.now(), settings.timeZone),
+      hasDemo: await hasDemoRows(query),
     };
   });
 }

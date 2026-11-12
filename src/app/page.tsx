@@ -5,8 +5,10 @@ import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoalsPanel } from "@/components/goals/GoalsPanel";
 import { AppShell } from "@/components/shell/AppShell";
 import { PanelState } from "@/components/shell/PanelState";
+import { Welcome } from "@/components/shell/Welcome";
 import { outlookConfigured } from "@/lib/server/config";
 import { pageDeps } from "@/lib/server/deps";
+import { welcomeDue } from "@/lib/server/demo/rows";
 import { readDisplay } from "@/lib/server/settings";
 import { loadWeek } from "@/lib/server/events/week";
 import { loadGoals } from "@/lib/server/goals/load";
@@ -30,6 +32,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const week = await loadWeek(deps, userId, typeof requested === "string" ? requested : undefined);
   const goals = await loadGoals(deps, userId);
   const tasks = await loadTasks(deps, userId);
+  // A new account (no goals, events or tasks, welcome never answered) sees the welcome (spec 13).
+  const showWelcome = await deps.withUser(userId, welcomeDue);
 
   const now = deps.now();
   // "New event" suggests the next full hour, one hour long.
@@ -52,6 +56,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             outlookAvailable={outlookConfigured()}
           />
         </AppShell>
+        {showWelcome && <Welcome timeFormat={display.timeFormat} />}
       </PanelState>
     </Announcer>
   );

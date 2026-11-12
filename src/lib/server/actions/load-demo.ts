@@ -10,9 +10,9 @@ import "server-only";
 // own rows, and carries the demo mark, so remove_demo can find exactly these rows again.
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
-import type { Query } from "@/lib/server/db";
 import type { Deps } from "@/lib/server/deps";
 import { DEMO_DEADLINE_DAYS, DEMO_EVENTS, DEMO_GOALS, demoTasks } from "@/lib/server/demo/data";
+import { hasDemoRows } from "@/lib/server/demo/rows";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
@@ -23,16 +23,6 @@ import { settleTasks } from "@/lib/server/tasks/settle";
 import { addDays, localDateOf, mondayOf, parseLocalDateTime } from "@/lib/time/zoned";
 
 const Empty = z.strictObject({});
-
-/** True when the account already has a row from the demo. */
-export async function hasDemoRows(query: Query): Promise<boolean> {
-  const [row] = await query<{ loaded: boolean }>(
-    `select exists (select 1 from app.goals where demo)
-         or exists (select 1 from app.events where demo)
-         or exists (select 1 from app.tasks where demo) as loaded`,
-  );
-  return row.loaded;
-}
 
 export function loadDemo(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now">): Promise<Response> {
   return handleAction(async () => {
