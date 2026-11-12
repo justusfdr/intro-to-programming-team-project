@@ -12,7 +12,10 @@ export async function proxy(request: NextRequest) {
     ? await refreshSession(request)
     : { response: NextResponse.next({ request }), userId: null };
 
-  const decision = guard(request.nextUrl.pathname, userId !== null);
+  const decision = guard(request.nextUrl.pathname, userId !== null, {
+    // The framework sets this to "production" in a build, so the exception exists only in `next dev`.
+    development: process.env.NODE_ENV === "development",
+  });
   if (decision.kind === "allow") return response;
 
   const answer =

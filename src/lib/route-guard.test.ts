@@ -27,3 +27,14 @@ describe("guard (R3: not signed in gets the sign-in page or 401, no data)", () =
     expect(guard("/api/events", true)).toEqual({ kind: "allow" });
   });
 });
+
+describe("guard and the framework's own addresses", () => {
+  it("lets /_next/ and /__nextjs addresses through only in development", () => {
+    expect(guard("/_next/webpack-hmr", false, { development: true })).toEqual({ kind: "allow" });
+    expect(guard("/__nextjs_original-stack-frames", false, { development: true })).toEqual({ kind: "allow" });
+    expect(guard("/_next/webpack-hmr", false)).toEqual({ kind: "redirect", to: "/sign-in" });
+    expect(guard("/_next/webpack-hmr", false, { development: false })).toEqual({ kind: "redirect", to: "/sign-in" });
+    expect(guard("/_nextish", false, { development: true })).toEqual({ kind: "redirect", to: "/sign-in" });
+    expect(guard("/api/tasks", false, { development: true })).toEqual({ kind: "unauthorized" });
+  });
+});
