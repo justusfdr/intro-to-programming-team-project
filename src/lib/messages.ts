@@ -47,6 +47,9 @@ export const MESSAGES = {
   alreadyListed: "Already on your list",
   tooManySites: "You can block at most 50 sites",
   blockerNotConnected: "Blocker not connected: nothing is being blocked",
+  // ontology, section 5 (settings and account)
+  bufferRange: "Buffer must be 0 to 120 minutes",
+  cancelPro: "Cancel Pro before deleting your account",
   // ontology, section 7 (when a service is down)
   databaseDown: "Your data cannot be loaded right now.",
   emailDown: "We could not send the email. Try again later",
@@ -80,6 +83,12 @@ export const MESSAGES = {
   ratingSaved: "Rating saved.",
   siteAdded: "Added to your block list.",
   siteRemoved: "Removed from your block list.",
+  settingsSaved: "Settings saved.",
+  unknownTimeZone: "Choose a time zone from the list",
+  addressTooLong: "Home address can be at most 200 characters",
+  visibleHours: "Visible hours must be whole hours, from 0 to 24, ending after they start",
+  typeDelete: "Type DELETE to confirm",
+  accountDeleted: "Your account and all its data are deleted.",
   invalidEmail: "Enter a valid email address",
   passwordTooLong: "Password can be at most 72 characters",
   signInRequired: "Please sign in.",
