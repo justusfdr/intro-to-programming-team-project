@@ -75,3 +75,24 @@ export const NotSentIcon = (p: IconProps) => (
     <path d="M12 20V8M7.5 12.5 12 8l4.5 4.5M4 4l16 16" />
   </Icon>
 );
+export const ChevronDown = (p: IconProps) => <Icon {...p}><path d="m6 9 6 6 6-6" /></Icon>;
+/** A goal: three rings around a centre. Every goal shows it, in the goal's colour. */
+export const TargetIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1" />
+  </Icon>
+);
+export const PinIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M20 10c0 5-5.5 10.5-7.4 12.2a1 1 0 0 1-1.2 0C9.5 20.5 4 15 4 10a8 8 0 0 1 16 0Z" />
+    <circle cx="12" cy="10" r="3" />
+  </Icon>
+);
+export const ClockIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
