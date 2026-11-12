@@ -15,7 +15,7 @@ function event(id: string, start: string, end: string, endDay: string | null = n
     allDay: false,
     firstDay: null,
     lastDay: null,
-    seriesId: null,
+    seriesId: null, source: "app", location: null, notSent: false,
     goalId: null,
     updatedAt: "",
     conflict: false,

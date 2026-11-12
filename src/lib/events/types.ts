@@ -2,6 +2,9 @@
 
 export type EventStatus = "planned" | "done";
 
+/** Where an event came from: made here, by the assistant, or imported from Outlook (R11). */
+export type EventSource = "app" | "assistant" | "outlook";
+
 export type EventDto = {
   id: string;
   title: string;
@@ -17,6 +20,11 @@ export type EventDto = {
   goalId: string | null;
   /** Events of one series share it (R28); null for a single event. */
   seriesId: string | null;
+  source: EventSource;
+  /** Where it takes place; from Outlook for now. */
+  location: string | null;
+  /** R26: connected to Outlook, an app event that has not ended, and Outlook does not have it yet. */
+  notSent: boolean;
   /** Sent back with every edit and delete, so the server can see whether the row changed since (R4). */
   updatedAt: string;
 };
@@ -51,8 +59,12 @@ export type CalendarEvent = WeekEvent | AllDayEvent;
 /** A day of the week: its timed events (by start, R2) and the all-day events covering it. */
 export type WeekDay = { date: string; label: string; isToday: boolean; events: WeekEvent[]; allDay: AllDayEvent[] };
 
+/** The Outlook connection as the calendar shows it (never the stored access). */
+export type OutlookView = { status: "none" | "connected" | "needs_reconnect"; lastSyncedAt: string | null };
+
 export type WeekData = {
   timeZone: string;
+  outlook: OutlookView;
   monday: string;
   previous: string;
   next: string;

@@ -13,6 +13,7 @@ import type { GoalLabel } from "./TimeGrid";
 import { addDays, dayParts, isoWeekNumber, localDateTimeOf, weekTitle } from "@/lib/time/zoned";
 import { GoalsToggle } from "@/components/goals/GoalsPanel";
 import { EventEditor, type EditorState } from "./EventEditor";
+import { OutlookMenu } from "./OutlookMenu";
 import { TimeGrid } from "./TimeGrid";
 
 type Props = {
@@ -101,6 +102,7 @@ export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
               Today
             </LinkButton>
             <GoalsToggle />
+            <OutlookMenu outlook={week.outlook} timeZone={week.timeZone} today={today} />
             <Button className="ml-auto" onClick={() => setEditor({ mode: "create", ...suggestion })}>
               <Plus className="size-4" />
               New event
@@ -148,7 +150,7 @@ export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
           />
         </div>
       </div>
-      <EventEditor state={editor} goals={goals} onClose={() => setEditor(null)} />
+      <EventEditor state={editor} goals={goals} outlookConnected={week.outlook.status === "connected"} onClose={() => setEditor(null)} />
     </>
   );
 }

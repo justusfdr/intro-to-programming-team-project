@@ -10,7 +10,7 @@ Keep every key and password in your password manager. Never paste them into the 
 ## 2. Create the tables
 1. Open **SQL Editor** in the project.
 2. Run each file in `supabase/migrations/` in name order (oldest first): open the file, copy all of it, paste it into a new query, press **Run**. Each file runs only once.
-3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles`, `settings`, `events`, `goals`, `rules`, `focus_sessions`, `blocked_sites` and `blocked_attempts`.
+3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles`, `settings`, `events`, `goals`, `rules`, `focus_sessions`, `blocked_sites`, `blocked_attempts`, `calendar_connections` and `outlook_deletions`.
 4. Open **Project Settings > Data API**. Under **Exposed schemas**, `app` must **not** be listed. Do not add it. (Our server is the only way to our tables.)
 
 ## 3. Switch on e-mail confirmation
@@ -70,3 +70,19 @@ Our code relies on these answers from Supabase. Check them once with two test ad
     - `EXTENSION_ID` stays empty unless the key in `extension/manifest.json` is replaced.
 12. Analytics: after a few sessions (and a blocked visit during one), the Analytics page shows the week's focus time, sessions, score and blocked visits; a day without sessions shows "–".
 13. All-day and repeating events: add an all-day "Exam week" from Monday to Friday; it shows in the "All day" row above the hours and cannot be marked done. Add a weekly event on Tuesday and Thursday for four weeks; delete one of its later events with "This and following events": that event and the later ones go, the earlier ones stay.
+14. Outlook (after section 9): open the calendar, press **Outlook**, then **Connect Outlook**, sign in at Microsoft and allow access. Back in the calendar it says "Outlook connected." and your Outlook events appear with an arrow-into-tray mark. Add an event in the app: it appears in Outlook within a few seconds. Rename an event in Outlook, reload the calendar after 5 minutes: the new name shows. Press **Outlook** → **Disconnect Outlook**: the Outlook events leave the calendar, and what the app wrote stays in Outlook.
+
+## 9. Register the app at Microsoft (Outlook)
+Without this, everything else works; only the **Outlook** button cannot connect.
+
+1. Sign in at **entra.microsoft.com** (Microsoft's portal for app registrations; a personal Microsoft account works) and open **App registrations** → **New registration**.
+2. **Name:** Lock In. **Supported account types:** "Accounts in any organizational directory and personal Microsoft accounts".
+3. **Redirect URI:** platform **Web**, address `http://localhost:3000/api/outlook/callback`. Press **Register**.
+4. Open **Authentication** and add a second Web redirect URI: the deployed address followed by `/api/outlook/callback`, for example `https://your-app.vercel.app/api/outlook/callback`. It must match `APP_URL` exactly. Save.
+5. Copy the **Application (client) ID** from **Overview** into `MICROSOFT_CLIENT_ID`.
+6. **Certificates & secrets** → **New client secret** (24 months). Copy its **Value** at once (it is shown only once) into `MICROSOFT_CLIENT_SECRET`. Put a reminder in your calendar a month before it expires.
+7. **API permissions** → **Add a permission** → **Microsoft Graph** → **Delegated permissions**: tick `Calendars.ReadWrite` and `offline_access`. Nothing else (no mail, no contacts). Remove `User.Read` if it is listed; the app does not need it.
+8. Make the encryption key: run `openssl rand -base64 32` in a terminal and put the result into `OUTLOOK_TOKEN_KEY`. Keep it in your password manager. If it changes, every user must connect Outlook again.
+9. Put the same three values into Vercel (**Settings → Environment Variables**) and deploy again.
+10. Work or school accounts: some organisations only allow apps their IT has approved. Then Microsoft says so on its page, and the app shows "Outlook was not connected". Ask the IT, or use a personal account for the demo.
+

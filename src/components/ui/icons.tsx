@@ -63,3 +63,15 @@ export const ChartIcon = (p: IconProps) => (
     <path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3" />
   </Icon>
 );
+/** An event that came from the connected calendar: an arrow into a tray. */
+export const ImportedIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 3v11M7.5 9.5 12 14l4.5-4.5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+  </Icon>
+);
+/** Not sent to the connected calendar yet: a crossed-out arrow up. */
+export const NotSentIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 20V8M7.5 12.5 12 8l4.5 4.5M4 4l16 16" />
+  </Icon>
+);

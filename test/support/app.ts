@@ -3,14 +3,22 @@
 // and helpers to build requests the way a browser on our own site sends them.
 import { FakeAuth } from "@/lib/server/auth/fake";
 import type { Deps } from "@/lib/server/deps";
+import { FakeOutlook } from "@/lib/server/outlook/fake";
+import type { OutlookDeps } from "@/lib/server/outlook/sync";
 import { createTestDb, type TestDb } from "../db/harness";
 
 export const OWN_ORIGIN = "http://localhost:3000";
+
+/** The key that encrypts the stored Outlook access in tests (32 bytes, not a secret). */
+export const OUTLOOK_TEST_KEY = Buffer.alloc(32, 42);
 
 export type TestApp = {
   db: TestDb;
   auth: FakeAuth;
   deps: Deps;
+  /** The stand-in Outlook, and what route handlers would get as the Outlook dependency. */
+  outlook: FakeOutlook;
+  outlookDeps: NonNullable<OutlookDeps>;
   /**
    * Everything an action could change: rows in auth.users and in every table of the app schema
    * (found automatically, so new tables are included), the fake's accounts (confirmed, password),
@@ -43,10 +51,13 @@ export async function createTestApp(): Promise<TestApp> {
       await db.createUser(email, { id, timeZone });
     },
   });
+  const outlook = new FakeOutlook();
   return {
     db,
     auth,
     deps: { auth, withUser: db.withUser, now: () => new Date(now) },
+    outlook,
+    outlookDeps: { service: outlook, key: OUTLOOK_TEST_KEY },
     async snapshot() {
       const tables: Record<string, unknown> = {};
       const names = await db.admin<{ name: string }>(
@@ -73,6 +84,7 @@ export async function createTestApp(): Promise<TestApp> {
     async reset() {
       now = START;
       auth.reset();
+      outlook.reset();
       await db.admin("delete from auth.users");
     },
     advance(ms) {

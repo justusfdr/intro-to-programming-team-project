@@ -1,11 +1,11 @@
 import "server-only";
 
 // Reading event rows: the columns every query returns, and how a row becomes what the page gets.
-import type { EventDto, EventStatus } from "@/lib/events/types";
+import type { EventDto, EventSource, EventStatus } from "@/lib/events/types";
 
 /** The columns to select (or return) for an event. Use it in every query that hands an event out. */
 export const EVENT_COLUMNS =
-  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, updated_at";
+  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, outlook_id is not null as in_outlook, updated_at";
 
 export type EventRow = {
   id: string;
@@ -21,6 +21,10 @@ export type EventRow = {
   status: EventStatus;
   goal_id: string | null;
   series_id: string | null;
+  source: EventSource;
+  location: string | null;
+  /** Outlook has a copy (app events) or it came from there (Outlook events). */
+  in_outlook: boolean;
   updated_at: Date;
 };
 
@@ -39,6 +43,9 @@ export function toEventDto(row: EventRow): EventDto {
     status: row.status,
     goalId: row.goal_id,
     seriesId: row.series_id,
+    source: row.source,
+    location: row.location,
+    notSent: false,
     updatedAt: new Date(row.updated_at).toISOString(),
   };
 }

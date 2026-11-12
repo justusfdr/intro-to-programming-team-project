@@ -18,7 +18,7 @@ const TIMED: WeekEvent = {
   mayOverlap: false,
   status: "planned",
   goalId: null,
-  seriesId: null,
+  seriesId: null, source: "app", location: null, notSent: false,
   updatedAt: "2026-11-15T10:00:00.000Z",
   conflict: false,
   startTime: "09:00",
@@ -37,7 +37,7 @@ const EXAM: AllDayEvent = {
   mayOverlap: false,
   status: "planned",
   goalId: null,
-  seriesId: null,
+  seriesId: null, source: "app", location: null, notSent: false,
   updatedAt: "2026-11-15T10:00:00.000Z",
 };
 
@@ -82,5 +82,27 @@ describe("event editor markup", () => {
     for (const html of [save, remove]) {
       expect(html).toMatch(/<button[^>]*>This event<\/button><button[^>]*>This and following events<\/button><button[^>]*>Cancel<\/button>/);
     }
+  });
+
+  it("an Outlook event shows title and times as text, its goal and Mark done, and 'Change this event in Outlook'", () => {
+    const html = render({ mode: "edit", event: { ...TIMED, source: "outlook", location: "Nova SBE, Carcavelos" } });
+    expect(html).toContain(">Statistics lecture</p>");
+    expect(html).toContain(">Tuesday 17 November, 09:00 to 10:00</p>");
+    expect(html).toContain(">Nova SBE, Carcavelos</p>");
+    expect(html).toContain(">Change this event in Outlook</p>");
+    expect(html).toContain("From Outlook</span>");
+    expect(html).toContain('name="goal"');
+    expect(html).toContain("Mark done");
+    for (const absent of ['name="title"', 'name="start"', 'role="switch"', "May overlap", "Delete Statistics lecture"]) expect(html).not.toContain(absent);
+  });
+
+  it("an all-day Outlook event has nothing to save", () => {
+    const html = render({ mode: "edit", event: { ...EXAM, source: "outlook" } });
+    expect(html).toContain(">Monday 16 November to Friday 20 November, all day</p>");
+    expect(html).not.toMatch(/type="submit"/);
+  });
+
+  it("an app event that Outlook does not have yet says so", () => {
+    expect(render({ mode: "edit", event: { ...TIMED, notSent: true } })).toContain("Not sent to Outlook</span>");
   });
 });

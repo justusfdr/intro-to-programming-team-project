@@ -24,11 +24,17 @@ import { requireUser } from "@/lib/server/session";
 import { readTimeZone } from "@/lib/server/settings";
 import { localDateOf } from "@/lib/time/zoned";
 
-/** The edit form's fields, plus the updated_at the device last saw (R4) and the scope (R28). */
-const EditBody = EventFields.extend({
+/**
+ * The edit form's fields, plus the updated_at the device last saw (R4) and the scope (R28). The title
+ * is left out only for an Outlook event, whose editor sends just the goal (R11).
+ */
+const EditBody = EventFields.partial({ title: true }).extend({
   updatedAt: z.string().max(40),
   scope: z.enum(["this", "this_and_following"]).optional(),
 });
+
+/** Fields that Outlook owns for an imported event (R11). */
+const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "repeat"] as const;
 
 const badRequest = () => new ActionError(400, "bad_request", MESSAGES.badRequest);
 
@@ -45,10 +51,28 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
     return deps.withUser(userId, async (query) => {
       // Locks the row until the transaction ends, so a second device waits instead of racing.
       const row = await findOwnEvent(query, id);
+
+      // R11: an Outlook event keeps its title, times and days from Outlook; only the goal changes here.
+      if (row.source === "outlook") {
+        if (OUTLOOK_FIELDS.some((field) => body.data[field] !== undefined)) {
+          throw new ActionError(409, "outlook_event", MESSAGES.changeInOutlook);
+        }
+        assertUnchangedSince(row, body.data.updatedAt);
+        if (body.data.goalId === undefined) throw badRequest();
+        if (row.all_day && body.data.goalId) throw new ActionError(400, "all_day_goal", MESSAGES.allDayNoGoal);
+        await assertOwnGoal(query, body.data.goalId);
+        const [updated] = await query<EventRow>(
+          `update app.events set goal_id = $2 where id = $1 returning ${EVENT_COLUMNS}`,
+          [id, body.data.goalId],
+        );
+        return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(updated) });
+      }
+
       assertUnchangedSince(row, body.data.updatedAt);
+      if (body.data.title === undefined) throw badRequest();
 
       const timeZone = await readTimeZone(query);
-      const event = checkEventFields(body.data, timeZone);
+      const event = checkEventFields({ ...body.data, title: body.data.title }, timeZone);
       // No repeat rule is stored; to extend a series, create a new one (R28).
       if (body.data.repeat) throw badRequest();
 

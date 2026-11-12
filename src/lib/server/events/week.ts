@@ -5,6 +5,7 @@ import "server-only";
 import { conflictIds } from "@/lib/events/conflicts";
 import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
 import type { Deps } from "@/lib/server/deps";
+import { readOutlookState } from "@/lib/server/outlook/sync";
 import { readTimeZone } from "@/lib/server/settings";
 import { addDays, dayLabel, isLocalDate, localDateOf, localDateTimeOf, localTimeOf, mondayOf, weekOf } from "@/lib/time/zoned";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "./rows";
@@ -18,7 +19,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export async function loadWeek(deps: Pick<Deps, "withUser" | "now">, userId: string, requested?: string): Promise<WeekData> {
   return deps.withUser(userId, async (query) => {
     const timeZone = await readTimeZone(query);
-    const today = localDateOf(deps.now(), timeZone);
+    const now = deps.now();
+    const today = localDateOf(now, timeZone);
+    const outlook = await readOutlookState(query);
+    // R26: while connected, an app event that has not ended and that Outlook does not have yet.
+    const notSent = (row: EventRow) =>
+      outlook.status !== "none" &&
+      row.source !== "outlook" &&
+      !row.in_outlook &&
+      (row.all_day ? row.last_day! >= today : new Date(row.end_at!).getTime() > now.getTime());
     const week = weekOf(requested && isLocalDate(requested) ? requested : today, timeZone);
 
     // Events last at most 24 hours, so loading one day more on each side finds every event that
@@ -30,7 +39,7 @@ export async function loadWeek(deps: Pick<Deps, "withUser" | "now">, userId: str
         order by start_at, end_at, id`,
       [new Date(week.startsAt.getTime() - DAY_MS), new Date(week.endsAt.getTime() + DAY_MS)],
     );
-    const events = rows.map(toEventDto).map((e) => ({ ...e, allDay: false as const, startAt: e.startAt!, endAt: e.endAt! }));
+    const events = rows.map((row) => ({ ...toEventDto(row), notSent: notSent(row) })).map((e) => ({ ...e, allDay: false as const, startAt: e.startAt!, endAt: e.endAt! }));
     const marked = conflictIds(
       events.map((e) => ({ id: e.id, startAt: new Date(e.startAt), endAt: new Date(e.endAt), mayOverlap: e.mayOverlap })),
     );
@@ -42,7 +51,7 @@ export async function loadWeek(deps: Pick<Deps, "withUser" | "now">, userId: str
         order by first_day, last_day desc, title, id`,
       [week.monday, week.days[6]],
     );
-    const allDay: AllDayEvent[] = allDayRows.map(toEventDto).map((e) => ({
+    const allDay: AllDayEvent[] = allDayRows.map((row) => ({ ...toEventDto(row), notSent: notSent(row) })).map((e) => ({
       id: e.id,
       title: e.title,
       allDay: true as const,
@@ -52,6 +61,9 @@ export async function loadWeek(deps: Pick<Deps, "withUser" | "now">, userId: str
       status: e.status,
       goalId: e.goalId,
       seriesId: e.seriesId,
+      source: e.source,
+      location: e.location,
+      notSent: e.notSent,
       updatedAt: e.updatedAt,
     }));
 
@@ -72,6 +84,7 @@ export async function loadWeek(deps: Pick<Deps, "withUser" | "now">, userId: str
 
     return {
       timeZone,
+      outlook,
       monday: week.monday,
       previous: addDays(week.monday, -7),
       next: addDays(week.monday, 7),

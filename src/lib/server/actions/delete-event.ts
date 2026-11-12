@@ -9,7 +9,7 @@ import "server-only";
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
-import { handleAction } from "@/lib/server/errors";
+import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertUnchangedSince, findOwnEvent } from "@/lib/server/events/own-event";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
@@ -33,6 +33,8 @@ export function deleteEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
     return deps.withUser(userId, async (query) => {
       // Locks the row until the transaction ends, so a second device waits instead of racing.
       const row = await findOwnEvent(query, id);
+      // R11: an Outlook event is deleted in Outlook; the next sync removes it here.
+      if (row.source === "outlook") throw new ActionError(409, "outlook_event", MESSAGES.changeInOutlook);
       assertUnchangedSince(row, body.data.updatedAt);
 
       if (body.data.scope === "this_and_following" && row.series_id && row.start_at) {

@@ -13,11 +13,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type Ref } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { Check, Close, Trash, Warning } from "@/components/ui/icons";
+import { Check, Close, ImportedIcon, NotSentIcon, Trash, Warning } from "@/components/ui/icons";
+import { MESSAGES } from "@/lib/messages";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent, EventDto } from "@/lib/events/types";
-import { addDays } from "@/lib/time/zoned";
+import { addDays, dayParts } from "@/lib/time/zoned";
 import { useAnnounce } from "./Announcer";
 import type { GoalLabel } from "./TimeGrid";
 
@@ -32,6 +33,8 @@ type Props = {
   state: EditorState;
   /** The user's goals, for the Goal list ("No goal" is always there). */
   goals: GoalLabel[];
+  /** Connected to Outlook: after a change the editor asks the server to send it right away (R26). */
+  outlookConnected?: boolean;
   onClose: () => void;
 };
 
@@ -49,7 +52,7 @@ function Eyebrow({ children, htmlFor }: { children: string; htmlFor?: string }) 
   );
 }
 
-export function EventEditor({ state, goals, onClose }: Props) {
+export function EventEditor({ state, goals, outlookConnected = false, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const open = state !== null;
 
@@ -71,7 +74,15 @@ export function EventEditor({ state, goals, onClose }: Props) {
       className="event-editor m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-surface p-0 text-ink shadow-pop sm:mt-4 sm:mr-4 sm:ml-auto sm:max-h-[calc(100dvh-2rem)] sm:w-[360px] sm:rounded-card"
     >
       {/* A new key for every event gives the form fresh fields and messages. */}
-      {state && <EditorBody key={state.mode === "edit" ? state.event.id : "new"} state={state} goals={goals} onClose={onClose} />}
+      {state && (
+        <EditorBody
+          key={state.mode === "edit" ? state.event.id : "new"}
+          state={state}
+          goals={goals}
+          outlookConnected={outlookConnected}
+          onClose={onClose}
+        />
+      )}
     </dialog>
   );
 }
@@ -143,7 +154,19 @@ export function SeriesQuestion({ kind, title, busy, firstButton, onAnswer, onCan
   );
 }
 
-function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, null>; goals: GoalLabel[]; onClose: () => void }) {
+/** When an Outlook event takes place, in words (its editor shows it as text, R11). */
+function whenText(event: CalendarEvent): string {
+  if (event.allDay) {
+    const first = dayParts(event.firstDay).long;
+    return event.lastDay === event.firstDay ? `${first}, all day` : `${first} to ${dayParts(event.lastDay).long}, all day`;
+  }
+  const end = event.endDay ? `${event.endTime} the next day` : event.endTime;
+  return `${dayParts(event.startLocal.slice(0, 10)).long}, ${event.startTime} to ${end}`;
+}
+
+type BodyProps = { state: Exclude<EditorState, null>; goals: GoalLabel[]; outlookConnected: boolean; onClose: () => void };
+
+function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   const router = useRouter();
   const announce = useAnnounce();
   // The event as last saved: marking done updates it, so a later save carries the new updated_at (R4).
@@ -167,6 +190,8 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
 
   const prefix = event ? event.id : "new";
   const inSeries = Boolean(event?.seriesId);
+  // R11: an Outlook event keeps title, times and days from Outlook; here only its goal and done status.
+  const fromOutlook = event?.source === "outlook";
   const firstWeekday = /^\d{4}-\d{2}-\d{2}/.test(start) ? weekdayOf(start.slice(0, 10)) : null;
 
   /** Sends one action; on success announces the message, closes the editor and reloads the week. */
@@ -179,6 +204,8 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
     if (!answer.ok) return null;
     if (answer.message) announce(answer.message);
     router.refresh();
+    // The change goes to Outlook now, not at the next sync; the week reloads once it is there.
+    if (outlookConnected && !fromOutlook) void postJson("/api/outlook/send", {}).then(() => router.refresh());
     if (close) onClose();
     return answer;
   }
@@ -186,6 +213,9 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
   async function save(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     const form = new FormData(formEvent.currentTarget);
+    if (event && fromOutlook) {
+      return run(`/api/events/${event.id}/edit`, { goalId: String(form.get("goal") ?? "") || null, updatedAt: event.updatedAt });
+    }
     const title = String(form.get("title") ?? "");
     const values: Record<string, unknown> = allDay
       ? { title, allDay: true, firstDay: String(form.get("firstDay") ?? ""), lastDay: String(form.get("lastDay") ?? "") }
@@ -240,17 +270,23 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
             {event ? `Edit ${event.title}` : "New event"}
           </h2>
           <div className="min-w-0 flex-1">
-            <label htmlFor={`${prefix}-title`} className="sr-only">
-              Title
-            </label>
-            <input
-              id={`${prefix}-title`}
-              name="title"
-              defaultValue={initial.title}
-              placeholder="Event title"
-              autoFocus
-              className="-mx-1.5 block w-full min-w-0 rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold leading-6 text-ink placeholder:text-ink-3 hover:bg-raised focus:bg-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
-            />
+            {fromOutlook ? (
+              <p className="py-0.5 text-[15px] font-semibold leading-6 text-ink">{initial.title}</p>
+            ) : (
+              <>
+                <label htmlFor={`${prefix}-title`} className="sr-only">
+                  Title
+                </label>
+                <input
+                  id={`${prefix}-title`}
+                  name="title"
+                  defaultValue={initial.title}
+                  placeholder="Event title"
+                  autoFocus
+                  className="-mx-1.5 block w-full min-w-0 rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold leading-6 text-ink placeholder:text-ink-3 hover:bg-raised focus:bg-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+                />
+              </>
+            )}
           </div>
           <button
             type="button"
@@ -262,8 +298,18 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
           </button>
         </div>
 
-        {event && (event.status === "done" || conflict || inSeries) && (
+        {event && (event.status === "done" || conflict || inSeries || fromOutlook || event.notSent) && (
           <div className="-mt-2 flex flex-wrap gap-1.5">
+            {fromOutlook && (
+              <span className="inline-flex h-5 items-center gap-1 rounded-full bg-raised px-2 text-[11px] font-medium text-ink-2">
+                <ImportedIcon className="size-3" /> From Outlook
+              </span>
+            )}
+            {event.notSent && (
+              <span className="inline-flex h-5 items-center gap-1 rounded-full bg-danger-soft px-2 text-[11px] font-medium text-danger">
+                <NotSentIcon className="size-3" /> Not sent to Outlook
+              </span>
+            )}
             {inSeries && (
               <span className="inline-flex h-5 items-center rounded-full bg-raised px-2 text-[11px] font-medium text-ink-2">Repeating</span>
             )}
@@ -280,6 +326,14 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
           </div>
         )}
 
+        {event && fromOutlook ? (
+          <section className="flex flex-col gap-1.5">
+            <Eyebrow>When</Eyebrow>
+            <p className="text-sm text-ink">{whenText(event)}</p>
+            {event.location && <p className="text-sm text-ink-2">{event.location}</p>}
+            <p className="text-xs text-ink-2">{MESSAGES.changeInOutlook}</p>
+          </section>
+        ) : (
         <section className="flex flex-col gap-1.5">
           <Eyebrow>When</Eyebrow>
           {/* A series is timed (R29), so its events do not offer the switch. */}
@@ -327,6 +381,7 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
             </div>
           )}
         </section>
+        )}
 
         {/* Repeat (R28): only when creating a timed event; a series is never extended later. */}
         {!event && !allDay && (
@@ -375,7 +430,7 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
           </section>
         )}
 
-        {!allDay && (
+        {!allDay && !fromOutlook && (
           <section className="flex flex-col gap-1.5">
             <Eyebrow>Overlap</Eyebrow>
             <label htmlFor={`${prefix}-may-overlap`} className="flex items-center gap-2 text-sm text-ink">
@@ -450,9 +505,11 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
           </>
         ) : (
           <>
-            <Button type="submit" size="sm" disabled={busy}>
-              {busy ? "Saving…" : event ? "Save" : "Add event"}
-            </Button>
+            {!(fromOutlook && event?.allDay) && (
+              <Button type="submit" size="sm" disabled={busy}>
+                {busy ? "Saving…" : event ? "Save" : "Add event"}
+              </Button>
+            )}
             {/* All-day events cannot be done and do not suggest a focus session (R29). */}
             {event && !event.allDay && (
               <Button variant="secondary" size="sm" disabled={busy} onClick={toggleDone}>
@@ -464,7 +521,7 @@ function EditorBody({ state, goals, onClose }: { state: Exclude<EditorState, nul
                 Start focus
               </LinkButton>
             )}
-            {event && (
+            {event && !fromOutlook && (
               <Button
                 variant="ghost"
                 size="icon"

@@ -24,7 +24,7 @@ function event(id: string, title: string, start: string, end: string, fields: Pa
     allDay: false,
     firstDay: null,
     lastDay: null,
-    seriesId: null,
+    seriesId: null, source: "app", location: null, notSent: false,
     goalId: null,
     updatedAt: "2026-11-15T10:00:00.000Z",
     conflict: false,
@@ -38,12 +38,13 @@ function event(id: string, title: string, start: string, end: string, fields: Pa
 }
 
 function allDay(id: string, title: string, firstDay: string, lastDay: string): AllDayEvent {
-  return { id, title, allDay: true, firstDay, lastDay, mayOverlap: false, status: "planned", goalId: null, seriesId: null, updatedAt: "2026-11-15T10:00:00.000Z" };
+  return { id, title, allDay: true, firstDay, lastDay, mayOverlap: false, status: "planned", goalId: null, seriesId: null, source: "app", location: null, notSent: false, updatedAt: "2026-11-15T10:00:00.000Z" };
 }
 
-function week(byDay: Record<number, WeekEvent[]>, allDayEvents: AllDayEvent[] = []): WeekData {
+function week(byDay: Record<number, WeekEvent[]>, allDayEvents: AllDayEvent[] = [], outlook: WeekData["outlook"] = { status: "none", lastSyncedAt: null }): WeekData {
   return {
     timeZone: "Europe/Lisbon",
+    outlook,
     monday: "2026-11-16",
     previous: "2026-11-09",
     next: "2026-11-23",
@@ -178,7 +179,7 @@ describe("calendar markup", () => {
 
   it("starts the bar at Monday for an all-day event from the week before, with a mark that it continues", () => {
     const html = render(week({}, [allDay("t", "Trip", "2026-11-10", "2026-11-17")]));
-    expect(html).toMatch(/<li style="grid-column:1 \/ 3"[^>]*><button[^>]*aria-label="Trip, all day, Tuesday 10 November to Tuesday 17 November"[^>]*>… Trip</);
+    expect(html).toMatch(/<li style="grid-column:1 \/ 3"[^>]*><button[^>]*aria-label="Trip, all day, Tuesday 10 November to Tuesday 17 November"[^>]*>(<span[^>]*>)*… Trip</);
   });
 
   it("puts the 'All day' row above the 'Before' strip, and names them differently", () => {
@@ -191,5 +192,24 @@ describe("calendar markup", () => {
 
   it("has no all-day row in a week without all-day events", () => {
     expect(render(week({}))).not.toContain('aria-label="All day"');
+  });
+
+  it("marks Outlook events and app events that Outlook does not have yet, in words and with an icon", () => {
+    const html = render(
+      week({
+        0: [
+          event("o", "Statistics lecture", "2026-11-16T09:00", "2026-11-16T10:30", { source: "outlook" }),
+          event("a", "Revision", "2026-11-16T11:00", "2026-11-16T12:00", { notSent: true }),
+        ],
+      }),
+    );
+    expect(html).toMatch(/aria-label="Statistics lecture, Monday 16 November, 09:00 to 10:30, from Outlook"/);
+    expect(html).toMatch(/aria-label="Revision, Monday 16 November, 11:00 to 12:00, not sent to Outlook"/);
+    expect(html.match(/<svg/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("has an Outlook button in the toolbar that says the status", () => {
+    expect(render(week({}))).toMatch(/aria-expanded="false" aria-controls="outlook-panel"[^>]*>.*Outlook<span class="sr-only">, Not connected<\/span><\/button>/);
+    expect(render(week({}, [], { status: "needs_reconnect", lastSyncedAt: null }))).toContain(", Sign in again</span>");
   });
 });

@@ -49,3 +49,23 @@ export function extensionId(): string {
 export function databaseUrl(): string {
   return required("DATABASE_URL");
 }
+
+/** The app registration at Microsoft (docs/setup.md). Null when it is not set up: Outlook is then off. */
+export function microsoftConfig(): { clientId: string; clientSecret: string; tenant: string } | null {
+  const clientId = read("MICROSOFT_CLIENT_ID");
+  const clientSecret = read("MICROSOFT_CLIENT_SECRET");
+  if (!clientId || !clientSecret) return null;
+  // "common": personal accounts and work or school accounts.
+  return { clientId, clientSecret, tenant: read("MICROSOFT_TENANT") || "common" };
+}
+
+/**
+ * The key that encrypts the stored Outlook access (base64, at least 32 bytes). A secret.
+ * Null when it is missing or too short: Outlook is then off.
+ */
+export function outlookTokenKey(): Buffer | null {
+  const raw = read("OUTLOOK_TOKEN_KEY");
+  if (!raw) return null;
+  const bytes = Buffer.from(raw, "base64");
+  return bytes.length >= 32 ? bytes : null;
+}
