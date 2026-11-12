@@ -1,6 +1,7 @@
 // One goal in the goals column (R9), as an open section without a card border: a chevron that
-// collapses it, the goal's tile and title, the countdown, a thin bar for how far this week's rules
-// are, one row per rule ("This week: 1 of 2 done"), the strip of weeks and the auto-block note.
+// collapses it, the goal's tile and title, a thin bar for how far this week's rules
+// are, one row per rule ("This week: 1 of 2 done"), the strip of weeks, and a caption with the
+// countdown and "Auto-block on".
 // Every status is said in words and shown with a symbol, so nothing depends on colour alone.
 import { useId } from "react";
 import { Check, ChevronRight, Close } from "@/components/ui/icons";
@@ -86,11 +87,6 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle }: Props) {
         ) : (
           <h3 className="ml-1 min-w-0 flex-1">{title}</h3>
         )}
-        {passed ? (
-          <span className="inline-flex h-5 shrink-0 items-center rounded-md bg-danger-soft px-1.5 text-[11px] font-semibold text-danger">{goal.progress.countdown}</span>
-        ) : (
-          <span className="shrink-0 text-[11px] tabular text-ink-3">{goal.progress.countdown}</span>
-        )}
       </div>
 
       {/* The bar repeats the rows below in one line; screen readers read the rows. */}
@@ -115,9 +111,23 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle }: Props) {
             ))}
           </ol>
 
-          {goal.autoBlock && <p className="mt-2 text-[11px] text-ink-3">Auto-block on (starts working with the blocker)</p>}
         </div>
       )}
+
+      {/* The caption stays visible while the section is collapsed. */}
+      <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-3">
+        {passed ? (
+          <span className="inline-flex h-5 items-center rounded-md bg-danger-soft px-1.5 font-semibold text-danger">{goal.progress.countdown}</span>
+        ) : (
+          <span className="tabular">{goal.progress.countdown}</span>
+        )}
+        {goal.autoBlock && (
+          <>
+            <span aria-hidden>·</span>
+            <span>Auto-block on</span>
+          </>
+        )}
+      </p>
     </article>
   );
 }

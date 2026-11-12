@@ -264,7 +264,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
           <label htmlFor="goal-auto-block" className="flex cursor-pointer items-start justify-between gap-3 text-sm text-ink">
             <span>
               Auto-block distracting sites during this goal&apos;s events
-              <span className="block text-xs text-ink-3">Takes effect once the blocker is part of the app.</span>
+              <span className="block text-xs text-ink-3">Needs the Chrome extension, see the Focus page.</span>
             </span>
             <input
               id="goal-auto-block"
