@@ -14,7 +14,10 @@ import { postJson, type PostResult } from "@/lib/client/post-json";
 import { clockText, minutesText, secondsLeft, SESSION_LENGTHS, type SessionTimes } from "@/lib/focus/session-time";
 import type { FocusData, SessionDto } from "@/lib/focus/types";
 import type { BlockerData } from "@/lib/blocker/types";
-import { BlockerCard } from "./BlockerCard";
+import { useDisplay } from "@/components/shell/DisplayProvider";
+import { fmtDateShort } from "@/lib/time/display";
+import { localDateOf } from "@/lib/time/zoned";
+import { BlockerChip } from "./BlockerChip";
 import { FocusRing } from "./FocusRing";
 
 const eyebrow = "text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3";
@@ -225,8 +228,8 @@ function RatingCard({ session }: { session: SessionDto & { focusedMinutes: numbe
   );
 }
 
-function RecentSessions({ sessions }: { sessions: FocusData["recent"] }) {
-  const date = (iso: string) => new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(new Date(iso));
+function RecentSessions({ sessions, timeZone }: { sessions: FocusData["recent"]; timeZone: string }) {
+  const date = (iso: string) => fmtDateShort(localDateOf(new Date(iso), timeZone));
   return (
     <section aria-labelledby="recent-title" className="mt-10">
       <h2 id="recent-title" className={eyebrow}>
@@ -252,6 +255,7 @@ function RecentSessions({ sessions }: { sessions: FocusData["recent"] }) {
 }
 
 export function FocusView({ data, blocker }: { data: FocusData; blocker: BlockerData }) {
+  const { timeFormat } = useDisplay();
   // The rating card appears for the newest finished session if it ended in the last 12 hours.
   const latest = data.recent[0];
   const rateLatest =
@@ -261,14 +265,15 @@ export function FocusView({ data, blocker }: { data: FocusData; blocker: Blocker
     <div className="mx-auto w-full max-w-6xl px-5 py-6 md:px-8 md:py-10">
       <h1 className="text-[28px] leading-[34px] font-semibold tracking-display text-ink md:text-[32px] md:leading-[38px]">Focus</h1>
       <p className="mt-1 text-sm text-ink-2">Start a session from your plan, or just start.</p>
-      <div className="mt-8 grid items-start gap-6 md:grid-cols-2">
-        <div className="flex flex-col gap-6">
-          {data.active ? <RunningCard session={data.active} serverNow={data.now} /> : <StartCard forEvent={data.forEvent} />}
-          {rateLatest && <RatingCard session={latest} />}
-        </div>
-        <BlockerCard data={blocker} />
+      {/* The blocker's status; the block list and the extension are in Settings. */}
+      <div className="mt-4">
+        <BlockerChip data={blocker} format={timeFormat} />
       </div>
-      <RecentSessions sessions={data.recent} />
+      <div className="mt-6 flex max-w-xl flex-col gap-6">
+        {data.active ? <RunningCard session={data.active} serverNow={data.now} /> : <StartCard forEvent={data.forEvent} />}
+        {rateLatest && <RatingCard session={latest} />}
+      </div>
+      <RecentSessions sessions={data.recent} timeZone={blocker.timeZone} />
     </div>
   );
 }

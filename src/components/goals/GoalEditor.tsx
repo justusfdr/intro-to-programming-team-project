@@ -171,7 +171,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="goal-title" className={eyebrow}>
-            Title
+            Goal title
           </label>
           <input
             id="goal-title"
@@ -237,7 +237,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
               {rule.kind === "count" && (
                 <div className="mt-2">
                   <label htmlFor={`rule-${rule.key}-min`} className="text-xs text-ink-2">
-                    Each at least (minutes, optional)
+                    Minimum minutes per event (optional)
                   </label>
                   <input
                     id={`rule-${rule.key}-min`}
@@ -261,20 +261,25 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
 
         <section className="flex flex-col gap-2">
           <p className={eyebrow}>Blocker</p>
-          <label htmlFor="goal-auto-block" className="flex cursor-pointer items-start justify-between gap-3 text-sm text-ink">
+          <div className="flex items-start justify-between gap-3 text-sm text-ink">
             <span>
-              Auto-block distracting sites during this goal&apos;s events
-              <span className="block text-xs text-ink-3">Needs the Chrome extension, see the Focus page.</span>
+              <label htmlFor="goal-auto-block" className="cursor-pointer">
+                Auto-block distracting sites during this goal&apos;s events
+              </label>
+              <span id="goal-auto-block-hint" className="block text-xs text-ink-3">
+                Needs the Chrome extension, see Settings.
+              </span>
             </span>
             <input
               id="goal-auto-block"
               name="autoBlock"
               type="checkbox"
               role="switch"
+              aria-describedby="goal-auto-block-hint"
               defaultChecked={goal?.autoBlock ?? false}
               className="relative mt-0.5 h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-line transition-colors checked:bg-ink before:absolute before:top-0.5 before:left-0.5 before:size-4 before:rounded-full before:bg-white before:shadow-sm before:transition-transform checked:before:translate-x-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-1"
             />
-          </label>
+          </div>
         </section>
 
         {result && <FormMessage tone="error" text={result.message} />}

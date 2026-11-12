@@ -34,6 +34,15 @@ const GOAL: GoalView = {
 const ONE_RULE: GoalView = { ...GOAL, rules: [GOAL.rules[0]] };
 
 describe("goal editor in edit mode", () => {
+  it("names the title, the minimum minutes and the auto-block switch with real labels (spec 12)", () => {
+    const html = renderToStaticMarkup(<GoalEditor state={{ mode: "edit", goal: GOAL, today: TODAY }} onClose={() => {}} />);
+    expect(html).toMatch(/<label for="goal-title"[^>]*>Goal title<\/label>/);
+    expect(html).toMatch(/<label for="rule-[^"]+-min"[^>]*>Minimum minutes per event \(optional\)<\/label>/);
+    expect(html).toMatch(/<label for="goal-auto-block"[^>]*>Auto-block distracting sites during this goal&#x27;s events<\/label>/);
+    expect(html).toMatch(/<input id="goal-auto-block"[^>]*aria-describedby="goal-auto-block-hint"/);
+    expect(html).toContain("Needs the Chrome extension, see Settings.");
+  });
+
   it("edit mode renders the goal's title, deadline, auto-block state and every rule prefilled", () => {
     const html = renderToStaticMarkup(<GoalEditor state={{ mode: "edit", goal: GOAL, today: TODAY }} onClose={() => {}} />);
     expect(html).toContain("Edit goal");
