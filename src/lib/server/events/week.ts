@@ -23,9 +23,11 @@ export async function loadWeek(deps: Pick<Deps, "withUser" | "now">, userId: str
     const today = localDateOf(now, timeZone);
     const outlook = await readOutlookState(query);
     // R26: while connected, an app event that has not ended and that Outlook does not have yet.
+    // Demo events are never sent (spec 13), so they are never "not sent" either.
     const notSent = (row: EventRow) =>
       outlook.status !== "none" &&
       row.source !== "outlook" &&
+      !row.demo &&
       !row.in_outlook &&
       (row.all_day ? row.last_day! >= today : new Date(row.end_at!).getTime() > now.getTime());
     const week = weekOf(requested && isLocalDate(requested) ? requested : today, timeZone);

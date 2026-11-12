@@ -5,7 +5,7 @@ import type { EventDto, EventSource, EventStatus } from "@/lib/events/types";
 
 /** The columns to select (or return) for an event. Use it in every query that hands an event out. */
 export const EVENT_COLUMNS =
-  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, outlook_id is not null as in_outlook, updated_at";
+  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, outlook_id is not null as in_outlook, demo, updated_at";
 
 export type EventRow = {
   id: string;
@@ -25,6 +25,8 @@ export type EventRow = {
   location: string | null;
   /** Outlook has a copy (app events) or it came from there (Outlook events). */
   in_outlook: boolean;
+  /** Part of the demo week (spec 13): never sent to Outlook. */
+  demo: boolean;
   updated_at: Date;
 };
 
