@@ -372,6 +372,7 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
         outlookConnected={outlookConnected}
         onClose={closeEditor}
         onDeleted={onDeleted}
+        onRefused={showToast}
         onCreated={(event) => setEditor((current) => (current ? { mode: "edit", event, anchor: current.anchor } : null))}
       />
       {pop?.kind === "new" && (

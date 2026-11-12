@@ -65,6 +65,8 @@ type Props = Common & {
   shown?: CalendarEvent | null;
   /** One event was deleted (not "this and following"): the calendar offers Undo. */
   onDeleted?: (event: CalendarEvent) => void;
+  /** A change was refused after the editor closed: the calendar shows the message. */
+  onRefused?: (message: string) => void;
   /** A new event was added: the editor goes on with it. */
   onCreated?: (event: CalendarEvent) => void;
 };
@@ -72,10 +74,10 @@ type Props = Common & {
 /** The card width on wider screens, as in the prototype. */
 const WIDTH = 360;
 
-export function EventEditor({ state, shown, onDeleted, onCreated, ...common }: Props) {
+export function EventEditor({ state, shown, onDeleted, onRefused, onCreated, ...common }: Props) {
   if (!state) return null;
   if (state.mode === "edit") {
-    return <EditEventCard key={state.event.id} event={state.event} anchor={state.anchor} shown={shown} onDeleted={onDeleted} {...common} />;
+    return <EditEventCard key={state.event.id} event={state.event} anchor={state.anchor} shown={shown} onDeleted={onDeleted} onRefused={onRefused} {...common} />;
   }
   return <NewEventCard key={`${state.start}-${state.end}`} draft={state} anchor={state.anchor} onCreated={onCreated} {...common} />;
 }
@@ -156,12 +158,13 @@ type EditProps = Common & {
   anchor: Anchor | null;
   shown?: CalendarEvent | null;
   onDeleted?: (event: CalendarEvent) => void;
+  onRefused?: (message: string) => void;
 };
 
 /** An existing event: every change is saved at once. */
-export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, today, outlookConnected = false, onClose, onDeleted }: EditProps) {
+export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, today, outlookConnected = false, onClose, onDeleted, onRefused }: EditProps) {
   const router = useRouter();
-  const save = useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onClose });
+  const save = useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose });
   const { event, values } = save;
   const fromOutlook = event.source === "outlook";
   const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);

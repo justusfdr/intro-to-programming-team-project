@@ -28,10 +28,12 @@ type Options = {
   timeZone: string;
   outlookConnected: boolean;
   onDeleted?: (event: CalendarEvent) => void;
+  /** A refusal that arrives after the editor has closed: the calendar shows the message instead. */
+  onRefused?: (message: string) => void;
   onClose: () => void;
 };
 
-export function useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onClose }: Options) {
+export function useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose }: Options) {
   const live = useLive();
   const announce = useAnnounce();
   // The event as last saved (from the answers), and the calendar's copy: the newer one is the base.
@@ -53,8 +55,14 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
   const typed = useRef<Partial<EventValues>>({});
   const timer = useRef<number | null>(null);
 
-  useEffect(() => () => {
-    if (timer.current !== null) window.clearTimeout(timer.current);
+  // Whether the editor is still open: a save sent on closing may be answered after it.
+  const open = useRef(true);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+      if (timer.current !== null) window.clearTimeout(timer.current);
+    };
   }, []);
 
   const fromOutlook = initial.source === "outlook";
@@ -114,13 +122,14 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
           fromAnswer: savedEventChange,
         });
         if (!answer.ok) {
+          if (!open.current) onRefused?.(answer.message);
           setResult(answer);
           putBack(patch);
           return;
         }
         afterSave(answer, base);
       }),
-    [enqueue, latest, live, timeZone, putBack, afterSave],
+    [enqueue, latest, live, timeZone, putBack, afterSave, onRefused],
   );
 
   /** Sends what was typed (or chosen) and not sent yet. `final`: the field was left, so an empty title goes back. */
@@ -143,6 +152,9 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
         return;
       }
       if (inSeries) {
+        // Nothing changed (for example Esc put the title back): nothing to ask.
+        const base = valuesOf(latest());
+        if ((Object.keys(patch) as (keyof EventValues)[]).every((key) => patch[key] === base[key])) return;
         setAsk((current) => ({ kind: "save", patch: { ...(current?.kind === "save" ? current.patch : {}), ...patch } }));
         return;
       }

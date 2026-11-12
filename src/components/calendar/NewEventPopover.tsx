@@ -3,7 +3,7 @@
 // The small floating card "New event", copied from the first prototype: after a click or a drag on
 // free time in the calendar (and from "+"). Title, goal, start and end, length chips. "Add" creates the
 // event right away (create_event; it shows at once when the answer arrives); "Add details" opens the
-// full editor with what is filled in, for repeating, all-day or overlap. The server checks every rule.
+// full editor with what is filled in, for repeating, all-day, location or overlap. The server checks every rule.
 import { useState, type FormEvent } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { Button } from "@/components/ui/Button";
