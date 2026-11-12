@@ -4,11 +4,12 @@
 // EventEditor.tsx): a 360 px card floating next to the block on wider screens, a sheet from the bottom
 // on phones (FloatingPanel: Esc and a click outside close it, the focus goes back).
 //
-// An existing event has no Save button: every change is saved at once with edit_event and the
-// updated_at the screen last saw (R4), shown in the calendar straight away and put back with the
-// ontology's message when the server refuses (editor/useEventSave.ts). An event of a series asks
-// "This event" or "This and following events" first, in the footer (R28). An Outlook event changes
-// only its goal and done status (R11).
+// An existing event is saved with the Save button (spec 17, R39): it appears in the footer as soon as
+// a field differs from the saved event, next to "Discard", and sends edit_event with the updated_at
+// the screen last saw (R4). The calendar shows the change when Save is clicked; a refusal shows the
+// ontology's message and keeps the fields (editor/useEventSave.ts). Closing the editor drops changes
+// that were not saved. An event of a series asks "This event" or "This and following events" first, in
+// the footer (R28). An Outlook event changes only its goal and done status (R11).
 //
 // A new event is made by the small "New event" card; its "Add details" opens this editor with what was
 // filled in, for repeating, all-day, location or overlap. "Add event" creates it (create_event) and the
@@ -161,7 +162,7 @@ type EditProps = Common & {
   onRefused?: (message: string) => void;
 };
 
-/** An existing event: every change is saved at once. */
+/** An existing event: changes wait for the Save button. */
 export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, today, outlookConnected = false, onClose, onDeleted, onRefused }: EditProps) {
   const router = useRouter();
   const save = useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose });
@@ -175,8 +176,8 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
       look={look}
       title={fromOutlook ? event.title : values.title}
       editable={!fromOutlook}
-      onType={(title) => save.change({ title }, true)}
-      onDone={(title) => (title === undefined ? save.commit(true) : save.change({ title }))}
+      onType={(title) => save.change({ title })}
+      onDone={(title) => title !== undefined && save.change({ title })}
       onClose={save.close}
     />,
     <EditorChips key="chips" event={event} />,
@@ -187,8 +188,8 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
       key="location"
       value={fromOutlook ? (event.location ?? "") : values.location}
       editable={!fromOutlook}
-      onType={(location) => save.change({ location }, true)}
-      onDone={() => save.commit(true)}
+      onType={(location) => save.change({ location })}
+      onDone={() => {}}
     />,
     !values.allDay && !fromOutlook && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => save.change({ mayOverlap })} />,
     <Refusal
@@ -205,6 +206,16 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
   const timed = !event.allDay;
   const footer = save.ask ? (
     <SeriesQuestion kind={save.ask.kind} title={event.title} busy={save.busy} onAnswer={save.answer} onCancel={save.cancelAsk} />
+  ) : save.changed ? (
+    // Unsaved changes: Save or Discard first. Start focus and Mark done come back once they are saved.
+    <>
+      <Button size="sm" disabled={save.saving || values.title.trim() === ""} onClick={save.saveNow}>
+        {save.saving ? "Saving…" : "Save"}
+      </Button>
+      <Button size="sm" variant="ghost" disabled={save.saving} onClick={save.discard}>
+        Discard
+      </Button>
+    </>
   ) : timed || !fromOutlook ? (
     <>
       {timed && (

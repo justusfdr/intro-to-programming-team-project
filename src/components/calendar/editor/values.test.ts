@@ -3,7 +3,7 @@
 // shown at once in the calendar.
 import { describe, expect, it } from "vitest";
 import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
-import { createBody, editBody, editedChange, eventFromAnswer, moveFirstDay, newValues, newer, switchAllDay, valuesOf } from "./values";
+import { createBody, editBody, editedChange, eventFromAnswer, isChanged, moveFirstDay, newValues, newer, switchAllDay, valuesOf } from "./values";
 
 const EVENT: WeekEvent = {
   id: "e1",
@@ -175,5 +175,37 @@ describe("the answer", () => {
     expect(newer(later, EVENT)).toBe(later);
     expect(newer(EVENT, null)).toBe(EVENT);
     expect(newer(EVENT, { ...later, id: "other" })).toBe(EVENT);
+  });
+});
+
+// Spec 17: the Save button shows only when the fields differ from the saved event.
+describe("whether something changed", () => {
+  it("is false for the saved event's own values", () => {
+    expect(isChanged(EVENT, valuesOf(EVENT))).toBe(false);
+    expect(isChanged(TRIP, valuesOf(TRIP))).toBe(false);
+  });
+
+  it("is true for a new title, time, goal, location or overlap choice", () => {
+    const values = valuesOf(EVENT);
+    expect(isChanged(EVENT, { ...values, title: "Lunch with Lea" })).toBe(true);
+    expect(isChanged(EVENT, { ...values, endMin: values.endMin + 30 })).toBe(true);
+    expect(isChanged(EVENT, { ...values, date: "2026-11-18" })).toBe(true);
+    expect(isChanged(EVENT, { ...values, goalId: null })).toBe(true);
+    expect(isChanged(EVENT, { ...values, location: "" })).toBe(true);
+    expect(isChanged(EVENT, { ...values, mayOverlap: true })).toBe(true);
+    expect(isChanged(TRIP, { ...valuesOf(TRIP), lastDay: "2026-11-23" })).toBe(true);
+  });
+
+  it("is false again when a change is taken back, and for spaces around the title or the location", () => {
+    const values = valuesOf(EVENT);
+    expect(isChanged(EVENT, { ...values, title: "Lunch" })).toBe(false);
+    expect(isChanged(EVENT, { ...values, title: " Lunch " })).toBe(false);
+    expect(isChanged(EVENT, { ...values, location: "Cafeteria " })).toBe(false);
+  });
+
+  it("an Outlook event counts only its goal (R11)", () => {
+    const outlook: WeekEvent = { ...EVENT, source: "outlook" };
+    expect(isChanged(outlook, { ...valuesOf(outlook), title: "Other" })).toBe(false);
+    expect(isChanged(outlook, { ...valuesOf(outlook), goalId: null })).toBe(true);
   });
 });
