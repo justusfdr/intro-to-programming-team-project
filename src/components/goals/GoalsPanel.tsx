@@ -12,6 +12,7 @@ import { ChevronRight, Plus, X } from "lucide-react";
 import { COLLAPSED_KEY, readCollapsed, toggleCollapsed } from "@/lib/goals/collapsed";
 import { nextGoalColor } from "@/lib/goals/style";
 import type { GoalView } from "@/lib/goals/types";
+import { useLiveTasks } from "@/components/live/Live";
 import { openCount, sortTasks } from "@/lib/tasks/order";
 import type { TaskDto } from "@/lib/tasks/types";
 import { GoalCard, OpenTaskCount } from "./GoalCard";
@@ -184,7 +185,9 @@ function useCollapsed(goalIds: string[]): [string[], (goalId: string) => void] {
   return [collapsed, toggle];
 }
 
-export function GoalsPanel({ goals, tasks, today }: Props) {
+export function GoalsPanel({ goals, tasks: serverTasks, today }: Props) {
+  // The tasks with the changes of actions whose re-read has not arrived yet (components/live/Live.tsx).
+  const tasks = useLiveTasks(serverTasks);
   const panels = usePanels();
   const [editor, setEditor] = useState<GoalEditorState>(null);
   const sheet = useRef<HTMLDialogElement>(null);

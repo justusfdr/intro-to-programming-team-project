@@ -2,8 +2,8 @@
 
 // The calendar screen in the prototype's layout: the title (month and year) with the week below it,
 // the toolbar (previous, next, Today, New event), on phones a day strip, then the time grid.
-// The data comes from the server (src/app/page.tsx); after an action the editor calls
-// router.refresh(), which loads the week again.
+// The data comes from the server (src/app/page.tsx); an action's change shows at once and the week
+// is read again in the background (components/live/Live.tsx).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
@@ -13,6 +13,7 @@ import type { GoalLabel } from "./TimeGrid";
 import { addDays, dayParts, isoWeekNumber, localDateTimeOf, weekTitle } from "@/lib/time/zoned";
 import { fmtDateLong, fmtWeekRange } from "@/lib/time/display";
 import { useDisplay } from "@/components/shell/DisplayProvider";
+import { useLiveWeek } from "@/components/live/Live";
 import { GoalsToggle } from "@/components/goals/GoalsPanel";
 import { EventEditor, type EditorState } from "./EventEditor";
 import { OutlookChip } from "./OutlookChip";
@@ -45,7 +46,8 @@ function localAt(date: string, min: number): string {
   return min >= 24 * 60 ? `${addDays(date, 1)}T00:00` : `${date}T${formatMinute(min)}`;
 }
 
-export function CalendarView({ week, nowLocal, suggestion, goals, outlookAvailable = false }: Props) {
+export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, outlookAvailable = false }: Props) {
+  const week = useLiveWeek(serverWeek);
   const now = useNowLocal(nowLocal, week.timeZone);
   const today = now.slice(0, 10);
   const todayInWeek = week.days.some((d) => d.date === today);

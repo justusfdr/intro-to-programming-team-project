@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Announcer } from "@/components/calendar/Announcer";
+import { LiveProvider } from "@/components/live/Live";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { AppShell } from "@/components/shell/AppShell";
 import { pageDeps } from "@/lib/server/deps";
@@ -29,9 +30,11 @@ export default async function SettingsPage() {
 
   return (
     <Announcer>
-      <AppShell current="/settings" display={display}>
-        <SettingsView data={data} blocker={blocker} timeZones={knownTimeZones()} />
-      </AppShell>
+      <LiveProvider>
+        <AppShell current="/settings" display={display}>
+          <SettingsView data={data} blocker={blocker} timeZones={knownTimeZones()} />
+        </AppShell>
+      </LiveProvider>
     </Announcer>
   );
 }

@@ -8,7 +8,8 @@
 // (edit_event, delete_event, mark_event_done, mark_event_planned). An event can be all day (first and
 // last day, no times, no goal, R29). For an event of a series, saving and deleting first ask
 // "This event" or "This and following events" (R28). It only collects the input and shows the
-// server's answer; the server checks every rule.
+// server's answer; the server checks every rule. The week shows a saved, deleted or done event as soon
+// as the answer arrives ("Mark done" at once) and re-reads in the background (components/live/Live.tsx).
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type Ref } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
@@ -24,6 +25,8 @@ import { postJson, type PostResult } from "@/lib/client/post-json";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent, EventDto } from "@/lib/events/types";
 import { addDays } from "@/lib/time/zoned";
+import { type Changes, useLive } from "@/components/live/Live";
+import { withEventChange, withEventStatus } from "@/lib/events/week-view";
 import { useAnnounce } from "./Announcer";
 import type { GoalLabel } from "./TimeGrid";
 
@@ -210,8 +213,17 @@ const switchClass =
 
 const chipClass = "inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-medium";
 
+/** The week change an accepted save describes: the event as saved. A series (with a count) waits for the re-read. */
+function savedEventChange(answer: PostResult): Changes | null {
+  const data = answer.data as { event?: EventDto; count?: unknown } | undefined;
+  if (!data?.event || data.count !== undefined) return null;
+  const saved = data.event;
+  return { week: (week) => withEventChange(week, { event: saved }) };
+}
+
 function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   const router = useRouter();
+  const live = useLive();
   const { timeFormat } = useDisplay();
   const announce = useAnnounce();
   // The event as last saved: marking done updates it, so a later save carries the new updated_at (R4).
@@ -244,18 +256,20 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   const firstWeekday = /^\d{4}-\d{2}-\d{2}$/.test(date) ? weekdayOf(date) : null;
   const tileLook = allDay ? null : (goals.find((goal) => goal.id === goalId)?.look ?? null);
 
-  /** Sends one action; on success announces the message, closes the editor and reloads the week. */
-  async function run(path: string, body: unknown, { close = true } = {}) {
+  /**
+   * Sends one action; on success shows the change in the week at once (`fromAnswer`), announces the
+   * message, closes the editor and lets the week re-read in the background.
+   */
+  async function run(path: string, body: unknown, { close = true, fromAnswer = savedEventChange }: { close?: boolean; fromAnswer?: (answer: PostResult) => Changes | null } = {}) {
     setBusy(true);
-    const answer = await postJson(path, body);
+    const answer = await live.run({ send: () => postJson(path, body), fromAnswer });
     setBusy(false);
     setQuestion(null);
     setResult(answer.ok ? null : answer);
     if (!answer.ok) return null;
     if (answer.message) announce(answer.message);
-    router.refresh();
-    // The change goes to Outlook now, not at the next sync; the week reloads once it is there.
-    if (outlookConnected && !fromOutlook) void postJson("/api/outlook/send", {}).then(() => router.refresh());
+    // The change goes to Outlook now, not at the next sync; the week re-reads once it is there.
+    if (outlookConnected && !fromOutlook) void postJson("/api/outlook/send", {}).then(() => live.refresh());
     if (close) onClose();
     return answer;
   }
@@ -293,20 +307,30 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   function answerScope(scope: "this" | "this_and_following") {
     if (!event || !question) return;
     if (question.kind === "save") return run(`/api/events/${event.id}/edit`, { ...question.values, updatedAt: event.updatedAt, scope });
-    return run(`/api/events/${event.id}/delete`, { updatedAt: event.updatedAt, scope });
+    const id = event.id;
+    return run(`/api/events/${id}/delete`, { updatedAt: event.updatedAt, scope }, {
+      // Only "this event" is known here; the later ones of the series go with the re-read.
+      fromAnswer: () => (scope === "this" ? { week: (week) => withEventChange(week, { removed: id }) } : null),
+    });
   }
 
   async function toggleDone() {
     if (!event) return;
     setBusy(true);
-    const answer = await postJson(`/api/events/${event.id}/${event.status === "done" ? "planned" : "done"}`, {});
+    const status = event.status === "done" ? "planned" : "done";
+    const id = event.id;
+    const answer = await live.run({
+      send: () => postJson(`/api/events/${id}/${status}`, {}),
+      // The week shows it at once; a rejection puts it back.
+      optimistic: { week: (week) => withEventStatus(week, id, status) },
+      fromAnswer: savedEventChange,
+    });
     setBusy(false);
     setResult(answer.ok ? null : answer);
     if (!answer.ok) return;
     // Keep the editor open (as in the prototype) and show the new state.
     const saved = (answer.data as { event?: EventDto } | undefined)?.event;
     if (saved) setEvent({ ...event, status: saved.status, updatedAt: saved.updatedAt });
-    router.refresh();
   }
 
   /** A new start keeps the event's length. */
@@ -604,7 +628,10 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
               variant="danger"
               size="sm"
               disabled={busy}
-              onClick={() => run(`/api/events/${event.id}/delete`, { updatedAt: event.updatedAt })}
+              onClick={() => {
+                const id = event.id;
+                void run(`/api/events/${id}/delete`, { updatedAt: event.updatedAt }, { fromAnswer: () => ({ week: (week) => withEventChange(week, { removed: id }) }) });
+              }}
             >
               Yes, delete
             </Button>

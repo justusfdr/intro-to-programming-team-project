@@ -6,6 +6,7 @@
 import { useId } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
+import { useLiveSettings } from "@/components/live/Live";
 import { Card } from "@/components/ui/Card";
 import type { SettingsData } from "@/lib/settings/types";
 import { fmtHourSetting, type TimeFormat } from "@/lib/time/display";
@@ -23,7 +24,9 @@ function timeZoneOptions(current: string, known: string[]): FieldOption<string>[
   return names.map((name) => ({ value: name, label: name.replaceAll("_", " ") }));
 }
 
-export function PreferencesCard({ settings, timeZones }: { settings: SettingsData; timeZones: string[] }) {
+export function PreferencesCard({ settings: serverSettings, timeZones }: { settings: SettingsData; timeZones: string[] }) {
+  // The saved values, with a change that is on its way shown at once.
+  const settings = useLiveSettings(serverSettings);
   const uid = useId();
   const { save, busy, failure } = useSaveSettings();
   const fmt = settings.timeFormat;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Announcer } from "@/components/calendar/Announcer";
+import { LiveProvider } from "@/components/live/Live";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoalsPanel } from "@/components/goals/GoalsPanel";
 import { AppShell } from "@/components/shell/AppShell";
@@ -42,18 +43,20 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const nowLocal = localDateTimeOf(now, week.timeZone);
   return (
     <Announcer>
-      <PanelState>
-        <AppShell current="/" display={display} panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
-          <CalendarView
-            week={week}
-            nowLocal={nowLocal}
-            suggestion={suggestion}
-            goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
-            outlookAvailable={outlookConfigured()}
-          />
-        </AppShell>
-        {showWelcome && <Welcome timeFormat={display.timeFormat} />}
-      </PanelState>
+      <LiveProvider>
+        <PanelState>
+          <AppShell current="/" display={display} panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
+            <CalendarView
+              week={week}
+              nowLocal={nowLocal}
+              suggestion={suggestion}
+              goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
+              outlookAvailable={outlookConfigured()}
+            />
+          </AppShell>
+          {showWelcome && <Welcome timeFormat={display.timeFormat} />}
+        </PanelState>
+      </LiveProvider>
     </Announcer>
   );
 }

@@ -2,13 +2,13 @@ import "server-only";
 
 // Data for the week view: the signed-in user's events of one week, grouped by the day they start
 // in the user's time zone (R2), with the calculated conflict mark (R10).
-import { conflictIds } from "@/lib/events/conflicts";
 import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
+import { arrangeDays, toAllDayEvent, toWeekEvents } from "@/lib/events/week-view";
 import type { Query } from "@/lib/server/db";
 import type { Deps } from "@/lib/server/deps";
 import { readOutlookState, type OutlookState } from "@/lib/server/outlook/sync";
 import { readTimeZone } from "@/lib/server/settings";
-import { addDays, dayLabel, isLocalDate, localDateOf, localDateTimeOf, localTimeOf, mondayOf, weekOf } from "@/lib/time/zoned";
+import { addDays, dayLabel, isLocalDate, localDateOf, mondayOf, weekOf } from "@/lib/time/zoned";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "./rows";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -70,40 +70,8 @@ export async function readWeek(
   const rows = both.filter((row) => !row.all_day);
   const allDayRows = both.filter((row) => row.all_day);
   const events = rows.map((row) => ({ ...toEventDto(row), notSent: notSent(row) })).map((e) => ({ ...e, allDay: false as const, startAt: e.startAt!, endAt: e.endAt! }));
-  const marked = conflictIds(
-    events.map((e) => ({ id: e.id, startAt: new Date(e.startAt), endAt: new Date(e.endAt), mayOverlap: e.mayOverlap })),
-  );
-
-  const allDay: AllDayEvent[] = allDayRows.map((row) => ({ ...toEventDto(row), notSent: notSent(row) })).map((e) => ({
-    id: e.id,
-    title: e.title,
-    allDay: true as const,
-    firstDay: e.firstDay!,
-    lastDay: e.lastDay!,
-    mayOverlap: e.mayOverlap,
-    status: e.status,
-    goalId: e.goalId,
-    seriesId: e.seriesId,
-    source: e.source,
-    location: e.location,
-    notSent: e.notSent,
-    updatedAt: e.updatedAt,
-  }));
-
-  const shown: WeekEvent[] = events.map((e) => {
-    const start = new Date(e.startAt);
-    const end = new Date(e.endAt);
-    const endDay = localDateOf(end, timeZone);
-    return {
-      ...e,
-      conflict: marked.has(e.id),
-      startTime: localTimeOf(start, timeZone),
-      endTime: localTimeOf(end, timeZone),
-      endDay: endDay === localDateOf(start, timeZone) ? null : endDay,
-      startLocal: localDateTimeOf(start, timeZone),
-      endLocal: localDateTimeOf(end, timeZone),
-    };
-  });
+  const shown: WeekEvent[] = toWeekEvents(events, timeZone);
+  const allDay: AllDayEvent[] = allDayRows.map((row) => toAllDayEvent({ ...toEventDto(row), notSent: notSent(row) }));
 
   return {
     timeZone,
@@ -112,13 +80,11 @@ export async function readWeek(
     previous: addDays(week.monday, -7),
     next: addDays(week.monday, 7),
     thisWeek: mondayOf(today),
-    days: week.days.map((date) => ({
-      date,
-      label: dayLabel(date),
-      isToday: date === today,
-      // A timed event belongs to the day it starts; an all-day event to each of its days (R2).
-      events: shown.filter((e) => e.startLocal.slice(0, 10) === date),
-      allDay: allDay.filter((e) => e.firstDay <= date && date <= e.lastDay),
-    })),
+    // A timed event belongs to the day it starts; an all-day event to each of its days (R2).
+    days: arrangeDays(
+      week.days.map((date) => ({ date, label: dayLabel(date), isToday: date === today })),
+      shown,
+      allDay,
+    ),
   };
 }

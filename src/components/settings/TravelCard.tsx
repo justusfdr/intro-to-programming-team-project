@@ -6,6 +6,7 @@
 import { useId, useState } from "react";
 import { Car } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
+import { useLiveSettings } from "@/components/live/Live";
 import { Card } from "@/components/ui/Card";
 import type { SettingsData, TravelMode } from "@/lib/settings/types";
 import { FieldRow, INPUT_CLASS, SegmentedField, SelectField, SettingsCardHeader, type FieldOption } from "./fields";
@@ -28,7 +29,9 @@ function bufferOptionsFor(value: number): FieldOption<number>[] {
   return [...BUFFER_OPTIONS, { value, label: `${value} min` }].sort((a, b) => a.value - b.value);
 }
 
-export function TravelCard({ settings }: { settings: SettingsData }) {
+export function TravelCard({ settings: serverSettings }: { settings: SettingsData }) {
+  // The saved values, with a change that is on its way shown at once.
+  const settings = useLiveSettings(serverSettings);
   const uid = useId();
   const { save, busy, failure } = useSaveSettings();
   const ids = { title: `${uid}-title`, home: `${uid}-home`, homeHint: `${uid}-home-hint`, mode: `${uid}-mode`, buffer: `${uid}-buffer`, bufferHint: `${uid}-buffer-hint` };

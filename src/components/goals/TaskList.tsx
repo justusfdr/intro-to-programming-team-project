@@ -6,9 +6,11 @@
 // "Add task" opens a one-line input with an optional due date: Enter saves, Escape closes.
 // Clicking a task's title opens the same small form to change title, due date and goal, with Delete.
 // It only collects the input and shows the server's answer; the server checks every rule.
-import { useRouter } from "next/navigation";
+// A tick shows at once and goes back if the server rejects it; a saved task shows as soon as the answer
+// arrives; the page re-reads in the background (components/live/Live.tsx).
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
+import { taskChanges, useLive } from "@/components/live/Live";
 import { Button } from "@/components/ui/Button";
 import { Plus, Trash2 } from "lucide-react";
 import { postJson } from "@/lib/client/post-json";
@@ -47,8 +49,14 @@ function ErrorLine({ text }: { text: string }) {
   );
 }
 
+/** The task in an accepted answer ({ task }), if any. */
+function answerTask(data: unknown): TaskDto | null {
+  const task = (data as { task?: TaskDto } | undefined)?.task;
+  return task && typeof task.id === "string" ? task : null;
+}
+
 export function TaskList({ tasks, goalId, color, sectionTitle, today, goals }: Props) {
-  const router = useRouter();
+  const live = useLive();
   const announce = useAnnounce();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -58,15 +66,23 @@ export function TaskList({ tasks, goalId, color, sectionTitle, today, goals }: P
 
   async function toggle(task: TaskDto) {
     setBusyId(task.id);
-    const answer = await postJson(`/api/tasks/${task.id}/${task.status === "open" ? "done" : "open"}`, {});
+    setRowError(null);
+    const done = task.status === "open";
+    const answer = await live.run({
+      send: () => postJson(`/api/tasks/${task.id}/${done ? "done" : "open"}`, {}),
+      // Shown at once; the server's answer then gives the exact done time.
+      optimistic: taskChanges.saved({ ...task, status: done ? "done" : "open", doneAt: done ? new Date().toISOString() : null }),
+      fromAnswer: (a) => {
+        const saved = answerTask(a.data);
+        return saved ? taskChanges.saved(saved) : null;
+      },
+    });
     setBusyId(null);
     if (!answer.ok) {
       setRowError({ id: task.id, text: answer.message });
       return;
     }
-    setRowError(null);
     announce(answer.message);
-    router.refresh();
   }
 
   function closeAdd() {
@@ -194,7 +210,7 @@ export function TaskForm({
   goals: GoalOption[];
   onDone: () => void;
 }) {
-  const router = useRouter();
+  const live = useLive();
   const announce = useAnnounce();
   const task = mode.kind === "edit" ? mode.task : null;
   const [title, setTitle] = useState(task?.title ?? "");
@@ -215,7 +231,14 @@ export function TaskForm({
     event.preventDefault();
     setBusy(true);
     const body = { title, dueDate: dueDate === "" ? null : dueDate, goalId: goal === "" ? null : goal };
-    const answer = task ? await postJson(`/api/tasks/${task.id}/edit`, body) : await postJson("/api/tasks", body);
+    const answer = await live.run({
+      send: () => (task ? postJson(`/api/tasks/${task.id}/edit`, body) : postJson("/api/tasks", body)),
+      // Shown as soon as the answer arrives, with what the server saved.
+      fromAnswer: (a) => {
+        const saved = answerTask(a.data);
+        return saved ? taskChanges.saved(saved) : null;
+      },
+    });
     setBusy(false);
     if (!answer.ok) {
       setError(answer.message);
@@ -223,7 +246,6 @@ export function TaskForm({
     }
     setError(null);
     announce(answer.message);
-    router.refresh();
     if (task) {
       onDone();
     } else {
@@ -237,14 +259,16 @@ export function TaskForm({
   async function remove() {
     if (!task) return;
     setBusy(true);
-    const answer = await postJson(`/api/tasks/${task.id}/delete`, {});
+    const answer = await live.run({
+      send: () => postJson(`/api/tasks/${task.id}/delete`, {}),
+      fromAnswer: () => taskChanges.removed(task.id),
+    });
     setBusy(false);
     if (!answer.ok) {
       setError(answer.message);
       return;
     }
     announce(answer.message);
-    router.refresh();
     onDone();
   }
 
