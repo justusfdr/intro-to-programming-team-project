@@ -11,6 +11,7 @@ import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
 import { Close, Plus, Trash } from "@/components/ui/icons";
+import { GoalTile } from "./GoalTile";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import type { GoalDto, GoalView } from "@/lib/goals/types";
 
@@ -66,7 +67,7 @@ export function GoalEditor({ state, onClose }: { state: GoalEditorState; onClose
       aria-labelledby="goal-editor-title"
       onClose={onClose}
       onClick={(event) => event.target === dialog.current && onClose()}
-      className="event-editor m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-surface p-0 text-ink shadow-pop sm:m-auto sm:max-h-[calc(100dvh-2rem)] sm:w-[420px] sm:rounded-card"
+      className="event-editor m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-surface p-0 text-ink shadow-pop sm:m-auto sm:max-h-[calc(100dvh-2rem)] sm:w-[420px] sm:rounded-[20px]"
     >
       {/* A new key for every goal gives the form its own rows, fields and messages. */}
       {state && <GoalForm key={state.mode === "edit" ? state.goal.id : "new"} state={state} onClose={onClose} />}
@@ -152,16 +153,17 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
 
   return (
     <form onSubmit={save} noValidate className="flex max-h-[inherit] flex-col">
-      <div className="scroll-thin flex flex-col gap-4 overflow-y-auto p-4">
+      <div className="scroll-thin flex flex-col gap-5 overflow-y-auto px-5 pt-5 pb-6">
         <div className="flex items-center gap-3">
-          <h2 id="goal-editor-title" className="min-w-0 flex-1 text-[15px] font-semibold">
+          <GoalTile colorIndex={goal ? goal.colorIndex : null} size="lg" />
+          <h2 id="goal-editor-title" className="min-w-0 flex-1 text-[15px] font-semibold tracking-snug">
             {goal ? "Edit goal" : "New goal"}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="-mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+            className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
           >
             <Close />
           </button>
@@ -191,7 +193,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
         <fieldset className="flex flex-col gap-2">
           <legend className={`${eyebrow} mb-1.5`}>Every week</legend>
           {rules.map((rule, index) => (
-            <div key={rule.key} className="rounded-lg border border-line-subtle bg-raised/60 p-2.5">
+            <div key={rule.key} className="rounded-card border border-line-subtle bg-raised/50 p-3">
               <div className="grid grid-cols-[1fr_5.5rem_auto] items-end gap-2">
                 <div>
                   <label htmlFor={`rule-${rule.key}-kind`} className="text-xs text-ink-2">
@@ -257,19 +259,23 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
           </Button>
         </fieldset>
 
-        <label htmlFor="goal-auto-block" className="flex items-start gap-2 text-sm text-ink">
-          <input
-            id="goal-auto-block"
-            name="autoBlock"
-            type="checkbox"
-            defaultChecked={goal?.autoBlock ?? false}
-            className="mt-0.5 size-4 accent-ink"
-          />
-          <span>
-            Auto-block distracting sites during this goal&apos;s events
-            <span className="block text-xs text-ink-3">Takes effect once the blocker is part of the app.</span>
-          </span>
-        </label>
+        <section className="flex flex-col gap-2">
+          <p className={eyebrow}>Blocker</p>
+          <label htmlFor="goal-auto-block" className="flex cursor-pointer items-start justify-between gap-3 text-sm text-ink">
+            <span>
+              Auto-block distracting sites during this goal&apos;s events
+              <span className="block text-xs text-ink-3">Takes effect once the blocker is part of the app.</span>
+            </span>
+            <input
+              id="goal-auto-block"
+              name="autoBlock"
+              type="checkbox"
+              role="switch"
+              defaultChecked={goal?.autoBlock ?? false}
+              className="relative mt-0.5 h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-line transition-colors checked:bg-ink before:absolute before:top-0.5 before:left-0.5 before:size-4 before:rounded-full before:bg-white before:shadow-sm before:transition-transform checked:before:translate-x-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-1"
+            />
+          </label>
+        </section>
 
         {result && <FormMessage tone="error" text={result.message} />}
         {stale && (
@@ -287,7 +293,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-5 py-3.5">
         {goal && confirmingDelete ? (
           <>
             <p className="w-full text-sm font-medium">{`Delete '${goal.title}'? Its events stay, without goal.`}</p>
@@ -310,7 +316,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
               <Button
                 variant="ghost"
                 size="icon"
-                className="ml-auto size-8"
+                className="ml-auto size-8 text-ink-3"
                 aria-label={`Delete ${goal.title}`}
                 title="Delete"
                 onClick={() => setConfirmingDelete(true)}

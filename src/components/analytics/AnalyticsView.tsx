@@ -10,7 +10,7 @@ import { minutesText } from "@/lib/focus/session-time";
 import { addDays, dayParts, isoWeekNumber } from "@/lib/time/zoned";
 
 const card = "rounded-card border border-line-subtle bg-surface p-5";
-const eyebrow = "text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3";
+const eyebrow = "text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3";
 
 function weekRange(monday: string): string {
   const sunday = addDays(monday, 6);
@@ -22,10 +22,10 @@ function weekRange(monday: string): string {
 
 function Tile({ label, value, today }: { label: string; value: string; today: string | null }) {
   return (
-    <div className={card}>
-      <p className="text-sm text-ink-2">{label}</p>
-      <p className="mt-1 text-[28px] leading-[34px] font-semibold tracking-heading tabular text-ink">{value}</p>
-      {today !== null && <p className="mt-1 text-xs text-ink-3">Today: {today}</p>}
+    <div className="min-w-0 rounded-card border border-line-subtle bg-surface p-4 md:p-5">
+      <p className="text-xs text-ink-2">{label}</p>
+      <p className="mt-2.5 text-[26px] leading-none font-semibold tracking-heading tabular text-ink">{value}</p>
+      {today !== null && <p className="mt-2.5 text-xs text-ink-3">Today: {today}</p>}
     </div>
   );
 }
@@ -37,7 +37,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
   const maxSite = Math.max(1, ...analytics.topSites.map((s) => s.count));
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 md:px-10 md:py-10">
+    <div className="mx-auto w-full max-w-6xl px-5 py-6 md:px-8 md:py-10">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] leading-[34px] font-semibold tracking-display text-ink md:text-[32px] md:leading-[38px]">Analytics</h1>
@@ -45,7 +45,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
             Week {isoWeekNumber(data.monday)} · {weekRange(data.monday)} · Times in {data.timeZone}
           </p>
         </div>
-        <nav aria-label="Weeks" className="flex items-center gap-1">
+        <nav aria-label="Weeks" className="flex items-center gap-1.5">
           <LinkButton href={`/analytics?week=${data.previous}`} variant="secondary" size="icon" aria-label="Previous week" title="Previous week">
             <ChevronLeft />
           </LinkButton>
@@ -58,15 +58,15 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
         </nav>
       </header>
 
-      <section aria-label="This week" className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <section aria-label="This week" className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <Tile label="Focus time" value={minutesText(analytics.week.focusedMinutes)} today={todayTotals && minutesText(todayTotals.focusedMinutes)} />
         <Tile label="Focus score" value={scoreText(analytics.week.score)} today={todayTotals && scoreText(todayTotals.score)} />
         <Tile label="Sessions" value={String(analytics.week.sessions)} today={todayTotals && String(todayTotals.sessions)} />
         <Tile label="Blocked visits" value={String(analytics.week.attempts)} today={todayTotals && String(todayTotals.attempts)} />
       </section>
 
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <section aria-labelledby="per-day-title" className={card}>
+      <div className="mt-6 grid items-start gap-4 lg:grid-cols-3">
+        <section aria-labelledby="per-day-title" className={`${card} min-w-0 lg:col-span-2`}>
           <h2 id="per-day-title" className={eyebrow}>
             Focus time per day
           </h2>
@@ -77,7 +77,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
               return (
                 <div key={day.date} className="flex h-full flex-col items-center justify-end gap-1">
                   <span className="text-[10px] tabular text-ink-3">{day.focusedMinutes > 0 ? minutesText(day.focusedMinutes) : ""}</span>
-                  <span className={`w-full max-w-10 rounded-t-md ${day.date === data.today ? "bg-ink" : "bg-ink/25"}`} style={{ height }} />
+                  <span className={`w-full max-w-9 rounded-t-[5px] ${day.date === data.today ? "bg-ink" : "bg-ink/20"}`} style={{ height }} />
                   <span className={`text-[11px] ${day.date === data.today ? "font-semibold text-ink" : "text-ink-3"}`}>{dayParts(day.date).weekday}</span>
                 </div>
               );
@@ -112,7 +112,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
           </table>
         </section>
 
-        <section aria-labelledby="sites-title" className={card}>
+        <section aria-labelledby="sites-title" className={`${card} min-w-0`}>
           <h2 id="sites-title" className={eyebrow}>
             Most blocked sites
           </h2>
@@ -138,7 +138,7 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
         </section>
       </div>
 
-      <section aria-labelledby="how-title" className="mt-6 text-sm text-ink-2">
+      <section aria-labelledby="how-title" className="mt-8 text-sm text-ink-2">
         <h2 id="how-title" className={eyebrow}>
           How the focus score works
         </h2>
