@@ -50,3 +50,11 @@ export const SignOutIcon = (p: IconProps) => (
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
   </Icon>
 );
+export const TimerIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="13" r="8" />
+    <path d="M12 9v4l2 2M10 2h4" />
+  </Icon>
+);
+export const Play = (p: IconProps) => <Icon {...p}><path d="M7 4.5v15l12-7.5-12-7.5Z" /></Icon>;
+export const Pause = (p: IconProps) => <Icon {...p}><path d="M8 5v14M16 5v14" /></Icon>;

@@ -4,7 +4,7 @@ Team project for Introduction to Programming at Nova SBE.
 
 We build a web app that brings a calendar, goals with weekly rules and focus sessions together, and a Chrome extension that blocks distracting websites while the user works. Pro users also get an AI chat, typed or spoken, that plans their days and answers questions about how they spent their time. The app is called **Lock In**.
 
-**Status:** build steps 1 and 2 are complete in code: accounts, the week calendar with events, and goals with weekly rules and progress (specs 01 to 03). They are deployed once the Supabase project exists (`docs/setup.md`).
+**Status:** build steps 1 and 2 and the first half of step 3 are complete in code: accounts, the week calendar with events, goals with weekly rules and progress, and focus sessions (specs 01 to 04). The blocker (spec 05) is next. Everything is deployed once the Supabase project exists (`docs/setup.md`).
 
 ## Run it
 Needs Node.js 24 and npm.

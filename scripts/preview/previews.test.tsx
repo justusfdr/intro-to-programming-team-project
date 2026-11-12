@@ -187,6 +187,71 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     page("Goal editor", `${calendar()}<div class="preview-dim"></div>${goalEditorMarkup}`, styles, centred),
   );
 
+  // The Focus page in its states (spec 04). Sample sessions written by hand; times as the server sends them.
+  const { FocusView } = await import("@/components/focus/FocusView");
+  type FocusData = import("@/lib/focus/types").FocusData;
+  type SessionDto = import("@/lib/focus/types").SessionDto;
+  const focusNow = "2026-11-17T09:42:00.000Z";
+  const finished = (id: string, title: string | null, start: string, end: string, minutes: number, rating: number | null) => ({
+    id,
+    eventId: null,
+    eventTitle: title,
+    plannedMinutes: 60,
+    status: "finished" as const,
+    startedAt: start,
+    pausedAt: null,
+    pausedSeconds: 0,
+    endedAt: end,
+    rating,
+    focusedMinutes: minutes,
+  });
+  const recent = [
+    finished("r1", "Statistics lecture notes", "2026-11-16T14:00:00.000Z", "2026-11-16T15:30:00.000Z", 90, 4),
+    finished("r2", null, "2026-11-16T09:00:00.000Z", "2026-11-16T09:55:00.000Z", 45, 3),
+    finished("r3", "Group project", "2026-11-14T10:00:00.000Z", "2026-11-14T11:00:00.000Z", 60, 0),
+    finished("r4", "Half-marathon plan", "2026-11-13T18:00:00.000Z", "2026-11-13T18:30:00.000Z", 30, null),
+  ];
+  const running: SessionDto = {
+    id: "a1",
+    eventId: "e1",
+    eventTitle: "Statistics revision",
+    plannedMinutes: 60,
+    status: "running",
+    startedAt: "2026-11-17T09:20:00.000Z",
+    pausedAt: null,
+    pausedSeconds: 0,
+    endedAt: null,
+    rating: null,
+  };
+  const focusPage = (data: FocusData) =>
+    renderToStaticMarkup(
+      <Announcer>
+        <AppShell current="/focus">
+          <FocusView data={data} />
+        </AppShell>
+      </Announcer>,
+    );
+  const focusStates: [string, FocusData][] = [
+    ["focus-start.html", { active: null, recent, forEvent: null, now: focusNow }],
+    ["focus-start-for-event.html", { active: null, recent, forEvent: { id: "e1", title: "Statistics revision", suggestedMinutes: 120 }, now: focusNow }],
+    ["focus-running.html", { active: running, recent, forEvent: null, now: focusNow }],
+    [
+      "focus-paused.html",
+      { active: { ...running, status: "paused", pausedAt: "2026-11-17T09:35:00.000Z" }, recent, forEvent: null, now: focusNow },
+    ],
+    [
+      "focus-rating.html",
+      {
+        active: null,
+        recent: [finished("r0", "Statistics revision", "2026-11-17T08:30:00.000Z", "2026-11-17T09:30:00.000Z", 60, null), ...recent],
+        forEvent: null,
+        now: focusNow,
+      },
+    ],
+  ];
+  for (const [file, data] of focusStates) writeFileSync(join(OUT, file), page("Focus", focusPage(data), styles));
+  writeFileSync(join(OUT, "focus-running-phone.html"), phoneFrame("Focus", page("Focus", focusPage(focusStates[2][1]), styles)));
+
   writeFileSync(join(OUT, "sign-in.html"), page("Sign in", renderToStaticMarkup(<SignInPage />), styles));
   writeFileSync(join(OUT, "sign-up.html"), page("Sign up", renderToStaticMarkup(<SignUpPage />), styles));
 
