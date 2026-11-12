@@ -264,6 +264,23 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   );
   writeFileSync(join(OUT, "event-editor-outlook.html"), page("Outlook event", `${calendar()}<div class="preview-dim"></div>${outlookEditorMarkup}`, styles, dim));
 
+  // Spec 15: the small "New event" card after a drag on Wednesday 3 to 4:30pm (a static page cannot
+  // run the drag, so the card is placed where the pointer would be released), as a sheet on phones.
+  const { NewEventForm } = await import("@/components/calendar/NewEventPopover");
+  const { ToastBar } = await import("@/components/calendar/CalendarView");
+  const cardMarkup = renderToStaticMarkup(
+    <NewEventForm date="2026-11-18" startMin={15 * 60} endMin={16 * 60 + 30} goals={goalLabels} onClose={() => {}} onOpenEditor={() => {}} />,
+  );
+  const floating = (left: number, top: number) =>
+    `<div role="dialog" aria-label="New event" class="scroll-thin fixed z-50 overflow-y-auto overscroll-contain rounded-card border border-line-subtle bg-surface shadow-float" style="left:${left}px;top:${top}px;width:320px">${cardMarkup}</div>`;
+  const sheet = `<div class="fixed inset-0 z-50 flex flex-col justify-end"><div class="absolute inset-0 bg-ink/20"></div><div role="dialog" aria-modal="true" aria-label="New event" class="scroll-thin relative max-h-[88dvh] overflow-y-auto overscroll-contain rounded-t-panel border-t border-line-subtle bg-surface pb-[max(12px,env(safe-area-inset-bottom))] shadow-pop"><div class="relative flex h-10 items-center justify-center"><div class="h-1 w-9 rounded-full bg-muted"></div></div>${cardMarkup}</div></div>`;
+  writeFileSync(join(OUT, "new-event-card.html"), page("New event", `${calendar()}${floating(860, 330)}`, styles));
+  writeFileSync(join(OUT, "new-event-card-phone.html"), phoneFrame("New event", page("New event", `${calendar(dayData)}${sheet}`, styles)));
+  // Spec 15: the undo toast after a move, and after a delete.
+  const toast = (text: string) => renderToStaticMarkup(<ToastBar toast={{ id: 1, text, undo: () => {} }} onDone={() => {}} />);
+  writeFileSync(join(OUT, "undo-toast.html"), page("Undo", `${calendar()}${toast("Moved to Thu, Nov 19, 2 – 3pm")}`, styles));
+  writeFileSync(join(OUT, "undo-toast-phone.html"), phoneFrame("Undo", page("Undo", `${calendar(dayData)}${toast("Event deleted")}`, styles)));
+
   // Spec 12: the settings page in the prototype's layout (Outlook not set up on this server, blocker not
   // connected), the Outlook card in its other states, the delete question, and the page at phone width.
   const { SettingsView } = await import("@/components/settings/SettingsView");
