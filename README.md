@@ -42,11 +42,14 @@ We start with a small part that works end to end and grow it step by step. Each 
 6. AI chat, Stripe test mode and Pro.
 7. Travel time. Settings last.
 
+Between steps, spec 10 gives the screens the look of our first prototype (goals column, event editor, Analytics) without changing what the app can do.
+
 A new account has an empty calendar and no goals; its block list starts with six sites the user can change. For the presentation we prepare demo accounts with example data; they are created and confirmed beforehand.
 
 ## Interface notes
 - Panels next to the calendar (goals, AI chat) can be collapsed and expanded. The app shell (`src/components/shell/AppShell.tsx`) has a slot on each side: goals on the left (build step 2), the AI chat later on the right.
 - Goal progress is shown as "this week x of y", a strip of weeks and a countdown, not as a line chart.
+- The look follows our first prototype (spec 10): goals as open sections with a tinted tile, a thin bar and one row per rule; the event editor as a panel at the right with upper-case section labels, goal chips and a fixed footer. Every goal shows the same target icon in its colour (the data has no icon per goal). Collapsed goal sections are remembered in the browser only.
 - When a chat message fails, the typed text stays in the input field.
 - Settings are reworked last.
 

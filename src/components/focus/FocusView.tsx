@@ -258,7 +258,7 @@ export function FocusView({ data, blocker }: { data: FocusData; blocker: Blocker
     !data.active && latest && latest.endedAt && new Date(data.now).getTime() - new Date(latest.endedAt).getTime() < 12 * 3_600_000;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 md:px-10 md:py-10">
+    <div className="mx-auto w-full max-w-6xl px-5 py-6 md:px-8 md:py-10">
       <h1 className="text-[28px] leading-[34px] font-semibold tracking-display text-ink md:text-[32px] md:leading-[38px]">Focus</h1>
       <p className="mt-1 text-sm text-ink-2">Start a session from your plan, or just start.</p>
       <div className="mt-8 grid items-start gap-6 md:grid-cols-2">

@@ -255,6 +255,27 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     ),
   );
 
+  // Spec 10: goal sections in the states the sample week does not show: a met rule, a collapsed
+  // section and a passed deadline.
+  const { GoalCard } = await import("@/components/goals/GoalCard");
+  const [first, second, third] = goals;
+  const met = { ...first, progress: { ...first.progress, thisWeek: first.progress.thisWeek.map((r) => ({ ...r, text: "This week: 6 of 6 h", status: "met" as const })) } };
+  const passed = { ...third, progress: { ...third.progress, countdown: "Deadline passed" } };
+  writeFileSync(
+    join(OUT, "goal-sections.html"),
+    page(
+      "Goal sections",
+      `<main class="flex flex-col gap-3 bg-canvas p-6" style="width:280px">${renderToStaticMarkup(
+        <>
+          <GoalCard goal={met} onOpen={() => {}} onToggle={() => {}} />
+          <GoalCard goal={second} onOpen={() => {}} onToggle={() => {}} collapsed />
+          <GoalCard goal={passed} onOpen={() => {}} onToggle={() => {}} />
+        </>,
+      )}</main>`,
+      styles,
+    ),
+  );
+
   // The goal editor, open for a new goal (same static-dialog treatment as the event editor).
   const goalEditorMarkup = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: "2026-11-17" }} onClose={() => {}} />).replace(
     "<dialog",
