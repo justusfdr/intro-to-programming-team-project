@@ -1,0 +1,103 @@
+// The small "New event" card and the undo toast as first rendered (spec 15), in the prototype's words.
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import { DisplayProvider } from "@/components/shell/DisplayProvider";
+import { DEFAULT_DISPLAY } from "@/lib/time/display";
+import { ToastBar } from "./CalendarView";
+import { EventEditor } from "./EventEditor";
+import { NewEventForm } from "./NewEventPopover";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
+
+const GOALS = [{ id: "g1", title: "Run a half marathon", look: { color: "teal" as const, icon: "footprints" as const } }];
+
+function card(startMin: number, endMin: number) {
+  return renderToStaticMarkup(
+    <DisplayProvider value={DEFAULT_DISPLAY}>
+      <NewEventForm date="2026-11-17" startMin={startMin} endMin={endMin} goals={GOALS} onClose={() => {}} onOpenEditor={() => {}} />
+    </DisplayProvider>,
+  );
+}
+
+describe("the New event card", () => {
+  it("has the prototype's parts: eyebrow and day, the title field, goal chips, start and end, length chips, Add and Add details", () => {
+    const html = card(540, 600);
+    expect(html).toContain(">New event</p>");
+    expect(html).toContain(">Tue, Nov 17</span>");
+    expect(html).toMatch(/<input[^>]*aria-label="Title"[^>]*placeholder="What are you working on\?"/);
+    expect(html).toMatch(/role="group" aria-label="Goal".*No goal.*Run a half marathon/s);
+    expect(html).toMatch(/<select aria-label="Start"[^>]*>/);
+    expect(html).toMatch(/<select aria-label="End"[^>]*>/);
+    expect(html).toMatch(/role="group" aria-label="Duration".*>30m<.*>1h<.*>1\.5h<.*>2h</s);
+    expect(html).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Add<\/button>/);
+    expect(html).toMatch(/<button type="button"[^>]*disabled=""[^>]*>Add details<\/button>/);
+  });
+
+  it("presses the chip of the dragged length and shows times in 12-hour form", () => {
+    const html = card(540, 630);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>1\.5h</);
+    expect(html).toContain(">9am</option>");
+    expect(html).toContain(">10:30am · 1h 30m</option>");
+  });
+
+  it("is at least 15 minutes long, even after a tiny drag", () => {
+    expect(card(600, 600)).toMatch(/<select aria-label="End"[^>]*>.*<option value="615" selected="">/s);
+  });
+});
+
+describe("the undo toast", () => {
+  it("is a status line with Undo, as in the prototype", () => {
+    const html = renderToStaticMarkup(<ToastBar toast={{ id: 1, text: "Moved to Thu, Nov 19, 2 – 3pm", undo: () => {} }} onDone={() => {}} />);
+    expect(html).toMatch(/role="status"[^>]*><span[^>]*>Moved to Thu, Nov 19, 2 – 3pm<\/span><button type="button"[^>]*>Undo<\/button>/);
+  });
+
+  it("a refusal shows the server's message without Undo", () => {
+    const html = renderToStaticMarkup(<ToastBar toast={{ id: 1, text: "Changed on another device. Reload to see the latest version" }} onDone={() => {}} />);
+    expect(html).not.toContain("Undo");
+  });
+});
+
+describe("deleting in the editor", () => {
+  it("has the bin, and no 'Yes, delete' question any more: the toast offers Undo instead", () => {
+    const event = {
+      id: "e1",
+      title: "Statistics revision",
+      allDay: false as const,
+      startAt: "2026-11-17T09:00:00.000Z",
+      endAt: "2026-11-17T10:00:00.000Z",
+      firstDay: null,
+      lastDay: null,
+      mayOverlap: false,
+      status: "planned" as const,
+      goalId: null,
+      seriesId: null,
+      source: "app" as const,
+      location: null,
+      notSent: false,
+      updatedAt: "2026-11-15T10:00:00.000Z",
+      conflict: false,
+      startTime: "09:00",
+      endTime: "10:00",
+      endDay: null,
+      startLocal: "2026-11-17T09:00",
+      endLocal: "2026-11-17T10:00",
+    };
+    const html = renderToStaticMarkup(
+      <DisplayProvider value={DEFAULT_DISPLAY}>
+        <EventEditor state={{ mode: "edit", event }} goals={GOALS} onClose={() => {}} />
+      </DisplayProvider>,
+    );
+    expect(html).toContain('aria-label="Delete Statistics revision"');
+    expect(html).not.toContain("Yes, delete");
+  });
+
+  it("'Add details' opens the editor with the card's title and goal", () => {
+    const html = renderToStaticMarkup(
+      <DisplayProvider value={DEFAULT_DISPLAY}>
+        <EventEditor state={{ mode: "create", start: "2026-11-17T09:00", end: "2026-11-17T10:30", title: "Read chapter 4", goalId: "g1" }} goals={GOALS} onClose={() => {}} />
+      </DisplayProvider>,
+    );
+    expect(html).toMatch(/name="title"[^>]*value="Read chapter 4"/);
+    expect(html).toMatch(/<input type="radio"[^>]*name="goal" checked="" value="g1"/);
+  });
+});

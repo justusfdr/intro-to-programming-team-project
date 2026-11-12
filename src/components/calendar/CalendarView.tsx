@@ -7,13 +7,20 @@
 // Which view and which day live in the address (/?view=day&date=2026-11-18), so reload and back work;
 // the page reads exactly those days on the server (src/app/page.tsx). Phones get day and month only.
 // An action's change shows at once and the days are read again in the background (components/live/Live.tsx).
-import { useEffect, useMemo, useRef, useState } from "react";
+//
+// Dragging (spec 15, as in the prototype): a click or a drag on free time opens the small "New event"
+// card; a dropped block moves at once and edit_event saves it in the background with the event's
+// updated_at (R4); if the server refuses, the block goes back and the ontology's message shows. After a
+// move, a resize or a delete a toast offers "Undo" for 8 seconds. An event of a series asks "This
+// event / This and following" on drop.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { formatMinute, gridRange, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
-import type { WeekData } from "@/lib/events/types";
+import { gridRange, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
+import { localAt, type Span } from "@/lib/events/drag";
+import type { CalendarEvent, WeekData, WeekEvent } from "@/lib/events/types";
 import {
   allowedViews,
   calendarHref,
@@ -31,13 +38,17 @@ import {
 } from "@/lib/events/views";
 import { leadInto } from "@/lib/events/week-view";
 import { fmtDateLong, fmtWeekday } from "@/lib/time/display";
-import { addDays, localDateTimeOf } from "@/lib/time/zoned";
+import { localDateTimeOf } from "@/lib/time/zoned";
+import { postJson, type PostResult } from "@/lib/client/post-json";
 import { useDisplay } from "@/components/shell/DisplayProvider";
-import { useLiveWeek } from "@/components/live/Live";
+import { useLive, useLiveWeek } from "@/components/live/Live";
 import { GoalsToggle } from "@/components/goals/GoalsPanel";
 import { DateJumpTitle } from "./DateJump";
-import { EventEditor, type EditorState } from "./EventEditor";
+import { EventEditor, SeriesQuestion, type EditorState } from "./EventEditor";
+import { dropText, movedChange, recreateBody, savedEvent, savedEventChange, timesBody, type Scope } from "./event-changes";
+import { anchorOf, FloatingPanel, type Anchor } from "./FloatingPanel";
 import { MonthView } from "./MonthView";
+import { NewEventPopover } from "./NewEventPopover";
 import { OutlookChip } from "./OutlookChip";
 import { TimeGrid, type GoalLabel } from "./TimeGrid";
 import { MEDIA, useMediaQuery } from "./useMedia";
@@ -69,9 +80,21 @@ function useNowLocal(initial: string, timeZone: string): string {
   return now;
 }
 
-/** "YYYY-MM-DDTHH:MM" for minute `min` of `date`; 24:00 becomes 00:00 of the next day. */
-function localAt(date: string, min: number): string {
-  return min >= 24 * 60 ? `${addDays(date, 1)}T00:00` : `${date}T${formatMinute(min)}`;
+/** The small cards over the calendar: "New event", or the series question after a drop. */
+type Pop =
+  | { kind: "new"; date: string; span: Span; anchor: Anchor }
+  | { kind: "series"; event: WeekEvent; start: string; end: string; anchor: Anchor }
+  | null;
+
+/** The toast at the bottom, as in the prototype: a line and, for 8 seconds, "Undo". */
+export type Toast = { id: number; text: string; undo?: () => void };
+const TOAST_MS = 8000;
+
+/** The span of a suggested start and end ("+"): from the start's day, at most to midnight. */
+function spanOf(start: string, end: string): Span {
+  const startMin = minuteOfLocal(start);
+  const endMin = end.slice(0, 10) === start.slice(0, 10) ? minuteOfLocal(end) : 24 * 60;
+  return { startMin, endMin: Math.max(endMin, startMin + 15) };
 }
 
 export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, outlookAvailable = false }: Props) {
@@ -81,7 +104,101 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
   const today = now.slice(0, 10);
   const isPhone = useMediaQuery(MEDIA.phone);
   const [editor, setEditor] = useState<EditorState>(null);
-  const { dayStartHour, dayEndHour } = useDisplay();
+  const [pop, setPop] = useState<Pop>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  // Events whose save is still running: they cannot be dragged again until it is done.
+  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
+  const { dayStartHour, dayEndHour, timeFormat } = useDisplay();
+  const live = useLive();
+  const outlookConnected = week.outlook.status === "connected";
+  const closePop = useCallback(() => setPop(null), []);
+
+  // The toast goes after 8 seconds.
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), TOAST_MS);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  const showToast = useCallback((text: string, undo?: () => void) => setToast({ id: Date.now(), text, undo }), []);
+
+  /** After a change of an app event: it goes to Outlook now, and the week re-reads once it is there (R26). */
+  const sendToOutlook = useCallback(() => {
+    if (outlookConnected) void postJson("/api/outlook/send", {}).then(() => live.refresh());
+  }, [outlookConnected, live]);
+
+  const markPending = useCallback((id: string, on: boolean) => {
+    setPending((set) => {
+      const next = new Set(set);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  /**
+   * New times for an event (a drop, or the undo of one): shown at once, saved with edit_event and the
+   * updated_at the screen last saw (R4). A refusal puts the block back and shows the server's message.
+   */
+  const saveTimes = useCallback(
+    async (event: WeekEvent, start: string, end: string, updatedAt: string, scope?: Scope): Promise<PostResult> => {
+      markPending(event.id, true);
+      const answer = await live.run({
+        send: () => postJson(`/api/events/${event.id}/edit`, timesBody(event, start, end, updatedAt, scope)),
+        optimistic: movedChange(event, start, end, week.timeZone, scope) ?? undefined,
+        fromAnswer: savedEventChange,
+      });
+      markPending(event.id, false);
+      if (!answer.ok) showToast(answer.message);
+      else sendToOutlook();
+      return answer;
+    },
+    [live, markPending, showToast, sendToOutlook, week.timeZone],
+  );
+
+  /** A drop: move or resize, with Undo for 8 seconds (the undo edits the event back). */
+  const moveEvent = useCallback(
+    (event: WeekEvent, start: string, end: string, scope?: Scope) => {
+      const saving = saveTimes(event, start, end, event.updatedAt, scope);
+      showToast(dropText(event, start, end, timeFormat, scope), () => {
+        void saving.then((answer) => {
+          const saved = savedEvent(answer);
+          if (!answer.ok || !saved) return;
+          void saveTimes({ ...event, startLocal: start, endLocal: end }, event.startLocal, event.endLocal, saved.updatedAt, scope);
+        });
+      });
+    },
+    [saveTimes, showToast, timeFormat],
+  );
+
+  const onDrop = useCallback(
+    (event: WeekEvent, day: string, span: Span, anchor: Anchor) => {
+      const start = localAt(day, span.startMin);
+      const end = localAt(day, span.endMin);
+      if (start === event.startLocal && end === event.endLocal) return;
+      // An event of a series: ask first (R28).
+      if (event.seriesId) setPop({ kind: "series", event, start, end, anchor });
+      else moveEvent(event, start, end);
+    },
+    [moveEvent],
+  );
+
+  /** Undo of a delete: the same event again (create_event; it gets a new id), done again if it was. */
+  const recreate = useCallback(
+    async (event: CalendarEvent) => {
+      const answer = await live.run({ send: () => postJson("/api/events", recreateBody(event)), fromAnswer: savedEventChange });
+      if (!answer.ok) return showToast(answer.message);
+      const saved = savedEvent(answer);
+      if (saved && event.status === "done" && !event.allDay) {
+        const done = await live.run({ send: () => postJson(`/api/events/${saved.id}/done`, {}), fromAnswer: savedEventChange });
+        if (!done.ok) showToast(done.message);
+      }
+      sendToOutlook();
+    },
+    [live, showToast, sendToOutlook],
+  );
+
+  const onDeleted = useCallback((event: CalendarEvent) => showToast("Event deleted", () => void recreate(event)), [showToast, recreate]);
 
   // Phones have no week view: a week's address shows its day there (as in the prototype).
   const view = coerceView(week.view, isPhone);
@@ -139,14 +256,15 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
     return () => window.removeEventListener("keydown", onKey);
   }, [router, view, date, previous, next, isPhone]);
 
-  // "New event" without a click in the grid: the next full hour today, else 9am on the shown day.
-  const addEvent = () => {
+  // "New event" without a click in the grid (also by keyboard), as in the prototype: the small card at
+  // the button, for the next full hour today, else 9am on the shown day.
+  const addEvent = (anchor: Anchor) => {
     if (todayShown || view === "month") {
-      setEditor({ mode: "create", ...suggestion });
+      setPop({ kind: "new", date: suggestion.start.slice(0, 10), span: spanOf(suggestion.start, suggestion.end), anchor });
       return;
     }
     const startMin = Math.max(dayStartHour * 60, 9 * 60);
-    setEditor({ mode: "create", start: localAt(date, startMin), end: localAt(date, Math.min(24 * 60, startMin + 60)) });
+    setPop({ kind: "new", date, span: { startMin, endMin: Math.min(24 * 60, startMin + 60) }, anchor });
   };
 
   const title = viewTitle(view, date);
@@ -194,7 +312,7 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
             </LinkButton>
             <ViewSwitch views={allowedViews(isPhone)} view={view} date={date} />
             <div className="ml-auto flex items-center gap-2">
-              <Button variant="secondary" size="icon" aria-label="New event" title="New event" className="@3xl:w-auto @3xl:px-4" onClick={addEvent}>
+              <Button variant="secondary" size="icon" aria-label="New event" title="New event" className="@3xl:w-auto @3xl:px-4" onClick={(e) => addEvent(anchorOf(e.currentTarget))}>
                 <Plus className="size-4" strokeWidth={2} />
                 <span className="hidden @3xl:inline">New event</span>
               </Button>
@@ -227,13 +345,48 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
               selectedDay={date}
               dayHref={view === "week" ? dayHref : undefined}
               goals={goals}
+              pending={pending}
               onOpenEvent={(event) => setEditor({ mode: "edit", event })}
-              onCreateAt={(day, slot) => setEditor({ mode: "create", start: localAt(day, slot.startMin), end: localAt(day, slot.endMin) })}
+              onCreate={(day, span, anchor) => setPop({ kind: "new", date: day, span, anchor })}
+              onDrop={onDrop}
             />
           )}
         </div>
       </section>
-      <EventEditor state={editor} goals={goals} outlookConnected={week.outlook.status === "connected"} onClose={() => setEditor(null)} />
+      <EventEditor state={editor} goals={goals} outlookConnected={outlookConnected} onClose={() => setEditor(null)} onDeleted={onDeleted} />
+      {pop?.kind === "new" && (
+        <NewEventPopover
+          key={`${pop.date}-${pop.span.startMin}-${pop.span.endMin}`}
+          date={pop.date}
+          startMin={pop.span.startMin}
+          endMin={pop.span.endMin}
+          anchor={pop.anchor}
+          goals={goals}
+          outlookConnected={outlookConnected}
+          onClose={closePop}
+          onOpenEditor={(draft) => {
+            setPop(null);
+            setEditor({ mode: "create", ...draft });
+          }}
+        />
+      )}
+      {pop?.kind === "series" && (
+        <FloatingPanel anchor={pop.anchor} label={`Save changes to '${pop.event.title}'?`} width={320} onClose={closePop}>
+          <div className="flex flex-wrap items-center gap-2 p-4">
+            <SeriesQuestion
+              kind="save"
+              title={pop.event.title}
+              busy={false}
+              onAnswer={(scope) => {
+                setPop(null);
+                moveEvent(pop.event, pop.start, pop.end, scope);
+              }}
+              onCancel={closePop}
+            />
+          </div>
+        </FloatingPanel>
+      )}
+      {toast && <ToastBar key={toast.id} toast={toast} onDone={() => setToast(null)} />}
     </>
   );
 }
@@ -287,5 +440,30 @@ function DayStrip({ date, today, className }: { date: string; today: string; cla
         );
       })}
     </nav>
+  );
+}
+
+/** The short note at the bottom (for example "Event deleted · Undo"), as in the prototype. Read out when it appears. */
+export function ToastBar({ toast, onDone }: { toast: Toast; onDone: () => void }) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-32 z-[55] flex justify-center px-4 md:bottom-6">
+      <div role="status" className="pointer-events-auto flex max-w-full items-center gap-3 rounded-full bg-ink py-2 pr-2 pl-4 text-sm text-white shadow-float">
+        <span className="min-w-0 truncate">{toast.text}</span>
+        {toast.undo ? (
+          <button
+            type="button"
+            onClick={() => {
+              toast.undo?.();
+              onDone();
+            }}
+            className="shrink-0 rounded-full px-2.5 py-1 font-semibold text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          >
+            Undo
+          </button>
+        ) : (
+          <span className="w-1" />
+        )}
+      </div>
+    </div>
   );
 }

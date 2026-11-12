@@ -4,21 +4,38 @@
 // columns (the week with weekday and date over each, today in red, a click opens that day), events as
 // blocks placed by start and length, and the current-time line. Layout maths: src/lib/events/grid.ts.
 //
+// Dragging as in the prototype (spec 15; maths in src/lib/events/drag.ts): with a mouse or pen, a drag
+// on empty space creates an event (snapped to 15 minutes, a dashed preview, Escape cancels, the grid
+// scrolls near its edges), a drag on a block moves it (also to another day of the week) and a drag on
+// its bottom edge changes its end. Touch only taps. A plain click on empty space suggests one hour.
+// What a drop means is decided by the calendar (CalendarView) and, in the end, by the server.
+//
 // For screen readers and the keyboard, each day is a labelled list of its events in time order,
 // and each event is a button whose name says title, day, time and marks. The hour axis, the lines
-// and the empty slots are decoration. A click on an empty slot (mouse or touch) creates an event
-// there; keyboard users use "New event".
-import type { MouseEvent } from "react";
+// and the empty slots are decoration. Everything a drag does can be done in the editor too.
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
-import { blockBox, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
-import type { AllDayEvent, CalendarEvent, WeekDay } from "@/lib/events/types";
-import { CalendarDays, Check, TriangleAlert } from "lucide-react";
+import { blockBox, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, type GridRange, type Placed } from "@/lib/events/grid";
+import {
+  canDrag,
+  clickSpan,
+  columnIndexAt,
+  createSpan,
+  exceedsThreshold,
+  minuteAtY,
+  moveSpan,
+  resizeSpan,
+  type Span,
+} from "@/lib/events/drag";
+import type { AllDayEvent, CalendarEvent, WeekDay, WeekEvent } from "@/lib/events/types";
+import { CalendarDays, TriangleAlert } from "lucide-react";
 import { NotSentIcon } from "@/components/ui/icons";
 import { goalColor } from "@/lib/goals/colors";
 import type { GoalLook } from "@/lib/goals/style";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { fmtDateLong, fmtHour, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { dayParts } from "@/lib/time/zoned";
+import { pointAnchor, type Anchor } from "./FloatingPanel";
 
 /** What the grid and the event editor need of a goal: its name, colour and icon. */
 export type GoalLabel = { id: string; title: string; look: GoalLook };
@@ -34,9 +51,93 @@ type Props = {
   selectedDay: string;
   /** The week view shows weekday and date over each column, each a link to that day (the day view has its strip instead). */
   dayHref?: (date: string) => string;
+  /** Events whose save is still running: they cannot be dragged until it is done. */
+  pending?: ReadonlySet<string>;
   onOpenEvent: (event: CalendarEvent) => void;
-  onCreateAt: (date: string, slot: { startMin: number; endMin: number }) => void;
+  /** A click or a drag on empty space: the new event's day and minutes, and where the pointer was. */
+  onCreate: (date: string, span: Span, anchor: Anchor) => void;
+  /** A block was dropped somewhere else (moved, or its end dragged). */
+  onDrop?: (event: WeekEvent, date: string, span: Span, anchor: Anchor) => void;
 };
+
+type Gesture =
+  | { kind: "create"; pointerId: number; dayIndex: number; x: number; y: number; anchorMin: number; active: boolean }
+  | { kind: "move"; pointerId: number; block: Placed; dayIndex: number; x: number; y: number; grabMin: number; active: boolean }
+  | { kind: "resize"; pointerId: number; block: Placed; dayIndex: number; x: number; y: number; active: boolean };
+
+type Preview = { kind: Gesture["kind"]; dayIndex: number; span: Span; block: Placed | null };
+
+const AUTO_SCROLL_EDGE_PX = 40;
+const AUTO_SCROLL_STEP_PX = 12;
+const NO_PENDING: ReadonlySet<string> = new Set();
+
+/** Holds on to the pointer; if the browser refuses (the pointer is gone already), the gesture goes on without. */
+function capturePointer(el: Element, pointerId: number): void {
+  try {
+    el.setPointerCapture(pointerId);
+  } catch {
+    // for example NotFoundError when the pointer is no longer active
+  }
+}
+
+/** The day columns that are shown (on phones only one is), with their place on screen. */
+type Column = { index: number; left: number; right: number; top: number };
+
+function columnRects(body: HTMLElement | null): Column[] {
+  if (!body) return [];
+  return Array.from(body.querySelectorAll<HTMLElement>("[data-day-col]"), (el, index) => {
+    const r = el.getBoundingClientRect();
+    return { index, left: r.left, right: r.right, top: r.top, width: r.width };
+  })
+    .filter((c) => c.width > 0)
+    .map(({ index, left, right, top }) => ({ index, left, right, top }));
+}
+
+/** The span a gesture covers for the pointer's position, and the column it lands in. */
+function spanFor(g: Gesture, x: number, y: number, columns: Column[], range: GridRange): { dayIndex: number; span: Span } | null {
+  if (g.kind === "move") {
+    const col = columns[columnIndexAt(x, columns)];
+    if (!col) return null;
+    const current = minuteAtY(y - col.top, range);
+    const span = moveSpan({ startMin: g.block.startMin, endMin: g.block.endMin }, current - g.grabMin - g.block.startMin);
+    return { dayIndex: col.index, span };
+  }
+  const col = columns.find((c) => c.index === g.dayIndex);
+  if (!col) return null;
+  if (g.kind === "create") return { dayIndex: g.dayIndex, span: createSpan(g.anchorMin, minuteAtY(y - col.top, range), range) };
+  return { dayIndex: g.dayIndex, span: resizeSpan({ startMin: g.block.startMin, endMin: g.block.endMin }, minuteAtY(y - col.top, range)) };
+}
+
+/** Where a span sits in its day column (full width with a small inset). */
+function spanStyle(span: Span, range: GridRange) {
+  const { top, height } = blockBox(span, range);
+  return { top: top + 1, height: height - 2, left: 2, right: 2 };
+}
+
+/** The dashed box while creating, or the block's copy while moving or resizing (as in the prototype). */
+function PreviewBox({ preview, range, goal }: { preview: Preview; range: GridRange; goal: GoalLabel | undefined }) {
+  const { timeFormat } = useDisplay();
+  const time = fmtRange(preview.span.startMin, preview.span.endMin, timeFormat);
+  const pos = spanStyle(preview.span, range);
+  if (preview.kind === "create" || !preview.block) {
+    return (
+      <div
+        aria-hidden
+        className="pointer-events-none absolute z-[5] rounded-lg border-2 border-dashed border-ink/25 bg-ink/[0.04] px-1.5 py-1 text-[11px] tabular text-ink-2"
+        style={pos}
+      >
+        {time}
+      </div>
+    );
+  }
+  const colors = goal ? goalColor(goal.look.color).block : "bg-raised border-line-subtle text-ink";
+  return (
+    <div aria-hidden className={`pointer-events-none absolute z-[5] overflow-hidden rounded-lg border px-1.5 py-1 shadow-float ${colors}`} style={pos}>
+      <span className="block truncate text-[11px] font-medium leading-[14px]">{preview.block.event.title}</span>
+      <span className="block text-[10px] leading-[13px] tabular opacity-80">{time}</span>
+    </div>
+  );
+}
 
 /** R11 and R26 in words: where the event came from, or that Outlook does not have it yet. */
 function outlookWords(event: CalendarEvent): string[] {
@@ -64,9 +165,25 @@ function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined,
   return parts.join(", ");
 }
 
-type BlockProps = { block: Placed; range: GridRange; dayLong: string; goal: GoalLabel | undefined; onOpen: () => void };
+type BlockProps = {
+  block: Placed;
+  range: GridRange;
+  dayLong: string;
+  dayIndex: number;
+  goal: GoalLabel | undefined;
+  draggable: boolean;
+  dimmed: boolean;
+  onOpen: (detail: number) => void;
+  onMoveStart: (e: ReactPointerEvent<HTMLButtonElement>, block: Placed, dayIndex: number) => void;
+  onResizeStart: (e: ReactPointerEvent<HTMLSpanElement>, block: Placed, dayIndex: number) => void;
+};
 
-function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
+/**
+ * One event block, with the prototype's marks: done is a small green dot at the bottom right, an
+ * Outlook event the calendar icon. Kept from our rules: the conflict edge and icon (R10) and "not sent
+ * to Outlook" (R26). A block that may be dragged moves with the pointer; its bottom edge resizes it.
+ */
+function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, onOpen, onMoveStart, onResizeStart }: BlockProps) {
   const { event } = block;
   const { timeFormat } = useDisplay();
   // Events of a goal take the goal's colour; others stay neutral. A conflict adds a red edge and an icon.
@@ -82,9 +199,11 @@ function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
   return (
     <button
       type="button"
+      data-event-id={event.id}
+      onPointerDown={draggable ? (e) => onMoveStart(e, block, dayIndex) : undefined}
       onClick={(e) => {
         e.stopPropagation();
-        onOpen();
+        onOpen(e.detail);
       }}
       aria-label={blockLabel(block, dayLong, goal, timeFormat)}
       // The part after midnight repeats an event already in the list: mouse only, not a second tab stop.
@@ -98,24 +217,26 @@ function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
       }}
       className={`pointer-events-auto absolute z-[2] overflow-hidden rounded-lg border px-1.5 py-1 text-left transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40 ${
         colors
-      } ${event.conflict ? "border-l-[3px] border-l-danger" : ""} ${done ? "opacity-70" : ""}`}
+      } ${event.conflict ? "border-l-[3px] border-l-danger" : ""} ${draggable ? "cursor-grab" : ""} ${dimmed ? "opacity-40" : ""}`}
     >
       <span
         // Whole words only: two lines when there is room, otherwise one line cut with an ellipsis.
         // The button's accessible name carries the full title.
-        className={`block pr-4 text-[11px] font-medium leading-[14px] ${height >= 40 && block.lanes === 1 ? "line-clamp-2" : "truncate"} ${
-          done ? "line-through" : ""
-        }`}
+        className={`block pr-4 text-[11px] font-medium leading-[14px] ${height >= 40 && block.lanes === 1 ? "line-clamp-2" : "truncate"}`}
       >
         {event.title}
       </span>
       {height >= 44 && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{time}</span>}
-      {(event.conflict || done || event.source === "outlook" || event.notSent) && (
+      {height >= 72 && event.location && <span className="block truncate pr-3 text-[10px] opacity-80">{event.location}</span>}
+      {(event.conflict || event.source === "outlook" || event.notSent) && (
         <span className="absolute right-1 top-1 flex items-center gap-0.5">
           <OutlookMark event={event} />
           {event.conflict && <TriangleAlert className="size-3 text-danger" />}
-          {done && <Check className="size-3 text-success" strokeWidth={3} />}
         </span>
+      )}
+      {done && <span className="absolute bottom-1 right-1 block size-1.5 rounded-full bg-success" />}
+      {draggable && (
+        <span aria-hidden onPointerDown={(e) => onResizeStart(e, block, dayIndex)} className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize" />
       )}
     </button>
   );
@@ -186,7 +307,19 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
   );
 }
 
-export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, dayHref, onOpenEvent, onCreateAt }: Props) {
+export function TimeGrid({
+  goals,
+  days,
+  placed,
+  range,
+  nowMin,
+  selectedDay,
+  dayHref,
+  pending = NO_PENDING,
+  onOpenEvent,
+  onCreate,
+  onDrop,
+}: Props) {
   const { timeFormat } = useDisplay();
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
   const height = rangeHeight(range);
@@ -196,15 +329,144 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, dayH
   const hasEarly = early.some((blocks) => blocks.length > 0);
   const showNow = nowMin !== null && nowMin >= range.startMin && nowMin < range.endMin;
 
-  function createAt(e: MouseEvent<HTMLDivElement>, date: string) {
-    if (e.target !== e.currentTarget) return;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const gestureRef = useRef<Gesture | null>(null);
+  // Set after a finished drag or an Escape, reset by the next pointer-down: the click that follows is swallowed.
+  const suppressClickRef = useRef(false);
+  // Set on a pointer-down on empty space while a panel or dialog is open: that click only closes it.
+  const dismissClickRef = useRef(false);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const hasPreview = preview !== null;
+  const movingId = preview?.block ? preview.block.event.id : null;
+
+  // Escape cancels a running gesture (only while a preview is shown).
+  useEffect(() => {
+    if (!hasPreview) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      gestureRef.current = null;
+      document.body.style.cursor = "";
+      setPreview(null);
+      suppressClickRef.current = true;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hasPreview]);
+
+  const beginCreate = (e: ReactPointerEvent<HTMLDivElement>, dayIndex: number) => {
+    if (e.button !== 0 || e.pointerType === "touch" || e.target !== e.currentTarget) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    onCreateAt(date, slotAt(e.clientY - rect.top, range));
-  }
+    gestureRef.current = { kind: "create", pointerId: e.pointerId, dayIndex, x: e.clientX, y: e.clientY, anchorMin: minuteAtY(e.clientY - rect.top, range), active: false };
+    capturePointer(e.currentTarget, e.pointerId);
+  };
+
+  const beginMove = (e: ReactPointerEvent<HTMLButtonElement>, block: Placed, dayIndex: number) => {
+    if (e.button !== 0 || e.pointerType === "touch") return;
+    e.stopPropagation();
+    const col = e.currentTarget.closest<HTMLElement>("[data-day-col]");
+    if (!col) return;
+    const rect = col.getBoundingClientRect();
+    gestureRef.current = {
+      kind: "move",
+      pointerId: e.pointerId,
+      block,
+      dayIndex,
+      x: e.clientX,
+      y: e.clientY,
+      grabMin: minuteAtY(e.clientY - rect.top, range) - block.startMin,
+      active: false,
+    };
+    capturePointer(e.currentTarget, e.pointerId);
+  };
+
+  const beginResize = (e: ReactPointerEvent<HTMLSpanElement>, block: Placed, dayIndex: number) => {
+    if (e.button !== 0 || e.pointerType === "touch") return;
+    e.stopPropagation();
+    gestureRef.current = { kind: "resize", pointerId: e.pointerId, block, dayIndex, x: e.clientX, y: e.clientY, active: false };
+    capturePointer(e.currentTarget, e.pointerId);
+  };
+
+  const onBodyPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.pointerId !== e.pointerId) return;
+    if (!g.active) {
+      if (!exceedsThreshold(e.clientX - g.x, e.clientY - g.y)) return;
+      if (g.kind === "move") document.body.style.cursor = "grabbing";
+      if (g.kind === "resize") document.body.style.cursor = "ns-resize";
+      gestureRef.current = { ...g, active: true };
+    }
+    // Near the top or bottom edge the grid scrolls on.
+    const sc = scrollRef.current;
+    if (sc) {
+      const box = sc.getBoundingClientRect();
+      if (e.clientY < box.top + AUTO_SCROLL_EDGE_PX) sc.scrollTop -= AUTO_SCROLL_STEP_PX;
+      else if (e.clientY > box.bottom - AUTO_SCROLL_EDGE_PX) sc.scrollTop += AUTO_SCROLL_STEP_PX;
+    }
+    const current = gestureRef.current;
+    if (!current) return;
+    const result = spanFor(current, e.clientX, e.clientY, columnRects(bodyRef.current), range);
+    if (!result) return;
+    setPreview({ kind: current.kind, dayIndex: result.dayIndex, span: result.span, block: current.kind === "create" ? null : current.block });
+  };
+
+  const onBodyPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.pointerId !== e.pointerId) return;
+    gestureRef.current = null;
+    document.body.style.cursor = "";
+    if (!g.active) {
+      setPreview(null);
+      return; // a plain click: the click handler runs
+    }
+    const result = spanFor(g, e.clientX, e.clientY, columnRects(bodyRef.current), range);
+    setPreview(null);
+    suppressClickRef.current = true;
+    if (!result) return;
+    const day = days[result.dayIndex];
+    if (!day) return;
+    const anchor = pointAnchor(e.clientX, e.clientY);
+    if (g.kind === "create") {
+      onCreate(day.date, result.span, anchor);
+    } else if (g.kind === "move") {
+      const changed = day.date !== g.block.event.startLocal.slice(0, 10) || result.span.startMin !== g.block.startMin;
+      if (changed) onDrop?.(g.block.event, day.date, result.span, anchor);
+    } else if (result.span.endMin !== g.block.endMin) {
+      onDrop?.(g.block.event, g.block.event.startLocal.slice(0, 10), result.span, anchor);
+    }
+  };
+
+  const onBodyPointerCancel = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const g = gestureRef.current;
+    if (!g || g.pointerId !== e.pointerId) return;
+    gestureRef.current = null;
+    document.body.style.cursor = "";
+    setPreview(null);
+  };
+
+  // A click on a block (also a touch tap). A finished drag swallows its click; keyboard clicks
+  // (detail 0) are never swallowed.
+  const openBlock = (event: CalendarEvent, detail: number) => {
+    if (suppressClickRef.current && detail !== 0) {
+      suppressClickRef.current = false;
+      return;
+    }
+    onOpenEvent(event);
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-card border border-line-subtle bg-surface select-none">
-      <div data-grid-scroll className="scroll-thin relative min-h-0 flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        data-grid-scroll
+        className="scroll-thin relative min-h-0 flex-1 overflow-y-auto"
+        // Runs before the block and column handlers: every new gesture starts with clean click flags.
+        onPointerDownCapture={() => {
+          suppressClickRef.current = false;
+          dismissClickRef.current = false;
+        }}
+      >
         {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip). */}
         {dayHref && (
           <div className="sticky top-0 z-20 hidden border-b border-line-subtle bg-surface md:flex">
@@ -261,7 +523,14 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, dayH
           </div>
         )}
 
-        <div data-hour-grid className="relative flex">
+        <div
+          ref={bodyRef}
+          data-hour-grid
+          className="relative flex"
+          onPointerMove={onBodyPointerMove}
+          onPointerUp={onBodyPointerUp}
+          onPointerCancel={onBodyPointerCancel}
+        >
           {/* Hour axis. */}
           <div aria-hidden className="relative w-[52px] shrink-0" style={{ height }}>
             {hours
@@ -290,13 +559,34 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, dayH
               <section
                 key={day.date}
                 aria-label={`${parts.long}${day.isToday ? ", today" : ""}`}
+                data-day-col
                 className={`${day.date === selectedDay ? "block" : "hidden"} relative min-w-0 flex-1 border-l border-line-subtle md:block ${
                   day.isToday ? "bg-raised/40" : ""
                 }`}
                 style={{ height }}
               >
-                {/* The empty area: lines, and a click creates an event at that time. */}
-                <div aria-hidden className="absolute inset-0 cursor-cell" onClick={(e) => createAt(e, day.date)}>
+                {/* The empty area: lines; a click suggests an hour there, a drag the dragged time. */}
+                <div
+                  aria-hidden
+                  className="absolute inset-0"
+                  onPointerDown={(e) => {
+                    dismissClickRef.current = document.querySelector('[role="dialog"],dialog[open]') !== null;
+                    beginCreate(e, i);
+                  }}
+                  onClick={(e) => {
+                    if (dismissClickRef.current) {
+                      dismissClickRef.current = false;
+                      return;
+                    }
+                    if (suppressClickRef.current && e.detail !== 0) {
+                      suppressClickRef.current = false;
+                      return;
+                    }
+                    if (e.target !== e.currentTarget) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    onCreate(day.date, clickSpan(minuteAtY(e.clientY - rect.top, range), range), pointAnchor(e.clientX, e.clientY));
+                  }}
+                >
                   {hours.map((m) => (
                     <div key={m} className="pointer-events-none absolute inset-x-0 border-t border-line-subtle" style={{ top: minuteToPx(m, range) }} />
                   ))}
@@ -315,12 +605,20 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, dayH
                         block={block}
                         range={range}
                         dayLong={parts.long}
+                        dayIndex={i}
                         goal={goalOf(block.event.goalId)}
-                        onOpen={() => onOpenEvent(block.event)}
+                        draggable={onDrop !== undefined && canDrag(block, pending)}
+                        dimmed={movingId === block.event.id}
+                        onOpen={(detail) => openBlock(block.event, detail)}
+                        onMoveStart={beginMove}
+                        onResizeStart={beginResize}
                       />
                     </li>
                   ))}
                 </ul>
+                {preview && preview.dayIndex === i && (
+                  <PreviewBox preview={preview} range={range} goal={preview.block ? goalOf(preview.block.event.goalId) : undefined} />
+                )}
               </section>
             );
           })}

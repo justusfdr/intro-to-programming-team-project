@@ -8,6 +8,8 @@
 // Rewritten again for spec 14 (step 4a): the toolbar in the prototype's shapes (round goals toggle,
 // Day | Week | Month, round "+"), view and day in the address, the day view with its strip and the
 // month grid.
+// Rewritten for spec 15 (step 4b): the done mark is the prototype's green dot (no strike-through), and
+// blocks that may be dragged carry the grab cursor and the bottom edge to resize.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
@@ -146,12 +148,40 @@ describe("calendar markup", () => {
     expect(second).toBeGreaterThan(first);
   });
 
-  it("shows the conflict and done marks as icons and strike-through, not only as colour", () => {
+  it("shows the marks as the prototype does, not only as colour: done a green dot, conflict an icon, Outlook a calendar", () => {
     const html = render(
-      week({ 0: [event("a", "Clash", "2026-11-16T09:00", "2026-11-16T11:00", { conflict: true, status: "done" })] }),
+      week({
+        0: [event("a", "Clash", "2026-11-16T09:00", "2026-11-16T11:00", { conflict: true, status: "done" })],
+        1: [event("o", "Seminar", "2026-11-17T14:00", "2026-11-17T15:00", { source: "outlook" })],
+      }),
     );
-    expect(html).toContain("line-through");
-    expect(html.match(/<svg/g)?.length).toBeGreaterThanOrEqual(2);
+    const clash = html.slice(html.indexOf('aria-label="Clash'), html.indexOf("</button>", html.indexOf('aria-label="Clash')));
+    // Done (spec 15): the small green dot at the bottom right, no strike-through; the name says "done".
+    expect(clash).toContain('<span class="absolute bottom-1 right-1 block size-1.5 rounded-full bg-success">');
+    expect(clash).not.toContain("line-through");
+    expect(clash).toContain("lucide-triangle-alert");
+    const seminar = html.slice(html.indexOf('aria-label="Seminar'), html.indexOf("</button>", html.indexOf('aria-label="Seminar')));
+    expect(seminar).toContain("lucide-calendar-days");
+  });
+
+  it("lets app events be dragged (grab cursor and a bottom edge to resize), never Outlook events or the part after midnight", () => {
+    const html = render(
+      week({
+        0: [event("a", "Revision", "2026-11-16T09:00", "2026-11-16T10:00")],
+        1: [event("o", "Seminar", "2026-11-17T14:00", "2026-11-17T15:00", { source: "outlook" })],
+        2: [event("n", "Night shift", "2026-11-18T20:00", "2026-11-19T02:00", { endDay: "2026-11-19" })],
+      }),
+    );
+    const block = (name: string) => {
+      const at = html.indexOf(`aria-label="${name}`);
+      return html.slice(html.lastIndexOf("<button", at), html.indexOf("</button>", at));
+    };
+    expect(block("Revision")).toContain("cursor-grab");
+    expect(block("Revision")).toContain("cursor-ns-resize");
+    for (const name of ["Seminar", "Night shift"]) {
+      expect(block(name)).not.toContain("cursor-grab");
+      expect(block(name)).not.toContain("cursor-ns-resize");
+    }
   });
 
   it("lists an event past midnight once: its continuation on the next day is not a second tab stop", () => {

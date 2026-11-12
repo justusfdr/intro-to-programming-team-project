@@ -10,6 +10,8 @@
 // "This event" or "This and following events" (R28). It only collects the input and shows the
 // server's answer; the server checks every rule. The week shows a saved, deleted or done event as soon
 // as the answer arrives ("Mark done" at once) and re-reads in the background (components/live/Live.tsx).
+// Deleting a single event does not ask "Yes, delete" any more: as in the prototype, the calendar shows
+// a toast with "Undo" instead (spec 15). An event of a series still asks which events first.
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type Ref } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
@@ -28,12 +30,14 @@ import { addDays } from "@/lib/time/zoned";
 import { type Changes, useLive } from "@/components/live/Live";
 import { withEventChange, withEventStatus } from "@/lib/events/week-view";
 import { useAnnounce } from "./Announcer";
+import { savedEventChange } from "./event-changes";
 import type { GoalLabel } from "./TimeGrid";
 
 /** What the editor shows: a new event with suggested times, or an existing event. */
 export type EditorState =
   /** `repeat` is the choice the Repeat list starts with (default: does not repeat). */
-  | { mode: "create"; start: string; end: string; repeat?: Frequency }
+  /** `title` and `goalId` come from the small "New event" card ("Add details"). */
+  | { mode: "create"; start: string; end: string; repeat?: Frequency; title?: string; goalId?: string | null }
   | { mode: "edit"; event: CalendarEvent }
   | null;
 
@@ -44,6 +48,8 @@ type Props = {
   /** Connected to Outlook: after a change the editor asks the server to send it right away (R26). */
   outlookConnected?: boolean;
   onClose: () => void;
+  /** An event was deleted (one event, not "this and following"): the calendar offers Undo. */
+  onDeleted?: (event: CalendarEvent) => void;
 };
 
 const inputClass =
@@ -63,7 +69,7 @@ function Eyebrow({ children, htmlFor }: { children: string; htmlFor?: string }) 
   );
 }
 
-export function EventEditor({ state, goals, outlookConnected = false, onClose }: Props) {
+export function EventEditor({ state, goals, outlookConnected = false, onClose, onDeleted }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const open = state !== null;
 
@@ -92,6 +98,7 @@ export function EventEditor({ state, goals, outlookConnected = false, onClose }:
           goals={goals}
           outlookConnected={outlookConnected}
           onClose={onClose}
+          onDeleted={onDeleted}
         />
       )}
     </dialog>
@@ -117,7 +124,7 @@ type ScopeQuestion = { kind: "save"; values: Record<string, unknown> } | { kind:
 function initialValues(state: Exclude<EditorState, null>) {
   if (state.mode === "create") {
     const day = state.start.slice(0, 10);
-    return { title: "", start: state.start, end: state.end, firstDay: day, lastDay: day, allDay: false, mayOverlap: false, goalId: "" };
+    return { title: state.title ?? "", start: state.start, end: state.end, firstDay: day, lastDay: day, allDay: false, mayOverlap: false, goalId: state.goalId ?? "" };
   }
   const event = state.event;
   if (event.allDay) {
@@ -176,7 +183,13 @@ function whenText(event: CalendarEvent, format: TimeFormat): string {
   return `${fmtDateLong(event.startLocal.slice(0, 10))}, ${fmtTime(event.startTime, format)} to ${end}`;
 }
 
-type BodyProps = { state: Exclude<EditorState, null>; goals: GoalLabel[]; outlookConnected: boolean; onClose: () => void };
+type BodyProps = {
+  state: Exclude<EditorState, null>;
+  goals: GoalLabel[];
+  outlookConnected: boolean;
+  onClose: () => void;
+  onDeleted?: (event: CalendarEvent) => void;
+};
 
 const DAY = 24 * 60;
 
@@ -213,15 +226,7 @@ const switchClass =
 
 const chipClass = "inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-medium";
 
-/** The week change an accepted save describes: the event as saved. A series (with a count) waits for the re-read. */
-function savedEventChange(answer: PostResult): Changes | null {
-  const data = answer.data as { event?: EventDto; count?: unknown } | undefined;
-  if (!data?.event || data.count !== undefined) return null;
-  const saved = data.event;
-  return { week: (week) => withEventChange(week, { event: saved }) };
-}
-
-function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
+function EditorBody({ state, goals, outlookConnected, onClose, onDeleted }: BodyProps) {
   const router = useRouter();
   const live = useLive();
   const { timeFormat } = useDisplay();
@@ -230,7 +235,6 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   const [event, setEvent] = useState<CalendarEvent | null>(state.mode === "edit" ? state.event : null);
   const [result, setResult] = useState<PostResult | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [question, setQuestion] = useState<ScopeQuestion>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
 
@@ -246,8 +250,8 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
 
   useEffect(() => {
-    if (confirmingDelete || question) confirmButton.current?.focus();
-  }, [confirmingDelete, question]);
+    if (question) confirmButton.current?.focus();
+  }, [question]);
 
   const prefix = event ? event.id : "new";
   const inSeries = Boolean(event?.seriesId);
@@ -260,14 +264,19 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
    * Sends one action; on success shows the change in the week at once (`fromAnswer`), announces the
    * message, closes the editor and lets the week re-read in the background.
    */
-  async function run(path: string, body: unknown, { close = true, fromAnswer = savedEventChange }: { close?: boolean; fromAnswer?: (answer: PostResult) => Changes | null } = {}) {
+  async function run(
+    path: string,
+    body: unknown,
+    { close = true, fromAnswer = savedEventChange, quiet = false }: { close?: boolean; fromAnswer?: (answer: PostResult) => Changes | null; quiet?: boolean } = {},
+  ) {
     setBusy(true);
     const answer = await live.run({ send: () => postJson(path, body), fromAnswer });
     setBusy(false);
     setQuestion(null);
     setResult(answer.ok ? null : answer);
     if (!answer.ok) return null;
-    if (answer.message) announce(answer.message);
+    // Quiet: the calendar's toast says it instead (a delete with Undo).
+    if (answer.message && !quiet) announce(answer.message);
     // The change goes to Outlook now, not at the next sync; the week re-reads once it is there.
     if (outlookConnected && !fromOutlook) void postJson("/api/outlook/send", {}).then(() => live.refresh());
     if (close) onClose();
@@ -307,11 +316,19 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   function answerScope(scope: "this" | "this_and_following") {
     if (!event || !question) return;
     if (question.kind === "save") return run(`/api/events/${event.id}/edit`, { ...question.values, updatedAt: event.updatedAt, scope });
-    const id = event.id;
-    return run(`/api/events/${id}/delete`, { updatedAt: event.updatedAt, scope }, {
-      // Only "this event" is known here; the later ones of the series go with the re-read.
-      fromAnswer: () => (scope === "this" ? { week: (week) => withEventChange(week, { removed: id }) } : null),
+    if (scope === "this") return remove(event, scope);
+    // The later ones of the series go with the re-read; they cannot be brought back with Undo.
+    return run(`/api/events/${event.id}/delete`, { updatedAt: event.updatedAt, scope }, { fromAnswer: () => null });
+  }
+
+  /** Deletes one event; the calendar then shows "Event deleted" with Undo. */
+  async function remove(target: CalendarEvent, scope?: "this") {
+    const id = target.id;
+    const answer = await run(`/api/events/${id}/delete`, scope ? { updatedAt: target.updatedAt, scope } : { updatedAt: target.updatedAt }, {
+      fromAnswer: () => ({ week: (week) => withEventChange(week, { removed: id }) }),
+      quiet: onDeleted !== undefined,
     });
+    if (answer) onDeleted?.(target);
   }
 
   async function toggleDone() {
@@ -620,25 +637,6 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
             onAnswer={answerScope}
             onCancel={() => setQuestion(null)}
           />
-        ) : confirmingDelete && event ? (
-          <>
-            <p className="w-full text-sm font-medium">{`Delete '${event.title}'?`}</p>
-            <Button
-              ref={confirmButton}
-              variant="danger"
-              size="sm"
-              disabled={busy}
-              onClick={() => {
-                const id = event.id;
-                void run(`/api/events/${id}/delete`, { updatedAt: event.updatedAt }, { fromAnswer: () => ({ week: (week) => withEventChange(week, { removed: id }) }) });
-              }}
-            >
-              Yes, delete
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>
-              Cancel
-            </Button>
-          </>
         ) : (
           <>
             {!(fromOutlook && event?.allDay) && (
@@ -665,7 +663,8 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
                 className="ml-auto size-8 text-ink-3"
                 aria-label={`Delete ${event.title}`}
                 title="Delete"
-                onClick={() => (inSeries ? setQuestion({ kind: "delete" }) : setConfirmingDelete(true))}
+                disabled={busy}
+                onClick={() => (inSeries ? setQuestion({ kind: "delete" }) : void remove(event))}
               >
                 <Trash2 className="size-4" />
               </Button>

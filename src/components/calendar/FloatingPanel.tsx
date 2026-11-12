@@ -17,6 +17,11 @@ export function anchorOf(el: Element): Anchor {
   return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
 }
 
+/** An anchor at a point (for example where the pointer was released). */
+export function pointAnchor(x: number, y: number): Anchor {
+  return { left: x, right: x, top: y, bottom: y };
+}
+
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
