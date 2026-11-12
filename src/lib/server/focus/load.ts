@@ -5,15 +5,16 @@ import "server-only";
 import { focusedMinutes, lengthForEvent } from "@/lib/focus/session-time";
 import type { FocusData } from "@/lib/focus/types";
 import type { Deps } from "@/lib/server/deps";
-import { finishDueSessions, SESSION_COLUMNS, SESSION_FROM, timesOf, toSessionDto, type SessionRow } from "./sessions";
+import { settleSessions, SESSION_COLUMNS, SESSION_FROM, timesOf, toSessionDto, type SessionRow } from "./sessions";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const RECENT = 10;
 
 export async function loadFocus(deps: Pick<Deps, "withUser" | "now">, userId: string, eventId?: string): Promise<FocusData> {
   const now = deps.now();
+  // The same order as every session action: finish due sessions (saved on their own), then read.
+  await settleSessions(deps, userId, now);
   return deps.withUser(userId, async (query) => {
-    await finishDueSessions(query, now);
 
     const [active] = await query<SessionRow>(`select ${SESSION_COLUMNS} from ${SESSION_FROM} where s.status in ('running', 'paused')`);
     const recent = await query<SessionRow>(

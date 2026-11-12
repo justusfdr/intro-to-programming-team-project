@@ -29,6 +29,17 @@ function timesOf(session: SessionDto): SessionTimes {
   };
 }
 
+/**
+ * What the page does after a session action was rejected. Most rejections leave the page as it is
+ * and show the message under the buttons. When the session is already over or gone (it finished by
+ * itself, or another device ended it), the page reloads to show the real state; the card with the
+ * message disappears then, so the message is announced through the page's status region instead.
+ */
+export function afterRejection(answer: PostResult): { reload: boolean } {
+  const error = (answer.data as { error?: unknown } | undefined)?.error;
+  return { reload: error === "session_ended" || error === "not_found" };
+}
+
 /** Sends one session action; announces the message and reloads the page's data on success. */
 function useSessionAction() {
   const router = useRouter();
@@ -40,10 +51,16 @@ function useSessionAction() {
     setBusy(true);
     const answer = await postJson(path, body);
     setBusy(false);
-    setFailure(answer.ok ? null : answer);
     if (answer.ok) {
+      setFailure(null);
       if (answer.message) announce(answer.message);
       router.refresh();
+    } else if (afterRejection(answer).reload) {
+      setFailure(null);
+      announce(answer.message);
+      router.refresh();
+    } else {
+      setFailure(answer);
     }
     return answer;
   }
@@ -218,11 +235,12 @@ function RecentSessions({ sessions }: { sessions: FocusData["recent"] }) {
       ) : (
         <ul className="mt-3 divide-y divide-line-subtle overflow-hidden rounded-card border border-line-subtle bg-surface">
           {sessions.map((s) => (
-            <li key={s.id} className="flex items-center gap-4 px-4 py-3 text-sm">
-              <span className="w-24 shrink-0 text-xs text-ink-3">{date(s.startedAt)}</span>
+            // Phones: the date on its own line, so the title keeps its room.
+            <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-0.5 px-4 py-3 text-sm">
+              <span className="w-full text-xs text-ink-3 sm:w-24 sm:shrink-0">{date(s.startedAt)}</span>
               <span className="min-w-0 flex-1 truncate text-ink">{s.eventTitle ?? "Focus session"}</span>
               <span className="shrink-0 tabular text-ink-2">{minutesText(s.focusedMinutes)}</span>
-              <span className="w-20 shrink-0 text-right text-xs text-ink-2">{s.rating === null ? "Not rated" : `Rated ${s.rating} of 5`}</span>
+              <span className="shrink-0 text-xs text-ink-2 sm:w-20 sm:text-right">{s.rating === null ? "Not rated" : `Rated ${s.rating} of 5`}</span>
             </li>
           ))}
         </ul>

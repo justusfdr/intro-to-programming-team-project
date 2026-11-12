@@ -2,7 +2,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { FocusData, SessionDto } from "@/lib/focus/types";
-import { FocusView } from "./FocusView";
+import { afterRejection, FocusView } from "./FocusView";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
@@ -69,5 +69,14 @@ describe("Focus page", () => {
     expect(html.match(/aria-pressed="false"/g)).toHaveLength(6);
     expect(html).toContain("Not rated");
     expect(html).toContain("Rated 0 of 5");
+  });
+
+  it("reloads after 'This session has already ended' or 'Not found', and keeps the page for other rejections", () => {
+    const answer = (status: number, error: string, message: string) => ({ ok: false, status, message, data: { error, message } });
+    expect(afterRejection(answer(409, "session_ended", "This session has already ended"))).toEqual({ reload: true });
+    expect(afterRejection(answer(404, "not_found", "Not found"))).toEqual({ reload: true });
+    expect(afterRejection(answer(409, "not_possible", "Not possible in this state"))).toEqual({ reload: false });
+    expect(afterRejection(answer(400, "rating_range", "Rating must be a whole number from 0 to 5"))).toEqual({ reload: false });
+    expect(afterRejection({ ok: false, status: 0, message: "We could not reach the server." })).toEqual({ reload: false });
   });
 });

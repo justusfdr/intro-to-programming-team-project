@@ -3,6 +3,7 @@ import "server-only";
 // Reading and finding focus sessions, shared by the session actions and the Focus page.
 import type { SessionDto } from "@/lib/focus/types";
 import type { Query } from "@/lib/server/db";
+import type { Deps } from "@/lib/server/deps";
 import { notFound } from "@/lib/server/events/own-event";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,6 +57,16 @@ export async function finishDueSessions(query: Query, now: Date): Promise<void> 
         and started_at + make_interval(mins => planned_minutes, secs => paused_seconds) <= $1`,
     [now],
   );
+}
+
+/**
+ * R13 as a step of its own: finishes the user's overdue sessions in a separate transaction and saves
+ * that at once. Every session action calls it first and then runs in its own transaction, so
+ * - the finish the app does by itself stays saved even when the user's action is then rejected, and
+ * - a rejected action still changes nothing of its own (R1): it can simply throw.
+ */
+export async function settleSessions(deps: Pick<Deps, "withUser">, userId: string, now: Date): Promise<void> {
+  await deps.withUser(userId, (query) => finishDueSessions(query, now));
 }
 
 /** The user's session with this id, locked until the transaction ends. "Not found" otherwise (R3). */

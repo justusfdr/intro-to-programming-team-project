@@ -2,8 +2,9 @@ import "server-only";
 
 // Action start_session (ontology section 5; spec 04). Same pattern as create_event:
 //   1. same-origin check   2. signed in (R3)   3. read and shape-check the body
-//   4. inside withUser: let due sessions finish (R13), refuse a second active session (R4),
-//      check the length (R12) and the event, write   5. one answer per outcome.
+//   4. let due sessions finish, saved on their own (R13)
+//   5. inside withUser: refuse a second active session (R4), check the length (R12) and the event,
+//      write   6. one answer per outcome.
 // The start time comes from the server's clock, never from the browser.
 import { z } from "zod";
 import { isSessionLength } from "@/lib/focus/session-time";
@@ -11,7 +12,7 @@ import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { findOwnEvent } from "@/lib/server/events/own-event";
-import { activeSession, finishDueSessions, SESSION_COLUMNS, SESSION_FROM, toSessionDto, type SessionRow } from "@/lib/server/focus/sessions";
+import { activeSession, settleSessions, SESSION_COLUMNS, SESSION_FROM, toSessionDto, type SessionRow } from "@/lib/server/focus/sessions";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 
@@ -37,9 +38,9 @@ export function startSession(request: Request, deps: Pick<Deps, "auth" | "withUs
     if (!body.ok) return body.response;
 
     const now = deps.now();
+    await settleSessions(deps, userId, now);
     try {
       return await deps.withUser(userId, async (query) => {
-        await finishDueSessions(query, now);
         if (await activeSession(query)) throw new ActionError(409, "session_running", MESSAGES.sessionRunning);
         if (!isSessionLength(body.data.minutes)) throw new ActionError(400, "choose_length", MESSAGES.chooseLength);
 

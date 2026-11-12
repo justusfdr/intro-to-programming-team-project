@@ -116,3 +116,27 @@ describe("rate_session rejected: nothing is saved (R1)", () => {
     expect(await app.snapshot()).toEqual(signedIn);
   });
 });
+
+describe("the finish the app does by itself stays saved when the action is rejected (R13 and R1)", () => {
+  // Added in review: finishing an overdue session runs in its own step before the action.
+  it("rating a running session past its planned end: the session finishes by itself and the rating is accepted", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const id = await seedSession(app.db, alice, { plannedMinutes: 30, startedAt: "2026-11-16T08:00:00Z" });
+    expect((await read(await send(id, { rating: 3 }))).status).toBe(200);
+    expect(await sessionsOf(app.db, alice)).toMatchObject([{ status: "finished", ended_at: "2026-11-16T08:30:00.000Z", rating: 3 }]);
+  });
+
+  it("a rejected rating (7) still leaves the overdue session finished, and saves no rating", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const id = await seedSession(app.db, alice, { plannedMinutes: 30, startedAt: "2026-11-16T08:00:00Z" });
+    expect((await read(await send(id, { rating: 7 }))).status).toBe(400);
+    expect(await sessionsOf(app.db, alice)).toMatchObject([{ status: "finished", ended_at: "2026-11-16T08:30:00.000Z", rating: null }]);
+  });
+
+  it("a rejected action on another id ('Not found') still leaves the user's overdue session finished", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    await seedSession(app.db, alice, { plannedMinutes: 15, startedAt: "2026-11-16T08:00:00Z" });
+    expect((await read(await send("00000000-0000-4000-8000-000000000000", { rating: 3 }))).status).toBe(404);
+    expect(await sessionsOf(app.db, alice)).toMatchObject([{ status: "finished", ended_at: "2026-11-16T08:15:00.000Z" }]);
+  });
+});
