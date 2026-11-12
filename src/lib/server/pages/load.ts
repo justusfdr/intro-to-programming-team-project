@@ -13,6 +13,7 @@ import "server-only";
 import type { AnalyticsData } from "@/lib/analytics/types";
 import type { BlockerData } from "@/lib/blocker/types";
 import type { WeekData } from "@/lib/events/types";
+import type { View } from "@/lib/events/views";
 import type { FocusData } from "@/lib/focus/types";
 import type { GoalView } from "@/lib/goals/types";
 import type { SettingsPageData } from "@/lib/settings/types";
@@ -22,12 +23,12 @@ import { readAnalytics } from "@/lib/server/analytics/load";
 import { readBlocker } from "@/lib/server/blocker/page";
 import type { Deps } from "@/lib/server/deps";
 import { welcomeDue } from "@/lib/server/demo/rows";
-import { readWeek } from "@/lib/server/events/week";
+import { readCalendar } from "@/lib/server/events/week";
 import { settleSessions } from "@/lib/server/focus/sessions";
 import { readFocus } from "@/lib/server/focus/load";
 import { readGoalViews } from "@/lib/server/goals/load";
 import { readOutlookState } from "@/lib/server/outlook/sync";
-import { readSettings } from "@/lib/server/settings";
+import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readSettingsPage } from "@/lib/server/settings-page";
 import { readTasks } from "@/lib/server/tasks/rows";
 import { settleTasks } from "@/lib/server/tasks/settle";
@@ -41,19 +42,23 @@ function displayOf(settings: { timeFormat: Display["timeFormat"]; dayStartHour: 
 
 export type CalendarPageData = { display: Display; week: WeekData; goals: GoalView[]; tasks: TaskDto[]; showWelcome: boolean };
 
-/** The calendar (spec 02): the week, the goals with progress, the tasks, and whether the welcome is due. */
-export async function loadCalendarPage(deps: PageDeps, userId: string, requestedWeek?: string): Promise<CalendarPageData> {
+/**
+ * The calendar (specs 02 and 14): the days of the view (the address's, else the default view from the
+ * settings) around the address's day, the goals with progress, the tasks, and whether the welcome is due.
+ */
+export async function loadCalendarPage(deps: PageDeps, userId: string, requestedDate?: string, requestedView?: View): Promise<CalendarPageData> {
   // By itself: done tasks older than 7 days go first, saved on their own (R33).
   await settleTasks(deps, userId);
   const now = deps.now();
   return deps.withUser(userId, async (query) => {
     // Every read without parameters is started here, before anything is awaited: one round.
-    // The week's events need the time zone, so they follow as soon as the settings row is in.
+    // The events need the time zone and the view, so they follow as soon as those rows are in.
     const settingsRead = readSettings(query);
     const timeZone = settingsRead.then((settings) => settings.timeZone);
+    const view = requestedView ?? readDefaultView(query);
     const [settings, week, goals, tasks, showWelcome] = await Promise.all([
       settingsRead,
-      readWeek(query, now, requestedWeek, timeZone, readOutlookState(query)),
+      readCalendar(query, now, view, requestedDate, timeZone, readOutlookState(query)),
       readGoalViews(query, now, timeZone),
       readTasks(query),
       // A new account (no goals, events or tasks, welcome never answered) sees the welcome (spec 13).

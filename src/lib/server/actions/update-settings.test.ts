@@ -96,6 +96,22 @@ describe("update_settings accepted", () => {
     expect((await settingsOf(alice)).day_start_hour).toBe(20);
   });
 
+  it("saves the calendar's default view (spec 14); the answer keeps its shape", async () => {
+    const alice = await app.signedInAs("alice@example.com", { timeZone: "Europe/Berlin" });
+    const defaultView = async () => (await app.db.admin("select default_view from app.settings where user_id = $1", [alice]))[0].default_view;
+    expect(await defaultView()).toBe("week");
+    for (const view of ["month", "day", "week"]) {
+      const answer = await read(await send({ defaultView: view }));
+      expect(answer.status).toBe(200);
+      expect(await defaultView()).toBe(view);
+    }
+    // Another change leaves the default view as it is.
+    await send({ defaultView: "month" });
+    expect((await send({ timeFormat: "24h" })).status).toBe(200);
+    expect(await defaultView()).toBe("month");
+    expect(await settingsOf(alice)).toEqual({ ...DEFAULTS, time_format: "24h" });
+  });
+
   it("changes only the signed-in user's row", async () => {
     const bob = await app.signedInAs("bob@example.com", { timeZone: "Europe/Berlin" });
     await app.signedInAs("alice@example.com", { timeZone: "Europe/Berlin" });
@@ -147,6 +163,8 @@ describe("update_settings rejected: nothing changes (R1)", () => {
     const answer = { status: 400, body: { error: "bad_request", message: "Invalid request." } };
     await rejected({ timeFormat: "36h" }, answer);
     await rejected({ travelMode: "flying" }, answer);
+    await rejected({ defaultView: "year" }, answer);
+    await rejected({ defaultView: "Week" }, answer);
     await rejected({}, answer);
     await rejected({ plan: "pro" }, answer);
   });

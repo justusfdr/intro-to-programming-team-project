@@ -3,8 +3,8 @@ import "server-only";
 // Action update_settings (ontology section 5; spec 12). Same pattern as the other actions:
 //   1. same-origin check   2. signed in (R3)   3. read and shape-check the body (only the fields that change)
 //   4. inside withUser: merge with the saved row, check every rule with its message, write
-//   5. one answer per outcome. The database checks the travel mode, the buffer, the time format and the
-//      visible hours again, and lets a user change only their own row and only these columns.
+//   5. one answer per outcome. The database checks the travel mode, the buffer, the time format, the
+//      visible hours and the default view again, and lets a user change only their own row and only these columns.
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
@@ -24,6 +24,8 @@ const SettingsBody = z
     timeFormat: z.enum(["12h", "24h"]),
     dayStartHour: z.number(),
     dayEndHour: z.number(),
+    // Spec 14: the view the calendar opens with when the address names none.
+    defaultView: z.enum(["day", "week", "month"]),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0);
@@ -79,7 +81,8 @@ export function updateSettings(request: Request, deps: Pick<Deps, "auth" | "with
       const [row] = await query<Parameters<typeof toSettingsData>[0]>(
         `update app.settings
             set time_zone = $1, home_address = $2, travel_mode = $3, travel_buffer_minutes = $4,
-                time_format = $5, day_start_hour = $6, day_end_hour = $7
+                time_format = $5, day_start_hour = $6, day_end_hour = $7,
+                default_view = coalesce($9, default_view)
           where user_id = $8
           returning ${SETTINGS_COLUMNS}`,
         [
@@ -91,6 +94,7 @@ export function updateSettings(request: Request, deps: Pick<Deps, "auth" | "with
           from,
           to,
           userId,
+          patch.defaultView ?? null,
         ],
       );
       return jsonOk({ message: MESSAGES.settingsSaved, settings: toSettingsData(row) });

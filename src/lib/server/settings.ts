@@ -5,6 +5,7 @@ import type { Query } from "./db";
 import { DEFAULT_TIME_ZONE } from "./validation";
 import { DEFAULT_DISPLAY, type Display, type TimeFormat } from "@/lib/time/display";
 import type { SettingsData, TravelMode } from "@/lib/settings/types";
+import { isView, type View } from "@/lib/events/views";
 
 /** The user's time zone from app.settings (row-level security returns only their own row). */
 export async function readTimeZone(query: Query): Promise<string> {
@@ -50,4 +51,10 @@ export async function readSettings(query: Query): Promise<SettingsData> {
 export async function readDisplay(query: Query): Promise<Display> {
   const { timeFormat, dayStartHour, dayEndHour } = await readSettings(query);
   return { timeFormat, dayStartHour, dayEndHour };
+}
+
+/** The view the calendar opens with when the address names none (spec 14); the week when unset. */
+export async function readDefaultView(query: Query): Promise<View> {
+  const [row] = await query<{ default_view: string }>("select default_view from app.settings");
+  return isView(row?.default_view) ? row.default_view : "week";
 }
