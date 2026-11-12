@@ -35,7 +35,7 @@ import type { GoalLook } from "@/lib/goals/style";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { fmtDateLong, fmtHour, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { dayParts } from "@/lib/time/zoned";
-import { pointAnchor, type Anchor } from "./FloatingPanel";
+import { anchorOf, pointAnchor, type Anchor } from "./FloatingPanel";
 
 /** What the grid and the event editor need of a goal: its name, colour and icon. */
 export type GoalLabel = { id: string; title: string; look: GoalLook };
@@ -53,7 +53,7 @@ type Props = {
   dayHref?: (date: string) => string;
   /** Events whose save is still running: they cannot be dragged until it is done. */
   pending?: ReadonlySet<string>;
-  onOpenEvent: (event: CalendarEvent) => void;
+  onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
   /** A click or a drag on empty space: the new event's day and minutes, and where the pointer was. */
   onCreate: (date: string, span: Span, anchor: Anchor) => void;
   /** A block was dropped somewhere else (moved, or its end dragged). */
@@ -173,7 +173,7 @@ type BlockProps = {
   goal: GoalLabel | undefined;
   draggable: boolean;
   dimmed: boolean;
-  onOpen: (detail: number) => void;
+  onOpen: (detail: number, anchor: Anchor) => void;
   onMoveStart: (e: ReactPointerEvent<HTMLButtonElement>, block: Placed, dayIndex: number) => void;
   onResizeStart: (e: ReactPointerEvent<HTMLSpanElement>, block: Placed, dayIndex: number) => void;
 };
@@ -203,7 +203,7 @@ function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, 
       onPointerDown={draggable ? (e) => onMoveStart(e, block, dayIndex) : undefined}
       onClick={(e) => {
         e.stopPropagation();
-        onOpen(e.detail);
+        onOpen(e.detail, anchorOf(e.currentTarget));
       }}
       aria-label={blockLabel(block, dayLong, goal, timeFormat)}
       // The part after midnight repeats an event already in the list: mouse only, not a second tab stop.
@@ -252,7 +252,7 @@ function allDayLabel(event: AllDayEvent): string {
 const allDayClass =
   "block w-full truncate rounded-md border border-line bg-raised px-1.5 py-0.5 text-left text-[11px] font-medium leading-[15px] text-ink hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40";
 
-type AllDayRowProps = { days: WeekDay[]; selectedDay: string; onOpenEvent: (event: CalendarEvent) => void };
+type AllDayRowProps = { days: WeekDay[]; selectedDay: string; onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void };
 
 /**
  * All-day events (R29) in a row above the hours: on wider screens one bar per event across its days
@@ -273,7 +273,7 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
       <ul className="flex min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:hidden">
         {chosen.map((event) => (
           <li key={event.id}>
-            <button type="button" aria-label={allDayLabel(event)} onClick={() => onOpenEvent(event)} className={allDayClass}>
+            <button type="button" aria-label={allDayLabel(event)} onClick={(e) => onOpenEvent(event, anchorOf(e.currentTarget))} className={allDayClass}>
               <span className="flex items-center gap-1">
                 <span className="min-w-0 truncate">{event.title}</span>
                 <OutlookMark event={event} />
@@ -293,7 +293,7 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
           const last = event.lastDay > days[end].date ? end : columnOf(event.lastDay);
           return (
             <li key={event.id} style={{ gridColumn: `${first + 1} / ${last + 2}` }} className="min-w-0 px-0.5">
-              <button type="button" aria-label={allDayLabel(event)} onClick={() => onOpenEvent(event)} className={allDayClass}>
+              <button type="button" aria-label={allDayLabel(event)} onClick={(e) => onOpenEvent(event, anchorOf(e.currentTarget))} className={allDayClass}>
                 <span className="flex items-center gap-1">
                   <span className="min-w-0 truncate">{event.firstDay < days[0].date ? `… ${event.title}` : event.title}</span>
                   <OutlookMark event={event} />
@@ -447,12 +447,12 @@ export function TimeGrid({
 
   // A click on a block (also a touch tap). A finished drag swallows its click; keyboard clicks
   // (detail 0) are never swallowed.
-  const openBlock = (event: CalendarEvent, detail: number) => {
+  const openBlock = (event: CalendarEvent, detail: number, anchor: Anchor) => {
     if (suppressClickRef.current && detail !== 0) {
       suppressClickRef.current = false;
       return;
     }
-    onOpenEvent(event);
+    onOpenEvent(event, anchor);
   };
 
   return (
@@ -512,7 +512,7 @@ export function TimeGrid({
                     key={block.event.id}
                     type="button"
                     tabIndex={-1}
-                    onClick={() => onOpenEvent(block.event)}
+                    onClick={(e) => onOpenEvent(block.event, anchorOf(e.currentTarget))}
                     className="line-clamp-2 rounded-md border border-dashed border-ink-3 bg-raised px-1.5 py-0.5 text-left text-[10px] leading-[13px] text-ink-2"
                   >
                     {`${block.event.title}, until ${fmtTime(block.event.endTime, timeFormat)}`}
@@ -609,7 +609,7 @@ export function TimeGrid({
                         goal={goalOf(block.event.goalId)}
                         draggable={onDrop !== undefined && canDrag(block, pending)}
                         dimmed={movingId === block.event.id}
-                        onOpen={(detail) => openBlock(block.event, detail)}
+                        onOpen={(detail, anchor) => openBlock(block.event, detail, anchor)}
                         onMoveStart={beginMove}
                         onResizeStart={beginResize}
                       />

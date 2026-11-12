@@ -1,10 +1,12 @@
 // The small "New event" card and the undo toast as first rendered (spec 15), in the prototype's words.
+// Rewritten for spec 16: the editor is drawn as its card (EditEventCard, NewEventCard); the bin is
+// named "Delete event" and the goal chips are the prototype's pressed buttons.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
 import { DEFAULT_DISPLAY } from "@/lib/time/display";
 import { ToastBar } from "./CalendarView";
-import { EventEditor } from "./EventEditor";
+import { EditEventCard, NewEventCard } from "./EventEditor";
 import { NewEventForm } from "./NewEventPopover";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -84,20 +86,27 @@ describe("deleting in the editor", () => {
     };
     const html = renderToStaticMarkup(
       <DisplayProvider value={DEFAULT_DISPLAY}>
-        <EventEditor state={{ mode: "edit", event }} goals={GOALS} onClose={() => {}} />
+        <EditEventCard event={event} anchor={null} goals={GOALS} timeZone="Europe/Lisbon" today="2026-11-16" onClose={() => {}} />
       </DisplayProvider>,
     );
-    expect(html).toContain('aria-label="Delete Statistics revision"');
+    expect(html).toContain('aria-label="Delete event"');
     expect(html).not.toContain("Yes, delete");
   });
 
   it("'Add details' opens the editor with the card's title and goal", () => {
     const html = renderToStaticMarkup(
       <DisplayProvider value={DEFAULT_DISPLAY}>
-        <EventEditor state={{ mode: "create", start: "2026-11-17T09:00", end: "2026-11-17T10:30", title: "Read chapter 4", goalId: "g1" }} goals={GOALS} onClose={() => {}} />
+        <NewEventCard
+          draft={{ start: "2026-11-17T09:00", end: "2026-11-17T10:30", title: "Read chapter 4", goalId: "g1" }}
+          anchor={null}
+          goals={GOALS}
+          timeZone="Europe/Lisbon"
+          today="2026-11-16"
+          onClose={() => {}}
+        />
       </DisplayProvider>,
     );
-    expect(html).toMatch(/name="title"[^>]*value="Read chapter 4"/);
-    expect(html).toMatch(/<input type="radio"[^>]*name="goal" checked="" value="g1"/);
+    expect(html).toMatch(/<input aria-label="Title"[^>]*value="Read chapter 4"/);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>.*Run a half marathon/s);
   });
 });

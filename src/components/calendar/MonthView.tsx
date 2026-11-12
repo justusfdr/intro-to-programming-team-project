@@ -14,6 +14,7 @@ import { goalColor } from "@/lib/goals/colors";
 import { fmtDateLong, fmtDateShort, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import type { GoalLabel } from "./TimeGrid";
 import { WEEKDAY_LABELS } from "./MiniMonth";
+import { anchorOf, type Anchor } from "./FloatingPanel";
 
 type Props = {
   days: WeekDay[];
@@ -23,7 +24,7 @@ type Props = {
   goals: GoalLabel[];
   dayHref: (date: string) => string;
   onOpenDay: (date: string) => void;
-  onOpenEvent: (event: CalendarEvent) => void;
+  onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
 };
 
 /** Height before the first measurement: show text rows already. */
@@ -97,7 +98,7 @@ type CellProps = {
   dotOf: (goalId: string | null) => string;
   dayHref: (date: string) => string;
   onOpenDay: (date: string) => void;
-  onOpenEvent: (event: CalendarEvent) => void;
+  onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
 };
 
 function DayCell({ cell, first, max, dotOf, dayHref, onOpenDay, onOpenEvent }: CellProps) {
@@ -139,7 +140,7 @@ function CellItems({
   max: number;
   dotOf: (goalId: string | null) => string;
   onOpenDay: (date: string) => void;
-  onOpenEvent: (event: CalendarEvent) => void;
+  onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
 }) {
   const { shown, more } = splitVisible(cell.items, max);
   if (shown.length === 0 && more === 0) return null;
@@ -177,7 +178,7 @@ function itemLabel(item: MonthItem, format: TimeFormat): string {
   return `${item.event.title}, ${fmtRange(item.event.startTime, item.event.endTime, format)}${item.event.status === "done" ? ", done" : ""}`;
 }
 
-function ItemButton({ item, dot, onOpenEvent }: { item: MonthItem; dot: string; onOpenEvent: (event: CalendarEvent) => void }) {
+function ItemButton({ item, dot, onOpenEvent }: { item: MonthItem; dot: string; onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void }) {
   const { timeFormat } = useDisplay();
   const done = item.event.status === "done";
   const showTime = item.kind === "timed" && !item.continuesBefore;
@@ -187,7 +188,7 @@ function ItemButton({ item, dot, onOpenEvent }: { item: MonthItem; dot: string; 
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        onOpenEvent(item.event);
+        onOpenEvent(item.event, anchorOf(e.currentTarget));
       }}
       aria-label={itemLabel(item, timeFormat)}
       // The part after midnight repeats an event of the day before: mouse only, not a second tab stop.

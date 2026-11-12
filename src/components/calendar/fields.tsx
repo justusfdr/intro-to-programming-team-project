@@ -1,11 +1,14 @@
 "use client";
 
 // Small form pieces of the calendar's floating cards, copied from the first prototype: the field
-// frame, the eyebrow label, a chip that can be pressed, the goal chips and a time list.
-import type { ReactNode } from "react";
+// frame, the eyebrow label, a chip that can be pressed, the goal chips, a time list and the date field
+// with its folded month calendar.
+import { useRef, useState, type ReactNode } from "react";
+import { CalendarDays } from "lucide-react";
 import { GoalTile } from "@/components/goals/GoalTile";
 import { useDisplay } from "@/components/shell/DisplayProvider";
-import { fmtMinutes, fmtTime } from "@/lib/time/display";
+import { fmtDateShort, fmtMinutes, fmtTime } from "@/lib/time/display";
+import { MiniMonth } from "./MiniMonth";
 import type { GoalLabel } from "./TimeGrid";
 
 const DAY_MIN = 24 * 60;
@@ -101,7 +104,7 @@ export function TimeSelect({
     <select aria-label={label} value={value} onChange={(e) => onChange(Number(e.target.value))} className={`${inputClass} pr-8 tabular`}>
       {minutes.map((m) => {
         const time = fmtTime(m, timeFormat);
-        const text = m === DAY_MIN ? `${time} (midnight)` : time;
+        const text = m === DAY_MIN ? `${time} (midnight)` : m > DAY_MIN ? `${time} (next day)` : time;
         const duration = durationFrom !== undefined && m > durationFrom ? ` · ${fmtMinutes(m - durationFrom)}` : "";
         return (
           <option key={m} value={m}>
@@ -111,5 +114,71 @@ export function TimeSelect({
         );
       })}
     </select>
+  );
+}
+
+/**
+ * The date field: shows the date like a field. A click unfolds the month calendar below it (no
+ * overlay). Choosing a day folds it; Esc folds only the calendar. `label` names the button for
+ * screen readers ("Date", "First day").
+ */
+export function DateField({
+  label,
+  value,
+  onChange,
+  todayKey,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (dayKey: string) => void;
+  todayKey: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const close = () => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  };
+
+  return (
+    <div
+      className="flex flex-col"
+      onKeyDown={(e) => {
+        // preventDefault: the floating panel does not close as well.
+        if (open && e.key === "Escape") {
+          e.preventDefault();
+          close();
+        }
+      }}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        disabled={disabled}
+        aria-expanded={open}
+        aria-label={`${label}: ${fmtDateShort(value)}`}
+        onClick={() => setOpen((o) => !o)}
+        className={`${inputClass} flex items-center gap-2 text-left disabled:pointer-events-none disabled:opacity-40`}
+      >
+        <CalendarDays className="size-4 shrink-0 text-ink-3" strokeWidth={1.8} />
+        <span className="min-w-0 flex-1 truncate tabular">{fmtDateShort(value)}</span>
+      </button>
+
+      {open && !disabled && (
+        <div className="mt-2 rounded-card border border-line-subtle bg-surface p-3">
+          <MiniMonth
+            value={value}
+            todayKey={todayKey}
+            onChange={(key) => {
+              onChange(key);
+              close();
+            }}
+          />
+        </div>
+      )}
+    </div>
   );
 }

@@ -75,7 +75,7 @@ it("writes the preview files", async () => {
   const { PanelState } = await import("@/components/shell/PanelState");
   const { loadGoals } = await import("@/lib/server/goals/load");
   const { loadTasks } = await import("@/lib/server/tasks/load");
-  const { EventEditor, SeriesQuestion } = await import("@/components/calendar/EventEditor");
+  const { EditEventCard, NewEventCard, SeriesQuestion } = await import("@/components/calendar/EventEditor");
   const { AppShell } = await import("@/components/shell/AppShell");
   const { default: SignInPage } = await import("@/app/(account)/sign-in/page");
   const { default: SignUpPage } = await import("@/app/(account)/sign-up/page");
@@ -125,7 +125,9 @@ it("writes the preview files", async () => {
   await add("Statistics revision", "11-17T09:00", "11-17T11:00", { status: "done", goalId: exam.id });
   await add("Call with Lucas", "11-17T10:00", "11-17T10:30");
   await add("Lunch with Emily", "11-17T12:30", "11-17T13:30");
-  await add("Group project", "11-17T14:00", "11-17T19:00", { goalId: project.id });
+  const groupProject = await add("Group project", "11-17T14:00", "11-17T19:00", { goalId: project.id });
+  // Spec 16: an app event with a location (its block is tall enough to show it).
+  await app.db.admin("update app.events set location = 'Library, floor 2' where id = $1", [groupProject.id]);
   await add("Coffee", "11-18T08:00", "11-18T08:15");
   await add("Half-marathon training", "11-18T18:00", "11-18T19:30", { goalId: run.id });
   await add("Lab session", "11-19T10:00", "11-19T12:00", { goalId: exam.id });
@@ -209,60 +211,56 @@ it("writes the preview files", async () => {
     writeFileSync(join(OUT, `${name}-phone.html`), phoneFrame(name, html));
   }
 
-  // The editor open on the revision that overlaps the call. A static page cannot open a modal
-  // dialog, so the dialog is shown with the `open` attribute and a dimmed layer is drawn behind it.
-  const revision = week.days[1].events.find((e) => e.title === "Statistics revision")!;
-  const editorMarkup = renderToStaticMarkup(
-    <EventEditor
-      state={{ mode: "edit", event: revision }}
-      goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
-      onClose={() => {}}
-    />,
-  ).replace(
-    "<dialog",
-    "<dialog open",
-  );
-  const dim = `.preview-dim{position:fixed;inset:0;background:rgb(16 16 16/.2);z-index:65}
-dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
-@media (min-width:640px){dialog.event-editor[open]{inset:0 0 auto auto}}`;
-  writeFileSync(
-    join(OUT, "event-editor.html"),
-    page("Event editor", `${calendar()}<div class="preview-dim"></div>${editorMarkup}`, styles, dim),
-  );
-
-  // Spec 07: a new event with the repeat controls (weekly; Tuesday is the first date's day).
+  // Spec 16: the editor as the prototype's 360 px card next to the block it belongs to. A static page
+  // cannot run the panel's placement, so a small script applies the same rules (right of the block, else
+  // left of it, kept inside the window) once the page is laid out. On phones it is a sheet from below.
   const goalLabels = goals.map(({ id, title, look }) => ({ id, title, look }));
+  const editorProps = { goals: goalLabels, timeZone: "Europe/Lisbon", today: "2026-11-17", anchor: null, onClose: () => {} };
+  const floatingEditor = (selector: string, inner: string) =>
+    `<div id="floating-editor" class="scroll-thin fixed z-50 overflow-y-auto overscroll-contain rounded-card border border-line-subtle bg-surface shadow-float" style="left:0;top:0;width:360px;max-height:calc(100dvh - 16px);visibility:hidden">${inner}</div>
+<script>(function(){var p=document.getElementById("floating-editor"),b=document.querySelector(${JSON.stringify(selector)});if(!b)return;var a=b.getBoundingClientRect(),vw=innerWidth,vh=innerHeight,w=Math.min(360,vw-16),l=a.right+10;if(l+w>vw-8)l=a.left-w-10;l=Math.max(8,Math.min(l,vw-w-8));var t=Math.max(8,Math.min(a.top,vh-p.offsetHeight-8));p.style.left=l+"px";p.style.top=t+"px";p.style.width=w+"px";p.style.visibility="visible";})();</script>`;
+  const editorSheet = (inner: string) =>
+    `<div class="fixed inset-0 z-50 flex flex-col justify-end"><div class="absolute inset-0 bg-ink/20"></div><div role="dialog" aria-modal="true" class="scroll-thin relative max-h-[88dvh] overflow-y-auto overscroll-contain rounded-t-panel border-t border-line-subtle bg-surface pb-[max(12px,env(safe-area-inset-bottom))] shadow-pop"><div class="relative flex h-10 items-center justify-center"><div class="h-1 w-9 rounded-full bg-muted"></div></div>${inner}</div></div>`;
+  const blockOf = (id: string) => `[data-event-id="${id}"]`;
+
+  // The editor open on the done revision of the exam goal (compare with the prototype's event panel).
+  const revision = week.days[1].events.find((e) => e.title === "Statistics revision")!;
+  const editorMarkup = renderToStaticMarkup(<EditEventCard event={revision} {...editorProps} />);
+  writeFileSync(join(OUT, "event-editor.html"), page("Event editor", `${calendar()}${floatingEditor(blockOf(revision.id), editorMarkup)}`, styles));
+  writeFileSync(join(OUT, "event-editor-phone.html"), phoneFrame("Event editor", page("Event editor", `${calendar(dayData)}${editorSheet(editorMarkup)}`, styles)));
+
+  // An app event with a location: the field is filled, and the tall block shows the location line.
+  const groupEvent = week.days[1].events.find((e) => e.title === "Group project")!;
+  writeFileSync(
+    join(OUT, "event-editor-location.html"),
+    page("Location", `${calendar()}${floatingEditor(blockOf(groupEvent.id), renderToStaticMarkup(<EditEventCard event={groupEvent} {...editorProps} />))}`, styles),
+  );
+
+  // A new event from "Add details" with the repeat choice (weekly; Tuesday is the first date's day).
   const repeatMarkup = renderToStaticMarkup(
-    <EventEditor state={{ mode: "create", start: "2026-11-17T09:00", end: "2026-11-17T10:00", repeat: "weekly" }} goals={goalLabels} onClose={() => {}} />,
-  ).replace("<dialog", "<dialog open");
-  writeFileSync(join(OUT, "event-editor-repeat.html"), page("Repeat", `${calendar()}<div class="preview-dim"></div>${repeatMarkup}`, styles, dim));
+    <NewEventCard draft={{ start: "2026-11-17T15:00", end: "2026-11-17T16:00", repeat: "weekly", title: "Statistics practice", goalId: revision.goalId }} {...editorProps} />,
+  );
+  writeFileSync(join(OUT, "event-editor-repeat.html"), page("Repeat", `${calendar()}${floatingEditor(blockOf(groupEvent.id), repeatMarkup)}`, styles));
 
-  // Spec 07: an all-day event in the editor.
+  // An all-day event in the editor.
   const examWeek = week.days[2].allDay.find((e) => e.title === "Exam week")!;
-  const allDayMarkup = renderToStaticMarkup(<EventEditor state={{ mode: "edit", event: examWeek }} goals={goalLabels} onClose={() => {}} />).replace(
-    "<dialog",
-    "<dialog open",
-  );
-  writeFileSync(join(OUT, "event-editor-all-day.html"), page("All day", `${calendar()}<div class="preview-dim"></div>${allDayMarkup}`, styles, dim));
+  const allDayMarkup = renderToStaticMarkup(<EditEventCard event={examWeek} {...editorProps} />);
+  writeFileSync(join(OUT, "event-editor-all-day.html"), page("All day", `${calendar()}${floatingEditor('[aria-label^="Exam week"]', allDayMarkup)}`, styles));
 
-  // Spec 07: the question after Delete on an event of a series (the footer as it looks then).
+  // The question after Delete on an event of a series (the footer as it looks then).
   const tutorial = week.days[0].events.find((e) => e.title === "Statistics tutorial")!;
-  const footer = '<div class="flex flex-wrap items-center gap-2 border-t';
-  const seriesMarkup = renderToStaticMarkup(<EventEditor state={{ mode: "edit", event: tutorial }} goals={goalLabels} onClose={() => {}} />)
-    .replace("<dialog", "<dialog open")
-    .replace(/(<div class="flex flex-wrap items-center gap-2 border-t[^"]*">).*(<\/div><\/form>)/s, (_m, open: string, close: string) =>
+  const seriesMarkup = renderToStaticMarkup(<EditEventCard event={tutorial} {...editorProps} />).replace(
+    /(<div class="sticky bottom-0[^"]*">).*(<\/div><\/div>)$/s,
+    (_m, open: string, close: string) =>
       `${open}${renderToStaticMarkup(<SeriesQuestion kind="delete" title={tutorial.title} busy={false} onAnswer={() => {}} onCancel={() => {}} />)}${close}`,
-    );
-  if (!seriesMarkup.includes(footer) || !seriesMarkup.includes("This and following events")) throw new Error("series question not placed");
-  writeFileSync(join(OUT, "event-editor-series.html"), page("Series", `${calendar()}<div class="preview-dim"></div>${seriesMarkup}`, styles, dim));
-
-  // Spec 08: an Outlook event in the editor, and the Outlook panel in its three states.
-  const ethics = week.days[3].events.find((e) => e.title === "Business ethics seminar")!;
-  const outlookEditorMarkup = renderToStaticMarkup(<EventEditor state={{ mode: "edit", event: ethics }} goals={goalLabels} onClose={() => {}} />).replace(
-    "<dialog",
-    "<dialog open",
   );
-  writeFileSync(join(OUT, "event-editor-outlook.html"), page("Outlook event", `${calendar()}<div class="preview-dim"></div>${outlookEditorMarkup}`, styles, dim));
+  if (!seriesMarkup.includes("This and following events")) throw new Error("series question not placed");
+  writeFileSync(join(OUT, "event-editor-series.html"), page("Series", `${calendar()}${floatingEditor(blockOf(tutorial.id), seriesMarkup)}`, styles));
+
+  // An Outlook event in the editor (R11: title, time and location as text), and the Outlook panel in its three states.
+  const ethics = week.days[3].events.find((e) => e.title === "Business ethics seminar")!;
+  const outlookEditorMarkup = renderToStaticMarkup(<EditEventCard event={ethics} {...editorProps} />);
+  writeFileSync(join(OUT, "event-editor-outlook.html"), page("Outlook event", `${calendar()}${floatingEditor(blockOf(ethics.id), outlookEditorMarkup)}`, styles));
 
   // Spec 15: the small "New event" card after a drag on Wednesday 3 to 4:30pm (a static page cannot
   // run the drag, so the card is placed where the pointer would be released), as a sheet on phones.

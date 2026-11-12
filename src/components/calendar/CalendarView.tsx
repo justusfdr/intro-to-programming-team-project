@@ -97,6 +97,15 @@ function spanOf(start: string, end: string): Span {
   return { startMin, endMin: Math.max(endMin, startMin + 15) };
 }
 
+/** The event with this id as the calendar shows it now (timed or all-day), or null. */
+function findEvent(week: WeekData, id: string): CalendarEvent | null {
+  for (const day of week.days) {
+    const found = day.events.find((e) => e.id === id) ?? day.allDay.find((e) => e.id === id);
+    if (found) return found;
+  }
+  return week.lead.find((e) => e.id === id) ?? null;
+}
+
 export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, outlookAvailable = false }: Props) {
   const week = useLiveWeek(serverWeek);
   const router = useRouter();
@@ -112,6 +121,7 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
   const live = useLive();
   const outlookConnected = week.outlook.status === "connected";
   const closePop = useCallback(() => setPop(null), []);
+  const closeEditor = useCallback(() => setEditor(null), []);
 
   // The toast goes after 8 seconds.
   useEffect(() => {
@@ -334,7 +344,7 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
               goals={goals}
               dayHref={dayHref}
               onOpenDay={(day) => router.push(dayHref(day))}
-              onOpenEvent={(event) => setEditor({ mode: "edit", event })}
+              onOpenEvent={(event, anchor) => setEditor({ mode: "edit", event, anchor })}
             />
           ) : (
             <TimeGrid
@@ -346,14 +356,24 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
               dayHref={view === "week" ? dayHref : undefined}
               goals={goals}
               pending={pending}
-              onOpenEvent={(event) => setEditor({ mode: "edit", event })}
+              onOpenEvent={(event, anchor) => setEditor({ mode: "edit", event, anchor })}
               onCreate={(day, span, anchor) => setPop({ kind: "new", date: day, span, anchor })}
               onDrop={onDrop}
             />
           )}
         </div>
       </section>
-      <EventEditor state={editor} goals={goals} outlookConnected={outlookConnected} onClose={() => setEditor(null)} onDeleted={onDeleted} />
+      <EventEditor
+        state={editor}
+        shown={editor?.mode === "edit" ? findEvent(week, editor.event.id) : null}
+        goals={goals}
+        timeZone={week.timeZone}
+        today={today}
+        outlookConnected={outlookConnected}
+        onClose={closeEditor}
+        onDeleted={onDeleted}
+        onCreated={(event) => setEditor((current) => (current ? { mode: "edit", event, anchor: current.anchor } : null))}
+      />
       {pop?.kind === "new" && (
         <NewEventPopover
           key={`${pop.date}-${pop.span.startMin}-${pop.span.endMin}`}
@@ -366,7 +386,7 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
           onClose={closePop}
           onOpenEditor={(draft) => {
             setPop(null);
-            setEditor({ mode: "create", ...draft });
+            setEditor({ mode: "create", ...draft, anchor: pop.anchor });
           }}
         />
       )}
