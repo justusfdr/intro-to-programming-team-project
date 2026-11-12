@@ -1,7 +1,7 @@
 "use client";
 
-// The event editor, in the prototype's style: a card that floats at the right on wider screens and a
-// sheet from the bottom on phones. It is a native <dialog>: the browser keeps keyboard focus inside it,
+// The event editor, in the prototype's style (spec 10): a panel at the right edge on wider screens and
+// a sheet from the bottom on phones. It is a native <dialog>: the browser keeps keyboard focus inside it,
 // closes it on Escape and puts the focus back where it was when it opened.
 //
 // It creates an event or a series (create_event), or edits, deletes and marks done an existing one
@@ -13,7 +13,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type Ref } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { Check, Close, ImportedIcon, NotSentIcon, Trash, Warning } from "@/components/ui/icons";
+import { GoalTile } from "@/components/goals/GoalTile";
+import { CalendarIcon, Check, Close, ImportedIcon, NotSentIcon, PinIcon, Play, Trash, Warning } from "@/components/ui/icons";
+import { formatMinute } from "@/lib/events/grid";
+import { minutesText } from "@/lib/focus/session-time";
 import { MESSAGES } from "@/lib/messages";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
@@ -39,10 +42,13 @@ type Props = {
 };
 
 const inputClass =
-  "block h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10";
+  "block h-10 w-full min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10";
+/** A box that shows a value as text, in the same frame as the fields. */
+const boxClass = "flex min-h-10 items-center gap-2.5 rounded-lg border border-line bg-surface px-3 py-2 text-sm";
+const eyebrowClass = "text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3";
 
 function Eyebrow({ children, htmlFor }: { children: string; htmlFor?: string }) {
-  const className = "text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3";
+  const className = eyebrowClass;
   return htmlFor ? (
     <label htmlFor={htmlFor} className={className}>
       {children}
@@ -71,7 +77,7 @@ export function EventEditor({ state, goals, outlookConnected = false, onClose }:
       onClose={onClose}
       // A click on the dimmed area around the card closes it, like the prototype.
       onClick={(event) => event.target === dialog.current && onClose()}
-      className="event-editor m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-surface p-0 text-ink shadow-pop sm:mt-4 sm:mr-4 sm:ml-auto sm:max-h-[calc(100dvh-2rem)] sm:w-[360px] sm:rounded-card"
+      className="event-editor m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-surface p-0 text-ink shadow-pop sm:my-2 sm:mr-2 sm:ml-auto sm:h-[calc(100dvh-1rem)] sm:max-h-none sm:w-[380px] sm:rounded-[20px]"
     >
       {/* A new key for every event gives the form fresh fields and messages. */}
       {state && (
@@ -166,6 +172,41 @@ function whenText(event: CalendarEvent): string {
 
 type BodyProps = { state: Exclude<EditorState, null>; goals: GoalLabel[]; outlookConnected: boolean; onClose: () => void };
 
+const DAY = 24 * 60;
+
+/** Minutes from midnight of the start's day: "2026-11-17T09:30" gives 570. */
+function minuteOf(local: string): number {
+  return Number(local.slice(11, 13)) * 60 + Number(local.slice(14, 16));
+}
+
+/** The end in minutes from midnight of the start's day; past midnight it is more than 24 hours. */
+function endMinuteOf(start: string, end: string): number {
+  const length = Math.round((Date.parse(`${end}:00Z`) - Date.parse(`${start}:00Z`)) / 60_000);
+  return Number.isFinite(length) ? minuteOf(start) + length : minuteOf(start) + 60;
+}
+
+/** "YYYY-MM-DDTHH:MM" for minute `min` from midnight of `date`; minutes past 24 hours go to the next day. */
+function localAt(date: string, min: number): string {
+  return `${addDays(date, Math.floor(min / DAY))}T${formatMinute(((min % DAY) + DAY) % DAY)}`;
+}
+
+/** Every quarter of an hour of the day, plus `value` if it is between them. */
+function startOptions(value: number): number[] {
+  const options = Array.from({ length: DAY / 15 }, (_, i) => i * 15);
+  return options.includes(value) ? options : [...options, value].sort((a, b) => a - b);
+}
+
+/** Every quarter of an hour up to 24 hours after the start, plus `value` if it is between them. */
+function endOptions(start: number, value: number): number[] {
+  const options = Array.from({ length: DAY / 15 }, (_, i) => start + (i + 1) * 15);
+  return options.includes(value) ? options : [...options, value].sort((a, b) => a - b);
+}
+
+const switchClass =
+  "relative h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-line transition-colors checked:bg-ink before:absolute before:top-0.5 before:left-0.5 before:size-4 before:rounded-full before:bg-white before:shadow-sm before:transition-transform checked:before:translate-x-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-1";
+
+const chipClass = "inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-medium";
+
 function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   const router = useRouter();
   const announce = useAnnounce();
@@ -179,8 +220,12 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
 
   const initial = initialValues(state);
   const [allDay, setAllDay] = useState(initial.allDay);
-  // The start is followed so the weekly repeat can show the first date's weekday (always included, R28).
-  const [start, setStart] = useState(initial.start);
+  // Date, start and end are followed: the end list counts from the start, and the weekly repeat shows
+  // the first date's weekday (always included, R28).
+  const [date, setDate] = useState(initial.start.slice(0, 10));
+  const [startMin, setStartMin] = useState(minuteOf(initial.start));
+  const [endMin, setEndMin] = useState(endMinuteOf(initial.start, initial.end));
+  const [goalId, setGoalId] = useState(initial.goalId);
   const [frequency, setFrequency] = useState<Frequency>(state.mode === "create" ? (state.repeat ?? "none") : "none");
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
 
@@ -192,7 +237,8 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   const inSeries = Boolean(event?.seriesId);
   // R11: an Outlook event keeps title, times and days from Outlook; here only its goal and done status.
   const fromOutlook = event?.source === "outlook";
-  const firstWeekday = /^\d{4}-\d{2}-\d{2}/.test(start) ? weekdayOf(start.slice(0, 10)) : null;
+  const firstWeekday = /^\d{4}-\d{2}-\d{2}$/.test(date) ? weekdayOf(date) : null;
+  const tileColor = allDay ? null : (goals.find((goal) => goal.id === goalId)?.colorIndex ?? null);
 
   /** Sends one action; on success announces the message, closes the editor and reloads the week. */
   async function run(path: string, body: unknown, { close = true } = {}) {
@@ -221,8 +267,8 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
       ? { title, allDay: true, firstDay: String(form.get("firstDay") ?? ""), lastDay: String(form.get("lastDay") ?? "") }
       : {
           title,
-          start: String(form.get("start") ?? ""),
-          end: String(form.get("end") ?? ""),
+          start: localAt(date, startMin),
+          end: localAt(date, endMin),
           mayOverlap: form.get("mayOverlap") === "on",
           // "" is "No goal": the server takes null.
           goalId: String(form.get("goal") ?? "") || null,
@@ -259,133 +305,179 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
     router.refresh();
   }
 
+  /** A new start keeps the event's length. */
+  function moveStart(next: number) {
+    setEndMin(next + (endMin - startMin));
+    setStartMin(next);
+  }
+
   const stale = result?.status === 409 && result.message.startsWith("Changed on another device");
   const conflict = event && !event.allDay && event.conflict;
 
   return (
-    <form onSubmit={save} noValidate className="flex max-h-[inherit] flex-col">
-      <div className="scroll-thin flex flex-col gap-4 overflow-y-auto p-4">
-        <div className="flex items-start gap-3">
-          <h2 id="editor-title" className="sr-only">
-            {event ? `Edit ${event.title}` : "New event"}
-          </h2>
-          <div className="min-w-0 flex-1">
-            {fromOutlook ? (
-              <p className="py-0.5 text-[15px] font-semibold leading-6 text-ink">{initial.title}</p>
-            ) : (
-              <>
-                <label htmlFor={`${prefix}-title`} className="sr-only">
-                  Title
-                </label>
-                <input
-                  id={`${prefix}-title`}
-                  name="title"
-                  defaultValue={initial.title}
-                  placeholder="Event title"
-                  autoFocus
-                  className="-mx-1.5 block w-full min-w-0 rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold leading-6 text-ink placeholder:text-ink-3 hover:bg-raised focus:bg-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
-                />
-              </>
-            )}
+    <form onSubmit={save} noValidate className="flex h-full max-h-[inherit] flex-col">
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 pt-5 pb-6">
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-center gap-3">
+            <h2 id="editor-title" className="sr-only">
+              {event ? `Edit ${event.title}` : "New event"}
+            </h2>
+            <GoalTile colorIndex={tileColor} size="lg" />
+            <div className="min-w-0 flex-1">
+              {fromOutlook ? (
+                <p className="truncate py-0.5 text-[15px] font-semibold leading-6 text-ink">{initial.title}</p>
+              ) : (
+                <>
+                  <label htmlFor={`${prefix}-title`} className="sr-only">
+                    Title
+                  </label>
+                  <input
+                    id={`${prefix}-title`}
+                    name="title"
+                    defaultValue={initial.title}
+                    placeholder="Event title"
+                    autoFocus
+                    className="-mx-1.5 block w-full min-w-0 rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold leading-6 text-ink placeholder:text-ink-3 hover:bg-raised focus:bg-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+                  />
+                </>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
+            >
+              <Close />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="-mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
-          >
-            <Close />
-          </button>
+
+          {event && (event.status === "done" || conflict || inSeries || fromOutlook || event.notSent) && (
+            <div className="flex flex-wrap gap-1.5">
+              {event.status === "done" && (
+                <span className={`${chipClass} bg-success-soft text-success`}>
+                  <Check className="size-3" strokeWidth={2.5} /> Done
+                </span>
+              )}
+              {inSeries && <span className={`${chipClass} bg-raised text-ink-2`}>Repeating</span>}
+              {fromOutlook && (
+                <span className={`${chipClass} bg-raised text-ink-2`}>
+                  <ImportedIcon className="size-3" /> From Outlook
+                </span>
+              )}
+              {event.notSent && (
+                <span className={`${chipClass} bg-danger-soft text-danger`}>
+                  <NotSentIcon className="size-3" /> Not sent to Outlook
+                </span>
+              )}
+              {conflict && (
+                <span className={`${chipClass} bg-danger-soft text-danger`}>
+                  <Warning className="size-3" /> Overlaps another event
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
-        {event && (event.status === "done" || conflict || inSeries || fromOutlook || event.notSent) && (
-          <div className="-mt-2 flex flex-wrap gap-1.5">
-            {fromOutlook && (
-              <span className="inline-flex h-5 items-center gap-1 rounded-full bg-raised px-2 text-[11px] font-medium text-ink-2">
-                <ImportedIcon className="size-3" /> From Outlook
-              </span>
-            )}
-            {event.notSent && (
-              <span className="inline-flex h-5 items-center gap-1 rounded-full bg-danger-soft px-2 text-[11px] font-medium text-danger">
-                <NotSentIcon className="size-3" /> Not sent to Outlook
-              </span>
-            )}
-            {inSeries && (
-              <span className="inline-flex h-5 items-center rounded-full bg-raised px-2 text-[11px] font-medium text-ink-2">Repeating</span>
-            )}
-            {event.status === "done" && (
-              <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success-soft px-2 text-[11px] font-medium text-success">
-                <Check className="size-3" /> Done
-              </span>
-            )}
-            {conflict && (
-              <span className="inline-flex h-5 items-center gap-1 rounded-full bg-danger-soft px-2 text-[11px] font-medium text-danger">
-                <Warning className="size-3" /> Overlaps another event
-              </span>
-            )}
-          </div>
-        )}
-
         {event && fromOutlook ? (
-          <section className="flex flex-col gap-1.5">
-            <Eyebrow>When</Eyebrow>
-            <p className="text-sm text-ink">{whenText(event)}</p>
-            {event.location && <p className="text-sm text-ink-2">{event.location}</p>}
-            <p className="text-xs text-ink-2">{MESSAGES.changeInOutlook}</p>
-          </section>
+          <>
+            <section className="flex flex-col gap-2">
+              <Eyebrow>When</Eyebrow>
+              <p className={`${boxClass} text-ink`}>
+                <CalendarIcon className="size-4 shrink-0 text-ink-3" />
+                {whenText(event)}
+              </p>
+              <p className="text-xs text-ink-2">{MESSAGES.changeInOutlook}</p>
+            </section>
+            {event.location && (
+              <section className="flex flex-col gap-2">
+                <Eyebrow>Location</Eyebrow>
+                <p className={`${boxClass} text-ink`}>
+                  <PinIcon className="size-4 shrink-0 text-ink-3" />
+                  {event.location}
+                </p>
+              </section>
+            )}
+          </>
         ) : (
-        <section className="flex flex-col gap-1.5">
-          <Eyebrow>When</Eyebrow>
-          {/* A series is timed (R29), so its events do not offer the switch. */}
-          {!inSeries && (
-            <label htmlFor={`${prefix}-all-day`} className="flex items-center justify-between gap-2 text-sm text-ink">
-              All day
-              <input
-                id={`${prefix}-all-day`}
-                type="checkbox"
-                role="switch"
-                checked={allDay}
-                onChange={(e) => setAllDay(e.target.checked)}
-                className="size-4 accent-ink"
-              />
-            </label>
-          )}
-          {allDay ? (
-            <div className="grid gap-2">
-              <div className="grid grid-cols-[4.5rem_1fr] items-center gap-2 text-xs text-ink-2">
-                <label htmlFor={`${prefix}-first-day`}>First day</label>
-                <input id={`${prefix}-first-day`} name="firstDay" type="date" defaultValue={initial.firstDay} className={inputClass} />
-              </div>
-              <div className="grid grid-cols-[4.5rem_1fr] items-center gap-2 text-xs text-ink-2">
-                <label htmlFor={`${prefix}-last-day`}>Last day</label>
-                <input id={`${prefix}-last-day`} name="lastDay" type="date" defaultValue={initial.lastDay} className={inputClass} />
-              </div>
+          <section className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <Eyebrow>When</Eyebrow>
+              {/* A series is timed (R29), so its events do not offer the switch. */}
+              {!inSeries && (
+                <label htmlFor={`${prefix}-all-day`} className="flex cursor-pointer items-center gap-2 text-xs font-medium text-ink-2">
+                  All day
+                  <input
+                    id={`${prefix}-all-day`}
+                    type="checkbox"
+                    role="switch"
+                    checked={allDay}
+                    onChange={(e) => setAllDay(e.target.checked)}
+                    className={switchClass}
+                  />
+                </label>
+              )}
             </div>
-          ) : (
-            <div className="grid gap-2">
-              <div className="grid grid-cols-[4.5rem_1fr] items-center gap-2 text-xs text-ink-2">
-                <label htmlFor={`${prefix}-start`}>Starts</label>
-                <input
-                  id={`${prefix}-start`}
-                  name="start"
-                  type="datetime-local"
-                  value={start}
-                  onChange={(e) => setStart(e.target.value)}
-                  className={inputClass}
-                />
+            {allDay ? (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <label htmlFor={`${prefix}-first-day`} className="text-xs text-ink-2">First day</label>
+                  <input id={`${prefix}-first-day`} name="firstDay" type="date" defaultValue={initial.firstDay} className={inputClass} />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <label htmlFor={`${prefix}-last-day`} className="text-xs text-ink-2">Last day</label>
+                  <input id={`${prefix}-last-day`} name="lastDay" type="date" defaultValue={initial.lastDay} className={inputClass} />
+                </div>
               </div>
-              <div className="grid grid-cols-[4.5rem_1fr] items-center gap-2 text-xs text-ink-2">
-                <label htmlFor={`${prefix}-end`}>Ends</label>
-                <input id={`${prefix}-end`} name="end" type="datetime-local" defaultValue={initial.end} className={inputClass} />
-              </div>
-            </div>
-          )}
-        </section>
+            ) : (
+              <>
+                <div className="relative">
+                  <label htmlFor={`${prefix}-date`} className="sr-only">
+                    Date
+                  </label>
+                  <CalendarIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />
+                  <input
+                    id={`${prefix}-date`}
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className={`${inputClass} pl-9`}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="min-w-0">
+                    <label htmlFor={`${prefix}-start`} className="sr-only">
+                      Starts
+                    </label>
+                    <select id={`${prefix}-start`} value={startMin} onChange={(e) => moveStart(Number(e.target.value))} className={`${inputClass} tabular`}>
+                      {startOptions(startMin).map((min) => (
+                        <option key={min} value={min}>
+                          {formatMinute(min)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="min-w-0">
+                    <label htmlFor={`${prefix}-end`} className="sr-only">
+                      Ends
+                    </label>
+                    <select id={`${prefix}-end`} value={endMin} onChange={(e) => setEndMin(Number(e.target.value))} className={`${inputClass} tabular`}>
+                      {endOptions(startMin, endMin).map((min) => (
+                        <option key={min} value={min}>
+                          {`${formatMinute(((min % DAY) + DAY) % DAY)} · ${min > startMin ? minutesText(min - startMin) : "0 min"}${min >= DAY ? " (next day)" : ""}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
         )}
 
         {/* Repeat (R28): only when creating a timed event; a series is never extended later. */}
         {!event && !allDay && (
-          <section className="flex flex-col gap-1.5">
+          <section className="flex flex-col gap-2">
             <Eyebrow htmlFor="new-repeat">Repeat</Eyebrow>
             <select id="new-repeat" value={frequency} onChange={(e) => setFrequency(e.target.value as Frequency)} className={inputClass}>
               <option value="none">Does not repeat</option>
@@ -394,7 +486,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
               <option value="monthly">Every month</option>
             </select>
             {frequency === "weekly" && (
-              <fieldset className="flex flex-wrap gap-1">
+              <fieldset className="flex flex-wrap gap-1.5">
                 <legend className="sr-only">On these days</legend>
                 {WEEKDAYS.map(({ day, short, long }) => {
                   const fixed = day === firstWeekday;
@@ -403,8 +495,8 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
                     <label
                       key={day}
                       title={fixed ? `${long}: the first date's day, always included` : long}
-                      className={`flex h-8 min-w-10 cursor-pointer items-center justify-center rounded-lg border px-2 text-xs font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink/20 ${
-                        checked ? "border-ink bg-ink text-surface" : "border-line text-ink-2"
+                      className={`flex h-8 min-w-11 cursor-pointer items-center justify-center rounded-full border px-2.5 text-xs font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink/30 ${
+                        checked ? "border-ink bg-ink text-surface" : "border-line-subtle text-ink-2 hover:bg-raised"
                       } ${fixed ? "cursor-default opacity-80" : ""}`}
                     >
                       <input
@@ -430,10 +522,38 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
           </section>
         )}
 
+        {/* All-day events have no goal (R29). The chips are radio inputs named "goal", like a list. */}
+        {!allDay && (
+          <fieldset className="flex min-w-0 flex-col gap-2">
+            <legend className={`${eyebrowClass} mb-2`}>Goal</legend>
+            <div className="flex flex-wrap gap-1.5">
+              {[{ id: "", title: "No goal", colorIndex: null as number | null }, ...goals].map((goal) => (
+                <label
+                  key={goal.id || "none"}
+                  className={`inline-flex h-8 max-w-full cursor-pointer items-center gap-1.5 rounded-full border pr-3 pl-1.5 text-[13px] transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink/30 ${
+                    goalId === goal.id ? "border-ink font-medium text-ink" : "border-line-subtle text-ink-2 hover:bg-raised"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="goal"
+                    value={goal.id}
+                    checked={goalId === goal.id}
+                    onChange={() => setGoalId(goal.id)}
+                    className="sr-only"
+                  />
+                  <GoalTile colorIndex={goal.colorIndex} size="xs" />
+                  <span className="min-w-0 truncate">{goal.title}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
         {!allDay && !fromOutlook && (
-          <section className="flex flex-col gap-1.5">
+          <section className="flex flex-col gap-2">
             <Eyebrow>Overlap</Eyebrow>
-            <label htmlFor={`${prefix}-may-overlap`} className="flex items-center gap-2 text-sm text-ink">
+            <label htmlFor={`${prefix}-may-overlap`} className="flex cursor-pointer items-center gap-2.5 text-sm text-ink">
               <input
                 id={`${prefix}-may-overlap`}
                 name="mayOverlap"
@@ -443,21 +563,6 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
               />
               May overlap other events
             </label>
-          </section>
-        )}
-
-        {/* All-day events have no goal (R29). */}
-        {!allDay && (
-          <section className="flex flex-col gap-1.5">
-            <Eyebrow htmlFor={`${prefix}-goal`}>Goal</Eyebrow>
-            <select id={`${prefix}-goal`} name="goal" defaultValue={initial.goalId} className={inputClass}>
-              <option value="">No goal</option>
-              {goals.map((goal) => (
-                <option key={goal.id} value={goal.id}>
-                  {goal.title}
-                </option>
-              ))}
-            </select>
           </section>
         )}
 
@@ -477,7 +582,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-5 py-3.5">
         {question && event ? (
           <SeriesQuestion
             kind={question.kind}
@@ -512,20 +617,21 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
             )}
             {/* All-day events cannot be done and do not suggest a focus session (R29). */}
             {event && !event.allDay && (
-              <Button variant="secondary" size="sm" disabled={busy} onClick={toggleDone}>
-                {event.status === "done" ? "Mark not done" : "Mark done"}
-              </Button>
-            )}
-            {event && !event.allDay && (
               <LinkButton href={`/focus?event=${event.id}`} variant="secondary" size="sm">
+                <Play className="size-3.5" />
                 Start focus
               </LinkButton>
+            )}
+            {event && !event.allDay && (
+              <Button variant="secondary" size="sm" disabled={busy} onClick={toggleDone}>
+                {event.status === "done" ? "Reopen" : "Mark done"}
+              </Button>
             )}
             {event && !fromOutlook && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="ml-auto size-8"
+                className="ml-auto size-8 text-ink-3"
                 aria-label={`Delete ${event.title}`}
                 title="Delete"
                 onClick={() => (inSeries ? setQuestion({ kind: "delete" }) : setConfirmingDelete(true))}
@@ -539,4 +645,3 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
     </form>
   );
 }
-
