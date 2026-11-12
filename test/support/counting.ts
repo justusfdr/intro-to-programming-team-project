@@ -31,3 +31,19 @@ export function countingWithUser(db: TestDb): { withUser: WithUser; transactions
 export function firstRoundOf(sent: Sent[]): string[] {
   return sent.filter((s) => s.answersBefore === 0).map((s) => s.sql);
 }
+
+/**
+ * Statements sent in the same round that, with the real driver, would be held back: a statement
+ * without parameters sent after one with parameters (the driver first asks for the parameters' types
+ * and sends what was started after it only one by one once it is done; see src/lib/server/db/index.ts).
+ * An empty list means every round goes out as one.
+ */
+export function heldBack(sent: Sent[]): string[] {
+  const held: string[] = [];
+  const paramSeenInRound = new Set<number>();
+  for (const s of sent) {
+    if (s.withParams) paramSeenInRound.add(s.answersBefore);
+    else if (paramSeenInRound.has(s.answersBefore)) held.push(s.sql);
+  }
+  return held;
+}

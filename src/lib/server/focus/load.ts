@@ -23,25 +23,27 @@ export async function loadFocus(deps: Pick<Deps, "withUser" | "now">, userId: st
 
 /**
  * The same reads inside a transaction that is already open; call settleSessions before it.
- * The reads are started together; the one with a parameter (the event) comes last, because the
- * driver sends it only after asking for its parameter types (see db/with-user.ts).
+ * The reads are started together; the one with a parameter (the event) comes last: the driver first
+ * asks the database for its parameter types, and statements started after it wait until it is done
+ * (see db/with-user.ts). `paramReadsAfter`: a page that starts other reads after this one passes a
+ * promise it resolves once those are started, so they are not held up behind the event's read.
  */
-export async function readFocus(query: Query, now: Date, eventId?: string): Promise<FocusData> {
+export async function readFocus(query: Query, now: Date, eventId?: string, paramReadsAfter?: Promise<void>): Promise<FocusData> {
   // Opened from an event: only the user's own event counts; anything else is ignored.
   const wantsEvent = eventId !== undefined && UUID.test(eventId);
+  const readEvent = () =>
+    query<{ id: string; title: string; minutes: number; goal_id: string | null }>(
+      // Only a timed event suggests a session; an all-day event is ignored here.
+      "select id, title, extract(epoch from end_at - start_at)::int / 60 as minutes, goal_id from app.events where id = $1 and not all_day",
+      [eventId],
+    );
   const [actives, recent, goalRows, events] = await Promise.all([
     query<SessionRow>(`select ${SESSION_COLUMNS} from ${SESSION_FROM} where s.status in ('running', 'paused')`),
     query<SessionRow>(
       `select ${SESSION_COLUMNS} from ${SESSION_FROM} where s.status = 'finished' order by s.ended_at desc, s.id limit ${RECENT}`,
     ),
     readGoals(query),
-    wantsEvent
-      ? query<{ id: string; title: string; minutes: number; goal_id: string | null }>(
-          // Only a timed event suggests a session; an all-day event is ignored here.
-          "select id, title, extract(epoch from end_at - start_at)::int / 60 as minutes, goal_id from app.events where id = $1 and not all_day",
-          [eventId],
-        )
-      : Promise.resolve([]),
+    wantsEvent ? (paramReadsAfter ? paramReadsAfter.then(readEvent) : readEvent()) : Promise.resolve([]),
   ]);
   const [active] = actives;
 

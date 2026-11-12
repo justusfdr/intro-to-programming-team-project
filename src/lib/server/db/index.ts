@@ -28,6 +28,10 @@ const postgresDriver: Driver = {
     // over. `execute()` hands it over now (statements are otherwise sent only when awaited), so the
     // order of `run` calls is the order on the connection, and statements started together are
     // written together. Commit (or rollback when the callback throws) follows the callback.
+    // Without prepared statements (the pooler), a statement WITH parameters is sent in two steps
+    // (first the library asks for the parameters' types), and statements started after it wait and
+    // then go one by one until it is done. So reads without parameters are started first; the
+    // counting tests (test/support/counting.ts, heldBack) check that order.
     return connection().begin((tx) =>
       fn((sql, params) =>
         tx.unsafe(sql, params as postgres.ParameterOrJSON<never>[]).execute().then((rows) => rows as unknown as Row[]),

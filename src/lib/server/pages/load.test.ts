@@ -14,7 +14,7 @@ import { readDisplay } from "@/lib/server/settings";
 import { loadSettingsPage } from "@/lib/server/settings-page";
 import { loadTasks } from "@/lib/server/tasks/load";
 import { createTestApp, type TestApp } from "@test/support/app";
-import { countingWithUser, type Sent } from "@test/support/counting";
+import { countingWithUser, heldBack, type Sent } from "@test/support/counting";
 import { seedEvent, seedAllDay } from "@test/support/events";
 import { HALF_MARATHON, seedGoal } from "@test/support/goals";
 import { seedSession } from "@test/support/sessions";
@@ -41,11 +41,15 @@ function counted(): { deps: Pick<Deps, "withUser" | "now">; transactions: Sent[]
   return { deps: { withUser, now: app.deps.now }, transactions };
 }
 
-/** Every transaction starts with the identity statement, before anything else. */
+/**
+ * Every transaction starts with the identity statement, before anything else, and no read without
+ * parameters is sent after one with parameters in the same round (the real driver would hold it back).
+ */
 function expectIdentityFirst(transactions: Sent[][]) {
   for (const sent of transactions) {
     expect(sent[0].sql).toMatch(/set_config\('role', 'authenticated', true\)/);
     expect(sent.slice(1).some((s) => s.sql.includes("set_config"))).toBe(false);
+    expect(heldBack(sent)).toEqual([]);
   }
 }
 

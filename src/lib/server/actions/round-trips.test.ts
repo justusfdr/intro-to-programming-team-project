@@ -1,9 +1,9 @@
 // Actions send their independent reads together, after the identity statement, in one round
 // (counted with the driver in test/support/counting.ts). What the actions answer is tested in their
 // own test files; this only checks how the reads travel.
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestApp, fromExtension, postJson, read, type TestApp } from "@test/support/app";
-import { countingWithUser, firstRoundOf } from "@test/support/counting";
+import { countingWithUser, firstRoundOf, heldBack } from "@test/support/counting";
 import { seedEvent } from "@test/support/events";
 import { seedTask } from "@test/support/tasks";
 import { addTask } from "./add-task";
@@ -26,12 +26,21 @@ beforeEach(async () => {
   await app.reset(); // Monday 16 November 2026, 09:00 UTC
 });
 
+let last: { transactions: ReturnType<typeof countingWithUser>["transactions"] } | null = null;
+
 function counted() {
   const { withUser, transactions } = countingWithUser(app.db);
+  last = { transactions };
   return { deps: { ...app.deps, withUser }, transactions };
 }
 
 const IDENTITY = /set_config\('role', 'authenticated', true\)/;
+
+afterEach(() => {
+  // In every test: nothing without parameters waits behind a statement with parameters.
+  for (const sent of last?.transactions ?? []) expect(heldBack(sent)).toEqual([]);
+  last = null;
+});
 
 describe("independent reads travel together", () => {
   it("add_task reads the time zone and the open-task count in the first round", async () => {

@@ -3,7 +3,9 @@ import "server-only";
 // What each page reads, in as few transactions as possible (the database may be far away: every
 // transaction costs BEGIN and COMMIT, every round of questions one more trip).
 // - Each page reads everything in ONE withUser transaction, and starts its independent reads
-//   together, so the driver sends them in one round (db/with-user.ts).
+//   together, so the driver sends them in one round (db/with-user.ts). Reads without parameters are
+//   started before reads with parameters: the driver first asks for a parameter's type, and holds
+//   back everything started after such a read until it is done.
 // - Before that, at most ONE "by itself" step in a transaction of its own that is saved at once
 //   (finishing due sessions, R13, or removing old done tasks, R33), so it stays saved even if the
 //   page's reading then fails.
@@ -69,12 +71,18 @@ export async function loadFocusPage(deps: PageDeps, userId: string, eventId?: st
   // By itself: sessions whose planned end has passed finish first, saved on their own (R13).
   await settleSessions(deps, userId, now);
   return deps.withUser(userId, async (query) => {
+    // Reads without parameters first (they travel together), those with parameters after them
+    // (the driver holds back what is started after a read with parameters; see db/with-user.ts).
+    let blockerStarted!: () => void;
+    const afterBlocker = new Promise<void>((resolve) => (blockerStarted = resolve));
     const settingsRead = readSettings(query);
-    const [settings, focus, blocker] = await Promise.all([
+    const all = Promise.all([
       settingsRead,
-      readFocus(query, now, eventId),
+      readFocus(query, now, eventId, afterBlocker),
       readBlocker(query, now, settingsRead.then((s) => s.timeZone)),
     ]);
+    blockerStarted();
+    const [settings, focus, blocker] = await all;
     return { display: displayOf(settings), focus, blocker };
   });
 }
