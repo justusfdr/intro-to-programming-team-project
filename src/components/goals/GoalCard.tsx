@@ -3,7 +3,7 @@
 // are, one row per rule ("This week: 1 of 2 done"), the strip of weeks, and a caption with the
 // countdown and "Auto-block on".
 // Every status is said in words and shown with a symbol, so nothing depends on colour alone.
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { Check, ChevronRight, Close } from "@/components/ui/icons";
 import { goalColor } from "@/lib/goals/colors";
 import type { StripWeek, WeekStatus } from "@/lib/goals/progress";
@@ -49,9 +49,13 @@ type Props = {
   collapsed?: boolean;
   /** Collapses or expands the section; without it there is no chevron. */
   onToggle?: () => void;
+  /** The number of open tasks, shown small and grey at the right end of the header (spec 11). */
+  openTasks?: number;
+  /** Shown under the rules and weeks while the section is open: the goal's tasks (spec 11). */
+  children?: ReactNode;
 };
 
-export function GoalCard({ goal, onOpen, collapsed = false, onToggle }: Props) {
+export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks, children }: Props) {
   const color = goalColor(goal.colorIndex);
   const passed = goal.progress.countdown === "Deadline passed";
   const share = weekShare(goal.progress.thisWeek);
@@ -87,6 +91,7 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle }: Props) {
         ) : (
           <h3 className="ml-1 min-w-0 flex-1">{title}</h3>
         )}
+        {openTasks !== undefined && <OpenTaskCount count={openTasks} />}
       </div>
 
       {/* The bar repeats the rows below in one line; screen readers read the rows. */}
@@ -111,6 +116,7 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle }: Props) {
             ))}
           </ol>
 
+          {children}
         </div>
       )}
 
@@ -129,5 +135,15 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle }: Props) {
         )}
       </p>
     </article>
+  );
+}
+
+/** The small grey number at the right end of a section's header: its open tasks. */
+export function OpenTaskCount({ count }: { count: number }) {
+  return (
+    <span className="shrink-0 pl-1 text-[12px] text-ink-3 tabular">
+      <span aria-hidden>{count}</span>
+      <span className="sr-only">{count === 1 ? "1 open task" : `${count} open tasks`}</span>
+    </span>
   );
 }

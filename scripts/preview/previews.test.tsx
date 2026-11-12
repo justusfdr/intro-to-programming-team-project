@@ -74,6 +74,7 @@ it("writes the preview files", async () => {
   const { GoalEditor } = await import("@/components/goals/GoalEditor");
   const { PanelState } = await import("@/components/shell/PanelState");
   const { loadGoals } = await import("@/lib/server/goals/load");
+  const { loadTasks } = await import("@/lib/server/tasks/load");
   const { EventEditor, SeriesQuestion } = await import("@/components/calendar/EventEditor");
   const { AppShell } = await import("@/components/shell/AppShell");
   const { default: SignInPage } = await import("@/app/(account)/sign-in/page");
@@ -153,16 +154,30 @@ it("writes the preview files", async () => {
   await app.db.admin("update app.events set outlook_id = 'AAMk-' || left(id::text, 8), outlook_sent_version = updated_at where source = 'app' and user_id = $1", [user]);
   await app.db.admin("update app.calendar_connections set last_synced_at = '2026-11-17T08:40:00Z'");
   await add("Thesis meeting", "11-18T11:00", "11-18T11:45");
+  // Spec 11: tasks under the goals and in the Inbox; "today" is Tuesday 17 November, so 16 November is overdue.
+  const task = (title: string, goalId: string | null, dueDate: string | null, status: "open" | "done" = "open") =>
+    app.db.admin("insert into app.tasks (user_id, title, goal_id, due_date, status) values ($1, $2, $3, $4, $5)", [user, title, goalId, dueDate, status]);
+  await task("Read chapter 7 on regression", exam.id, "2026-11-16");
+  await task("Write a formula sheet", exam.id, "2026-11-19");
+  await task("Do a practice exam", exam.id, null);
+  await task("Book a seat in the exam hall", exam.id, "2026-11-13", "done");
+  await task("Buy running shoes", run.id, "2026-11-20");
+  await task("Sign up for the race", run.id, null, "done");
+  await task("Send the slides to Emily", project.id, "2026-11-18");
+  await task("Call mom back", null, "2026-11-22");
+  await task("Renew passport", null, "2026-11-26");
+  await task("Pay the rent", null, null, "done");
   app.advance(27 * 60 * 60 * 1000 + 10 * 60 * 1000); // Tuesday 17 November, 12:10
   const week = await loadWeek(app.deps, user, "2026-11-16");
   const goals = await loadGoals(app.deps, user);
+  const tasks = await loadTasks(app.deps, user);
   await app.close();
 
   const calendar = () =>
     renderToStaticMarkup(
       <Announcer>
         <PanelState>
-          <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} today="2026-11-17" />}>
+          <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today="2026-11-17" />}>
             <CalendarView
               week={week}
               nowLocal="2026-11-17T12:10"
@@ -271,6 +286,24 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
           <GoalCard goal={second} onOpen={() => {}} onToggle={() => {}} collapsed />
           <GoalCard goal={passed} onOpen={() => {}} onToggle={() => {}} />
         </>,
+      )}</main>`,
+      styles,
+    ),
+  );
+
+  // Spec 11: the small task forms, open for adding (Inbox) and for editing a task with a rejection.
+  const { TaskForm } = await import("@/components/goals/TaskList");
+  const goalOptions = goals.map(({ id, title }) => ({ id, title }));
+  const shoes = tasks.find((t) => t.title === "Buy running shoes")!;
+  writeFileSync(
+    join(OUT, "task-forms.html"),
+    page(
+      "Task forms",
+      `<main class="flex flex-col gap-3 bg-canvas p-6" style="width:280px">${renderToStaticMarkup(
+        <Announcer>
+          <TaskForm mode={{ kind: "add", sectionTitle: "Inbox" }} goalId={null} today="2026-11-17" goals={goalOptions} onDone={() => {}} />
+          <TaskForm mode={{ kind: "edit", task: shoes }} goalId={shoes.goalId} today="2026-11-17" goals={goalOptions} onDone={() => {}} />
+        </Announcer>,
       )}</main>`,
       styles,
     ),
