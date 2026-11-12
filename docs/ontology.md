@@ -27,7 +27,7 @@ Rule for coding agents: read this file first. Do not change it without the team'
 | demo week | Sample goals, tasks and events a new account can load ("Explore the demo") and remove again; each such row is marked `demo`. | Saved (a mark on the rows) |
 | plan | Free or Pro. Which one a user has is saved on the user. | Fixed |
 
-**Fixed content:** session lengths 15, 30, 60, 90, 120 minutes; the ten goal colours (rose, teal, indigo, amber, emerald, pink, sky, violet, orange, slate) and ten goal icons (rocket, footprints, heart, video, book, dumbbell, briefcase, graduation, palette, code); the demo week (R36); the two plans (Free, Pro); the default block list of a new account (youtube.com, instagram.com, tiktok.com, x.com, reddit.com, facebook.com), which the user can edit.
+**Fixed content:** suggested session lengths 15, 30, 60, 90, 120 minutes; the ten goal colours (rose, teal, indigo, amber, emerald, pink, sky, violet, orange, slate) and ten goal icons (rocket, footprints, heart, video, book, dumbbell, briefcase, graduation, palette, code); the demo week (R36); the two plans (Free, Pro); the default block list of a new account (youtube.com, instagram.com, tiktok.com, x.com, reddit.com, facebook.com), which the user can edit.
 
 **Calculated, never saved:** a goal's colour when none is saved (R35), whether the welcome shows, rule status, goal progress, blocking on or off, focus score, travel time, analytics, R31's chat totals, task overdue.
 
@@ -85,7 +85,7 @@ The first six actions need no sign-in; all others need it and touch only the use
 | `create_event` | title; start and end, or first and last day (`all_day`); goal, location, may_overlap; repeat, weekdays, repeat_until | Title 1 to 100; location up to 200 characters or empty; timed: start before end, at most 24 h; R28, R29 | Saved, `source` `app` (a series in one step); sent to Outlook if connected | "Title must be 1 to 100 characters" / "Location can be at most 200 characters" / "End must be after start" / "An event can last at most 24 hours" / "The last day cannot be before the first day" / "An all-day event can last at most 31 days" / "All-day events have no goal" / "A repeating event can have at most 100 dates" / "The end date cannot be before the first date" |
 | `edit_event`, `delete_event` | event, updated_at, scope `this`/`this_and_following` | Edit: same checks as `create_event`; Outlook events: goal only (R11); not changed elsewhere (R4) | Saved or deleted (scope as R28), also in Outlook | As `create_event` / "Change this event in Outlook" / "Changed on another device. Reload to see the latest version" |
 | `mark_event_done` | event | `planned`; timed; event has started | `done` (`mark_event_planned` turns it back) | "You can mark an event done once it has started" / "All-day events cannot be marked done" |
-| `start_session` | length, event or none | No running or paused session; length as R12 | `running` | "A session is already running" / "Choose 15, 30, 60, 90 or 120 minutes" |
+| `start_session` | length, event or none | No running or paused session; length as R12 | `running` | "A session is already running" / "Choose a length from 1 to 240 minutes" |
 | `pause_session`, `resume_session`, `end_session`, `cancel_session` | session | Pause: `running`; resume: `paused`; end, cancel: either | `paused` / `running` / `finished` / row deleted | "Not possible in this state" / "This session has already ended" |
 | `rate_session` | session, rating | `finished`; whole number 0 to 5 | Rating saved; can be changed | "Rating must be a whole number from 0 to 5" |
 | `add_blocked_site` | domain | Valid domain (R17); not listed; under 50 sites | Saved | "This is not a valid website" / "Already on your list" / "You can block at most 50 sites" |
@@ -120,7 +120,7 @@ The first six actions need no sign-in; all others need it and touch only the use
 - **R11** Outlook events keep title, times and location from Outlook; the user can only set the goal and mark them done.
 
 **Focus sessions**
-- **R12** Lengths are exactly 15, 30, 60, 90 or 120 minutes.
+- **R12** A session lasts a whole number of minutes from 1 to 240. The app suggests 15, 30, 60, 90 and 120 minutes; any other length can be typed in.
 - **R13** `focused_minutes` = `ended_at` − `started_at` − `paused_seconds`, rounded down to whole minutes. A running session finishes by itself at the planned length, even with the browser closed: the server sets `ended_at` = `started_at` + planned minutes + `paused_seconds`. A paused session stays paused until the user resumes or ends it.
 - **R14** Under one focused minute, or cancelled: not saved. Rating is optional; empty is not 0; 0 is a real rating.
 
@@ -203,7 +203,7 @@ The first six actions need no sign-in; all others need it and touch only the use
 | A7 | Same account on laptop and desktop | Laptop moves "Statistics revision" to 10:00; desktop, on the old version, saves a new title | Both show the same events; desktop save rejected ("Changed on another device…"); event at 10:00, old title |
 | A8 | User A; event E of user B | A requests E, then deletes E | "Not found"; delete rejected; E unchanged |
 | A9 | Event 10:00 at "Nova SBE, Carcavelos"; home set; route 25 min; buffer 10 | Open event; then routing goes down | "Leave at 09:25"; then "Travel time not available", event unchanged |
-| A10 | Any user | `start_session` with 25 minutes; `create_event` from 14:00 to 13:00; `add_blocked_site` with "not a site" | "Choose 15, 30, 60, 90 or 120 minutes" / "End must be after start" / "This is not a valid website"; nothing saved |
+| A10 | Any user | `start_session` with 0 minutes; `create_event` from 14:00 to 13:00; `add_blocked_site` with "not a site" | "Choose a length from 1 to 240 minutes" / "End must be after start" / "This is not a valid website"; nothing saved |
 | A11 | Pro; fake totals: "Half marathon" 150 minutes last week, 100 the week before | `send_message` "How much time did I spend on sport in the last weeks?" | Answer names 150 and 100 minutes; no draft; nothing changed; Claude received totals only |
 | A12 | No events | Weekly Tue and Thu 09:00–10:00, first date Tue 17 Nov 2026, until 18 Dec; then `delete_event` `this_and_following` on Tue 8 Dec; then daily with 101 dates | 10 events, one `series_id`; 6 remain (17, 19, 24, 26 Nov, 1, 3 Dec); daily: "A repeating event can have at most 100 dates", nothing saved |
 | A13 | All-day "Exam week" Mon 16 to Fri 20 Nov; Tue 09:00–11:00 event of an `auto_block` goal; no session | Extension asks Tue 10:00 and Wed 10:00 | No conflict mark; Tue: blocked until 11:00; Wed: not blocked |

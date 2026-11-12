@@ -4,7 +4,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { FocusData, SessionDto } from "@/lib/focus/types";
-import { afterRejection, FocusView } from "./FocusView";
+import { afterRejection, FocusView, parseCustomMinutes } from "./FocusView";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 vi.mock("next/link", () => ({
@@ -41,9 +41,10 @@ function render(data: Partial<FocusData>) {
 }
 
 describe("Focus page", () => {
-  it("offers the five lengths as a radio group with 60 minutes chosen, and Start focus", () => {
+  it("offers the five suggested lengths and Custom as a radio group with 60 minutes chosen, and Start focus (R12)", () => {
     const html = render({});
-    for (const label of ["15 min", "30 min", "1 h", "1 h 30 min", "2 h"]) expect(html).toContain(label);
+    for (const label of ["15 min", "30 min", "1 h", "1 h 30 min", "2 h", "Custom"]) expect(html).toContain(label);
+    expect(html).not.toContain("Custom length in minutes");
     expect(html).toMatch(/<input[^>]*checked=""[^>]*value="60"|<input[^>]*value="60"[^>]*checked=""/);
     expect(html).toContain("Start focus");
     expect(html).toContain("No finished sessions yet.");
@@ -53,6 +54,20 @@ describe("Focus page", () => {
     const html = render({ forEvent: { id: "e1", title: "Statistics revision", suggestedMinutes: 120 } });
     expect(html).toContain("Statistics revision");
     expect(html).toMatch(/<input[^>]*checked=""[^>]*value="120"|<input[^>]*value="120"[^>]*checked=""/);
+  });
+
+  it("opens Custom with the event's length when it is not one of the suggestions (R12)", () => {
+    const html = render({ forEvent: { id: "e1", title: "Short call", suggestedMinutes: 45 } });
+    expect(html).toMatch(/<input[^>]*checked=""[^>]*value="custom"|<input[^>]*value="custom"[^>]*checked=""/);
+    expect(html).toContain("Custom length in minutes");
+    expect(html).toMatch(/<input[^>]*type="number"[^>]*value="45"/);
+    // Under an hour the field already says it, so no "= 45 min" behind it.
+    expect(html).not.toContain("= 45 min");
+  });
+
+  it("spells out a custom length of an hour or more in hours and minutes", () => {
+    const html = render({ forEvent: { id: "e1", title: "Long read", suggestedMinutes: 70 } });
+    expect(html).toContain("= 1 h 10 min");
   });
 
   it("shows a running session with the time left as a timer and Pause, End session, Cancel", () => {
@@ -113,5 +128,10 @@ describe("Focus page", () => {
     expect(afterRejection(answer(409, "not_possible", "Not possible in this state"))).toEqual({ reload: false });
     expect(afterRejection(answer(400, "rating_range", "Rating must be a whole number from 0 to 5"))).toEqual({ reload: false });
     expect(afterRejection({ ok: false, status: 0, message: "We could not reach the server." })).toEqual({ reload: false });
+  });
+
+  it("reads a custom length only as a whole number of minutes; the server checks 1 to 240 (R12)", () => {
+    expect(["10", " 70 ", "3", "0", "999"].map(parseCustomMinutes)).toEqual([10, 70, 3, 0, 999]);
+    for (const text of ["", "  ", "1.5", "-5", "ten", "1e2", "10 min"]) expect(parseCustomMinutes(text)).toBeNull();
   });
 });

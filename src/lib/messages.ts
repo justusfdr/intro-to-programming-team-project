@@ -44,7 +44,7 @@ export const MESSAGES = {
   tooManyTasks: "You can have at most 100 open tasks",
   // ontology, section 5 (focus sessions)
   sessionRunning: "A session is already running",
-  chooseLength: "Choose 15, 30, 60, 90 or 120 minutes",
+  chooseLength: "Choose a length from 1 to 240 minutes",
   notPossible: "Not possible in this state",
   sessionEnded: "This session has already ended",
   ratingRange: "Rating must be a whole number from 0 to 5",

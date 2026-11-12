@@ -1,17 +1,28 @@
 "use client";
 
-// The Focus page in the prototype's look: start a session (length 15 to 120 minutes, optionally for
-// an event), the running session with its ring and time left, the rating after it ended, and recent
+// The Focus page in the prototype's look: start a session (a suggested length or any custom length
+// from 1 to 240 minutes, R12, optionally for an event), the running session with its ring and time
+// left, the rating after it ended, and recent
 // sessions. It only sends the user's choices and shows the server's answers; the server decides
 // every state change (spec 04), including the end of a session at its planned length (R13).
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
 import { Pause, Play } from "lucide-react";
 import { postJson, type PostResult } from "@/lib/client/post-json";
-import { clockText, minutesText, secondsLeft, SESSION_LENGTHS, type SessionTimes } from "@/lib/focus/session-time";
+import {
+  clockText,
+  isSessionLength,
+  MAX_SESSION_MINUTES,
+  MIN_SESSION_MINUTES,
+  minutesText,
+  secondsLeft,
+  SUGGESTED_LENGTHS,
+  type SessionTimes,
+} from "@/lib/focus/session-time";
+import { MESSAGES } from "@/lib/messages";
 import type { FocusData, SessionDto } from "@/lib/focus/types";
 import type { BlockerData } from "@/lib/blocker/types";
 import { useDisplay } from "@/components/shell/DisplayProvider";
@@ -86,9 +97,29 @@ function GoalLine({ goal }: { goal: FocusGoal | null }) {
   );
 }
 
+const isSuggested = (minutes: number) => (SUGGESTED_LENGTHS as readonly number[]).includes(minutes);
+
+/** The custom length typed in, as a number, or null while the text is not a whole number. */
+export function parseCustomMinutes(text: string): number | null {
+  const trimmed = text.trim();
+  return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+}
+
 function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: FocusGoal | null }) {
-  const [minutes, setMinutes] = useState<number>(forEvent?.suggestedMinutes ?? 60);
+  const initial = forEvent?.suggestedMinutes ?? 60;
+  // A suggested length is one of the chips; any other length starts in the custom field (R12).
+  const [chosen, setChosen] = useState<number | "custom">(isSuggested(initial) ? initial : "custom");
+  const [customText, setCustomText] = useState(isSuggested(initial) ? "" : String(initial));
+  const customId = useId();
+  const hintId = useId();
   const { run, busy, failure } = useSessionAction();
+
+  const customMinutes = parseCustomMinutes(customText);
+  const minutes = chosen === "custom" ? customMinutes : chosen;
+  const validMinutes = minutes !== null && isSessionLength(minutes) ? minutes : null;
+  const valid = validMinutes !== null;
+  // Show the rule only once something was typed, so an empty field does not start with an error.
+  const showHint = chosen === "custom" && customText.trim() !== "" && !valid;
 
   return (
     <section aria-labelledby="start-title" className={card}>
@@ -106,28 +137,68 @@ function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: 
       <fieldset className="mt-5">
         <legend className={`${eyebrow} mb-2`}>Length</legend>
         <div className="inline-flex w-fit max-w-full flex-wrap rounded-full bg-raised p-1">
-          {SESSION_LENGTHS.map((length) => (
+          {[...SUGGESTED_LENGTHS, "custom" as const].map((length) => (
             <label
               key={length}
               className={`flex h-8 cursor-pointer items-center rounded-full px-3.5 text-sm tabular transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink/30 ${
-                minutes === length ? "bg-surface font-semibold text-ink shadow-sm" : "text-ink-2 hover:text-ink"
+                chosen === length ? "bg-surface font-semibold text-ink shadow-sm" : "text-ink-2 hover:text-ink"
               }`}
             >
               <input
                 type="radio"
                 name="length"
                 value={length}
-                checked={minutes === length}
-                onChange={() => setMinutes(length)}
+                checked={chosen === length}
+                onChange={() => setChosen(length)}
                 className="sr-only"
               />
-              {minutesText(length)}
+              {length === "custom" ? "Custom" : minutesText(length)}
             </label>
           ))}
         </div>
+        {chosen === "custom" && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <label htmlFor={customId} className="sr-only">
+              Custom length in minutes
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id={customId}
+                type="number"
+                inputMode="numeric"
+                min={MIN_SESSION_MINUTES}
+                max={MAX_SESSION_MINUTES}
+                step={1}
+                placeholder="e.g. 45"
+                value={customText}
+                onChange={(e) => setCustomText(e.target.value)}
+                aria-invalid={showHint}
+                aria-describedby={hintId}
+                autoFocus={!forEvent}
+                className="h-9 w-24 rounded-lg border border-line bg-surface px-3 text-sm tabular text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10 aria-[invalid=true]:border-danger"
+              />
+              <span className="text-sm text-ink-2">min</span>
+            </div>
+            <p id={hintId} className={`text-sm ${showHint ? "text-danger" : "text-ink-2"}`}>
+              {/* Under an hour the field already says it ("10 min"); from 60 on the hours help ("= 1 h 10 min"). */}
+              {showHint
+                ? MESSAGES.chooseLength
+                : validMinutes !== null
+                  ? validMinutes >= 60
+                    ? `= ${minutesText(validMinutes)}`
+                    : ""
+                  : "Any length from 1 to 240 minutes"}
+            </p>
+          </div>
+        )}
       </fieldset>
       {failure && <FormMessage tone="error" text={failure.message} />}
-      <Button size="lg" className="mt-6 w-full" disabled={busy} onClick={() => run("/api/sessions", { minutes, eventId: forEvent?.id ?? null })}>
+      <Button
+        size="lg"
+        className="mt-6 w-full"
+        disabled={busy || !valid}
+        onClick={() => run("/api/sessions", { minutes, eventId: forEvent?.id ?? null })}
+      >
         <Play className="size-4" />
         {busy ? "Starting…" : "Start focus"}
       </Button>
