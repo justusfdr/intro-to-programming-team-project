@@ -1,5 +1,5 @@
 # Team project: Ontology
-Draft of 10 November 2026.
+Draft of 10 November 2026. On the branch `prototype-style` (a variant for the team to compare with `main`): display settings, R34 and the details of `update_settings` and `delete_account` added 12 Nov 2026 (spec 12).
 A web app that brings calendar, goals and focused work together, and blocks distracting websites in Chrome.
 Rule for coding agents: read this file first. Do not change it without the team's approval; propose the change and wait.
 
@@ -40,7 +40,7 @@ Rule for coding agents: read this file first. Do not change it without the team'
 Times in UTC, shown in the user's time zone. Lengths in minutes. Every table has `id` (uuid) and, except user, `user_id`.
 
 - **user**: `email` text, `status` `unconfirmed`/`confirmed` (kept by Supabase Auth), `plan` `free`/`pro`, `stripe_customer_id` text or empty, `chat_count_date` date and `chat_count` integer (3), `extension_seen_at` timestamp or empty
-- **settings**: `time_zone` text, from the browser at sign-up, or "Europe/Lisbon" if it gives none or an invalid one, `home_address` text or empty, `travel_mode` `driving`/`cycling`/`walking` (default `driving`), `travel_buffer_minutes` integer 0 to 120 (10)
+- **settings**: `time_zone` text, from the browser at sign-up, or "Europe/Lisbon" if it gives none or an invalid one, `home_address` text or empty, `travel_mode` `driving`/`cycling`/`walking` (default `driving`), `travel_buffer_minutes` integer 0 to 120 (10), `time_format` `12h`/`24h` (default `12h`), `day_start_hour` integer 0 to 23 (7) and `day_end_hour` integer 1 to 24 (21), the end after the start (the calendar's visible hours)
 - **goal**: `title` text 1 to 80 characters, `deadline` date ("2027-03-14"), `auto_block` boolean (false), `created_at`, `updated_at` timestamps
 - **rule**: `goal_id` → goal, `kind` `count`/`hours`, `target` decimal (2), `min_minutes` integer or empty, only for `count` (45)
 - **task**: `title` text 1 to 100 characters, `goal_id` → goal or empty, `due_date` date or empty ("2026-11-20"), `status` `open`/`done`, `done_at` timestamp (empty while open), `created_at`, `updated_at`
@@ -74,8 +74,8 @@ The first six actions need no sign-in; all others need it and touch only the use
 | `sign_in` | email, password | They match; account `confirmed` | Signed in | "Email or password is wrong" / "Confirm your email first. We sent you a link" |
 | `request_password_reset` | email | always | Shows "If this email is registered, we sent a link"; sends only to a registered email | none |
 | `reset_password` | link, new password | Link valid and unused; password ≥ 8 characters | New password saved | "This link has expired. Ask for a new one" / "Password needs at least 8 characters" |
-| `update_settings` | settings | Buffer whole 0 to 120 | Saved | "Buffer must be 0 to 120 minutes" |
-| `delete_account` | confirmation | Plan `free` | All the user's rows deleted | "Cancel Pro before deleting your account" |
+| `update_settings` | settings | Buffer whole 0 to 120; time zone known; home address up to 200 characters or empty; visible hours as section 3 | Saved | "Buffer must be 0 to 120 minutes" / "Choose a time zone from the list" / "Home address can be at most 200 characters" / "Visible hours must be whole hours, from 0 to 24, ending after they start" |
+| `delete_account` | confirmation (the word "DELETE" typed) | Plan `free`; "DELETE" typed | All the user's rows and the sign-in account deleted; signed out | "Cancel Pro before deleting your account" / "Type DELETE to confirm" |
 | `create_goal`, `edit_goal` | title, deadline, auto_block, rules | Title 1 to 80; deadline not past when set or changed; at least one rule (R7) | Goal and rules saved together | "Title must be 1 to 80 characters" / "Add at least one rule" / "The deadline cannot be in the past" / "Target must be 1 to 14 events" / "Target must be 0.5 to 60 hours" / "Minimum length must be 15 to 240 minutes" |
 | `add_task`, `edit_task` | title, goal or none, due date or none | Title 1 to 100; due date not past when set or changed; `add_task`: under 100 open tasks (R32) | Saved (`add_task`: `open`) | "Title must be 1 to 100 characters" / "The due date cannot be in the past" / "You can have at most 100 open tasks" |
 | `complete_task`, `reopen_task` | task | Complete: `open`. Reopen: `done`; under 100 open tasks | `done` / `open` | "Not possible in this state" / "You can have at most 100 open tasks" |
@@ -153,6 +153,9 @@ The first six actions need no sign-in; all others need it and touch only the use
 **AI chat: questions about the past**
 - **R31** For every message the server, not Claude, adds up the current week and the 7 before: per week and goal, minutes of `done` timed events and focused minutes of finished sessions (a session counts for its event's goal, else "no goal"); for `done` events without a goal, minutes per title, only the 20 titles with the most minutes. Limit: the assistant sees only these totals, no single past events, nothing older than 8 weeks.
 
+**Display**
+- **R34** Times are shown as the user's `time_format` says: 12-hour by default ("9am", "1:30pm", a range "9 – 10:30am", an end with its length "1:30pm · 1h"), or 24-hour ("9:00", "13:30"). Dates are month-first ("Nov 16", "Mon, Nov 16", "Monday, November 16"). The calendar shows the hours from `day_start_hour` to `day_end_hour`, widened when an event starts outside them. Only the screen changes: stored values, the values of form fields and server messages keep their form.
+
 **Tasks**
 - **R32** A task belongs to one of the user's goals or to none; tasks without a goal are listed under "Inbox". At most 100 open tasks per user. A task never counts for a rule and never appears in the calendar.
 - **R33** Under each goal the open tasks come first, by due date (earliest first, tasks without a date last), then the done tasks, struck through. A due date before today (in the user's time zone) is marked overdue. A done task is deleted by itself 7 days after it was done.
@@ -174,7 +177,7 @@ The first six actions need no sign-in; all others need it and touch only the use
 |---|---|---|
 | Database | "Your data cannot be loaded right now." (Free database woken before the demo.) | Nothing saved in the browser |
 | Claude | "The assistant is not available right now. Your calendar is unchanged." | Calendar, chat, open draft |
-| Outlook | Imported events with "Last synced 08:40"; app events marked "Not sent to Outlook" | App events |
+| Outlook | Imported events with "Last synced 8:40am"; app events marked "Not sent to Outlook" | App events |
 | Routing | "Travel time not available" | The event |
 | Stripe | "Payment is not available right now." | Plan |
 | E-mail | "We could not send the email. Try again later" | Account stays `unconfirmed` |
