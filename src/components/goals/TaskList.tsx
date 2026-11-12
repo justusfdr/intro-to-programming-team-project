@@ -9,6 +9,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
+import { Button } from "@/components/ui/Button";
 import { Plus, Trash } from "@/components/ui/icons";
 import { postJson } from "@/lib/client/post-json";
 import { dueLabel, isOverdue } from "@/lib/tasks/order";
@@ -32,10 +33,9 @@ type Props = {
   goals: GoalOption[];
 };
 
+// The same fields as in the event editor.
 const inputClass =
-  "block h-8 w-full min-w-0 rounded-md border border-line bg-surface px-2 text-[13px] text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10";
-const smallButton =
-  "inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 disabled:opacity-50";
+  "block h-10 w-full min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10";
 
 /** A rejection shown next to the input, read out at once. */
 function ErrorLine({ text }: { text: string }) {
@@ -257,7 +257,7 @@ export function TaskForm({
 
   const formName = mode.kind === "edit" ? `Edit task ${mode.task.title}` : `Add task to ${mode.sectionTitle}`;
   return (
-    <form onSubmit={save} onKeyDown={onKeyDown} aria-label={formName} className="my-1 rounded-lg border border-line-subtle bg-raised/60 p-2">
+    <form onSubmit={save} onKeyDown={onKeyDown} aria-label={formName} className="my-1 rounded-xl border border-line-subtle bg-raised/60 p-2">
       <input
         ref={titleInput}
         value={title}
@@ -291,25 +291,26 @@ export function TaskForm({
         )}
       </div>
       {error && <ErrorLine text={error} />}
-      <div className="mt-1.5 flex items-center gap-1">
-        <button type="submit" disabled={busy} className={`${smallButton} bg-ink text-white hover:bg-ink/90`}>
+      <div className="mt-2 flex items-center gap-1.5">
+        <Button type="submit" size="sm" disabled={busy}>
           Save
-        </button>
-        <button type="button" onClick={onDone} className={`${smallButton} text-ink-2 hover:bg-muted`}>
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onDone}>
           {task ? "Cancel" : "Close"}
-        </button>
+        </Button>
         {task && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={remove}
             disabled={busy}
             aria-label={`Delete task ${task.title}`}
             title="Delete task"
-            className={`${smallButton} ml-auto text-danger hover:bg-danger-soft`}
+            className="ml-auto text-danger! hover:bg-danger-soft"
           >
             <Trash className="size-3.5" />
             Delete
-          </button>
+          </Button>
         )}
       </div>
     </form>

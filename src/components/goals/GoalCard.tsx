@@ -104,7 +104,7 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks,
           {/* This week: the rule rows and the strip of weeks, one block. */}
           <ul className="flex flex-col">
             {goal.progress.thisWeek.map((rule) => (
-              <GoalRow key={rule.ruleId} colorIndex={goal.colorIndex} done={rule.status === "met"} struck={rule.status === "met"} doneLabel="met">
+              <GoalRow key={rule.ruleId} colorIndex={goal.colorIndex} done={rule.status === "met"} struck={rule.status === "met"} doneLabel="met" compact>
                 {rule.text}
               </GoalRow>
             ))}

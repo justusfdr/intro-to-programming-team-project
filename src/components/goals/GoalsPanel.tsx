@@ -130,7 +130,7 @@ function InboxSection({
         >
           <ChevronRight className={`size-3.5 transition-transform ${collapsed ? "" : "rotate-90"}`} strokeWidth={2.2} />
         </button>
-        <GoalTile colorIndex={null} />
+        <GoalTile colorIndex={null} icon="inbox" />
         <h3 className="ml-1 min-w-0 flex-1 truncate text-[15px] font-semibold tracking-snug text-ink">Inbox</h3>
         <OpenTaskCount count={openCount(tasks)} />
       </div>

@@ -21,21 +21,29 @@ type Props = {
   chip?: { text: string; tone?: "neutral" | "danger"; srPrefix?: string };
   /** Makes the ring a button with this name ("Mark 'Buy shoes' done"). */
   toggle?: { label: string; onClick: () => void; disabled?: boolean };
+  /**
+   * A smaller, quieter row for things that cannot be ticked off (the rules of this week): a 12px ring
+   * or check, 12px secondary text, a lower row. Task rows use the normal size.
+   */
+  compact?: boolean;
 };
 
 const GREY = { dot: "bg-ink-3", ring: "border-ink-3" };
 
-export function GoalRow({ colorIndex, done, children, struck = false, doneLabel = "done", chip, toggle }: Props) {
+export function GoalRow({ colorIndex, done, children, struck = false, doneLabel = "done", chip, toggle, compact = false }: Props) {
   const color = colorIndex === null ? GREY : goalColor(colorIndex);
+  // The compact mark is 12px, centred in the same 18px column, so its text lines up with the tasks.
+  const size = compact ? "size-3" : "size-[18px]";
   const mark = done ? (
-    <span aria-hidden className={`flex size-[18px] shrink-0 items-center justify-center rounded-full text-white ${color.dot}`}>
-      <Check className="size-3" strokeWidth={3} />
+    <span aria-hidden className={`flex ${size} shrink-0 items-center justify-center rounded-full text-white ${color.dot}`}>
+      <Check className={compact ? "size-2" : "size-3"} strokeWidth={3} />
     </span>
   ) : (
-    <span aria-hidden className={`block size-[18px] shrink-0 rounded-full border-[1.5px] ${color.ring}`} />
+    <span aria-hidden className={`block ${size} shrink-0 rounded-full ${compact ? "border-[1.25px]" : "border-[1.5px]"} ${color.ring}`} />
   );
+  const text = struck ? "text-ink-3 line-through" : compact ? "text-ink-2" : "text-ink";
   return (
-    <li className="flex min-h-8 items-center gap-2.5 text-[14px]">
+    <li className={compact ? "flex min-h-6 cursor-default items-center gap-2.5 text-[12px]" : "flex min-h-8 items-center gap-2.5 text-[14px]"}>
       {toggle ? (
         // The visible circle is 18px; the button's pseudo-element gives a larger area to tap.
         <button
@@ -48,10 +56,12 @@ export function GoalRow({ colorIndex, done, children, struck = false, doneLabel 
         >
           {mark}
         </button>
+      ) : compact ? (
+        <span className="flex size-[18px] shrink-0 items-center justify-center">{mark}</span>
       ) : (
         mark
       )}
-      <span className={`min-w-0 flex-1 ${struck ? "text-ink-3 line-through" : "text-ink"}`}>{children}</span>
+      <span className={`min-w-0 flex-1 ${text}`}>{children}</span>
       {done && <span className="sr-only">, {doneLabel}</span>}
       {chip && (
         <span
