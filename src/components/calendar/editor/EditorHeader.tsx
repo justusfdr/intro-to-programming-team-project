@@ -2,7 +2,7 @@
 
 // The editor's head, as in the prototype: the goal's tile, the title (a field for our own events, text
 // for an Outlook event, R11) and the close button (phones close the sheet with its own button).
-// Typing in the title is saved when the field is left or after a short pause (onType); Enter leaves the
+// Typing in the title shows in the field and waits for Save (onType); Enter leaves the
 // field; Esc puts back the title it had when the field was entered and keeps the panel open.
 import { useRef, type KeyboardEvent } from "react";
 import { X } from "lucide-react";
@@ -14,9 +14,9 @@ type Props = {
   title: string;
   /** False for an Outlook event: the title is Outlook's (R11). */
   editable: boolean;
-  /** Each key: the field shows it and a save follows after a pause. */
+  /** Each key: the field shows it. */
   onType: (title: string) => void;
-  /** The field was left (or Esc put the old title back): save now. */
+  /** The field was left, or Esc put the old title back (then with that title). */
   onDone: (title?: string) => void;
   onClose: () => void;
 };
