@@ -11,7 +11,7 @@ import { join } from "node:path";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
-import { createTestApp } from "@test/support/app";
+import { createTestApp, postJson } from "@test/support/app";
 import { seedAllDay, seedEvent } from "@test/support/events";
 import { seedGoal } from "@test/support/goals";
 
@@ -302,7 +302,7 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
         outlookState("Connected", { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }),
         outlookState("Microsoft refused the stored access", { status: "needs_reconnect", lastSyncedAt: "2026-11-16T17:05:00.000Z" }),
         outlookState("After Disconnect", { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }, true),
-      ].join("")}<div class="flex flex-col gap-2"><p class="text-xs font-medium text-ink-3">After Delete account</p>${renderToStaticMarkup(<YourAccountCard defaultAsking />)}</div></main>`,
+      ].join("")}<div class="flex flex-col gap-2"><p class="text-xs font-medium text-ink-3">After Delete account</p>${renderToStaticMarkup(<YourAccountCard defaultAsking />)}</div><div class="flex flex-col gap-2"><p class="text-xs font-medium text-ink-3">After Remove the demo data (spec 13)</p>${renderToStaticMarkup(<YourAccountCard hasDemo defaultAskingDemo />)}</div></main>`,
       styles,
     ),
   );
@@ -377,6 +377,52 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     join(OUT, "goal-editor-phone.html"),
     phoneFrame("Goal editor", page("Goal editor", `${calendar()}<div class="preview-dim"></div>${goalEditMarkup}`, styles, centred)),
   );
+
+  // Spec 13: the demo week. A new account chooses "Explore the demo" on Wednesday 18 November at 13:00 in
+  // Lisbon; the calendar, the goals column and the Focus page then show what load_demo created.
+  const { loadDemo } = await import("@/lib/server/actions/load-demo");
+  const { Welcome } = await import("@/components/shell/Welcome");
+  const demoApp = await createTestApp();
+  const demoUser = await demoApp.signedInAs("demo@example.com", { timeZone: "Europe/Lisbon" });
+  demoApp.advance(2 * 24 * 3_600_000 + 4 * 3_600_000);
+  const emptyWeek = await loadWeek(demoApp.deps, demoUser);
+  const demoAnswer = await loadDemo(postJson("/api/demo/load", {}), demoApp.deps);
+  if (demoAnswer.status !== 201) throw new Error(`load_demo failed: ${demoAnswer.status}`);
+  const demoWeek = await loadWeek(demoApp.deps, demoUser);
+  const demoGoals = await loadGoals(demoApp.deps, demoUser);
+  const demoTasks = await loadTasks(demoApp.deps, demoUser);
+  await demoApp.close();
+  const demoCalendar = (w: typeof demoWeek, g: typeof demoGoals, t: typeof demoTasks, after = "") =>
+    renderToStaticMarkup(
+      <Announcer>
+        <PanelState>
+          <AppShell current="/" panelsLeft={<GoalsPanel goals={g} tasks={t} today="2026-11-18" />}>
+            <CalendarView
+              week={w}
+              nowLocal="2026-11-18T13:00"
+              suggestion={{ start: "2026-11-18T14:00", end: "2026-11-18T15:00" }}
+              goals={g.map(({ id, title, look }) => ({ id, title, look }))}
+              outlookAvailable
+            />
+          </AppShell>
+        </PanelState>
+      </Announcer>,
+    ) + after;
+  const demoHtml = page("Demo week", demoCalendar(demoWeek, demoGoals, demoTasks), styles);
+  writeFileSync(join(OUT, "demo-week.html"), demoHtml);
+  writeFileSync(join(OUT, "demo-week-phone.html"), phoneFrame("Demo week", demoHtml));
+
+  // The welcome over the new account's empty calendar, in each step. A static page cannot open a
+  // modal dialog, so it gets the `open` attribute and a dimmed, blurred layer behind it.
+  const welcomeCss = `.preview-dim{position:fixed;inset:0;background:rgb(16 16 16/.3);backdrop-filter:blur(2px);z-index:65}
+dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
+@media (min-width:768px){dialog.welcome[open]{inset:0;margin:auto;height:fit-content}}`;
+  for (const step of [1, 2, 3] as const) {
+    const welcome = renderToStaticMarkup(<Welcome timeFormat="12h" defaultStep={step} />).replace("<dialog", "<dialog open");
+    const html = page("Welcome", demoCalendar(emptyWeek, [], [], `<div class="preview-dim"></div>${welcome}`), styles, welcomeCss);
+    writeFileSync(join(OUT, `welcome-${step}.html`), html);
+    if (step === 1) writeFileSync(join(OUT, "welcome-phone.html"), phoneFrame("Welcome", html));
+  }
 
   // The Focus page in its states (spec 04). Sample sessions written by hand; times as the server sends them.
   const { FocusView } = await import("@/components/focus/FocusView");
@@ -517,5 +563,5 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   writeFileSync(join(OUT, "sign-in.html"), page("Sign in", renderToStaticMarkup(<SignInPage />), styles));
   writeFileSync(join(OUT, "sign-up.html"), page("Sign up", renderToStaticMarkup(<SignUpPage />), styles));
 
-  expect(readdirSync(OUT)).toEqual(expect.arrayContaining(["week-desktop.html", "week-phone.html", "event-editor.html", "goal-editor.html", "settings.html", "settings-phone.html", "sign-in.html", "sign-up.html"]));
+  expect(readdirSync(OUT)).toEqual(expect.arrayContaining(["week-desktop.html", "week-phone.html", "event-editor.html", "goal-editor.html", "demo-week.html", "welcome-1.html", "settings.html", "settings-phone.html", "sign-in.html", "sign-up.html"]));
 });

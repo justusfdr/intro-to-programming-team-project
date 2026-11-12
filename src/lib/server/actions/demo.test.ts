@@ -9,6 +9,7 @@ import { seedGoal } from "@test/support/goals";
 import { seedOpenTasks, seedTask } from "@test/support/tasks";
 import { welcomeDue } from "@/lib/server/demo/rows";
 import { loadWeek } from "@/lib/server/events/week";
+import { loadGoals } from "@/lib/server/goals/load";
 import { loadDemo } from "./load-demo";
 import { sendOutlookNow } from "./outlook";
 import { finishOutlookSignIn, startOutlookSignIn } from "./outlook-connect";
@@ -93,6 +94,17 @@ describe("load_demo accepted", () => {
       },
     ]);
     expect(await welcomeOf(alice)).toBe(true);
+  });
+
+  it("lists the goals in the prototype's order in the goals column", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    await load();
+    const goals = await loadGoals(app.deps, alice);
+    expect(goals.map((g) => [g.title, g.look])).toEqual([
+      ["Grow my YouTube channel", { color: "rose", icon: "video" }],
+      ["Run a half marathon under 2h", { color: "teal", icon: "footprints" }],
+      ["Launch app v2", { color: "indigo", icon: "rocket" }],
+    ]);
   });
 
   it("adds the prototype's nine tasks without its habits, due relative to today, two of them done", async () => {

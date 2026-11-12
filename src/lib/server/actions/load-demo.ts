@@ -51,15 +51,25 @@ export function loadDemo(request: Request, deps: Pick<Deps, "auth" | "withUser" 
         const openTasks = tasks.filter((task) => !task.done).length;
         if ((await countOpenTasks(query)) + openTasks > 100) throw tooManyTasks();
 
-        // Goals, each with one hours-per-week rule.
-        const goalIds = new Map<string, string>();
+        // Goals, each with one hours-per-week rule. All rows of one transaction share created_at, and
+        // the goals column then orders by id; so three rows are added first and the prototype's goals
+        // are then written into them in id order, which keeps the prototype's order in the column.
         const deadline = addDays(today, DEMO_DEADLINE_DAYS);
+        const rowIds: string[] = [];
         for (const goal of DEMO_GOALS) {
           const [{ id }] = await query<{ id: string }>(
             "insert into app.goals (title, deadline, color, icon, why, demo) values ($1, $2, $3, $4, $5, true) returning id",
             [goal.title, deadline, goal.color, goal.icon, goal.why],
           );
           await query("insert into app.rules (goal_id, kind, target) values ($1, 'hours', $2)", [id, goal.hoursPerWeek]);
+          rowIds.push(id);
+        }
+        rowIds.sort();
+        const goalIds = new Map<string, string>();
+        for (const [index, goal] of DEMO_GOALS.entries()) {
+          const id = rowIds[index];
+          await query("update app.goals set title = $2, color = $3, icon = $4, why = $5 where id = $1", [id, goal.title, goal.color, goal.icon, goal.why]);
+          await query("update app.rules set target = $2 where goal_id = $1", [id, goal.hoursPerWeek]);
           goalIds.set(goal.key, id);
         }
 
