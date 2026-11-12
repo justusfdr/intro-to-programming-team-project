@@ -1,7 +1,7 @@
 // The small tinted tile that stands for a goal: the target icon in the goal's colour. Every goal has
 // the same icon (the data has none per goal); "No goal" gets a grey tile. Decorative: the goal's
 // name always stands next to it.
-import { InboxIcon, TargetIcon } from "@/components/ui/icons";
+import { Inbox, Target } from "lucide-react";
 import { goalColor } from "@/lib/goals/colors";
 
 const SIZES = {
@@ -27,7 +27,7 @@ export function GoalTile({
   const { box, icon: iconClass } = SIZES[size];
   return (
     <span aria-hidden className={`inline-flex shrink-0 items-center justify-center ${box} ${tint} ${className}`}>
-      {icon === "inbox" ? <InboxIcon className={iconClass} strokeWidth={2} /> : <TargetIcon className={iconClass} strokeWidth={2} />}
+      {icon === "inbox" ? <Inbox className={iconClass} strokeWidth={2} /> : <Target className={iconClass} strokeWidth={2} />}
     </span>
   );
 }

@@ -3,7 +3,7 @@
 // from finished sessions and blocked attempts (R19, R20); the charts are drawn with plain markup and
 // hidden from screen readers, because the table and the list next to them say the same.
 import { LinkButton } from "@/components/ui/Button";
-import { ChevronLeft, ChevronRight } from "@/components/ui/icons";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { scoreText, type Totals } from "@/lib/analytics/score";
 import type { AnalyticsData } from "@/lib/analytics/types";
 import { minutesText } from "@/lib/focus/session-time";
@@ -47,10 +47,10 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
         </div>
         <nav aria-label="Weeks" className="flex items-center gap-1.5">
           <LinkButton href={`/analytics?week=${data.previous}`} variant="secondary" size="icon" aria-label="Previous week" title="Previous week">
-            <ChevronLeft />
+            <ChevronLeft className="size-4" />
           </LinkButton>
           <LinkButton href={`/analytics?week=${data.next}`} variant="secondary" size="icon" aria-label="Next week" title="Next week">
-            <ChevronRight />
+            <ChevronRight className="size-4" />
           </LinkButton>
           <LinkButton href={`/analytics?week=${data.thisWeek}`} variant="secondary" aria-current={data.monday === data.thisWeek ? "page" : undefined}>
             This week

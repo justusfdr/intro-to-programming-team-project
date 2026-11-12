@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
-import { Plus, Trash } from "@/components/ui/icons";
+import { Plus, Trash2 } from "lucide-react";
 import { postJson } from "@/lib/client/post-json";
 import { dueLabel, isOverdue } from "@/lib/tasks/order";
 import type { TaskDto } from "@/lib/tasks/types";
@@ -308,7 +308,7 @@ export function TaskForm({
             title="Delete task"
             className="ml-auto text-danger! hover:bg-danger-soft"
           >
-            <Trash className="size-3.5" />
+            <Trash2 className="size-3.5" />
             Delete
           </Button>
         )}

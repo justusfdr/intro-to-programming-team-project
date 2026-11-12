@@ -4,7 +4,7 @@
 // countdown and "Auto-block on".
 // Every status is said in words and shown with a symbol, so nothing depends on colour alone.
 import { useId, type ReactNode } from "react";
-import { Check, ChevronRight, Close } from "@/components/ui/icons";
+import { Check, ChevronRight, X } from "lucide-react";
 import { goalColor } from "@/lib/goals/colors";
 import type { StripWeek, WeekStatus } from "@/lib/goals/progress";
 import { weekShare } from "@/lib/goals/share";
@@ -17,7 +17,7 @@ const STATUS_WORD: Record<WeekStatus, string> = { met: "met", missed: "missed", 
 
 function StatusMark({ status }: { status: WeekStatus }) {
   if (status === "met") return <Check className="size-2.5 text-success" strokeWidth={3} />;
-  if (status === "missed") return <Close className="size-2.5 text-danger" strokeWidth={3} />;
+  if (status === "missed") return <X className="size-2.5 text-danger" strokeWidth={3} />;
   return <span aria-hidden className="block size-1.5 rounded-full border border-ink-3" />;
 }
 

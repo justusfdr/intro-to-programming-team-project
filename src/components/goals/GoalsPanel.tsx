@@ -8,7 +8,7 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { usePanels } from "@/components/shell/PanelState";
 import { Button } from "@/components/ui/Button";
-import { ChevronRight, Close, Plus } from "@/components/ui/icons";
+import { ChevronRight, Plus, X } from "lucide-react";
 import { COLLAPSED_KEY, readCollapsed, toggleCollapsed } from "@/lib/goals/collapsed";
 import type { GoalView } from "@/lib/goals/types";
 import { openCount, sortTasks } from "@/lib/tasks/order";
@@ -58,10 +58,10 @@ function PanelContent({ titleId, goals, tasks, today, collapsed, onToggle, onNew
           Goals
         </h2>
         <Button variant="ghost" size="icon" className="size-8 text-ink-3" aria-label="New goal" title="New goal" onClick={onNew}>
-          <Plus />
+          <Plus className="size-4" />
         </Button>
         <Button variant="ghost" size="icon" className="size-8 text-ink-3" aria-label={closeLabel} title={closeLabel} onClick={onClose}>
-          <Close />
+          <X className="size-4" />
         </Button>
       </div>
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-1 pb-6">

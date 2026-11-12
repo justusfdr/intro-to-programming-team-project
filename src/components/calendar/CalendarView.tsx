@@ -6,7 +6,7 @@
 // router.refresh(), which loads the week again.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { ChevronLeft, ChevronRight, Plus } from "@/components/ui/icons";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { formatMinute, gridRange, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
 import type { WeekData } from "@/lib/events/types";
 import type { GoalLabel } from "./TimeGrid";
@@ -75,7 +75,7 @@ export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
 
   return (
     <>
-      <div className="flex h-[calc(100dvh-57px)] min-h-[480px] flex-col gap-3 px-4 pt-4 pb-3 md:h-dvh md:px-6 md:pt-6 md:pb-5">
+      <div className="flex h-[calc(100dvh-7rem)] min-h-[480px] flex-col gap-3 px-4 pt-4 pb-3 md:h-dvh md:px-6 md:pt-6 md:pb-5">
         <header className="flex flex-col gap-3">
           <div>
             <h1 className="text-[26px] leading-[32px] font-semibold tracking-display text-ink md:text-[32px] md:leading-[38px]">
@@ -88,10 +88,10 @@ export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1">
               <LinkButton href={`/?week=${week.previous}`} variant="secondary" size="icon" aria-label="Previous week" title="Previous week">
-                <ChevronLeft />
+                <ChevronLeft className="size-4" />
               </LinkButton>
               <LinkButton href={`/?week=${week.next}`} variant="secondary" size="icon" aria-label="Next week" title="Next week">
-                <ChevronRight />
+                <ChevronRight className="size-4" />
               </LinkButton>
             </div>
             <LinkButton

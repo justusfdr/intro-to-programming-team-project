@@ -3,7 +3,7 @@
 // rules of this week and for tasks (spec 11). For a task the ring is a real button (`toggle`); for a
 // rule it is only a picture. `colorIndex` null is the grey of "Inbox".
 import type { ReactNode } from "react";
-import { Check } from "@/components/ui/icons";
+import { Check } from "lucide-react";
 import { goalColor } from "@/lib/goals/colors";
 
 type Props = {

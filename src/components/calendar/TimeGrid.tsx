@@ -11,7 +11,8 @@
 import type { MouseEvent } from "react";
 import { blockBox, formatMinute, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
 import type { AllDayEvent, CalendarEvent, WeekDay } from "@/lib/events/types";
-import { Check, ImportedIcon, NotSentIcon, Warning } from "@/components/ui/icons";
+import { CalendarDays, Check, TriangleAlert } from "lucide-react";
+import { NotSentIcon } from "@/components/ui/icons";
 import { goalColor } from "@/lib/goals/colors";
 import { dayParts } from "@/lib/time/zoned";
 
@@ -39,7 +40,7 @@ function outlookWords(event: CalendarEvent): string[] {
 
 /** The small marks for Outlook, next to the conflict and done marks. */
 function OutlookMark({ event }: { event: CalendarEvent }) {
-  if (event.source === "outlook") return <ImportedIcon className="size-3 text-ink-3" />;
+  if (event.source === "outlook") return <CalendarDays className="size-3 text-ink-3" />;
   if (event.notSent) return <NotSentIcon className="size-3 text-danger" />;
   return null;
 }
@@ -100,7 +101,7 @@ function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
       {(event.conflict || done || event.source === "outlook" || event.notSent) && (
         <span className="absolute right-1 top-1 flex items-center gap-0.5">
           <OutlookMark event={event} />
-          {event.conflict && <Warning className="size-3 text-danger" />}
+          {event.conflict && <TriangleAlert className="size-3 text-danger" />}
           {done && <Check className="size-3 text-success" strokeWidth={3} />}
         </span>
       )}

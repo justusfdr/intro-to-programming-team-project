@@ -8,7 +8,7 @@ import { useState, type FormEvent } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
-import { Close, Warning } from "@/components/ui/icons";
+import { TriangleAlert, X } from "lucide-react";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { MESSAGES } from "@/lib/messages";
 import { localTimeOf } from "@/lib/time/zoned";
@@ -20,7 +20,7 @@ function Status({ data }: { data: BlockerData }) {
   if (!data.connected) {
     return (
       <p className="flex items-start gap-2 rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">
-        <Warning className="mt-0.5 size-4 shrink-0" />
+        <TriangleAlert className="mt-0.5 size-4 shrink-0" />
         {MESSAGES.blockerNotConnected}
       </p>
     );
@@ -84,7 +84,7 @@ export function BlockerCard({ data }: { data: BlockerData }) {
               aria-label={`Remove ${site.domain}`}
               className="flex size-6 items-center justify-center rounded-full text-ink-3 hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
             >
-              <Close className="size-3.5" />
+              <X className="size-3.5" />
             </button>
           </li>
         ))}

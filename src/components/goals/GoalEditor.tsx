@@ -10,7 +10,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
-import { Close, Plus, Trash } from "@/components/ui/icons";
+import { Plus, Trash2, X } from "lucide-react";
 import { GoalTile } from "./GoalTile";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import type { GoalDto, GoalView } from "@/lib/goals/types";
@@ -165,7 +165,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
             aria-label="Close"
             className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
           >
-            <Close />
+            <X className="size-4" />
           </button>
         </div>
 
@@ -231,7 +231,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
                   disabled={rules.length === 1}
                   onClick={() => removeRule(rule)}
                 >
-                  <Trash />
+                  <Trash2 className="size-4" />
                 </Button>
               </div>
               {rule.kind === "count" && (
@@ -321,7 +321,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
                 title="Delete"
                 onClick={() => setConfirmingDelete(true)}
               >
-                <Trash />
+                <Trash2 className="size-4" />
               </Button>
             )}
           </>

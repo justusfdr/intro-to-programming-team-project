@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
-import { Pause, Play } from "@/components/ui/icons";
+import { Pause, Play } from "lucide-react";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { clockText, minutesText, secondsLeft, SESSION_LENGTHS, type SessionTimes } from "@/lib/focus/session-time";
 import type { FocusData, SessionDto } from "@/lib/focus/types";

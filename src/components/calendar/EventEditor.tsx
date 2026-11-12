@@ -14,7 +14,8 @@ import { useEffect, useRef, useState, type FormEvent, type Ref } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { GoalTile } from "@/components/goals/GoalTile";
-import { CalendarIcon, Check, Close, ImportedIcon, NotSentIcon, PinIcon, Play, Trash, Warning } from "@/components/ui/icons";
+import { CalendarDays, Check, MapPin, Play, Trash2, TriangleAlert, X } from "lucide-react";
+import { NotSentIcon } from "@/components/ui/icons";
 import { formatMinute } from "@/lib/events/grid";
 import { minutesText } from "@/lib/focus/session-time";
 import { MESSAGES } from "@/lib/messages";
@@ -348,7 +349,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
               aria-label="Close"
               className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
             >
-              <Close />
+              <X className="size-4" />
             </button>
           </div>
 
@@ -362,7 +363,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
               {inSeries && <span className={`${chipClass} bg-raised text-ink-2`}>Repeating</span>}
               {fromOutlook && (
                 <span className={`${chipClass} bg-raised text-ink-2`}>
-                  <ImportedIcon className="size-3" /> From Outlook
+                  <CalendarDays className="size-3" /> From Outlook
                 </span>
               )}
               {event.notSent && (
@@ -372,7 +373,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
               )}
               {conflict && (
                 <span className={`${chipClass} bg-danger-soft text-danger`}>
-                  <Warning className="size-3" /> Overlaps another event
+                  <TriangleAlert className="size-3" /> Overlaps another event
                 </span>
               )}
             </div>
@@ -384,7 +385,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
             <section className="flex flex-col gap-2">
               <Eyebrow>When</Eyebrow>
               <p className={`${boxClass} text-ink`}>
-                <CalendarIcon className="size-4 shrink-0 text-ink-3" />
+                <CalendarDays className="size-4 shrink-0 text-ink-3" />
                 {whenText(event)}
               </p>
               <p className="text-xs text-ink-2">{MESSAGES.changeInOutlook}</p>
@@ -393,7 +394,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
               <section className="flex flex-col gap-2">
                 <Eyebrow>Location</Eyebrow>
                 <p className={`${boxClass} text-ink`}>
-                  <PinIcon className="size-4 shrink-0 text-ink-3" />
+                  <MapPin className="size-4 shrink-0 text-ink-3" />
                   {event.location}
                 </p>
               </section>
@@ -435,7 +436,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
                   <label htmlFor={`${prefix}-date`} className="sr-only">
                     Date
                   </label>
-                  <CalendarIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />
+                  <CalendarDays className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />
                   <input
                     id={`${prefix}-date`}
                     type="date"
@@ -636,7 +637,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
                 title="Delete"
                 onClick={() => (inSeries ? setQuestion({ kind: "delete" }) : setConfirmingDelete(true))}
               >
-                <Trash />
+                <Trash2 className="size-4" />
               </Button>
             )}
           </>
