@@ -10,7 +10,7 @@ Keep every key and password in your password manager. Never paste them into the 
 ## 2. Create the tables
 1. Open **SQL Editor** in the project.
 2. Run each file in `supabase/migrations/` in name order (oldest first): open the file, copy all of it, paste it into a new query, press **Run**. Each file runs only once.
-3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles`, `settings`, `events`, `goals`, `rules`, `focus_sessions`, `blocked_sites`, `blocked_attempts`, `calendar_connections` and `outlook_deletions`.
+3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles`, `settings`, `events`, `goals`, `rules`, `focus_sessions`, `blocked_sites`, `blocked_attempts`, `calendar_connections`, `outlook_deletions` and `tasks`.
 4. Open **Project Settings > Data API**. Under **Exposed schemas**, `app` must **not** be listed. Do not add it. (Our server is the only way to our tables.)
 
 ## 3. Switch on e-mail confirmation
@@ -64,13 +64,14 @@ Our code relies on these answers from Supabase. Check them once with two test ad
 7. The week page (`/`), signed in with a confirmed account: add "Statistics revision" today 09:00 to 11:00; edit it; mark it done (only possible once it has started); delete it. Then open the same account in a second browser, change an event in one and save an old version of it in the other: the second save must say "Changed on another device. Reload to see the latest version".
 8. With two confirmed accounts, each sees only their own events.
 9. Goals: create a goal with two rules, link an event to it, mark the event done once it has started: the goals panel counts it ("This week: 1 of 2 done").
-10. Focus: start a 15-minute session, pause, resume, end it, and rate it on the Focus page; open an event and choose "Start focus".
-11. The blocker: in `extension/config.js` set `APP_URL` to the deployed address, then load the `extension` folder in Chrome (see `extension/README.md`). Sign in to the app in the same Chrome profile; within a minute the Focus page says "Blocker connected". Start a 15-minute session and open youtube.com: Chrome shows the block page.
+10. Tasks: add a task under a goal with a due date, tick it off, reopen it; then delete the goal: the task is listed under "Inbox". With two confirmed accounts, each sees only their own tasks.
+11. Focus: start a 15-minute session, pause, resume, end it, and rate it on the Focus page; open an event and choose "Start focus".
+12. The blocker: in `extension/config.js` set `APP_URL` to the deployed address, then load the `extension` folder in Chrome (see `extension/README.md`). Sign in to the app in the same Chrome profile; within a minute the Focus page says "Blocker connected". Start a 15-minute session and open youtube.com: Chrome shows the block page.
     - Chrome must allow third-party cookies for the app's address (Chrome settings, Privacy and security, Third-party cookies, "Sites allowed to use third-party cookies"). Otherwise the extension gets "not signed in" and blocks nothing.
     - `EXTENSION_ID` stays empty unless the key in `extension/manifest.json` is replaced.
-12. Analytics: after a few sessions (and a blocked visit during one), the Analytics page shows the week's focus time, sessions, score and blocked visits; a day without sessions shows "–".
-13. All-day and repeating events: add an all-day "Exam week" from Monday to Friday; it shows in the "All day" row above the hours and cannot be marked done. Add a weekly event on Tuesday and Thursday for four weeks; delete one of its later events with "This and following events": that event and the later ones go, the earlier ones stay.
-14. Outlook (after section 9): open the calendar, press **Outlook**, then **Connect Outlook**, sign in at Microsoft and allow access. Back in the calendar it says "Outlook connected." and your Outlook events appear with an arrow-into-tray mark. Add an event in the app: it appears in Outlook within a few seconds. Rename an event in Outlook, reload the calendar after 5 minutes: the new name shows. Press **Outlook** → **Disconnect Outlook**: the Outlook events leave the calendar, and what the app wrote stays in Outlook.
+13. Analytics: after a few sessions (and a blocked visit during one), the Analytics page shows the week's focus time, sessions, score and blocked visits; a day without sessions shows "–".
+14. All-day and repeating events: add an all-day "Exam week" from Monday to Friday; it shows in the "All day" row above the hours and cannot be marked done. Add a weekly event on Tuesday and Thursday for four weeks; delete one of its later events with "This and following events": that event and the later ones go, the earlier ones stay.
+15. Outlook (after section 9): open the calendar, press **Outlook**, then **Connect Outlook**, sign in at Microsoft and allow access. Back in the calendar it says "Outlook connected." and your Outlook events appear with an arrow-into-tray mark. Add an event in the app: it appears in Outlook within a few seconds. Rename an event in Outlook, reload the calendar after 5 minutes: the new name shows. Press **Outlook** → **Disconnect Outlook**: the Outlook events leave the calendar, and what the app wrote stays in Outlook.
 
 ## 9. Register the app at Microsoft (Outlook)
 Without this, everything else works; only the **Outlook** button cannot connect.

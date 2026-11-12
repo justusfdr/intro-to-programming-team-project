@@ -8,6 +8,7 @@ import { PanelState } from "@/components/shell/PanelState";
 import { pageDeps } from "@/lib/server/deps";
 import { loadWeek } from "@/lib/server/events/week";
 import { loadGoals } from "@/lib/server/goals/load";
+import { loadTasks } from "@/lib/server/tasks/load";
 import { localDateTimeOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -25,6 +26,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const { week: requested } = await searchParams;
   const week = await loadWeek(deps, userId, typeof requested === "string" ? requested : undefined);
   const goals = await loadGoals(deps, userId);
+  const tasks = await loadTasks(deps, userId);
 
   const now = deps.now();
   // "New event" suggests the next full hour, one hour long.
@@ -38,7 +40,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   return (
     <Announcer>
       <PanelState>
-        <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} today={nowLocal.slice(0, 10)} />}>
+        <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
           <CalendarView
             week={week}
             nowLocal={nowLocal}
