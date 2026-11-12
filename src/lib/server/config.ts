@@ -50,6 +50,15 @@ export function databaseUrl(): string {
   return required("DATABASE_URL");
 }
 
+/**
+ * Optional: the certificate authority (PEM) that signed the database server's certificate
+ * (docs/setup.md, section 6). With it the server's certificate is verified; without it the
+ * connection is still encrypted. Not a secret, but it lives with the other settings.
+ */
+export function databaseCaCert(): string | undefined {
+  return read("DATABASE_CA_CERT") || undefined;
+}
+
 /** The app registration at Microsoft (docs/setup.md). Null when it is not set up: Outlook is then off. */
 export function microsoftConfig(): { clientId: string; clientSecret: string; tenant: string } | null {
   const clientId = read("MICROSOFT_CLIENT_ID");
