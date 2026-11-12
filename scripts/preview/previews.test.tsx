@@ -137,6 +137,22 @@ it("writes the preview files", async () => {
       [user, `2026-${day}T16:00:00Z`, `2026-${day}T17:00:00Z`],
     );
   }
+  // Spec 08: Outlook connected and synced at 08:40; two Outlook events; the app's events are in
+  // Outlook except one added while Outlook was down.
+  await app.db.withUser(user, async (q) => {
+    await q("select app.outlook_connect('v1.preview.preview')");
+    await q("select app.outlook_import($1, $2, $3::jsonb)", [
+      "2026-11-09T00:00:00Z",
+      "2027-01-15T00:00:00Z",
+      JSON.stringify([
+        { outlook_id: "AAMk-ethics", title: "Business ethics seminar", all_day: false, start_at: "2026-11-19T14:00:00Z", end_at: "2026-11-19T15:30:00Z", location: "Nova SBE, room B-201" },
+        { outlook_id: "AAMk-holiday", title: "Faculty holiday", all_day: true, first_day: "2026-11-16", last_day: "2026-11-16" },
+      ]),
+    ]);
+  });
+  await app.db.admin("update app.events set outlook_id = 'AAMk-' || left(id::text, 8), outlook_sent_version = updated_at where source = 'app' and user_id = $1", [user]);
+  await app.db.admin("update app.calendar_connections set last_synced_at = '2026-11-17T08:40:00Z'");
+  await add("Thesis meeting", "11-18T11:00", "11-18T11:45");
   app.advance(27 * 60 * 60 * 1000 + 10 * 60 * 1000); // Tuesday 17 November, 12:10
   const week = await loadWeek(app.deps, user, "2026-11-16");
   const goals = await loadGoals(app.deps, user);
@@ -209,6 +225,35 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     );
   if (!seriesMarkup.includes(footer) || !seriesMarkup.includes("This and following events")) throw new Error("series question not placed");
   writeFileSync(join(OUT, "event-editor-series.html"), page("Series", `${calendar()}<div class="preview-dim"></div>${seriesMarkup}`, styles, dim));
+
+  // Spec 08: an Outlook event in the editor, and the Outlook panel in its three states.
+  const ethics = week.days[3].events.find((e) => e.title === "Business ethics seminar")!;
+  const outlookEditorMarkup = renderToStaticMarkup(<EventEditor state={{ mode: "edit", event: ethics }} goals={goalLabels} onClose={() => {}} />).replace(
+    "<dialog",
+    "<dialog open",
+  );
+  writeFileSync(join(OUT, "event-editor-outlook.html"), page("Outlook event", `${calendar()}<div class="preview-dim"></div>${outlookEditorMarkup}`, styles, dim));
+
+  const { OutlookMenu } = await import("@/components/calendar/OutlookMenu");
+  const panel = (label: string, outlook: import("@/lib/events/types").OutlookView, confirming = false) => `
+    <div class="flex flex-col gap-2"><p class="text-xs font-medium text-ink-3">${label}</p><div class="h-[300px]">${renderToStaticMarkup(
+      <Announcer>
+        <OutlookMenu outlook={outlook} timeZone="Europe/Lisbon" today="2026-11-17" defaultOpen defaultConfirming={confirming} />
+      </Announcer>,
+    )}</div></div>`;
+  writeFileSync(
+    join(OUT, "outlook-panel.html"),
+    page(
+      "Outlook panel",
+      `<main class="flex flex-wrap gap-x-[22rem] gap-y-6 bg-canvas p-6">${[
+        panel("Not connected", { status: "none", lastSyncedAt: null }),
+        panel("Connected", { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }),
+        panel("Microsoft refused the stored access", { status: "needs_reconnect", lastSyncedAt: "2026-11-16T17:05:00.000Z" }),
+        panel("After Disconnect Outlook", { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }, true),
+      ].join("")}</main>`,
+      styles,
+    ),
+  );
 
   // The goal editor, open for a new goal (same static-dialog treatment as the event editor).
   const goalEditorMarkup = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: "2026-11-17" }} onClose={() => {}} />).replace(

@@ -47,6 +47,9 @@ export const MESSAGES = {
   // ontology, section 7 (when a service is down)
   databaseDown: "Your data cannot be loaded right now.",
   emailDown: "We could not send the email. Try again later",
+  outlookNotConnected: "Outlook was not connected",
+  changeInOutlook: "Change this event in Outlook",
+  notSentToOutlook: "Not sent to Outlook",
 
   // Not in the ontology (our wording, reported to the advisor).
   signUpDone: "We sent you a link. Open it to confirm your email.",
@@ -55,6 +58,9 @@ export const MESSAGES = {
   eventDeleted: "Event deleted.",
   seriesSaved: "Events saved.",
   seriesDeleted: "Events deleted.",
+  outlookConnected: "Outlook connected.",
+  outlookDisconnected: "Outlook disconnected.",
+  outlookReconnect: "Outlook needs you to sign in again.",
   goalSaved: "Goal saved.",
   goalDeleted: "Goal deleted.",
   ruleRemoved: "Rule removed.",

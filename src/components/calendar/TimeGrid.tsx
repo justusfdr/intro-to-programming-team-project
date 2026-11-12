@@ -11,7 +11,7 @@
 import type { MouseEvent } from "react";
 import { blockBox, formatMinute, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
 import type { AllDayEvent, CalendarEvent, WeekDay } from "@/lib/events/types";
-import { Check, Warning } from "@/components/ui/icons";
+import { Check, ImportedIcon, NotSentIcon, Warning } from "@/components/ui/icons";
 import { goalColor } from "@/lib/goals/colors";
 import { dayParts } from "@/lib/time/zoned";
 
@@ -31,6 +31,19 @@ type Props = {
   onCreateAt: (date: string, slot: { startMin: number; endMin: number }) => void;
 };
 
+/** R11 and R26 in words: where the event came from, or that Outlook does not have it yet. */
+function outlookWords(event: CalendarEvent): string[] {
+  if (event.source === "outlook") return ["from Outlook"];
+  return event.notSent ? ["not sent to Outlook"] : [];
+}
+
+/** The small marks for Outlook, next to the conflict and done marks. */
+function OutlookMark({ event }: { event: CalendarEvent }) {
+  if (event.source === "outlook") return <ImportedIcon className="size-3 text-ink-3" />;
+  if (event.notSent) return <NotSentIcon className="size-3 text-danger" />;
+  return null;
+}
+
 /** The block's accessible name: everything the block shows, in words. */
 function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined): string {
   const { event } = block;
@@ -39,6 +52,7 @@ function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined)
   if (goal) parts.push(`goal ${goal.title}`);
   if (event.conflict) parts.push("overlaps another event");
   if (event.status === "done") parts.push("done");
+  parts.push(...outlookWords(event));
   return parts.join(", ");
 }
 
@@ -83,8 +97,9 @@ function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
         {event.title}
       </span>
       {height >= 44 && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{time}</span>}
-      {(event.conflict || done) && (
+      {(event.conflict || done || event.source === "outlook" || event.notSent) && (
         <span className="absolute right-1 top-1 flex items-center gap-0.5">
+          <OutlookMark event={event} />
           {event.conflict && <Warning className="size-3 text-danger" />}
           {done && <Check className="size-3 text-success" strokeWidth={3} />}
         </span>
@@ -97,7 +112,7 @@ function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
 function allDayLabel(event: AllDayEvent): string {
   const first = dayParts(event.firstDay).long;
   const days = event.lastDay === event.firstDay ? first : `${first} to ${dayParts(event.lastDay).long}`;
-  return `${event.title}, all day, ${days}`;
+  return [`${event.title}, all day, ${days}`, ...outlookWords(event)].join(", ");
 }
 
 const allDayClass =
@@ -125,7 +140,10 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
         {chosen.map((event) => (
           <li key={event.id}>
             <button type="button" aria-label={allDayLabel(event)} onClick={() => onOpenEvent(event)} className={allDayClass}>
-              {event.title}
+              <span className="flex items-center gap-1">
+                <span className="min-w-0 truncate">{event.title}</span>
+                <OutlookMark event={event} />
+              </span>
             </button>
           </li>
         ))}
@@ -138,7 +156,10 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
           return (
             <li key={event.id} style={{ gridColumn: `${first + 1} / ${last + 2}` }} className="min-w-0 px-0.5">
               <button type="button" aria-label={allDayLabel(event)} onClick={() => onOpenEvent(event)} className={allDayClass}>
-                {event.firstDay < days[0].date ? `… ${event.title}` : event.title}
+                <span className="flex items-center gap-1">
+                  <span className="min-w-0 truncate">{event.firstDay < days[0].date ? `… ${event.title}` : event.title}</span>
+                  <OutlookMark event={event} />
+                </span>
               </button>
             </li>
           );
