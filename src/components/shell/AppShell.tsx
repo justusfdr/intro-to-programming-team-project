@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SignOutButton } from "@/components/account/SignOutButton";
-import { CalendarIcon, TimerIcon } from "@/components/ui/icons";
+import { CalendarIcon, ChartIcon, TimerIcon } from "@/components/ui/icons";
 import { Logo } from "./Logo";
 
 // The frame of every signed-in page, in the prototype's layout: a sidebar on wider screens
@@ -13,6 +13,7 @@ import { Logo } from "./Logo";
 const NAV = [
   { href: "/", label: "Calendar", icon: CalendarIcon },
   { href: "/focus", label: "Focus", icon: TimerIcon },
+  { href: "/analytics", label: "Analytics", icon: ChartIcon },
 ] as const;
 
 type Props = {

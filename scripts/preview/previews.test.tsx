@@ -274,6 +274,50 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   writeFileSync(join(OUT, "block-page.html"), blockedHtml);
   writeFileSync(join(OUT, "focus-running-phone.html"), phoneFrame("Focus", page("Focus", focusPage(focusStates[2][1]), styles)));
 
+  // The Analytics page (spec 06), from sessions and attempts saved the real way and read with loadAnalytics.
+  const { AnalyticsView } = await import("@/components/analytics/AnalyticsView");
+  const { loadAnalytics } = await import("@/lib/server/analytics/load");
+  const { seedSession } = await import("@test/support/sessions");
+  const stats = await createTestApp();
+  const learner = await stats.signedInAs("analytics@example.com", { timeZone: "Europe/Lisbon" });
+  const done = (start: string, minutes: number, planned: number, paused = 0) =>
+    seedSession(stats.db, learner, {
+      status: "finished",
+      plannedMinutes: planned,
+      startedAt: `2026-11-${start}:00Z`,
+      pausedSeconds: paused,
+      endedAt: new Date(Date.parse(`2026-11-${start}:00Z`) + (minutes * 60 + paused) * 1000).toISOString(),
+    });
+  const blockedAt = (domain: string, time: string) =>
+    stats.db.admin("insert into app.blocked_attempts (user_id, domain, attempted_at) values ($1, $2, $3)", [learner, domain, `2026-11-${time}:00Z`]);
+  await done("16T09:00", 45, 60, 600); // A2
+  await blockedAt("instagram.com", "16T09:12");
+  await blockedAt("youtube.com", "16T09:40");
+  await done("16T14:00", 90, 90);
+  await done("17T08:30", 60, 60);
+  await blockedAt("instagram.com", "17T08:50");
+  await done("17T16:00", 25, 30);
+  await blockedAt("reddit.com", "17T18:30"); // during an auto-block event, outside a session
+  await done("18T10:00", 120, 120);
+  await blockedAt("instagram.com", "18T10:40");
+  await blockedAt("x.com", "18T11:05");
+  await done("19T09:00", 30, 60);
+  stats.advance(3 * 24 * 3_600_000 + 4 * 3_600_000); // Thursday 19 November, 13:00 UTC
+  const full = await loadAnalytics(stats.deps, learner);
+  const fresh = await stats.signedInAs("new-account@example.com", { timeZone: "Europe/Lisbon" });
+  const empty = await loadAnalytics(stats.deps, fresh);
+  await stats.close();
+  const analyticsPage = (data: typeof full) =>
+    renderToStaticMarkup(
+      <AppShell current="/analytics">
+        <AnalyticsView data={data} />
+      </AppShell>,
+    );
+  const analyticsHtml = page("Analytics", analyticsPage(full), styles);
+  writeFileSync(join(OUT, "analytics.html"), analyticsHtml);
+  writeFileSync(join(OUT, "analytics-empty.html"), page("Analytics", analyticsPage(empty), styles));
+  writeFileSync(join(OUT, "analytics-phone.html"), phoneFrame("Analytics", analyticsHtml));
+
   writeFileSync(join(OUT, "sign-in.html"), page("Sign in", renderToStaticMarkup(<SignInPage />), styles));
   writeFileSync(join(OUT, "sign-up.html"), page("Sign up", renderToStaticMarkup(<SignUpPage />), styles));
 
