@@ -24,6 +24,9 @@
   --color-success-soft: #ecfdf5;
   --color-danger: #be123c;
   --color-danger-soft: #fef2f2;
+  /* The prototype's warning pair; the text colour is darker than its #d97706 for a 4.5:1 contrast. */
+  --color-warning: #b45309;
+  --color-warning-soft: #fffbeb;
 
   --radius-card: 16px;
   --radius-panel: 24px;

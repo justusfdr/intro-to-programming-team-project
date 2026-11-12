@@ -1,4 +1,5 @@
 // What the calendar says about the Outlook connection. Pure, for the toolbar and its tests.
+import { fmtDayMonth, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { localDateOf, localTimeOf } from "@/lib/time/zoned";
 import type { OutlookView } from "./types";
 
@@ -11,6 +12,18 @@ export function lastSyncedText(lastSyncedAt: string | null, timeZone: string, to
   if (day === today) return `Last synced ${time}`;
   const date = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
   return `Last synced ${date}, ${time}`;
+}
+
+/**
+ * The same in the display format of the settings: "Last synced 8:40am" today, "Last synced Nov 16, 8:40am"
+ * on another day, "Not synced yet" before the first.
+ */
+export function syncedText(lastSyncedAt: string | null, timeZone: string, today: string, format: TimeFormat): string {
+  if (!lastSyncedAt) return "Not synced yet";
+  const at = new Date(lastSyncedAt);
+  const time = fmtTime(localTimeOf(at, timeZone), format);
+  const day = localDateOf(at, timeZone);
+  return day === today ? `Last synced ${time}` : `Last synced ${fmtDayMonth(day)}, ${time}`;
 }
 
 /** The short status next to the toolbar button. */

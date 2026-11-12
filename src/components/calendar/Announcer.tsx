@@ -21,7 +21,7 @@ export function Announcer({ children }: { children: ReactNode }) {
   return (
     <AnnounceContext value={setMessage}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex justify-center px-4">
+      <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[60] md:bottom-4 flex justify-center px-4">
         <p
           role="status"
           className={

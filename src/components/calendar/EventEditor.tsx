@@ -17,12 +17,13 @@ import { GoalTile } from "@/components/goals/GoalTile";
 import { CalendarDays, Check, MapPin, Play, Trash2, TriangleAlert, X } from "lucide-react";
 import { NotSentIcon } from "@/components/ui/icons";
 import { formatMinute } from "@/lib/events/grid";
-import { minutesText } from "@/lib/focus/session-time";
+import { useDisplay } from "@/components/shell/DisplayProvider";
+import { fmtDateLong, fmtMinutes, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { MESSAGES } from "@/lib/messages";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent, EventDto } from "@/lib/events/types";
-import { addDays, dayParts } from "@/lib/time/zoned";
+import { addDays } from "@/lib/time/zoned";
 import { useAnnounce } from "./Announcer";
 import type { GoalLabel } from "./TimeGrid";
 
@@ -162,13 +163,14 @@ export function SeriesQuestion({ kind, title, busy, firstButton, onAnswer, onCan
 }
 
 /** When an Outlook event takes place, in words (its editor shows it as text, R11). */
-function whenText(event: CalendarEvent): string {
+function whenText(event: CalendarEvent, format: TimeFormat): string {
   if (event.allDay) {
-    const first = dayParts(event.firstDay).long;
-    return event.lastDay === event.firstDay ? `${first}, all day` : `${first} to ${dayParts(event.lastDay).long}, all day`;
+    const first = fmtDateLong(event.firstDay);
+    return event.lastDay === event.firstDay ? `${first}, all day` : `${first} to ${fmtDateLong(event.lastDay)}, all day`;
   }
-  const end = event.endDay ? `${event.endTime} the next day` : event.endTime;
-  return `${dayParts(event.startLocal.slice(0, 10)).long}, ${event.startTime} to ${end}`;
+  const endTime = fmtTime(event.endTime, format);
+  const end = event.endDay ? `${endTime} the next day` : endTime;
+  return `${fmtDateLong(event.startLocal.slice(0, 10))}, ${fmtTime(event.startTime, format)} to ${end}`;
 }
 
 type BodyProps = { state: Exclude<EditorState, null>; goals: GoalLabel[]; outlookConnected: boolean; onClose: () => void };
@@ -210,6 +212,7 @@ const chipClass = "inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11
 
 function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   const router = useRouter();
+  const { timeFormat } = useDisplay();
   const announce = useAnnounce();
   // The event as last saved: marking done updates it, so a later save carries the new updated_at (R4).
   const [event, setEvent] = useState<CalendarEvent | null>(state.mode === "edit" ? state.event : null);
@@ -386,7 +389,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
               <Eyebrow>When</Eyebrow>
               <p className={`${boxClass} text-ink`}>
                 <CalendarDays className="size-4 shrink-0 text-ink-3" />
-                {whenText(event)}
+                {whenText(event, timeFormat)}
               </p>
               <p className="text-xs text-ink-2">{MESSAGES.changeInOutlook}</p>
             </section>
@@ -448,24 +451,24 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="min-w-0">
                     <label htmlFor={`${prefix}-start`} className="sr-only">
-                      Starts
+                      Start time
                     </label>
                     <select id={`${prefix}-start`} value={startMin} onChange={(e) => moveStart(Number(e.target.value))} className={`${inputClass} tabular`}>
                       {startOptions(startMin).map((min) => (
                         <option key={min} value={min}>
-                          {formatMinute(min)}
+                          {fmtTime(min, timeFormat)}
                         </option>
                       ))}
                     </select>
                   </div>
                   <div className="min-w-0">
                     <label htmlFor={`${prefix}-end`} className="sr-only">
-                      Ends
+                      End time
                     </label>
                     <select id={`${prefix}-end`} value={endMin} onChange={(e) => setEndMin(Number(e.target.value))} className={`${inputClass} tabular`}>
                       {endOptions(startMin, endMin).map((min) => (
                         <option key={min} value={min}>
-                          {`${formatMinute(((min % DAY) + DAY) % DAY)} · ${min > startMin ? minutesText(min - startMin) : "0 min"}${min >= DAY ? " (next day)" : ""}`}
+                          {`${fmtTime(min, timeFormat)} · ${fmtMinutes(min - startMin)}${min >= DAY ? " (next day)" : ""}`}
                         </option>
                       ))}
                     </select>

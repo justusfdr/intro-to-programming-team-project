@@ -1,4 +1,5 @@
 // The goal card's markup (R9): texts as in the ontology, every status in words, nothing by colour alone.
+// Rewritten for the prototype-style branch (spec 12): week labels are month-first ("Week of Nov 2").
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { GoalView } from "@/lib/goals/types";
@@ -41,9 +42,9 @@ describe("goal card", () => {
   });
 
   it("says every week's status in words, marks this week, and draws a symbol for met and missed", () => {
-    expect(html).toContain("Week of 2 Nov: met");
-    expect(html).toContain("Week of 9 Nov: missed");
-    expect(html).toContain("Week of 16 Nov (this week): open");
+    expect(html).toContain("Week of Nov 2: met");
+    expect(html).toContain("Week of Nov 9: missed");
+    expect(html).toContain("Week of Nov 16 (this week): open");
     expect(html.match(/<svg/g)?.length).toBeGreaterThanOrEqual(2);
   });
 

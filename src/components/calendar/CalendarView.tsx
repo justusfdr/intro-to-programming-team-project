@@ -11,9 +11,11 @@ import { formatMinute, gridRange, minuteOfLocal, minuteToPx, placeWeek } from "@
 import type { WeekData } from "@/lib/events/types";
 import type { GoalLabel } from "./TimeGrid";
 import { addDays, dayParts, isoWeekNumber, localDateTimeOf, weekTitle } from "@/lib/time/zoned";
+import { fmtDateLong, fmtWeekRange } from "@/lib/time/display";
+import { useDisplay } from "@/components/shell/DisplayProvider";
 import { GoalsToggle } from "@/components/goals/GoalsPanel";
 import { EventEditor, type EditorState } from "./EventEditor";
-import { OutlookMenu } from "./OutlookMenu";
+import { OutlookChip } from "./OutlookChip";
 import { TimeGrid } from "./TimeGrid";
 
 type Props = {
@@ -24,16 +26,9 @@ type Props = {
   suggestion: { start: string; end: string };
   /** The user's goals, for the colour and name of an event's goal. */
   goals: GoalLabel[];
+  /** Outlook is set up on this server. */
+  outlookAvailable?: boolean;
 };
-
-/** "16–22 Nov" or "30 Nov – 6 Dec". */
-function weekRange(monday: string): string {
-  const sunday = addDays(monday, 6);
-  const month = (date: string) => new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
-  const a = dayParts(monday).day;
-  const b = dayParts(sunday).day;
-  return month(monday) === month(sunday) ? `${a}–${b} ${month(sunday)}` : `${a} ${month(monday)} – ${b} ${month(sunday)}`;
-}
 
 /** The local time "now", refreshed every minute (for the red line). */
 function useNowLocal(initial: string, timeZone: string): string {
@@ -50,7 +45,7 @@ function localAt(date: string, min: number): string {
   return min >= 24 * 60 ? `${addDays(date, 1)}T00:00` : `${date}T${formatMinute(min)}`;
 }
 
-export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
+export function CalendarView({ week, nowLocal, suggestion, goals, outlookAvailable = false }: Props) {
   const now = useNowLocal(nowLocal, week.timeZone);
   const today = now.slice(0, 10);
   const todayInWeek = week.days.some((d) => d.date === today);
@@ -58,8 +53,12 @@ export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
   const [editor, setEditor] = useState<EditorState>(null);
   const scrollStarted = useRef(false);
 
+  const { dayStartHour, dayEndHour } = useDisplay();
   const placed = useMemo(() => placeWeek(week.days), [week.days]);
-  const range = useMemo(() => gridRange(placed), [placed]);
+  const range = useMemo(
+    () => gridRange(placed, { startMin: dayStartHour * 60, endMin: dayEndHour * 60 }),
+    [placed, dayStartHour, dayEndHour],
+  );
   const nowMin = todayInWeek ? minuteOfLocal(now) : null;
 
   // Once, on opening: scroll the grid so the current time (or the first event) is in view.
@@ -82,7 +81,7 @@ export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
               {weekTitle(week.monday)}
             </h1>
             <p className="mt-0.5 text-xs text-ink-2 md:text-sm">
-              Week {isoWeekNumber(week.monday)} · {weekRange(week.monday)} · Times in {week.timeZone}
+              Week {isoWeekNumber(week.monday)} · {fmtWeekRange(week.monday)}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -102,7 +101,9 @@ export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
               Today
             </LinkButton>
             <GoalsToggle />
-            <OutlookMenu outlook={week.outlook} timeZone={week.timeZone} today={today} />
+            <div className="hidden md:block">
+              <OutlookChip outlook={week.outlook} available={outlookAvailable} timeZone={week.timeZone} today={today} />
+            </div>
             <Button className="ml-auto" onClick={() => setEditor({ mode: "create", ...suggestion })}>
               <Plus className="size-4" />
               New event
@@ -120,7 +121,7 @@ export function CalendarView({ week, nowLocal, suggestion, goals }: Props) {
                 key={day.date}
                 type="button"
                 onClick={() => setSelectedDay(day.date)}
-                aria-label={`${parts.long}${day.isToday ? ", today" : ""}`}
+                aria-label={`${fmtDateLong(day.date)}${day.isToday ? ", today" : ""}`}
                 aria-pressed={selected}
                 className="flex min-w-0 flex-col items-center gap-0.5 rounded-lg py-1 transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
               >

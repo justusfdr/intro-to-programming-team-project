@@ -69,3 +69,8 @@ export function outlookTokenKey(): Buffer | null {
   const bytes = Buffer.from(raw, "base64");
   return bytes.length >= 32 ? bytes : null;
 }
+
+/** True when Outlook can be connected on this server: the app registration and the key are both set. */
+export function outlookConfigured(): boolean {
+  return microsoftConfig() !== null && outlookTokenKey() !== null;
+}

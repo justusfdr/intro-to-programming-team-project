@@ -9,11 +9,13 @@
 // and the empty slots are decoration. A click on an empty slot (mouse or touch) creates an event
 // there; keyboard users use "New event".
 import type { MouseEvent } from "react";
-import { blockBox, formatMinute, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
+import { blockBox, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, slotAt, type GridRange, type Placed } from "@/lib/events/grid";
 import type { AllDayEvent, CalendarEvent, WeekDay } from "@/lib/events/types";
 import { CalendarDays, Check, TriangleAlert } from "lucide-react";
 import { NotSentIcon } from "@/components/ui/icons";
 import { goalColor } from "@/lib/goals/colors";
+import { useDisplay } from "@/components/shell/DisplayProvider";
+import { fmtDateLong, fmtHour, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { dayParts } from "@/lib/time/zoned";
 
 /** What the grid needs of a goal: its name and its place in the list (for the colour). */
@@ -46,10 +48,11 @@ function OutlookMark({ event }: { event: CalendarEvent }) {
 }
 
 /** The block's accessible name: everything the block shows, in words. */
-function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined): string {
+function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined, format: TimeFormat): string {
   const { event } = block;
-  const end = event.endDay ? `${event.endTime} the next day` : event.endTime;
-  const parts = [`${event.title}, ${dayLong}, ${event.startTime} to ${end}`];
+  const endTime = fmtTime(event.endTime, format);
+  const end = event.endDay ? `${endTime} the next day` : endTime;
+  const parts = [`${event.title}, ${dayLong}, ${fmtTime(event.startTime, format)} to ${end}`];
   if (goal) parts.push(`goal ${goal.title}`);
   if (event.conflict) parts.push("overlaps another event");
   if (event.status === "done") parts.push("done");
@@ -61,11 +64,16 @@ type BlockProps = { block: Placed; range: GridRange; dayLong: string; goal: Goal
 
 function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
   const { event } = block;
+  const { timeFormat } = useDisplay();
   // Events of a goal take the goal's colour; others stay neutral. A conflict adds a red edge and an icon.
   const colors = goal ? goalColor(goal.colorIndex).block : "bg-raised border-line-subtle text-ink";
   const { top, height } = blockBox(block, range);
   const done = event.status === "done";
-  const time = `${block.continuesBefore ? "…" : event.startTime} – ${block.continuesAfter ? `${event.endTime}+1` : event.endTime}`;
+  // As in the prototype: "9 – 10:30am"; the parts of an event past midnight show "…" and "+1".
+  const time =
+    block.continuesBefore || block.continuesAfter
+      ? `${block.continuesBefore ? "…" : fmtTime(event.startTime, timeFormat)} – ${fmtTime(event.endTime, timeFormat)}${block.continuesAfter ? "+1" : ""}`
+      : fmtRange(event.startTime, event.endTime, timeFormat);
 
   return (
     <button
@@ -74,7 +82,7 @@ function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
         e.stopPropagation();
         onOpen();
       }}
-      aria-label={blockLabel(block, dayLong, goal)}
+      aria-label={blockLabel(block, dayLong, goal, timeFormat)}
       // The part after midnight repeats an event already in the list: mouse only, not a second tab stop.
       tabIndex={block.continuesBefore ? -1 : undefined}
       aria-hidden={block.continuesBefore || undefined}
@@ -111,8 +119,8 @@ function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
 
 /** "Exam week, all day, Monday 16 November to Friday 20 November". */
 function allDayLabel(event: AllDayEvent): string {
-  const first = dayParts(event.firstDay).long;
-  const days = event.lastDay === event.firstDay ? first : `${first} to ${dayParts(event.lastDay).long}`;
+  const first = fmtDateLong(event.firstDay);
+  const days = event.lastDay === event.firstDay ? first : `${first} to ${fmtDateLong(event.lastDay)}`;
   return [`${event.title}, all day, ${days}`, ...outlookWords(event)].join(", ");
 }
 
@@ -171,6 +179,7 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
 }
 
 export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOpenEvent, onCreateAt }: Props) {
+  const { timeFormat } = useDisplay();
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
   const height = rangeHeight(range);
   const hours = hourMarks(range);
@@ -218,7 +227,7 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOp
             aria-hidden
             className={`${early[days.findIndex((d) => d.date === selectedDay)]?.length ? "flex" : "hidden"} border-b border-line-subtle md:flex`}
           >
-            <div className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] leading-[12px] text-ink-3">{`Before ${formatMinute(range.startMin)}`}</div>
+            <div className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] leading-[12px] text-ink-3">{`Before ${fmtTime(range.startMin, timeFormat)}`}</div>
             {days.map((day, i) => (
               <div key={day.date} className={`${day.date === selectedDay ? "flex" : "hidden"} min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:flex`}>
                 {early[i].map((block) => (
@@ -229,7 +238,7 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOp
                     onClick={() => onOpenEvent(block.event)}
                     className="line-clamp-2 rounded-md border border-dashed border-ink-3 bg-raised px-1.5 py-0.5 text-left text-[10px] leading-[13px] text-ink-2"
                   >
-                    {`${block.event.title}, until ${block.event.endTime}`}
+                    {`${block.event.title}, until ${fmtTime(block.event.endTime, timeFormat)}`}
                   </button>
                 ))}
               </div>
@@ -245,7 +254,7 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOp
               .filter((m) => !showNow || Math.abs(m - (nowMin ?? 0)) > 12)
               .map((m) => (
                 <span key={m} className="absolute right-2 text-[11px] tabular text-ink-3" style={{ top: minuteToPx(m, range) + 2 }}>
-                  {formatMinute(m)}
+                  {fmtHour(m / 60, timeFormat)}
                 </span>
               ))}
             {showNow && (
@@ -253,13 +262,13 @@ export function TimeGrid({ goals, days, placed, range, nowMin, selectedDay, onOp
                 className="absolute right-1 -translate-y-1/2 rounded bg-today px-1 text-[10px] font-medium tabular text-white"
                 style={{ top: minuteToPx(nowMin ?? 0, range) }}
               >
-                {formatMinute(nowMin ?? 0)}
+                {fmtTime(nowMin ?? 0, timeFormat)}
               </span>
             )}
           </div>
 
           {days.map((day, i) => {
-            const parts = dayParts(day.date);
+            const parts = { long: fmtDateLong(day.date) };
             const blocks = placed[i];
             const listed = blocks.filter((b) => !b.continuesBefore);
             return (

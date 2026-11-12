@@ -1,5 +1,7 @@
 // The event editor's markup as first rendered (spec 07): the "All day" switch, the repeat controls
 // when creating, what an all-day event and an event of a series show, and the series question.
+// Rewritten for the prototype-style branch (spec 12): an Outlook event's times read "9am to 10am" and
+// its dates month-first ("Tuesday, November 17").
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AllDayEvent, WeekEvent } from "@/lib/events/types";
@@ -87,7 +89,7 @@ describe("event editor markup", () => {
   it("an Outlook event shows title and times as text, its goal and Mark done, and 'Change this event in Outlook'", () => {
     const html = render({ mode: "edit", event: { ...TIMED, source: "outlook", location: "Nova SBE, Carcavelos" } });
     expect(html).toContain(">Statistics lecture</p>");
-    expect(html).toContain(">Tuesday 17 November, 09:00 to 10:00</p>");
+    expect(html).toContain(">Tuesday, November 17, 9am to 10am</p>");
     expect(html).toContain(">Nova SBE, Carcavelos</p>");
     expect(html).toContain(">Change this event in Outlook</p>");
     expect(html).toContain("From Outlook</span>");
@@ -98,7 +100,7 @@ describe("event editor markup", () => {
 
   it("an all-day Outlook event has nothing to save", () => {
     const html = render({ mode: "edit", event: { ...EXAM, source: "outlook" } });
-    expect(html).toContain(">Monday 16 November to Friday 20 November, all day</p>");
+    expect(html).toContain(">Monday, November 16 to Friday, November 20, all day</p>");
     expect(html).not.toMatch(/type="submit"/);
   });
 

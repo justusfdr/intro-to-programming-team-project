@@ -1,8 +1,12 @@
-// The event editor's look (spec 10): goals as radio chips named "goal", 24-hour start and end with
-// the length next to the end, "next day" past midnight, and "Reopen" for a done event.
+// The event editor's look (spec 10): goals as radio chips named "goal", start and end with the length
+// next to the end, "next day" past midnight, and "Reopen" for a done event.
+// Rewritten for the prototype-style branch (spec 12): times as the prototype shows them, "9am" and
+// "11am · 2h" (12-hour by default), "9:00" and "11:00 · 2h" with the 24-hour setting.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { WeekEvent } from "@/lib/events/types";
+import { DisplayProvider } from "@/components/shell/DisplayProvider";
+import { DEFAULT_DISPLAY } from "@/lib/time/display";
 import { EventEditor } from "./EventEditor";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -45,15 +49,32 @@ describe("event editor look", () => {
     expect(html).toContain(">No goal</span>");
   });
 
-  it("shows start and end in 24-hour time, with the length next to the end", () => {
+  it("shows start and end in 12-hour time by default, with the length next to the end", () => {
     const html = render(EVENT);
-    expect(html).toMatch(/<option value="540" selected="">09:00<\/option>/);
-    expect(html).toMatch(/<option value="660" selected="">11:00 · 2 h<\/option>/);
+    expect(html).toMatch(/<option value="540" selected="">9am<\/option>/);
+    expect(html).toMatch(/<option value="660" selected="">11am · 2h<\/option>/);
+    expect(html).toMatch(/<option value="630">10:30am · 1h 30m<\/option>/);
+  });
+
+  it("shows 24-hour times when the setting says so", () => {
+    const html = renderToStaticMarkup(
+      <DisplayProvider value={{ ...DEFAULT_DISPLAY, timeFormat: "24h" }}>
+        <EventEditor state={{ mode: "edit", event: EVENT }} goals={GOALS} onClose={() => {}} />
+      </DisplayProvider>,
+    );
+    expect(html).toMatch(/<option value="540" selected="">9:00<\/option>/);
+    expect(html).toMatch(/<option value="660" selected="">11:00 · 2h<\/option>/);
   });
 
   it("says 'next day' for an end after midnight", () => {
     const night = { ...EVENT, startLocal: "2026-11-19T22:00", endLocal: "2026-11-20T02:00" };
-    expect(render(night)).toMatch(/<option value="1560" selected="">02:00 · 4 h \(next day\)<\/option>/);
+    expect(render(night)).toMatch(/<option value="1560" selected="">2am · 4h \(next day\)<\/option>/);
+  });
+
+  it("names the start and end lists with real labels", () => {
+    const html = render(EVENT);
+    expect(html).toMatch(/<label for="e1-start"[^>]*>Start time<\/label>/);
+    expect(html).toMatch(/<label for="e1-end"[^>]*>End time<\/label>/);
   });
 
   it("names the done toggle 'Reopen' for a done event and 'Mark done' otherwise", () => {

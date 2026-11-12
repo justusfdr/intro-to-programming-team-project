@@ -2,9 +2,14 @@
 // Replaces WeekGrid.test.tsx: the week is now a time grid instead of a list per day; the same
 // promises are checked here (days labelled, today marked, events reachable as buttons in time order,
 // marks in words and not only colour, week links, one status region outside the grid).
+// Rewritten for the prototype-style branch (spec 12): times as the prototype shows them ("9am", 12-hour
+// by default, 24-hour when the setting says so), dates month-first ("Monday, November 16"), and the
+// Outlook status as the prototype's small chip that links to Settings.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
+import { DisplayProvider } from "@/components/shell/DisplayProvider";
+import { DEFAULT_DISPLAY, type Display } from "@/lib/time/display";
 import { Announcer } from "./Announcer";
 import { CalendarView } from "./CalendarView";
 
@@ -53,17 +58,20 @@ function week(byDay: Record<number, WeekEvent[]>, allDayEvents: AllDayEvent[] = 
   };
 }
 
-function render(data: WeekData) {
+function render(data: WeekData, options: { display?: Display; outlookAvailable?: boolean } = {}) {
   // The page puts the calendar inside the Announcer (one status region for the calendar and the panels).
   return renderToStaticMarkup(
+    <DisplayProvider value={options.display ?? DEFAULT_DISPLAY}>
     <Announcer>
       <CalendarView
         week={data}
         nowLocal="2026-11-17T12:10"
         suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }}
         goals={[{ id: "g1", title: "Run a half marathon", colorIndex: 0 }]}
+        outlookAvailable={options.outlookAvailable}
       />
-    </Announcer>,
+    </Announcer>
+    </DisplayProvider>,
   );
 }
 
@@ -71,9 +79,9 @@ describe("calendar markup", () => {
   it("shows the month, the week, and seven labelled day columns with today marked", () => {
     const html = render(week({}));
     expect(html).toContain("November 2026");
-    expect(html).toContain("Week 47 · 16–22 Nov");
-    expect(html.match(/<section aria-label="[A-Z][a-z]+day \d+ November/g)).toHaveLength(7);
-    expect(html).toContain('aria-label="Tuesday 17 November, today"');
+    expect(html).toContain("Week 47 · Nov 16 – 22");
+    expect(html.match(/<section aria-label="[A-Z][a-z]+day, November \d+/g)).toHaveLength(7);
+    expect(html).toContain('aria-label="Tuesday, November 17, today"');
     expect(html.match(/No events/g)).toHaveLength(7);
   });
 
@@ -86,8 +94,8 @@ describe("calendar markup", () => {
         ],
       }),
     );
-    const first = html.indexOf('aria-label="Statistics revision, Monday 16 November, 09:00 to 11:00, overlaps another event"');
-    const second = html.indexOf('aria-label="Lunch, Monday 16 November, 12:00 to 13:00, done"');
+    const first = html.indexOf('aria-label="Statistics revision, Monday, November 16, 9am to 11am, overlaps another event"');
+    const second = html.indexOf('aria-label="Lunch, Monday, November 16, 12pm to 1pm, done"');
     expect(first).toBeGreaterThan(-1);
     expect(second).toBeGreaterThan(first);
   });
@@ -104,14 +112,37 @@ describe("calendar markup", () => {
     const html = render(
       week({ 2: [event("n", "Night shift", "2026-11-18T22:00", "2026-11-19T02:00", { endDay: "2026-11-19" })] }),
     );
-    expect(html).toContain('aria-label="Night shift, Wednesday 18 November, 22:00 to 02:00 the next day"');
+    expect(html).toContain('aria-label="Night shift, Wednesday, November 18, 10pm to 2am the next day"');
     // The part on Thursday is a strip above the grid here (see the next test): no tab stop, not read out.
     expect(html.match(/aria-label="Night shift/g)).toHaveLength(1);
-    expect(html).toMatch(/tabindex="-1"[^>]*>Night shift, until 02:00</);
+    expect(html).toMatch(/tabindex="-1"[^>]*>Night shift, until 2am</);
   });
 
-  it("draws the now line and its time label on today", () => {
-    expect(render(week({}))).toContain(">12:10<");
+  it("draws the now line and its time label on today, in 12-hour time by default", () => {
+    expect(render(week({}))).toContain(">12:10pm<");
+  });
+
+  it("labels the hours '9am' by default and '9:00' with the 24-hour setting", () => {
+    expect(render(week({}))).toMatch(/>9am<\/span>/);
+    expect(render(week({}))).toMatch(/>1pm<\/span>/);
+    const html = render(week({}), { display: { ...DEFAULT_DISPLAY, timeFormat: "24h" } });
+    expect(html).toMatch(/>9:00<\/span>/);
+    expect(html).toMatch(/>13:00<\/span>/);
+    expect(html).toContain(">12:10<");
+  });
+
+  it("shows the visible hours of the settings (7am to 9pm by default; 6am to midnight when set)", () => {
+    const first = (html: string) => html.slice(html.indexOf("data-hour-grid")).match(/>(\d{1,2}(am|pm|:00))<\/span>/)?.[1];
+    expect(first(render(week({})))).toBe("7am");
+    expect(render(week({}))).not.toMatch(/>9pm<\/span>/);
+    const wide = render(week({}), { display: { timeFormat: "12h", dayStartHour: 6, dayEndHour: 24 } });
+    expect(first(wide)).toBe("6am");
+    expect(wide).toMatch(/>11pm<\/span>/);
+  });
+
+  it("shows a block's time as the prototype does: '9 – 10:30am'", () => {
+    const html = render(week({ 0: [event("a", "Revision", "2026-11-16T09:00", "2026-11-16T10:30")] }));
+    expect(html).toContain(">9 – 10:30am<");
   });
 
   it("links to the previous and next week and to this week, and has a New event button", () => {
@@ -132,8 +163,8 @@ describe("calendar markup", () => {
     const html = render(
       week({ 3: [event("n", "Night shift at the library", "2026-11-19T22:00", "2026-11-20T02:00", { endDay: "2026-11-20" })] }),
     );
-    expect(html).toMatch(/<div aria-hidden="true" class="[^"]*border-b[^"]*md:flex">.*Before \d\d:00.*tabindex="-1"[^>]*>Night shift at the library, until 02:00<\/button>/s);
-    expect(html.indexOf("Night shift at the library, until 02:00")).toBeLessThan(html.indexOf("data-hour-grid"));
+    expect(html).toMatch(/<div aria-hidden="true" class="[^"]*border-b[^"]*md:flex">.*Before \d{1,2}(am|pm).*tabindex="-1"[^>]*>Night shift at the library, until 2am<\/button>/s);
+    expect(html.indexOf("Night shift at the library, until 2am")).toBeLessThan(html.indexOf("data-hour-grid"));
   });
 
   it("keeps titles on whole words: narrow lanes get one line with an ellipsis", () => {
@@ -158,8 +189,8 @@ describe("calendar markup", () => {
         ],
       }),
     );
-    expect(html).toMatch(/aria-label="Long run, Monday 16 November, 07:00 to 08:00, goal Run a half marathon"[^>]*class="[^"]*bg-rose-50/);
-    expect(html).toMatch(/aria-label="Dentist, Monday 16 November, 10:00 to 11:00"[^>]*class="[^"]*bg-raised/);
+    expect(html).toMatch(/aria-label="Long run, Monday, November 16, 7am to 8am, goal Run a half marathon"[^>]*class="[^"]*bg-rose-50/);
+    expect(html).toMatch(/aria-label="Dentist, Monday, November 16, 10am to 11am"[^>]*class="[^"]*bg-raised/);
   });
 
   it("has a Goals button in the toolbar for the goals panel", () => {
@@ -168,7 +199,7 @@ describe("calendar markup", () => {
 
   it("shows an all-day event once in an 'All day' row above the hours, as a bar across its days with its days in words", () => {
     const html = render(week({}, [allDay("x", "Exam week", "2026-11-16", "2026-11-20")]));
-    const label = 'aria-label="Exam week, all day, Monday 16 November to Friday 20 November"';
+    const label = 'aria-label="Exam week, all day, Monday, November 16 to Friday, November 20"';
     // One button for wider screens (a bar over columns 1 to 5) and one in the phone list; each is hidden at the other size.
     expect(html.split(label)).toHaveLength(3);
     expect(html).toMatch(/<li style="grid-column:1 \/ 6"[^>]*><button type="button" aria-label="Exam week, all day/);
@@ -179,7 +210,7 @@ describe("calendar markup", () => {
 
   it("starts the bar at Monday for an all-day event from the week before, with a mark that it continues", () => {
     const html = render(week({}, [allDay("t", "Trip", "2026-11-10", "2026-11-17")]));
-    expect(html).toMatch(/<li style="grid-column:1 \/ 3"[^>]*><button[^>]*aria-label="Trip, all day, Tuesday 10 November to Tuesday 17 November"[^>]*>(<span[^>]*>)*… Trip</);
+    expect(html).toMatch(/<li style="grid-column:1 \/ 3"[^>]*><button[^>]*aria-label="Trip, all day, Tuesday, November 10 to Tuesday, November 17"[^>]*>(<span[^>]*>)*… Trip</);
   });
 
   it("puts the 'All day' row above the 'Before' strip, and names them differently", () => {
@@ -187,7 +218,7 @@ describe("calendar markup", () => {
       week({ 3: [event("n", "Night shift", "2026-11-19T22:00", "2026-11-20T02:00", { endDay: "2026-11-20" })] }, [allDay("x", "Exam week", "2026-11-16", "2026-11-20")]),
     );
     expect(html.indexOf(">All day<")).toBeGreaterThan(-1);
-    expect(html.indexOf(">All day<")).toBeLessThan(html.search(/>Before \d\d:00</));
+    expect(html.indexOf(">All day<")).toBeLessThan(html.search(/>Before \d{1,2}(am|pm)</));
   });
 
   it("has no all-day row in a week without all-day events", () => {
@@ -203,13 +234,18 @@ describe("calendar markup", () => {
         ],
       }),
     );
-    expect(html).toMatch(/aria-label="Statistics lecture, Monday 16 November, 09:00 to 10:30, from Outlook"/);
-    expect(html).toMatch(/aria-label="Revision, Monday 16 November, 11:00 to 12:00, not sent to Outlook"/);
+    expect(html).toMatch(/aria-label="Statistics lecture, Monday, November 16, 9am to 10:30am, from Outlook"/);
+    expect(html).toMatch(/aria-label="Revision, Monday, November 16, 11am to 12pm, not sent to Outlook"/);
     expect(html.match(/<svg/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("has an Outlook button in the toolbar that says the status", () => {
-    expect(render(week({}))).toMatch(/aria-expanded="false" aria-controls="outlook-panel"[^>]*>.*Outlook<span class="sr-only">, Not connected<\/span><\/button>/);
-    expect(render(week({}, [], { status: "needs_reconnect", lastSyncedAt: null }))).toContain(", Sign in again</span>");
+  it("shows Outlook's status as a small chip in the toolbar that links to Settings", () => {
+    // Not set up on this server: no chip at all (no control that cannot work).
+    expect(render(week({}))).not.toContain("/settings#outlook");
+    expect(render(week({}), { outlookAvailable: true })).toMatch(/href="\/settings#outlook"[^>]*>.*Connect Outlook<\/a>/);
+    expect(render(week({}, [], { status: "needs_reconnect", lastSyncedAt: null }), { outlookAvailable: true })).toContain(">Outlook · Sign in again</a>");
+    const connected = render(week({}, [], { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }), { outlookAvailable: true });
+    expect(connected).toContain(">Outlook · Last synced 8:40am</a>");
+    expect(connected).toContain('aria-label="Sync Outlook now"');
   });
 });

@@ -97,11 +97,12 @@ export function placeWeek(days: WeekDay[]): Placed[][] {
 }
 
 /**
- * The hours to show: 07:00 to 22:00, widened to whole hours so that every event's start fits.
- * The part of an event after midnight does not widen it: that block starts at the top of the grid.
+ * The hours to show: `visible` (the user's "Visible hours"; 07:00 to 22:00 when not given), widened to
+ * whole hours so that every event's start fits. The part of an event after midnight does not widen it:
+ * that block starts at the top of the grid.
  */
-export function gridRange(placed: Placed[][]): GridRange {
-  let { startMin, endMin } = DEFAULT_RANGE;
+export function gridRange(placed: Placed[][], visible: GridRange = DEFAULT_RANGE): GridRange {
+  let { startMin, endMin } = visible;
   for (const block of placed.flat()) {
     if (!block.continuesBefore) startMin = Math.min(startMin, Math.floor(block.startMin / 60) * 60);
     endMin = Math.max(endMin, Math.ceil(block.endMin / 60) * 60);

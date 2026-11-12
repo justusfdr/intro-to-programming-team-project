@@ -67,6 +67,8 @@ export const MESSAGES = {
   outlookConnected: "Outlook connected.",
   outlookDisconnected: "Outlook disconnected.",
   outlookReconnect: "Outlook needs you to sign in again.",
+  outlookSynced: "Outlook synced.",
+  outlookSyncedRecently: "Outlook was synced in the last 5 minutes.",
   goalSaved: "Goal saved.",
   goalDeleted: "Goal deleted.",
   ruleRemoved: "Rule removed.",

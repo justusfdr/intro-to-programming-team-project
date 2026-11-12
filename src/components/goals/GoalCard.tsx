@@ -9,7 +9,7 @@ import { goalColor } from "@/lib/goals/colors";
 import type { StripWeek, WeekStatus } from "@/lib/goals/progress";
 import { weekShare } from "@/lib/goals/share";
 import type { GoalView } from "@/lib/goals/types";
-import { dayParts } from "@/lib/time/zoned";
+import { fmtDayMonth } from "@/lib/time/display";
 import { GoalRow } from "./GoalRow";
 import { GoalTile } from "./GoalTile";
 
@@ -22,8 +22,7 @@ function StatusMark({ status }: { status: WeekStatus }) {
 }
 
 function WeekCell({ week }: { week: StripWeek }) {
-  const { day } = dayParts(week.monday);
-  const month = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" }).format(new Date(`${week.monday}T00:00:00Z`));
+  const date = fmtDayMonth(week.monday);
   const box =
     week.status === "met"
       ? "border-success/40 bg-success-soft"
@@ -33,9 +32,9 @@ function WeekCell({ week }: { week: StripWeek }) {
   return (
     <li
       className={`flex size-4 items-center justify-center rounded-[4px] border ${box} ${week.isCurrent ? "ring-[1.5px] ring-ink/70 ring-offset-1" : ""}`}
-      title={`Week of ${day} ${month}: ${STATUS_WORD[week.status]}`}
+      title={`Week of ${date}: ${STATUS_WORD[week.status]}`}
     >
-      <span className="sr-only">{`Week of ${day} ${month}${week.isCurrent ? " (this week)" : ""}: ${STATUS_WORD[week.status]}`}</span>
+      <span className="sr-only">{`Week of ${date}${week.isCurrent ? " (this week)" : ""}: ${STATUS_WORD[week.status]}`}</span>
       <StatusMark status={week.status} />
     </li>
   );

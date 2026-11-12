@@ -5,7 +5,9 @@ import { CalendarView } from "@/components/calendar/CalendarView";
 import { GoalsPanel } from "@/components/goals/GoalsPanel";
 import { AppShell } from "@/components/shell/AppShell";
 import { PanelState } from "@/components/shell/PanelState";
+import { outlookConfigured } from "@/lib/server/config";
 import { pageDeps } from "@/lib/server/deps";
+import { readDisplay } from "@/lib/server/settings";
 import { loadWeek } from "@/lib/server/events/week";
 import { loadGoals } from "@/lib/server/goals/load";
 import { loadTasks } from "@/lib/server/tasks/load";
@@ -22,6 +24,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   // The proxy already sends signed-out visitors away; the page checks again (R3).
   const userId = await deps.auth.currentUserId();
   if (!userId) redirect("/sign-in");
+  const display = await deps.withUser(userId, readDisplay);
 
   const { week: requested } = await searchParams;
   const week = await loadWeek(deps, userId, typeof requested === "string" ? requested : undefined);
@@ -40,12 +43,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   return (
     <Announcer>
       <PanelState>
-        <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
+        <AppShell current="/" display={display} panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
           <CalendarView
             week={week}
             nowLocal={nowLocal}
             suggestion={suggestion}
             goals={goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }))}
+            outlookAvailable={outlookConfigured()}
           />
         </AppShell>
       </PanelState>
