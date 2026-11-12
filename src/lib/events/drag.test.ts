@@ -263,6 +263,10 @@ describe("what can be dragged", () => {
     expect(canDrag(block({ continuesBefore: true }), none)).toBe(false);
   });
 
+  it("an event that ends exactly at midnight is one whole block and can be dragged", () => {
+    expect(canDrag(block({ continuesAfter: true, endMin: 1440 }, { endDay: "2026-11-18", endLocal: "2026-11-18T00:00" }), none)).toBe(true);
+  });
+
   it("an event whose save is still running cannot be dragged", () => {
     expect(canDrag(block(), new Set(["e1"]))).toBe(false);
     expect(canDrag(block(), new Set(["other"]))).toBe(true);

@@ -97,7 +97,9 @@ export function localAt(date: string, min: number): string {
  */
 export function canDrag(block: Placed, pending: ReadonlySet<string>): boolean {
   const { event } = block;
-  return event.source !== "outlook" && !block.continuesBefore && !block.continuesAfter && !pending.has(event.id);
+  // An event that ends exactly at midnight has nothing on the next day: it is a whole block.
+  const pastMidnight = block.continuesAfter && !event.endLocal.endsWith("T00:00");
+  return event.source !== "outlook" && !block.continuesBefore && !pastMidnight && !pending.has(event.id);
 }
 
 /** What a drop asks for: the new local start and end, or null when nothing changed. */
