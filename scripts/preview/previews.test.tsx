@@ -1,5 +1,5 @@
-// Development tool, not part of the app and not part of `npm test`: renders the calendar and the
-// account pages with sample data into stand-alone HTML files, so the look can be checked in a browser
+// Development tool, not part of the app and not part of `npm test`: renders the calendar, the settings
+// page and the account pages with sample data into stand-alone HTML files, so the look can be checked in a browser
 // before a Supabase project exists. Nothing in src/ imports this file, and it starts no server.
 //
 // Run after a build (the compiled styles and fonts come from .next):
@@ -183,6 +183,7 @@ it("writes the preview files", async () => {
               nowLocal="2026-11-17T12:10"
               suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }}
               goals={goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }))}
+              outlookAvailable
             />
           </AppShell>
         </PanelState>
@@ -249,23 +250,53 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   );
   writeFileSync(join(OUT, "event-editor-outlook.html"), page("Outlook event", `${calendar()}<div class="preview-dim"></div>${outlookEditorMarkup}`, styles, dim));
 
-  const { OutlookMenu } = await import("@/components/calendar/OutlookMenu");
-  const panel = (label: string, outlook: import("@/lib/events/types").OutlookView, confirming = false) => `
-    <div class="flex flex-col gap-2"><p class="text-xs font-medium text-ink-3">${label}</p><div class="h-[300px]">${renderToStaticMarkup(
+  // Spec 12: the settings page in the prototype's layout (Outlook not set up on this server, blocker not
+  // connected), the Outlook card in its other states, the delete question, and the page at phone width.
+  const { SettingsView } = await import("@/components/settings/SettingsView");
+  const { OutlookCard } = await import("@/components/settings/OutlookCard");
+  const { YourAccountCard } = await import("@/components/settings/YourAccountCard");
+  type SettingsPageData = import("@/lib/settings/types").SettingsPageData;
+  const settingsData: SettingsPageData = {
+    settings: { timeZone: "Europe/Lisbon", homeAddress: "Rua Augusta 100, Lisbon", travelMode: "cycling", travelBufferMinutes: 10, timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
+    plan: "free",
+    outlookAvailable: false,
+    outlook: { status: "none", lastSyncedAt: null },
+    today: "2026-11-17",
+  };
+  const settingsBlocker = {
+    sites: ["youtube.com", "instagram.com", "tiktok.com", "x.com", "reddit.com", "facebook.com"].map((domain, i) => ({ id: String(i), domain })),
+    connected: false,
+    blockingOn: false,
+    blockingUntil: null,
+    timeZone: "Europe/Lisbon",
+  };
+  const settingsPage = (data: SettingsPageData) =>
+    renderToStaticMarkup(
       <Announcer>
-        <OutlookMenu outlook={outlook} timeZone="Europe/Lisbon" today="2026-11-17" defaultOpen defaultConfirming={confirming} />
+        <AppShell current="/settings">
+          <SettingsView data={data} blocker={settingsBlocker} timeZones={Intl.supportedValuesOf("timeZone")} />
+        </AppShell>
       </Announcer>,
-    )}</div></div>`;
+    );
+  const settingsHtml = page("Settings", settingsPage(settingsData), styles);
+  writeFileSync(join(OUT, "settings.html"), settingsHtml);
+  writeFileSync(join(OUT, "settings-phone.html"), phoneFrame("Settings", settingsHtml));
+  const outlookState = (label: string, outlook: SettingsPageData["outlook"], confirming = false) => `
+    <div class="flex flex-col gap-2"><p class="text-xs font-medium text-ink-3">${label}</p>${renderToStaticMarkup(
+      <Announcer>
+        <OutlookCard outlook={outlook} outlookAvailable today="2026-11-17" timeZone="Europe/Lisbon" defaultConfirming={confirming} />
+      </Announcer>,
+    )}</div>`;
   writeFileSync(
-    join(OUT, "outlook-panel.html"),
+    join(OUT, "settings-outlook.html"),
     page(
-      "Outlook panel",
-      `<main class="flex flex-wrap gap-x-[22rem] gap-y-6 bg-canvas p-6">${[
-        panel("Not connected", { status: "none", lastSyncedAt: null }),
-        panel("Connected", { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }),
-        panel("Microsoft refused the stored access", { status: "needs_reconnect", lastSyncedAt: "2026-11-16T17:05:00.000Z" }),
-        panel("After Disconnect Outlook", { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }, true),
-      ].join("")}</main>`,
+      "Outlook card",
+      `<main class="flex max-w-3xl flex-col gap-6 bg-canvas p-6">${[
+        outlookState("Set up on this server, not connected", { status: "none", lastSyncedAt: null }),
+        outlookState("Connected", { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }),
+        outlookState("Microsoft refused the stored access", { status: "needs_reconnect", lastSyncedAt: "2026-11-16T17:05:00.000Z" }),
+        outlookState("After Disconnect", { status: "connected", lastSyncedAt: "2026-11-17T08:40:00.000Z" }, true),
+      ].join("")}<div class="flex flex-col gap-2"><p class="text-xs font-medium text-ink-3">After Delete account</p>${renderToStaticMarkup(<YourAccountCard defaultAsking />)}</div></main>`,
       styles,
     ),
   );
@@ -466,5 +497,5 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   writeFileSync(join(OUT, "sign-in.html"), page("Sign in", renderToStaticMarkup(<SignInPage />), styles));
   writeFileSync(join(OUT, "sign-up.html"), page("Sign up", renderToStaticMarkup(<SignUpPage />), styles));
 
-  expect(readdirSync(OUT)).toEqual(expect.arrayContaining(["week-desktop.html", "week-phone.html", "event-editor.html", "goal-editor.html", "sign-in.html", "sign-up.html"]));
+  expect(readdirSync(OUT)).toEqual(expect.arrayContaining(["week-desktop.html", "week-phone.html", "event-editor.html", "goal-editor.html", "settings.html", "settings-phone.html", "sign-in.html", "sign-up.html"]));
 });

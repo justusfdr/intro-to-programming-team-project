@@ -96,15 +96,7 @@ export function OutlookCard({ outlook, outlookAvailable, today, timeZone, defaul
           </div>
         )}
 
-        {outlook.status === "needs_reconnect" && (
-          <div>
-            {outlookAvailable ? (
-              <SignInForm label="Sign in again" variant="primary" />
-            ) : (
-              <p className="text-sm text-ink-2">Outlook is not set up on this server yet.</p>
-            )}
-          </div>
-        )}
+        {outlook.status === "needs_reconnect" && !outlookAvailable && <p className="text-sm text-ink-2">Outlook is not set up on this server yet.</p>}
 
         {outlook.status !== "none" &&
           (confirming ? (
@@ -123,7 +115,8 @@ export function OutlookCard({ outlook, outlookAvailable, today, timeZone, defaul
               </div>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {outlook.status === "needs_reconnect" && outlookAvailable && <SignInForm label="Sign in again" variant="primary" />}
               {outlook.status === "connected" && outlookAvailable && (
                 <Button variant="secondary" onClick={() => run("sync")} disabled={busy !== null}>
                   <RefreshCw className={`size-4 ${busy === "sync" ? "animate-spin" : ""}`} strokeWidth={2} aria-hidden="true" />
