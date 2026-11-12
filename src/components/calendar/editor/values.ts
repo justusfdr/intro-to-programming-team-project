@@ -2,7 +2,7 @@
 // server checks every rule.
 //
 // The editor shows an event as plain values (title, day, start and end in minutes, goal, location …).
-// An existing event saves each change at once: edit_event gets all the event's fields with the change
+// An existing event is saved with the Save button (spec 17): edit_event gets all the event's fields
 // and the updated_at the screen last saw (R4). An Outlook event sends only its goal (R11).
 import type { Changes } from "@/components/live/Live";
 import type { PostResult } from "@/lib/client/post-json";
@@ -103,6 +103,12 @@ export function editBody(event: CalendarEvent, values: EventValues, updatedAt: s
   return { ...fieldsOf(values), updatedAt, ...(scope ? { scope } : {}) };
 }
 
+/** Whether these values would change the saved event (the Save button shows only then). */
+export function isChanged(event: CalendarEvent, values: EventValues): boolean {
+  const trimmed = { ...values, title: values.title.trim() };
+  return JSON.stringify(editBody(event, trimmed, "")) !== JSON.stringify(editBody(event, valuesOf(event), ""));
+}
+
 export type Repeat = { frequency: "daily" | "weekly" | "monthly"; weekdays: number[]; until: string };
 
 /** The body of create_event (from "Add details"), with a repeat for a new timed series (R28). */
@@ -111,7 +117,7 @@ export function createBody(values: EventValues, repeat: Repeat | null): Record<s
 }
 
 /**
- * The event as it will be saved, shown at once (the block moves as soon as a field changes). Null for
+ * The event as it will be saved, shown in the calendar as soon as Save is clicked. Null for
  * "this and following", whose events each keep their own date (the re-read brings them), and for times
  * that are not real in the time zone (the server refuses them anyway).
  */

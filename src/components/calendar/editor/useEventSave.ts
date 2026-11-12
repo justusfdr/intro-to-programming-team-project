@@ -1,11 +1,12 @@
 "use client";
 
-// Saving an existing event at once, as in the prototype (spec 16). Each change shows in the editor
-// and in the calendar straight away and is sent as edit_event with the updated_at the screen last saw
-// (R4). Changes are sent one after the other, each with the updated_at of the answer before it. If
-// the server refuses, the field goes back to the saved value and the ontology's message shows (R1).
-// Typing (title, location) is sent after a short pause or when the field is left, not on every key.
+// Saving an existing event with the Save button (spec 17, R39). A change shows in the editor only;
+// nothing is sent until "Save", which appears as soon as the fields differ from the saved event. Save
+// sends edit_event with the updated_at the screen last saw (R4), and the calendar shows the change at
+// once. If the server refuses, the ontology's message shows and the fields stay as typed, so the user
+// can correct them (R1: nothing was saved). Closing the editor drops changes that were not saved.
 // An event of a series first asks "This event" or "This and following events" (R28).
+// Mark done and delete are still sent at once.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLive } from "@/components/live/Live";
 import { postJson, type PostResult } from "@/lib/client/post-json";
@@ -13,13 +14,10 @@ import type { CalendarEvent, EventDto } from "@/lib/events/types";
 import { withEventChange, withEventStatus } from "@/lib/events/week-view";
 import { useAnnounce } from "../Announcer";
 import { savedEventChange, type Scope } from "../event-changes";
-import { editBody, editedChange, eventFromAnswer, newer, valuesOf, type EventValues } from "./values";
-
-/** How long typing may pause before it is saved. */
-export const TYPING_PAUSE_MS = 800;
+import { editBody, editedChange, eventFromAnswer, isChanged, newer, valuesOf, type EventValues } from "./values";
 
 /** What the footer asks before a change or a delete of an event of a series. */
-export type SeriesAsk = { kind: "save"; patch: Partial<EventValues> } | { kind: "delete" } | null;
+export type SeriesAsk = { kind: "save" } | { kind: "delete" } | null;
 
 type Options = {
   initial: CalendarEvent;
@@ -51,9 +49,11 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
   const [ask, setAsk] = useState<SeriesAsk>(null);
   const [busy, setBusy] = useState(false);
 
+  const [saving, setSaving] = useState(false);
+  // The values as last sent and accepted: they count as saved even before the calendar's re-read.
+  const [accepted, setAccepted] = useState<string | null>(null);
+
   const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const typed = useRef<Partial<EventValues>>({});
-  const timer = useRef<number | null>(null);
 
   // Whether the editor is still open: a save sent on closing may be answered after it.
   const open = useRef(true);
@@ -61,7 +61,6 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
     open.current = true;
     return () => {
       open.current = false;
-      if (timer.current !== null) window.clearTimeout(timer.current);
     };
   }, []);
 
@@ -73,32 +72,22 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
     setValues(valuesRef.current);
   }, []);
 
-  /** Puts the fields of a refused or cancelled change back to the saved values (unless typed over since). */
-  const putBack = useCallback(
-    (patch: Partial<EventValues>) => {
-      const base = valuesOf(latest());
-      const back: Partial<EventValues> = {};
-      for (const key of Object.keys(patch) as (keyof EventValues)[]) {
-        if (valuesRef.current[key] === patch[key]) (back as Record<string, unknown>)[key] = base[key];
-      }
-      show(back);
-    },
-    [latest, show],
-  );
-
   const afterSave = useCallback(
     (answer: PostResult, before: CalendarEvent) => {
       const next = eventFromAnswer(answer, timeZone, before);
       if (next) {
         saved.current = next;
         setEvent(next);
+        // The saved event is what the fields show now (the server trims the title and the location).
+        show(valuesOf(next));
       }
+      setAccepted(JSON.stringify(valuesRef.current));
       setResult(null);
       if (answer.message) announce(answer.message);
       // The change goes to Outlook now, not at the next sync; the week re-reads once it is there (R26).
       if (outlookConnected && !fromOutlook) void postJson("/api/outlook/send", {}).then(() => live.refresh());
     },
-    [timeZone, announce, outlookConnected, fromOutlook, live],
+    [timeZone, announce, outlookConnected, fromOutlook, live, show],
   );
 
   /** Queues one action after the ones before it, so each carries the updated_at of the last answer. */
@@ -108,73 +97,51 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
     return next;
   }, []);
 
-  const save = useCallback(
-    (patch: Partial<EventValues>, scope?: Scope) =>
+  const send = useCallback(
+    (scope?: Scope) =>
       enqueue(async () => {
         const base = latest();
-        const before = valuesOf(base);
-        const next = { ...before, ...patch };
-        // Nothing to send when the change is what the server has already.
-        if (JSON.stringify(editBody(base, next, "", scope)) === JSON.stringify(editBody(base, before, "", scope))) return;
+        const next = valuesRef.current;
+        // Nothing to send when the fields are what the server has already.
+        if (!isChanged(base, next)) return;
+        setSaving(true);
         const answer = await live.run({
           send: () => postJson(`/api/events/${base.id}/edit`, editBody(base, next, base.updatedAt, scope)),
           optimistic: editedChange(base, next, timeZone, scope) ?? undefined,
           fromAnswer: savedEventChange,
         });
+        setSaving(false);
         if (!answer.ok) {
           if (!open.current) onRefused?.(answer.message);
           setResult(answer);
-          putBack(patch);
           return;
         }
         afterSave(answer, base);
       }),
-    [enqueue, latest, live, timeZone, putBack, afterSave, onRefused],
+    [enqueue, latest, live, timeZone, afterSave, onRefused],
   );
 
-  /** Sends what was typed (or chosen) and not sent yet. `final`: the field was left, so an empty title goes back. */
-  const commit = useCallback(
-    (final: boolean) => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-      timer.current = null;
-      const patch = { ...typed.current };
-      typed.current = {};
-      if (patch.title !== undefined && patch.title.trim() === "") {
-        // Never saved empty: put the saved title back when the field is left, else wait for more typing.
-        if (final) show({ title: latest().title });
-        else typed.current.title = patch.title;
-        delete patch.title;
-      }
-      if (Object.keys(patch).length === 0) return;
-      if (inSeries && !final) {
-        // An event of a series asks first; not in the middle of typing, only when the field is left.
-        typed.current = { ...patch, ...typed.current };
-        return;
-      }
-      if (inSeries) {
-        // Nothing changed (for example Esc put the title back): nothing to ask.
-        const base = valuesOf(latest());
-        if ((Object.keys(patch) as (keyof EventValues)[]).every((key) => patch[key] === base[key])) return;
-        setAsk((current) => ({ kind: "save", patch: { ...(current?.kind === "save" ? current.patch : {}), ...patch } }));
-        return;
-      }
-      void save(patch);
-    },
-    [inSeries, latest, save, show],
-  );
-
-  /** A change: shown at once; `typing` waits for a pause or for the field to be left. */
+  /** A change: shown in the editor, sent only with Save. */
   const change = useCallback(
-    (patch: Partial<EventValues>, typing = false) => {
+    (patch: Partial<EventValues>) => {
       show(patch);
-      typed.current = { ...typed.current, ...patch };
-      if (typing) {
-        if (timer.current !== null) window.clearTimeout(timer.current);
-        timer.current = window.setTimeout(() => commit(false), TYPING_PAUSE_MS);
-      } else commit(true);
+      setAccepted(null);
     },
-    [show, commit],
+    [show],
   );
+
+  /** Discard: the fields go back to the saved event. */
+  const discard = useCallback(() => {
+    show(valuesOf(latest()));
+    setResult(null);
+  }, [show, latest]);
+
+  /** The Save button: an event of a series asks for the scope first (R28). */
+  const saveNow = useCallback(() => {
+    if (valuesRef.current.title.trim() === "") return;
+    if (inSeries) return setAsk({ kind: "save" });
+    void send();
+  }, [inSeries, send]);
 
   /** The answer to the series question (R28). */
   const answer = useCallback(
@@ -182,7 +149,7 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
       const current = ask;
       setAsk(null);
       if (!current) return;
-      if (current.kind === "save") return void save(current.patch, scope);
+      if (current.kind === "save") return void send(scope);
       void enqueue(async () => {
         const base = latest();
         const id = base.id;
@@ -200,17 +167,14 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
         onClose();
       });
     },
-    [ask, save, enqueue, latest, live, outlookConnected, onDeleted, announce, onClose],
+    [ask, send, enqueue, latest, live, outlookConnected, onDeleted, announce, onClose],
   );
 
-  const cancelAsk = useCallback(() => {
-    if (ask?.kind === "save") putBack(ask.patch);
-    setAsk(null);
-  }, [ask, putBack]);
+  /** Cancel of the series question: the fields stay as they are, with Save still there. */
+  const cancelAsk = useCallback(() => setAsk(null), []);
 
   /** The bin: a single event goes at once with Undo in the calendar's toast; a series asks first. */
   const remove = useCallback(() => {
-    commit(true);
     if (inSeries) return setAsk({ kind: "delete" });
     void enqueue(async () => {
       const base = latest();
@@ -227,7 +191,7 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
       else if (deleted.message) announce(deleted.message);
       onClose();
     });
-  }, [commit, inSeries, enqueue, latest, live, outlookConnected, onDeleted, announce, onClose]);
+  }, [inSeries, enqueue, latest, live, outlookConnected, onDeleted, announce, onClose]);
 
   /** Mark done / Reopen: shown at once, the editor stays open (as in the prototype). */
   const toggleDone = useCallback(() => {
@@ -250,11 +214,9 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
     });
   }, [enqueue, latest, live]);
 
-  /** Close: what was typed and not sent yet is sent first. */
-  const close = useCallback(() => {
-    commit(true);
-    onClose();
-  }, [commit, onClose]);
+  const shownEvent = newer(event, shown);
+  /** Whether the fields differ from the saved event: the Save button shows only then. */
+  const changed = accepted !== JSON.stringify(values) && isChanged(shownEvent, values);
 
-  return { event: newer(event, shown), values, result, ask, busy, change, commit, answer, cancelAsk, remove, toggleDone, close };
+  return { event: shownEvent, values, result, ask, busy, saving, changed, change, saveNow, discard, answer, cancelAsk, remove, toggleDone, close: onClose };
 }

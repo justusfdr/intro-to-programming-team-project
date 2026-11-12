@@ -1,6 +1,6 @@
 // The event editor's markup as first rendered.
-// Rewritten for spec 16 (the prototype's frame): an existing event has no Save button (each change is
-// saved at once); the sections come in the prototype's order (header, chips, When, Goal, Location, then
+// Rewritten for spec 16 (the prototype's frame) and spec 17 (the Save button): an existing event shows
+// no Save button until a field was changed; the sections come in the prototype's order (header, chips, When, Goal, Location, then
 // our Overlap); the all-day switch and the repeat choice sit in When; an event of a series still asks
 // "This event" or "This and following events"; an Outlook event shows title, time and location as text
 // (R11). Kept from spec 07 and 12: the all-day switch, Repeat only for a new event, Mark done and Start
@@ -60,7 +60,7 @@ const create = (draft: { start: string; end: string; title?: string; goalId?: st
   renderToStaticMarkup(<NewEventCard draft={draft} {...COMMON} />);
 
 describe("an existing event", () => {
-  it("has no Save button: each change is saved at once", () => {
+  it("shows no Save button while nothing was changed (spec 17)", () => {
     const html = edit(TIMED);
     expect(html).not.toMatch(/>Save</);
     expect(html).not.toMatch(/type="submit"/);
