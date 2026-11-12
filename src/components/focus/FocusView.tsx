@@ -13,6 +13,8 @@ import { Pause, Play } from "@/components/ui/icons";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { clockText, minutesText, secondsLeft, SESSION_LENGTHS, type SessionTimes } from "@/lib/focus/session-time";
 import type { FocusData, SessionDto } from "@/lib/focus/types";
+import type { BlockerData } from "@/lib/blocker/types";
+import { BlockerCard } from "./BlockerCard";
 import { FocusRing } from "./FocusRing";
 
 const eyebrow = "text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3";
@@ -249,7 +251,7 @@ function RecentSessions({ sessions }: { sessions: FocusData["recent"] }) {
   );
 }
 
-export function FocusView({ data }: { data: FocusData }) {
+export function FocusView({ data, blocker }: { data: FocusData; blocker: BlockerData }) {
   // The rating card appears for the newest finished session if it ended in the last 12 hours.
   const latest = data.recent[0];
   const rateLatest =
@@ -260,8 +262,11 @@ export function FocusView({ data }: { data: FocusData }) {
       <h1 className="text-[28px] leading-[34px] font-semibold tracking-display text-ink md:text-[32px] md:leading-[38px]">Focus</h1>
       <p className="mt-1 text-sm text-ink-2">Start a session from your plan, or just start.</p>
       <div className="mt-8 grid items-start gap-6 md:grid-cols-2">
-        {data.active ? <RunningCard session={data.active} serverNow={data.now} /> : <StartCard forEvent={data.forEvent} />}
-        {rateLatest && <RatingCard session={latest} />}
+        <div className="flex flex-col gap-6">
+          {data.active ? <RunningCard session={data.active} serverNow={data.now} /> : <StartCard forEvent={data.forEvent} />}
+          {rateLatest && <RatingCard session={latest} />}
+        </div>
+        <BlockerCard data={blocker} />
       </div>
       <RecentSessions sessions={data.recent} />
     </div>
