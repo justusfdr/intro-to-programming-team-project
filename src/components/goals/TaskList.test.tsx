@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { PanelState } from "@/components/shell/PanelState";
 import type { GoalView } from "@/lib/goals/types";
+import type { GoalColorName } from "@/lib/goals/style";
 import type { TaskDto } from "@/lib/tasks/types";
 import { GoalsPanel } from "./GoalsPanel";
 import { TaskForm, TaskList } from "./TaskList";
@@ -18,6 +19,10 @@ const GOAL: GoalView = {
   autoBlock: false,
   updatedAt: "2026-11-15T10:00:00.000Z",
   colorIndex: 1,
+  color: null,
+  icon: "rocket",
+  why: "",
+  look: { color: "teal", icon: "rocket" },
   rules: [{ id: "r1", kind: "count", target: 2, minMinutes: 45 }],
   progress: {
     thisWeek: [{ ruleId: "r1", text: "This week: 1 of 2 done", status: "open" }],
@@ -32,9 +37,9 @@ function task(id: string, change: Partial<TaskDto> = {}): TaskDto {
 
 const TODAY = "2026-11-17";
 
-function list(tasks: TaskDto[], colorIndex: number | null = 1) {
+function list(tasks: TaskDto[], color: GoalColorName | null = "teal") {
   return renderToStaticMarkup(
-    <TaskList tasks={tasks} goalId="g1" colorIndex={colorIndex} sectionTitle="Half marathon" today={TODAY} goals={[{ id: "g1", title: "Half marathon" }]} />,
+    <TaskList tasks={tasks} goalId="g1" color={color} sectionTitle="Half marathon" today={TODAY} goals={[{ id: "g1", title: "Half marathon" }]} />,
   );
 }
 

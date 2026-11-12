@@ -104,6 +104,11 @@ it("writes the preview files", async () => {
     createdAt: "2026-11-09T10:00:00Z",
     rules: [{ kind: "count", target: 3 }],
   });
+  // Spec 13: each goal's own colour, icon and reason; the project keeps no saved colour, so it shows
+  // the colour calculated from its place in the list (third: violet).
+  await app.db.admin("update app.goals set color = 'indigo', icon = 'graduation', why = 'A good grade frees up the summer.' where id = $1", [exam.id]);
+  await app.db.admin("update app.goals set color = 'teal', icon = 'footprints', why = 'Stay fit, even when the semester gets busy.' where id = $1", [run.id]);
+  await app.db.admin("update app.goals set icon = 'briefcase' where id = $1", [project.id]);
   type Extra = { mayOverlap?: boolean; status?: "planned" | "done"; goalId?: string };
   const add = (title: string, start: string, end: string, extra: Extra = {}) =>
     seedEvent(app.db, user, { title, start: `2026-${start}:00Z`, end: `2026-${end}:00Z`, ...extra });
@@ -182,7 +187,7 @@ it("writes the preview files", async () => {
               week={week}
               nowLocal="2026-11-17T12:10"
               suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }}
-              goals={goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }))}
+              goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
               outlookAvailable
             />
           </AppShell>
@@ -201,7 +206,7 @@ it("writes the preview files", async () => {
   const editorMarkup = renderToStaticMarkup(
     <EventEditor
       state={{ mode: "edit", event: revision }}
-      goals={goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }))}
+      goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
       onClose={() => {}}
     />,
   ).replace(
@@ -217,7 +222,7 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   );
 
   // Spec 07: a new event with the repeat controls (weekly; Tuesday is the first date's day).
-  const goalLabels = goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }));
+  const goalLabels = goals.map(({ id, title, look }) => ({ id, title, look }));
   const repeatMarkup = renderToStaticMarkup(
     <EventEditor state={{ mode: "create", start: "2026-11-17T09:00", end: "2026-11-17T10:00", repeat: "weekly" }} goals={goalLabels} onClose={() => {}} />,
   ).replace("<dialog", "<dialog open");
@@ -351,7 +356,7 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   writeFileSync(join(OUT, "goals-tasks-phone.html"), phoneFrame("Goals with tasks", page("Goals with tasks", sheetMarkup, styles)));
 
   // The goal editor, open for a new goal (same static-dialog treatment as the event editor).
-  const goalEditorMarkup = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: "2026-11-17" }} onClose={() => {}} />).replace(
+  const goalEditorMarkup = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: "2026-11-17", color: "rose" }} onClose={() => {}} />).replace(
     "<dialog",
     "<dialog open",
   );
@@ -361,6 +366,15 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   writeFileSync(
     join(OUT, "goal-editor.html"),
     page("Goal editor", `${calendar()}<div class="preview-dim"></div>${goalEditorMarkup}`, styles, centred),
+  );
+  // Spec 13: the goal editor open on an existing goal (its colour, icon and why filled in).
+  const goalEditMarkup = renderToStaticMarkup(
+    <GoalEditor state={{ mode: "edit", goal: goals.find((g) => g.title === "Run a half marathon")!, today: "2026-11-17" }} onClose={() => {}} />,
+  ).replace("<dialog", "<dialog open");
+  writeFileSync(join(OUT, "goal-editor-edit.html"), page("Goal editor", `${calendar()}<div class="preview-dim"></div>${goalEditMarkup}`, styles, centred));
+  writeFileSync(
+    join(OUT, "goal-editor-phone.html"),
+    phoneFrame("Goal editor", page("Goal editor", `${calendar()}<div class="preview-dim"></div>${goalEditMarkup}`, styles, centred)),
   );
 
   // The Focus page in its states (spec 04). Sample sessions written by hand; times as the server sends them.
@@ -372,6 +386,7 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     id,
     eventId: null,
     eventTitle: title,
+    eventGoalId: null,
     plannedMinutes: 60,
     status: "finished" as const,
     startedAt: start,
@@ -391,6 +406,7 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     id: "a1",
     eventId: "e1",
     eventTitle: "Statistics revision",
+    eventGoalId: exam.id,
     plannedMinutes: 60,
     status: "running",
     startedAt: "2026-11-17T09:20:00.000Z",
@@ -418,13 +434,15 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
         </AppShell>
       </Announcer>,
     );
+  const focusGoals = goals.map(({ id, title, look }) => ({ id, title, look }));
+  const none = { forEventGoalId: null, goals: focusGoals };
   const focusStates: [string, FocusData][] = [
-    ["focus-start.html", { active: null, recent, forEvent: null, now: focusNow }],
-    ["focus-start-for-event.html", { active: null, recent, forEvent: { id: "e1", title: "Statistics revision", suggestedMinutes: 120 }, now: focusNow }],
-    ["focus-running.html", { active: running, recent, forEvent: null, now: focusNow }],
+    ["focus-start.html", { active: null, recent, forEvent: null, now: focusNow, ...none }],
+    ["focus-start-for-event.html", { active: null, recent, forEvent: { id: "e1", title: "Statistics revision", suggestedMinutes: 120 }, now: focusNow, forEventGoalId: exam.id, goals: focusGoals }],
+    ["focus-running.html", { active: running, recent, forEvent: null, now: focusNow, ...none }],
     [
       "focus-paused.html",
-      { active: { ...running, status: "paused", pausedAt: "2026-11-17T09:35:00.000Z" }, recent, forEvent: null, now: focusNow },
+      { active: { ...running, status: "paused", pausedAt: "2026-11-17T09:35:00.000Z" }, recent, forEvent: null, now: focusNow, ...none },
     ],
     [
       "focus-rating.html",
@@ -433,6 +451,7 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
         recent: [finished("r0", "Statistics revision", "2026-11-17T08:30:00.000Z", "2026-11-17T09:30:00.000Z", 60, null), ...recent],
         forEvent: null,
         now: focusNow,
+        ...none,
       },
     ],
   ];

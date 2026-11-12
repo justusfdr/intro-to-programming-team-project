@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { WeekEvent } from "@/lib/events/types";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
 import { DEFAULT_DISPLAY } from "@/lib/time/display";
+import type { GoalLabel } from "./TimeGrid";
 import { EventEditor } from "./EventEditor";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -32,9 +33,9 @@ const EVENT: WeekEvent = {
   endLocal: "2026-11-17T11:00",
 };
 
-const GOALS = [
-  { id: "g1", title: "Run a half marathon", colorIndex: 0 },
-  { id: "g2", title: "Pass the statistics exam", colorIndex: 1 },
+const GOALS: GoalLabel[] = [
+  { id: "g1", title: "Run a half marathon", look: { color: "teal", icon: "footprints" } },
+  { id: "g2", title: "Pass the statistics exam", look: { color: "indigo", icon: "graduation" } },
 ];
 
 const render = (event: WeekEvent) => renderToStaticMarkup(<EventEditor state={{ mode: "edit", event }} goals={GOALS} onClose={() => {}} />);
@@ -47,6 +48,14 @@ describe("event editor look", () => {
     for (const radio of radios) expect(radio).toContain('name="goal"');
     expect(radios.filter((radio) => radio.includes('checked=""'))).toEqual([expect.stringContaining('value="g2"')]);
     expect(html).toContain(">No goal</span>");
+  });
+
+  it("draws each goal's own icon and colour in its chip and the chosen goal's in the header tile (spec 13)", () => {
+    const html = render(EVENT);
+    expect(html).toMatch(/bg-teal-50 text-teal-700[^"]*"><svg[^>]*lucide-footprints/);
+    expect(html).toMatch(/bg-indigo-50 text-indigo-700[^"]*"><svg[^>]*lucide-graduation-cap/);
+    // "No goal": a grey tile with a briefcase, as in the prototype.
+    expect(html).toMatch(/bg-raised text-ink-3[^"]*"><svg[^>]*lucide-briefcase/);
   });
 
   it("shows start and end in 12-hour time by default, with the length next to the end", () => {

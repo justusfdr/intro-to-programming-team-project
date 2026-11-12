@@ -33,6 +33,11 @@ export const MESSAGES = {
   hoursTarget: "Target must be 0.5 to 60 hours",
   minMinutes: "Minimum length must be 15 to 240 minutes",
   lastRule: "A goal needs at least one rule",
+  goalColor: "Choose a color from the list",
+  goalIcon: "Choose an icon from the list",
+  whyLength: "Why it matters can be at most 200 characters",
+  // ontology, section 5 (demo week)
+  demoLoaded: "The demo is already loaded",
   // ontology, section 5 (tasks); "Title must be 1 to 100 characters" and "Not possible in this state" are shared
   duePast: "The due date cannot be in the past",
   tooManyTasks: "You can have at most 100 open tasks",
@@ -86,6 +91,9 @@ export const MESSAGES = {
   siteAdded: "Added to your block list.",
   siteRemoved: "Removed from your block list.",
   settingsSaved: "Settings saved.",
+  demoAdded: "Demo week added.",
+  demoRemoved: "Demo data removed.",
+  welcomeAnswered: "Your calendar is ready.",
   unknownTimeZone: "Choose a time zone from the list",
   addressTooLong: "Home address can be at most 200 characters",
   visibleHours: "Visible hours must be whole hours, from 0 to 24, ending after they start",

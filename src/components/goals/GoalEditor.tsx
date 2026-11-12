@@ -1,7 +1,9 @@
 "use client";
 
-// The goal editor: title, deadline, the auto-block switch and the weekly rules (R7). A native
-// <dialog> like the event editor: focus stays inside, Escape closes it, focus returns afterwards.
+// The goal editor, laid out like the prototype's goal dialog: name, why it matters, colour dots and
+// icon grid (R35); then what our goals have and the prototype's did not: deadline, the weekly rules
+// (R7) and auto-block. A native <dialog> like the event editor: focus stays inside, Escape closes it,
+// focus returns afterwards.
 // It creates a goal (create_goal) or edits one (edit_goal). In edit mode a rule that already exists
 // is removed at once (remove_rule), and the goal can be deleted after a confirmation (delete_goal).
 // It only collects the input and shows the server's answer; the server checks every rule.
@@ -11,18 +13,33 @@ import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
 import { Plus, Trash2, X } from "lucide-react";
-import { GoalTile } from "./GoalTile";
+import { GOAL_ICONS } from "./GoalTile";
 import { postJson, type PostResult } from "@/lib/client/post-json";
+import { goalColor } from "@/lib/goals/colors";
+import {
+  DEFAULT_GOAL_ICON,
+  GOAL_COLOR_LABELS,
+  GOAL_COLORS,
+  GOAL_ICON_LABELS,
+  GOAL_ICON_NAMES,
+  type GoalColorName,
+  type GoalIconName,
+} from "@/lib/goals/style";
 import type { GoalDto, GoalView } from "@/lib/goals/types";
 
 /** One rule row as the form holds it. `id` is set for a rule the server already has. */
 type RuleRow = { key: number; id?: string; kind: "count" | "hours"; target: string; minMinutes: string };
 
-export type GoalEditorState = { mode: "create"; today: string } | { mode: "edit"; goal: GoalView; today: string } | null;
+export type GoalEditorState =
+  | { mode: "create"; today: string; /** The colour a new goal starts with (the first unused one). */ color: GoalColorName }
+  | { mode: "edit"; goal: GoalView; today: string }
+  | null;
 
+// The prototype's field and label classes (inputs 40px high).
 const inputClass =
-  "block h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10";
-const eyebrow = "text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3";
+  "block h-10 w-full min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10";
+const labelClass = "text-xs font-medium text-ink-2";
+const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/50";
 
 let nextKey = 1;
 function newRule(): RuleRow {
@@ -67,7 +84,7 @@ export function GoalEditor({ state, onClose }: { state: GoalEditorState; onClose
       aria-labelledby="goal-editor-title"
       onClose={onClose}
       onClick={(event) => event.target === dialog.current && onClose()}
-      className="event-editor m-0 mt-auto max-h-[88dvh] w-full max-w-none overflow-hidden rounded-t-panel border border-line-subtle bg-surface p-0 text-ink shadow-pop sm:m-auto sm:max-h-[calc(100dvh-2rem)] sm:w-[420px] sm:rounded-[20px]"
+      className="event-editor m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-card bg-surface p-0 text-ink shadow-pop md:m-auto md:max-h-[calc(100dvh-3rem)] md:max-w-md md:rounded-card"
     >
       {/* A new key for every goal gives the form its own rows, fields and messages. */}
       {state && <GoalForm key={state.mode === "edit" ? state.goal.id : "new"} state={state} onClose={onClose} />}
@@ -82,6 +99,9 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
   // The goal's updated_at as this device last saw it (R4). Removing a rule gives the goal a new one.
   const [updatedAt, setUpdatedAt] = useState(goal?.updatedAt ?? "");
   const [rules, setRules] = useState<RuleRow[]>(() => (goal ? goal.rules.map(ruleRow) : [newRule()]));
+  // A goal without a saved colour shows (and saves) the colour it has now.
+  const [color, setColor] = useState<GoalColorName>(goal ? goal.look.color : state.mode === "create" ? state.color : "rose");
+  const [icon, setIcon] = useState<GoalIconName>(goal ? goal.look.icon : DEFAULT_GOAL_ICON);
   const [result, setResult] = useState<PostResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -106,6 +126,9 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
       deadline: String(form.get("deadline") ?? ""),
       autoBlock: form.get("autoBlock") === "on",
       rules: rules.map(ruleBody),
+      why: String(form.get("why") ?? ""),
+      color,
+      icon,
     };
     setBusy(true);
     const answer = goal
@@ -153,45 +176,103 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
 
   return (
     <form onSubmit={save} noValidate className="flex max-h-[inherit] flex-col">
-      <div className="scroll-thin flex flex-col gap-5 overflow-y-auto px-5 pt-5 pb-6">
-        <div className="flex items-center gap-3">
-          <GoalTile colorIndex={goal ? goal.colorIndex : null} size="lg" />
-          <h2 id="goal-editor-title" className="min-w-0 flex-1 text-[15px] font-semibold tracking-snug">
-            {goal ? "Edit goal" : "New goal"}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="-mr-1.5 flex size-8 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+      <div className="flex items-center justify-between px-5 pt-5">
+        <h2 id="goal-editor-title" className="text-base font-semibold tracking-snug text-ink">
+          {goal ? "Edit goal" : "New goal"}
+        </h2>
+        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}>
+          <X className="size-4" strokeWidth={1.8} aria-hidden />
+        </Button>
+      </div>
 
+      <div className="scroll-thin flex min-h-0 flex-col gap-5 overflow-y-auto px-5 py-5">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="goal-title" className={eyebrow}>
-            Goal title
+          <label htmlFor="goal-title" className={labelClass}>
+            Name
           </label>
           <input
             id="goal-title"
             name="title"
             defaultValue={goal?.title ?? ""}
-            placeholder="Run a half marathon"
+            maxLength={80}
+            placeholder="e.g. Run a half marathon"
             autoFocus
             className={inputClass}
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="goal-deadline" className={eyebrow}>
+          <label htmlFor="goal-why" className={labelClass}>
+            Why it matters
+          </label>
+          <input
+            id="goal-why"
+            name="why"
+            defaultValue={goal?.why ?? ""}
+            maxLength={200}
+            placeholder="One short sentence that keeps you going"
+            className={inputClass}
+          />
+        </div>
+
+        <div role="group" aria-label="Color" className="flex flex-col gap-1.5">
+          <span className={labelClass} aria-hidden>
+            Color
+          </span>
+          <div className="grid w-fit grid-cols-5 gap-2 sm:flex sm:flex-wrap">
+            {GOAL_COLORS.map((c) => {
+              const on = color === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={GOAL_COLOR_LABELS[c]}
+                  aria-pressed={on}
+                  onClick={() => setColor(c)}
+                  className={`size-8 rounded-full ${goalColor(c).dot} transition-transform active:scale-95 ${focusRing} ${
+                    on ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""
+                  }`}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        <div role="group" aria-label="Icon" className="flex flex-col gap-1.5">
+          <span className={labelClass} aria-hidden>
+            Icon
+          </span>
+          <div className="grid grid-cols-5 gap-2">
+            {GOAL_ICON_NAMES.map((name) => {
+              const Icon = GOAL_ICONS[name];
+              const on = icon === name;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  aria-label={GOAL_ICON_LABELS[name]}
+                  aria-pressed={on}
+                  onClick={() => setIcon(name)}
+                  className={`flex h-10 items-center justify-center rounded-lg border transition-colors ${focusRing} ${
+                    on ? "border-ink bg-raised text-ink" : "border-line-subtle text-ink-2 hover:bg-raised"
+                  }`}
+                >
+                  <Icon className="size-4" strokeWidth={1.8} aria-hidden />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="goal-deadline" className={labelClass}>
             Deadline
           </label>
           <input id="goal-deadline" name="deadline" type="date" defaultValue={goal?.deadline ?? ""} min={minDeadline} className={inputClass} />
         </div>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className={`${eyebrow} mb-1.5`}>Every week</legend>
+          <legend className={`${labelClass} mb-1.5`}>Every week</legend>
           {rules.map((rule, index) => (
             <div key={rule.key} className="rounded-card border border-line-subtle bg-raised/50 p-3">
               <div className="grid grid-cols-[1fr_5.5rem_auto] items-end gap-2">
@@ -260,7 +341,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
         </fieldset>
 
         <section className="flex flex-col gap-2">
-          <p className={eyebrow}>Blocker</p>
+          <p className={labelClass}>Blocker</p>
           <div className="flex items-start justify-between gap-3 text-sm text-ink">
             <span>
               <label htmlFor="goal-auto-block" className="cursor-pointer">
@@ -298,37 +379,47 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-subtle px-5 py-4 pb-[max(16px,env(safe-area-inset-bottom))]">
         {goal && confirmingDelete ? (
           <>
-            <p className="w-full text-sm font-medium">{`Delete '${goal.title}'? Its events stay, without goal.`}</p>
-            <Button ref={confirmButton} variant="danger" size="sm" disabled={busy} onClick={deleteGoal}>
-              Yes, delete
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>
-              Cancel
-            </Button>
+            <p className="min-w-0 break-words text-sm text-ink">{`Delete “${goal.title}”? Its events and tasks stay, without goal.`}</p>
+            <div className="flex shrink-0 gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setConfirmingDelete(false)}>
+                Cancel
+              </Button>
+              <button
+                ref={confirmButton}
+                type="button"
+                disabled={busy}
+                onClick={deleteGoal}
+                className={`inline-flex h-7 shrink-0 items-center justify-center rounded-full bg-danger px-3 text-xs font-semibold whitespace-nowrap text-white transition-colors hover:bg-danger/90 disabled:opacity-40 ${focusRing}`}
+              >
+                Delete
+              </button>
+            </div>
           </>
         ) : (
           <>
-            <Button type="submit" size="sm" disabled={busy}>
-              {busy ? "Saving…" : goal ? "Save" : "Add goal"}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              Cancel
-            </Button>
-            {goal && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="ml-auto size-8 text-ink-3"
+            {goal ? (
+              <button
+                type="button"
                 aria-label={`Delete ${goal.title}`}
-                title="Delete"
                 onClick={() => setConfirmingDelete(true)}
+                className={`rounded-full px-3 py-1.5 text-sm font-medium text-danger transition-colors hover:bg-danger-soft ${focusRing}`}
               >
-                <Trash2 className="size-4" />
-              </Button>
+                Delete
+              </button>
+            ) : (
+              <span />
             )}
+            <div className="flex gap-2">
+              <Button variant="secondary" size="md" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" size="md" disabled={busy}>
+                {busy ? "Saving…" : goal ? "Save" : "Create"}
+              </Button>
+            </div>
           </>
         )}
       </div>

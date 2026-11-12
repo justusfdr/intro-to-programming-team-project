@@ -2,7 +2,18 @@
 // Decorative: the time in its middle carries the meaning.
 import type { ReactNode } from "react";
 
-export function FocusRing({ progress, children, className = "size-60" }: { progress: number; children?: ReactNode; className?: string }) {
+export function FocusRing({
+  progress,
+  children,
+  className = "size-60",
+  strokeClass = "stroke-ink",
+}: {
+  progress: number;
+  children?: ReactNode;
+  className?: string;
+  /** The ring's colour: the goal's colour, else black (as in the prototype). */
+  strokeClass?: string;
+}) {
   const size = 240;
   const stroke = 6;
   const r = (size - stroke) / 2;
@@ -23,7 +34,7 @@ export function FocusRing({ progress, children, className = "size-60" }: { progr
           strokeDasharray={c}
           strokeDashoffset={c * (1 - p)}
           opacity={p > 0 ? 1 : 0}
-          className="stroke-ink"
+          className={strokeClass}
           style={{ transition: "stroke-dashoffset 1s linear" }}
         />
       </svg>

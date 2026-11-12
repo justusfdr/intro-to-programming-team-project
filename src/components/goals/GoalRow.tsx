@@ -1,13 +1,14 @@
 // One row under a goal in the goals column: a ring in the goal's colour while open, a filled circle
 // with a white check when done, the text, and an optional small chip at the right. Used for the
 // rules of this week and for tasks (spec 11). For a task the ring is a real button (`toggle`); for a
-// rule it is only a picture. `colorIndex` null is the grey of "Inbox".
+// rule it is only a picture. `color` null is the grey of "Inbox".
 import type { ReactNode } from "react";
 import { Check } from "lucide-react";
 import { goalColor } from "@/lib/goals/colors";
+import type { GoalColorName } from "@/lib/goals/style";
 
 type Props = {
-  colorIndex: number | null;
+  color: GoalColorName | null;
   done: boolean;
   children: ReactNode;
   /** Grey, struck-through text (for example a met rule or a done task). */
@@ -30,8 +31,8 @@ type Props = {
 
 const GREY = { dot: "bg-ink-3", ring: "border-ink-3" };
 
-export function GoalRow({ colorIndex, done, children, struck = false, doneLabel = "done", chip, toggle, compact = false }: Props) {
-  const color = colorIndex === null ? GREY : goalColor(colorIndex);
+export function GoalRow({ color: colorName, done, children, struck = false, doneLabel = "done", chip, toggle, compact = false }: Props) {
+  const color = colorName === null ? GREY : goalColor(colorName);
   // The compact mark is 12px, centred in the same 18px column, so its text lines up with the tasks.
   const size = compact ? "size-3" : "size-[18px]";
   const mark = done ? (

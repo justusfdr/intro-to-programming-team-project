@@ -242,7 +242,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
   // R11: an Outlook event keeps title, times and days from Outlook; here only its goal and done status.
   const fromOutlook = event?.source === "outlook";
   const firstWeekday = /^\d{4}-\d{2}-\d{2}$/.test(date) ? weekdayOf(date) : null;
-  const tileColor = allDay ? null : (goals.find((goal) => goal.id === goalId)?.colorIndex ?? null);
+  const tileLook = allDay ? null : (goals.find((goal) => goal.id === goalId)?.look ?? null);
 
   /** Sends one action; on success announces the message, closes the editor and reloads the week. */
   async function run(path: string, body: unknown, { close = true } = {}) {
@@ -326,7 +326,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
             <h2 id="editor-title" className="sr-only">
               {event ? `Edit ${event.title}` : "New event"}
             </h2>
-            <GoalTile colorIndex={tileColor} size="lg" />
+            <GoalTile look={tileLook} size="lg" />
             <div className="min-w-0 flex-1">
               {fromOutlook ? (
                 <p className="truncate py-0.5 text-[15px] font-semibold leading-6 text-ink">{initial.title}</p>
@@ -531,7 +531,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
           <fieldset className="flex min-w-0 flex-col gap-2">
             <legend className={`${eyebrowClass} mb-2`}>Goal</legend>
             <div className="flex flex-wrap gap-1.5">
-              {[{ id: "", title: "No goal", colorIndex: null as number | null }, ...goals].map((goal) => (
+              {[{ id: "", title: "No goal", look: null as GoalLabel["look"] | null }, ...goals].map((goal) => (
                 <label
                   key={goal.id || "none"}
                   className={`inline-flex h-8 max-w-full cursor-pointer items-center gap-1.5 rounded-full border pr-3 pl-1.5 text-[13px] transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink/30 ${
@@ -546,7 +546,7 @@ function EditorBody({ state, goals, outlookConnected, onClose }: BodyProps) {
                     onChange={() => setGoalId(goal.id)}
                     className="sr-only"
                   />
-                  <GoalTile colorIndex={goal.colorIndex} size="xs" />
+                  <GoalTile look={goal.look} size="xs" />
                   <span className="min-w-0 truncate">{goal.title}</span>
                 </label>
               ))}

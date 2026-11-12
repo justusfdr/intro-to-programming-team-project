@@ -44,7 +44,7 @@ const EXAM: AllDayEvent = {
 };
 
 const render = (state: EditorState) =>
-  renderToStaticMarkup(<EventEditor state={state} goals={[{ id: "g1", title: "Run a half marathon", colorIndex: 0 }]} onClose={() => {}} />);
+  renderToStaticMarkup(<EventEditor state={state} goals={[{ id: "g1", title: "Run a half marathon", look: { color: "teal", icon: "footprints" } }]} onClose={() => {}} />);
 
 describe("event editor markup", () => {
   it("a new event has an 'All day' switch and a Repeat choice: none, daily, weekly, monthly", () => {

@@ -1,7 +1,8 @@
 import "server-only";
 
-// Data for the goals panel: the signed-in user's goals with their calculated colour and progress.
+// Data for the goals panel: the signed-in user's goals with their look (saved or calculated colour) and calculated progress.
 import { goalProgress, type DoneEvent } from "@/lib/goals/progress";
+import { lookOf } from "@/lib/goals/style";
 import type { GoalView } from "@/lib/goals/types";
 import type { Deps } from "@/lib/server/deps";
 import { readTimeZone } from "@/lib/server/settings";
@@ -26,6 +27,7 @@ export async function loadGoals(deps: Pick<Deps, "withUser" | "now">, userId: st
     return goals.map(({ createdAt, goal }, index) => ({
       ...goal,
       colorIndex: index,
+      look: lookOf(goal, index),
       progress: goalProgress(
         { createdAt, deadline: goal.deadline, rules: goal.rules, doneEvents: doneByGoal.get(goal.id) ?? [] },
         now,

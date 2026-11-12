@@ -73,12 +73,25 @@ export function editGoal(request: Request, deps: Pick<Deps, "auth" | "withUser" 
       }
 
       // Also gives the goal a new updated_at, so the other devices see the change (R4).
-      await query("update app.goals set title = $2, deadline = $3, auto_block = $4 where id = $1", [
-        goal.id,
-        checked.title,
-        checked.deadline,
-        checked.autoBlock,
-      ]);
+      // Colour, icon and why stay as they are when the body leaves them out.
+      await query(
+        `update app.goals
+            set title = $2, deadline = $3, auto_block = $4,
+                color = case when $5::boolean then $6 else color end,
+                icon = coalesce($7, icon),
+                why = coalesce($8, why)
+          where id = $1`,
+        [
+          goal.id,
+          checked.title,
+          checked.deadline,
+          checked.autoBlock,
+          checked.color !== undefined,
+          checked.color ?? null,
+          checked.icon ?? null,
+          checked.why ?? null,
+        ],
+      );
       const [saved] = await readGoals(query, goal.id);
       return jsonOk({ message: MESSAGES.goalSaved, goal: saved.goal });
     });

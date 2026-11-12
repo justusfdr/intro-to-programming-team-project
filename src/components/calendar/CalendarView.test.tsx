@@ -67,7 +67,7 @@ function render(data: WeekData, options: { display?: Display; outlookAvailable?:
         week={data}
         nowLocal="2026-11-17T12:10"
         suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }}
-        goals={[{ id: "g1", title: "Run a half marathon", colorIndex: 0 }]}
+        goals={[{ id: "g1", title: "Run a half marathon", look: { color: "teal", icon: "footprints" } }]}
         outlookAvailable={options.outlookAvailable}
       />
     </Announcer>
@@ -180,7 +180,7 @@ describe("calendar markup", () => {
     expect(html).toMatch(/class="block pr-4[^"]*truncate[^"]*">Statistics revision</);
   });
 
-  it("gives an event of a goal the goal's colour and names the goal; other events stay neutral", () => {
+  it("gives an event of a goal the goal's own colour and names the goal; other events stay neutral", () => {
     const html = render(
       week({
         0: [
@@ -189,7 +189,7 @@ describe("calendar markup", () => {
         ],
       }),
     );
-    expect(html).toMatch(/aria-label="Long run, Monday, November 16, 7am to 8am, goal Run a half marathon"[^>]*class="[^"]*bg-rose-50/);
+    expect(html).toMatch(/aria-label="Long run, Monday, November 16, 7am to 8am, goal Run a half marathon"[^>]*class="[^"]*bg-teal-50/);
     expect(html).toMatch(/aria-label="Dentist, Monday, November 16, 10am to 11am"[^>]*class="[^"]*bg-raised/);
   });
 

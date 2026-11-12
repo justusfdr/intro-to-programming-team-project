@@ -14,12 +14,13 @@ import type { AllDayEvent, CalendarEvent, WeekDay } from "@/lib/events/types";
 import { CalendarDays, Check, TriangleAlert } from "lucide-react";
 import { NotSentIcon } from "@/components/ui/icons";
 import { goalColor } from "@/lib/goals/colors";
+import type { GoalLook } from "@/lib/goals/style";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { fmtDateLong, fmtHour, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { dayParts } from "@/lib/time/zoned";
 
-/** What the grid needs of a goal: its name and its place in the list (for the colour). */
-export type GoalLabel = { id: string; title: string; colorIndex: number };
+/** What the grid and the event editor need of a goal: its name, colour and icon. */
+export type GoalLabel = { id: string; title: string; look: GoalLook };
 
 type Props = {
   goals: GoalLabel[];
@@ -66,7 +67,7 @@ function EventBlock({ block, range, dayLong, goal, onOpen }: BlockProps) {
   const { event } = block;
   const { timeFormat } = useDisplay();
   // Events of a goal take the goal's colour; others stay neutral. A conflict adds a red edge and an icon.
-  const colors = goal ? goalColor(goal.colorIndex).block : "bg-raised border-line-subtle text-ink";
+  const colors = goal ? goalColor(goal.look.color).block : "bg-raised border-line-subtle text-ink";
   const { top, height } = blockBox(block, range);
   const done = event.status === "done";
   // As in the prototype: "9 – 10:30am"; the parts of an event past midnight show "…" and "+1".

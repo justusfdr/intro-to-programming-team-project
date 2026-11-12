@@ -12,6 +12,7 @@ import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
 import { Plus, Trash2 } from "lucide-react";
 import { postJson } from "@/lib/client/post-json";
+import type { GoalColorName } from "@/lib/goals/style";
 import { dueLabel, isOverdue } from "@/lib/tasks/order";
 import type { TaskDto } from "@/lib/tasks/types";
 import { GoalRow } from "./GoalRow";
@@ -23,8 +24,8 @@ type Props = {
   tasks: TaskDto[];
   /** The section's goal, or null for "Inbox". */
   goalId: string | null;
-  /** The goal's colour index, or null for the grey of "Inbox". */
-  colorIndex: number | null;
+  /** The goal's colour, or null for the grey of "Inbox". */
+  color: GoalColorName | null;
   /** The section's name, for the names of its controls ("Add task to Inbox"). */
   sectionTitle: string;
   /** The user's local date, "2026-11-16". */
@@ -46,7 +47,7 @@ function ErrorLine({ text }: { text: string }) {
   );
 }
 
-export function TaskList({ tasks, goalId, colorIndex, sectionTitle, today, goals }: Props) {
+export function TaskList({ tasks, goalId, color, sectionTitle, today, goals }: Props) {
   const router = useRouter();
   const announce = useAnnounce();
   const [adding, setAdding] = useState(false);
@@ -92,7 +93,7 @@ export function TaskList({ tasks, goalId, colorIndex, sectionTitle, today, goals
             <TaskRow
               key={task.id}
               task={task}
-              colorIndex={colorIndex}
+              color={color}
               today={today}
               busy={busyId === task.id}
               error={rowError?.id === task.id ? rowError.text : null}
@@ -129,7 +130,7 @@ export function TaskList({ tasks, goalId, colorIndex, sectionTitle, today, goals
 
 function TaskRow({
   task,
-  colorIndex,
+  color,
   today,
   busy,
   error,
@@ -137,7 +138,7 @@ function TaskRow({
   onOpen,
 }: {
   task: TaskDto;
-  colorIndex: number | null;
+  color: GoalColorName | null;
   today: string;
   busy: boolean;
   error: string | null;
@@ -154,7 +155,7 @@ function TaskRow({
   return (
     <>
       <GoalRow
-        colorIndex={colorIndex}
+        color={color}
         done={done}
         struck={done}
         chip={chip}

@@ -48,7 +48,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
             week={week}
             nowLocal={nowLocal}
             suggestion={suggestion}
-            goals={goals.map(({ id, title, colorIndex }) => ({ id, title, colorIndex }))}
+            goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
             outlookAvailable={outlookConfigured()}
           />
         </AppShell>

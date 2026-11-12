@@ -17,6 +17,8 @@ import type { BlockerData } from "@/lib/blocker/types";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { fmtDateShort } from "@/lib/time/display";
 import { localDateOf } from "@/lib/time/zoned";
+import { GOAL_ICONS, GoalTile } from "@/components/goals/GoalTile";
+import { goalColor } from "@/lib/goals/colors";
 import { BlockerChip } from "./BlockerChip";
 import { FocusRing } from "./FocusRing";
 
@@ -72,12 +74,29 @@ function useSessionAction() {
   return { run, busy, failure };
 }
 
-function StartCard({ forEvent }: { forEvent: FocusData["forEvent"] }) {
+type FocusGoal = FocusData["goals"][number];
+
+/** The goal line above a session's title, as in the prototype: the goal's tile and name, or "No goal". */
+function GoalLine({ goal }: { goal: FocusGoal | null }) {
+  return (
+    <div className="flex max-w-full items-center gap-2 text-xs text-ink-2">
+      <GoalTile look={goal?.look ?? null} size="xs" />
+      <span className="truncate">{goal?.title ?? "No goal"}</span>
+    </div>
+  );
+}
+
+function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: FocusGoal | null }) {
   const [minutes, setMinutes] = useState<number>(forEvent?.suggestedMinutes ?? 60);
   const { run, busy, failure } = useSessionAction();
 
   return (
     <section aria-labelledby="start-title" className={card}>
+      {forEvent && (
+        <div className="mb-1.5">
+          <GoalLine goal={goal} />
+        </div>
+      )}
       <h2 id="start-title" className="text-[15px] font-semibold text-ink">
         {forEvent ? forEvent.title : "Quick session"}
       </h2>
@@ -116,7 +135,12 @@ function StartCard({ forEvent }: { forEvent: FocusData["forEvent"] }) {
   );
 }
 
-function RunningCard({ session, serverNow }: { session: SessionDto; serverNow: string }) {
+function GoalSymbol({ goal }: { goal: FocusGoal }) {
+  const Icon = GOAL_ICONS[goal.look.icon];
+  return <Icon className={`mb-2 size-6 ${goalColor(goal.look.color).text}`} strokeWidth={1.8} aria-hidden="true" />;
+}
+
+function RunningCard({ session, serverNow, goal }: { session: SessionDto; serverNow: string; goal: FocusGoal | null }) {
   const router = useRouter();
   const times = timesOf(session);
   const [now, setNow] = useState(() => new Date(serverNow));
@@ -146,12 +170,23 @@ function RunningCard({ session, serverNow }: { session: SessionDto; serverNow: s
   const base = `/api/sessions/${session.id}`;
   return (
     <section aria-labelledby="running-title" className={`${card} flex flex-col items-center`}>
+      {session.eventId && (
+        <div className="mb-1.5 self-start">
+          <GoalLine goal={goal} />
+        </div>
+      )}
       <h2 id="running-title" className="self-start text-[15px] font-semibold text-ink">
         {session.eventTitle ?? "Focus session"}
       </h2>
       <p className="self-start text-sm text-ink-2">{minutesText(session.plannedMinutes)} planned</p>
-      <FocusRing progress={1 - left / (session.plannedMinutes * 60)} className="mt-4 size-56">
-        <div className="text-center">
+      <FocusRing
+        progress={1 - left / (session.plannedMinutes * 60)}
+        className="mt-4 size-56"
+        strokeClass={goal ? goalColor(goal.look.color).stroke : undefined}
+      >
+        <div className="flex flex-col items-center text-center">
+          {/* The goal's icon in its colour above the time, as in the prototype. */}
+          {goal && <GoalSymbol goal={goal} />}
           <p className="text-4xl font-semibold tracking-display tabular text-ink" role="timer" aria-label={`${clockText(left)} left`}>
             {clockText(left)}
           </p>
@@ -256,6 +291,7 @@ function RecentSessions({ sessions, timeZone }: { sessions: FocusData["recent"];
 
 export function FocusView({ data, blocker }: { data: FocusData; blocker: BlockerData }) {
   const { timeFormat } = useDisplay();
+  const goalById = (id: string | null) => (id ? (data.goals.find((goal) => goal.id === id) ?? null) : null);
   // The rating card appears for the newest finished session if it ended in the last 12 hours.
   const latest = data.recent[0];
   const rateLatest =
@@ -270,7 +306,11 @@ export function FocusView({ data, blocker }: { data: FocusData; blocker: Blocker
         <BlockerChip data={blocker} format={timeFormat} />
       </div>
       <div className="mt-6 flex max-w-xl flex-col gap-6">
-        {data.active ? <RunningCard session={data.active} serverNow={data.now} /> : <StartCard forEvent={data.forEvent} />}
+        {data.active ? (
+          <RunningCard session={data.active} serverNow={data.now} goal={goalById(data.active.eventGoalId)} />
+        ) : (
+          <StartCard forEvent={data.forEvent} goal={goalById(data.forEventGoalId)} />
+        )}
         {rateLatest && <RatingCard session={latest} />}
       </div>
       <RecentSessions sessions={data.recent} timeZone={blocker.timeZone} />

@@ -10,6 +10,7 @@ import { usePanels } from "@/components/shell/PanelState";
 import { Button } from "@/components/ui/Button";
 import { ChevronRight, Plus, X } from "lucide-react";
 import { COLLAPSED_KEY, readCollapsed, toggleCollapsed } from "@/lib/goals/collapsed";
+import { nextGoalColor } from "@/lib/goals/style";
 import type { GoalView } from "@/lib/goals/types";
 import { openCount, sortTasks } from "@/lib/tasks/order";
 import type { TaskDto } from "@/lib/tasks/types";
@@ -77,7 +78,7 @@ function PanelContent({ titleId, goals, tasks, today, collapsed, onToggle, onNew
               onToggle={() => onToggle(goal.id)}
               openTasks={openCount(own)}
             >
-              <TaskList tasks={own} goalId={goal.id} colorIndex={goal.colorIndex} sectionTitle={goal.title} today={today} goals={goalOptions} />
+              <TaskList tasks={own} goalId={goal.id} color={goal.look.color} sectionTitle={goal.title} today={today} goals={goalOptions} />
             </GoalCard>
           );
         })}
@@ -130,14 +131,14 @@ function InboxSection({
         >
           <ChevronRight className={`size-3.5 transition-transform ${collapsed ? "" : "rotate-90"}`} strokeWidth={2.2} />
         </button>
-        <GoalTile colorIndex={null} icon="inbox" />
+        <GoalTile look={null} inbox />
         <h3 className="ml-1 min-w-0 flex-1 truncate text-[15px] font-semibold tracking-snug text-ink">Inbox</h3>
         <OpenTaskCount count={openCount(tasks)} />
       </div>
       <div aria-hidden className="mt-1.5 h-[3px] rounded-full bg-muted" />
       {!collapsed && (
         <div id={bodyId}>
-          <TaskList tasks={tasks} goalId={null} colorIndex={null} sectionTitle="Inbox" today={today} goals={goals} />
+          <TaskList tasks={tasks} goalId={null} color={null} sectionTitle="Inbox" today={today} goals={goals} />
         </div>
       )}
     </section>
@@ -199,7 +200,7 @@ export function GoalsPanel({ goals, tasks, today }: Props) {
 
   const newGoal = () => {
     panels.openSheet(null);
-    setEditor({ mode: "create", today });
+    setEditor({ mode: "create", today, color: nextGoalColor(goals.map((goal) => goal.look.color)) });
   };
 
   const openGoal = (goal: GoalView) => {

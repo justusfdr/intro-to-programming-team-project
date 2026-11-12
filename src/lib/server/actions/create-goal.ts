@@ -31,10 +31,12 @@ export function createGoal(request: Request, deps: Pick<Deps, "auth" | "withUser
       // A new goal has no rule ids yet; ids sent along are ignored.
       const goal = checkGoalFields(body.data, today);
 
-      // user_id, created_at and updated_at are filled in by the database.
+      // user_id, created_at and updated_at are filled in by the database. Without a colour the goal
+      // takes the one calculated from its place in the list; without an icon the default (rocket).
       const [{ id }] = await query<{ id: string }>(
-        "insert into app.goals (title, deadline, auto_block) values ($1, $2, $3) returning id",
-        [goal.title, goal.deadline, goal.autoBlock],
+        `insert into app.goals (title, deadline, auto_block, color, icon, why)
+         values ($1, $2, $3, $4, coalesce($5, 'rocket'), $6) returning id`,
+        [goal.title, goal.deadline, goal.autoBlock, goal.color ?? null, goal.icon ?? null, goal.why ?? ""],
       );
       for (const rule of goal.rules) {
         await query("insert into app.rules (goal_id, kind, target, min_minutes) values ($1, $2, $3, $4)", [

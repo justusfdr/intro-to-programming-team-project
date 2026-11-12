@@ -12,6 +12,10 @@ const GOAL: GoalView = {
   autoBlock: true,
   updatedAt: "2026-11-15T10:00:00.000Z",
   colorIndex: 1,
+  color: "teal",
+  icon: "footprints",
+  why: "",
+  look: { color: "teal", icon: "footprints" },
   rules: [
     { id: "r1", kind: "count", target: 2, minMinutes: 45 },
     { id: "r2", kind: "hours", target: 6, minMinutes: null },
@@ -48,8 +52,9 @@ describe("goal card", () => {
     expect(html.match(/<svg/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("uses the goal's calculated colour and mentions auto-block", () => {
+  it("uses the goal's own colour and icon (spec 13) and mentions auto-block", () => {
     expect(html).toContain("bg-teal-500");
+    expect(html).toMatch(/bg-teal-50 text-teal-700[^"]*"><svg[^>]*lucide-footprints/);
     expect(html).toContain("Auto-block on");
   });
 
