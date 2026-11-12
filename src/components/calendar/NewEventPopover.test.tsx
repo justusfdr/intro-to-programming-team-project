@@ -28,22 +28,23 @@ describe("the New event card", () => {
     expect(html).toContain(">Tue, Nov 17</span>");
     expect(html).toMatch(/<input[^>]*aria-label="Title"[^>]*placeholder="What are you working on\?"/);
     expect(html).toMatch(/role="group" aria-label="Goal".*No goal.*Run a half marathon/s);
-    expect(html).toMatch(/<select aria-label="Start"[^>]*>/);
-    expect(html).toMatch(/<select aria-label="End"[^>]*>/);
+    expect(html).toMatch(/<input[^>]*aria-label="Start"[^>]*value="09:00"/);
+    expect(html).toMatch(/<input[^>]*aria-label="End"[^>]*value="10:00"/);
     expect(html).toMatch(/role="group" aria-label="Duration".*>30m<.*>1h<.*>1\.5h<.*>2h</s);
     expect(html).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Add<\/button>/);
     expect(html).toMatch(/<button type="button"[^>]*disabled=""[^>]*>Add details<\/button>/);
   });
 
-  it("presses the chip of the dragged length and shows times in 12-hour form", () => {
+  it("presses the chip of the dragged length and shows start and end as HH:MM (24-hour wheel)", () => {
     const html = card(540, 630);
     expect(html).toMatch(/aria-pressed="true"[^>]*>1\.5h</);
-    expect(html).toContain(">9am</option>");
-    expect(html).toContain(">10:30am · 1h 30m</option>");
+    expect(html).toMatch(/<input[^>]*aria-label="Start"[^>]*value="09:00"/);
+    expect(html).toMatch(/<input[^>]*aria-label="End"[^>]*value="10:30"/);
+    expect(html).toContain(" · 1h 30m");
   });
 
   it("is at least 15 minutes long, even after a tiny drag", () => {
-    expect(card(600, 600)).toMatch(/<select aria-label="End"[^>]*>.*<option value="615" selected="">/s);
+    expect(card(600, 600)).toMatch(/<input[^>]*aria-label="End"[^>]*value="10:15"/);
   });
 });
 

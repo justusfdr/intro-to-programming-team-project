@@ -10,14 +10,14 @@ import { Button } from "@/components/ui/Button";
 import { useLive } from "@/components/live/Live";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { localAt, MIN_DURATION } from "@/lib/events/drag";
-import { fmtDateShort } from "@/lib/time/display";
+import { fmtDateShort, fmtMinutes } from "@/lib/time/display";
+import { LAST_MINUTE, endProblem } from "@/lib/time/wheel";
 import { useAnnounce } from "./Announcer";
 import { savedEventChange } from "./event-changes";
-import { Eyebrow, GoalChips, TimeSelect, ToggleChip, inputClass } from "./fields";
+import { Eyebrow, GoalChips, ToggleChip, inputClass } from "./fields";
 import { FloatingPanel, type Anchor } from "./FloatingPanel";
+import { TimeField, TimeWheel } from "./TimeWheel";
 import type { GoalLabel } from "./TimeGrid";
-
-const DAY_MIN = 24 * 60;
 
 const DURATIONS = [
   { min: 30, label: "30m" },
@@ -57,12 +57,15 @@ export function NewEventForm({ date, startMin, endMin, goals, outlookConnected =
   const [title, setTitle] = useState("");
   const [goalId, setGoalId] = useState<string | null>(null);
   const [start, setStart] = useState(startMin);
-  // At least MIN_DURATION long, even if the input does not say so.
-  const [end, setEnd] = useState(() => Math.min(DAY_MIN, Math.max(endMin, startMin + MIN_DURATION)));
+  // At least MIN_DURATION long, even if the input does not say so; at the latest 23:59 (the wheel's end).
+  const [end, setEnd] = useState(() => Math.min(LAST_MINUTE, Math.max(endMin, startMin + MIN_DURATION)));
+  // Which time's wheel is showing under the fields, if any.
+  const [wheel, setWheel] = useState<"start" | "end" | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PostResult | null>(null);
   const duration = end - start;
-  const canSubmit = title.trim().length > 0 && !busy;
+  const timeProblem = endProblem(start, end);
+  const canSubmit = title.trim().length > 0 && !busy && timeProblem === null;
 
   const draft = (): NewEventDraft => ({ title: title.trim(), goalId, start: localAt(date, start), end: localAt(date, end) });
 
@@ -85,11 +88,21 @@ export function NewEventForm({ date, startMin, endMin, goals, outlookConnected =
   // A new start keeps the length.
   const changeStart = (min: number) => {
     setStart(min);
-    setEnd(Math.min(DAY_MIN, min + duration));
+    setEnd(Math.min(LAST_MINUTE, min + Math.max(duration, MIN_DURATION)));
   };
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3 p-4">
+    <form
+      onSubmit={onSubmit}
+      onKeyDown={(e) => {
+        // Esc first folds the wheel; the next Esc closes the card.
+        if (wheel && e.key === "Escape" && !e.defaultPrevented) {
+          e.preventDefault();
+          setWheel(null);
+        }
+      }}
+      className="flex flex-col gap-3 p-4"
+    >
       <div className="flex items-center justify-between gap-2">
         <Eyebrow>New event</Eyebrow>
         <span className="text-xs tabular text-ink-3">{fmtDateShort(date)}</span>
@@ -107,24 +120,40 @@ export function NewEventForm({ date, startMin, endMin, goals, outlookConnected =
 
       <GoalChips goals={goals} value={goalId} onChange={setGoalId} />
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-start gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <Eyebrow>Start</Eyebrow>
-          <TimeSelect label="Start" value={start} onChange={changeStart} from={0} to={DAY_MIN - MIN_DURATION} />
+          <TimeField label="Start" value={start} onChange={changeStart} open={wheel === "start"} onOpen={() => setWheel("start")} />
         </div>
-        <span aria-hidden className="mb-2 text-sm text-ink-3">
+        <span aria-hidden className="mt-7 text-sm text-ink-3">
           –
         </span>
-        {/* The end is wider: it also shows the length. */}
-        <div className="flex min-w-0 flex-[1.45] flex-col gap-1.5">
-          <Eyebrow>End</Eyebrow>
-          <TimeSelect label="End" value={end} onChange={setEnd} from={start + MIN_DURATION} to={DAY_MIN} durationFrom={start} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <Eyebrow>
+            End
+            {duration > 0 && <span className="normal-case tracking-normal tabular"> · {fmtMinutes(duration)}</span>}
+          </Eyebrow>
+          <TimeField label="End" value={end} onChange={setEnd} open={wheel === "end"} onOpen={() => setWheel("end")} />
         </div>
       </div>
 
+      {wheel && (
+        <TimeWheel
+          label={wheel === "start" ? "Start" : "End"}
+          value={wheel === "start" ? start : end}
+          onChange={wheel === "start" ? changeStart : setEnd}
+        />
+      )}
+
+      {timeProblem && (
+        <p role="alert" className="text-xs text-danger">
+          {timeProblem}
+        </p>
+      )}
+
       <div role="group" aria-label="Duration" className="flex flex-wrap gap-1.5">
         {DURATIONS.map((d) => (
-          <ToggleChip key={d.min} pressed={duration === d.min} onClick={() => setEnd(Math.min(DAY_MIN, start + d.min))} className="tabular">
+          <ToggleChip key={d.min} pressed={duration === d.min} onClick={() => setEnd(Math.min(LAST_MINUTE, start + d.min))} className="tabular">
             {d.label}
           </ToggleChip>
         ))}
