@@ -4,6 +4,7 @@ import { Announcer } from "@/components/calendar/Announcer";
 import { FocusView } from "@/components/focus/FocusView";
 import { AppShell } from "@/components/shell/AppShell";
 import { pageDeps } from "@/lib/server/deps";
+import { loadBlocker } from "@/lib/server/blocker/page";
 import { loadFocus } from "@/lib/server/focus/load";
 
 export const metadata: Metadata = { title: "Focus" };
@@ -17,11 +18,12 @@ export default async function FocusPage({ searchParams }: { searchParams: Promis
 
   const { event } = await searchParams;
   const data = await loadFocus(deps, userId, typeof event === "string" ? event : undefined);
+  const blocker = await loadBlocker(deps, userId);
 
   return (
     <Announcer>
       <AppShell current="/focus">
-        <FocusView data={data} />
+        <FocusView data={data} blocker={blocker} />
       </AppShell>
     </Announcer>
   );

@@ -3,10 +3,10 @@ import "server-only";
 // The blocker's data, read inside withUser: the block list, whether blocking is on and until when
 // (R15), and whether the extension asked in the last 2 minutes (R18).
 import { blockingState } from "@/lib/blocker/state";
+import type { BlockedSite } from "@/lib/blocker/types";
 import { plannedEnd } from "@/lib/focus/session-time";
 import type { Query } from "@/lib/server/db";
 
-export type BlockedSite = { id: string; domain: string };
 
 /** The user's block list, oldest first (the six defaults come first for a new account). */
 export async function readBlockedSites(query: Query): Promise<BlockedSite[]> {

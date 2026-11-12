@@ -223,11 +223,22 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     endedAt: null,
     rating: null,
   };
-  const focusPage = (data: FocusData) =>
+  type BlockerData = import("@/lib/blocker/types").BlockerData;
+  const defaults = ["youtube.com", "instagram.com", "tiktok.com", "x.com", "reddit.com", "facebook.com", "news.ycombinator.com"];
+  const blockerOff: BlockerData = {
+    sites: defaults.map((domain, i) => ({ id: String(i), domain })),
+    connected: true,
+    blockingOn: false,
+    blockingUntil: null,
+    timeZone: "Europe/Lisbon",
+  };
+  const blockerOn: BlockerData = { ...blockerOff, blockingOn: true, blockingUntil: "2026-11-17T10:20:00.000Z" };
+  const notConnected: BlockerData = { ...blockerOff, connected: false };
+  const focusPage = (data: FocusData, blocker: BlockerData = data.active?.status === "running" ? blockerOn : blockerOff) =>
     renderToStaticMarkup(
       <Announcer>
         <AppShell current="/focus">
-          <FocusView data={data} />
+          <FocusView data={data} blocker={blocker} />
         </AppShell>
       </Announcer>,
     );
@@ -250,6 +261,17 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     ],
   ];
   for (const [file, data] of focusStates) writeFileSync(join(OUT, file), page("Focus", focusPage(data), styles));
+  writeFileSync(join(OUT, "focus-blocker-not-connected.html"), page("Focus", focusPage(focusStates[0][1], notConnected), styles));
+
+  // The extension's block page, as Chrome shows it (its own HTML and CSS, the text its script sets).
+  const extensionDir = join(ROOT, "extension");
+  const blockedHtml = readFileSync(join(extensionDir, "blocked.html"), "utf8")
+    .replace('<link rel="stylesheet" href="blocked.css" />', `<style>${readFileSync(join(extensionDir, "blocked.css"), "utf8")}</style>`)
+    .replace('<script type="module" src="blocked.js"></script>', "")
+    .replace("This site is blocked while you focus.", "instagram.com is blocked while you focus.")
+    .replace('<p id="until" hidden></p>', '<p id="until">Blocking ends at 10:20.</p>')
+    .replace('<a id="back" href="#">Open Lock In</a>', '<a id="back" href="#">Back to Lock In</a>');
+  writeFileSync(join(OUT, "block-page.html"), blockedHtml);
   writeFileSync(join(OUT, "focus-running-phone.html"), phoneFrame("Focus", page("Focus", focusPage(focusStates[2][1]), styles)));
 
   writeFileSync(join(OUT, "sign-in.html"), page("Sign in", renderToStaticMarkup(<SignInPage />), styles));

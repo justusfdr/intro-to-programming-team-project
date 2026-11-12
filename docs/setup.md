@@ -10,7 +10,7 @@ Keep every key and password in your password manager. Never paste them into the 
 ## 2. Create the tables
 1. Open **SQL Editor** in the project.
 2. Run each file in `supabase/migrations/` in name order (oldest first): open the file, copy all of it, paste it into a new query, press **Run**. Each file runs only once.
-3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles`, `settings`, `events`, `goals`, `rules` and `focus_sessions`.
+3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles`, `settings`, `events`, `goals`, `rules`, `focus_sessions`, `blocked_sites` and `blocked_attempts`.
 4. Open **Project Settings > Data API**. Under **Exposed schemas**, `app` must **not** be listed. Do not add it. (Our server is the only way to our tables.)
 
 ## 3. Switch on e-mail confirmation
@@ -65,3 +65,6 @@ Our code relies on these answers from Supabase. Check them once with two test ad
 8. With two confirmed accounts, each sees only their own events.
 9. Goals: create a goal with two rules, link an event to it, mark the event done once it has started: the goals panel counts it ("This week: 1 of 2 done").
 10. Focus: start a 15-minute session, pause, resume, end it, and rate it on the Focus page; open an event and choose "Start focus".
+11. The blocker: in `extension/config.js` set `APP_URL` to the deployed address, then load the `extension` folder in Chrome (see `extension/README.md`). Sign in to the app in the same Chrome profile; within a minute the Focus page says "Blocker connected". Start a 15-minute session and open youtube.com: Chrome shows the block page.
+    - Chrome must allow third-party cookies for the app's address (Chrome settings, Privacy and security, Third-party cookies, "Sites allowed to use third-party cookies"). Otherwise the extension gets "not signed in" and blocks nothing.
+    - `EXTENSION_ID` stays empty unless the key in `extension/manifest.json` is replaced.

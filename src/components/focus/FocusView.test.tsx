@@ -25,7 +25,9 @@ function session(fields: Partial<SessionDto>): SessionDto {
 }
 
 function render(data: Partial<FocusData>) {
-  return renderToStaticMarkup(<FocusView data={{ active: null, recent: [], forEvent: null, now: NOW, ...data }} />);
+  // The blocker card has its own test (BlockerCard.test.tsx); here it only has to be there.
+  const blocker = { sites: [], connected: true, blockingOn: false, blockingUntil: null, timeZone: "Europe/Lisbon" };
+  return renderToStaticMarkup(<FocusView data={{ active: null, recent: [], forEvent: null, now: NOW, ...data }} blocker={blocker} />);
 }
 
 describe("Focus page", () => {
