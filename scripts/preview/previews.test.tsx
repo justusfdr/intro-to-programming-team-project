@@ -79,7 +79,7 @@ it("writes the preview files", async () => {
   const { AppShell } = await import("@/components/shell/AppShell");
   const { default: SignInPage } = await import("@/app/(account)/sign-in/page");
   const { default: SignUpPage } = await import("@/app/(account)/sign-up/page");
-  const { loadWeek } = await import("@/lib/server/events/week");
+  const { loadCalendar, loadWeek } = await import("@/lib/server/events/week");
 
   // A sample week for Monday 16 to Sunday 22 November 2026, seen on Tuesday at 12:10 in Lisbon.
   const app = await createTestApp();
@@ -174,17 +174,21 @@ it("writes the preview files", async () => {
   await task("Pay the rent", null, null, "done");
   app.advance(27 * 60 * 60 * 1000 + 10 * 60 * 1000); // Tuesday 17 November, 12:10
   const week = await loadWeek(app.deps, user, "2026-11-16");
+  // Spec 14: the same data as one day (Thursday, with the night shift running into Friday) and as the month.
+  const dayData = await loadCalendar(app.deps, user, "day", "2026-11-17");
+  const fridayData = await loadCalendar(app.deps, user, "day", "2026-11-20");
+  const monthData = await loadCalendar(app.deps, user, "month", "2026-11-17");
   const goals = await loadGoals(app.deps, user);
   const tasks = await loadTasks(app.deps, user);
   await app.close();
 
-  const calendar = () =>
+  const calendar = (shown = week) =>
     renderToStaticMarkup(
       <Announcer>
         <PanelState>
           <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today="2026-11-17" />}>
             <CalendarView
-              week={week}
+              week={shown}
               nowLocal="2026-11-17T12:10"
               suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }}
               goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
@@ -199,6 +203,11 @@ it("writes the preview files", async () => {
   const weekHtml = page("Week", calendar(), styles);
   writeFileSync(join(OUT, "week-desktop.html"), weekHtml);
   writeFileSync(join(OUT, "week-phone.html"), phoneFrame("Week", weekHtml));
+  for (const [name, data] of [["day", dayData], ["day-friday", fridayData], ["month", monthData]] as const) {
+    const html = page(name, calendar(data), styles);
+    writeFileSync(join(OUT, `${name}-desktop.html`), html);
+    writeFileSync(join(OUT, `${name}-phone.html`), phoneFrame(name, html));
+  }
 
   // The editor open on the revision that overlaps the call. A static page cannot open a modal
   // dialog, so the dialog is shown with the `open` attribute and a dimmed layer is drawn behind it.

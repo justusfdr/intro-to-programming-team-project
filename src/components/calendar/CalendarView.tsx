@@ -248,9 +248,10 @@ function ViewSwitch({ views, view, date }: { views: View[]; view: View; date: st
           href={calendarHref(v, date)}
           aria-current={view === v ? "page" : undefined}
           title={`${viewLabel(v)} (${viewLabel(v)[0]})`}
+          // Phones have no week view; hidden by a class too, so the first paint from the server fits.
           className={`inline-flex h-8 items-center rounded-full border px-3 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
             view === v ? "border-line-subtle bg-surface text-ink" : "border-transparent text-ink-2 hover:text-ink"
-          }`}
+          } ${v === "week" ? "max-md:hidden" : ""}`}
         >
           {viewLabel(v)}
         </Link>
