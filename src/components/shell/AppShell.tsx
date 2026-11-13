@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CalendarDays, ChartColumn, Settings, Timer, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChartColumn, MessageCircle, Settings, Timer, type LucideIcon } from "lucide-react";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
 import { DEFAULT_DISPLAY, type Display } from "@/lib/time/display";
@@ -9,14 +9,15 @@ import { Logo } from "./Logo";
 // The frame of every signed-in page, copied from the prototype's shell: the sidebar on wider screens
 // (mark and name, navigation, Settings at the bottom, then the account row) and the floating tab bar
 // on phones. Navigation shows only what exists; the Goals page takes its place between Calendar and
-// Focus in a later step. The black pill (AI chat), Search and quick capture come with their features.
-// Side panels go in as in the prototype: the goals panel to the left of the page (`panelsLeft`), the
-// AI chat panel later to the right (`panelsRight`); each collapses on its own.
+// Focus in a later step. The coach (the AI chat, spec 19) is a page of its own, second in the list.
+// Search and quick capture come with their features. Side panels go in as in the prototype: the goals
+// panel to the left of the page (`panelsLeft`), others to the right (`panelsRight`); each collapses on its own.
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
 const NAV: NavItem[] = [
   { href: "/", label: "Calendar", icon: CalendarDays },
+  { href: "/coach", label: "Coach", icon: MessageCircle },
   { href: "/focus", label: "Focus", icon: Timer },
   { href: "/analytics", label: "Analytics", icon: ChartColumn },
 ];
@@ -31,7 +32,7 @@ type Props = {
   display?: Display;
   /** Side panels between the sidebar and the page (the goals panel). */
   panelsLeft?: ReactNode;
-  /** Side panels to the right of the page (the AI chat panel, in a later step). */
+  /** Side panels to the right of the page. */
   panelsRight?: ReactNode;
 };
 

@@ -1,4 +1,4 @@
-// The shell (spec 12), copied from the prototype: the sidebar with Calendar, Focus, Analytics, then
+// The shell (spec 12), copied from the prototype: the sidebar with Calendar, Coach (spec 19), Focus, Analytics, then
 // Settings and the account row at the bottom; on phones the floating tab bar with the same pages and
 // Settings, each with its name for screen readers and the current page marked.
 import { renderToStaticMarkup } from "react-dom/server";
@@ -17,18 +17,18 @@ vi.mock("next/link", () => ({
 const render = (current: string) => renderToStaticMarkup(<AppShell current={current}>page</AppShell>);
 
 describe("app shell", () => {
-  it("lists Calendar, Focus and Analytics in the main navigation, then Settings and Sign out at the bottom", () => {
+  it("lists Calendar, Coach, Focus and Analytics in the main navigation, then Settings and Sign out at the bottom", () => {
     const html = render("/");
     const nav = html.slice(html.indexOf('aria-label="Main navigation"'), html.indexOf("</nav>"));
-    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/focus", "/analytics"]);
+    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/coach", "/focus", "/analytics"]);
     expect(html.indexOf('href="/settings"')).toBeGreaterThan(html.indexOf("</nav>"));
     expect(html.indexOf("Sign out")).toBeGreaterThan(html.indexOf('href="/settings"'));
   });
 
-  it("has a tab bar for phones with Calendar, Focus, Analytics and Settings, each named", () => {
+  it("has a tab bar for phones with Calendar, Coach, Focus, Analytics and Settings, each named", () => {
     const html = render("/focus");
     const bar = html.slice(html.indexOf('aria-label="Tab bar"'));
-    for (const name of ["Calendar", "Focus", "Analytics", "Settings"]) expect(bar).toContain(`aria-label="${name}"`);
+    for (const name of ["Calendar", "Coach", "Focus", "Analytics", "Settings"]) expect(bar).toContain(`aria-label="${name}"`);
     expect(bar).toMatch(/href="\/focus" aria-label="Focus" aria-current="page"/);
   });
 
@@ -36,7 +36,11 @@ describe("app shell", () => {
     expect(render("/settings")).toMatch(/href="\/settings" aria-current="page"/);
   });
 
-  it("has no controls for features that do not exist yet (search, quick capture, AI chat)", () => {
+  it("marks Coach as the current page on the coach page", () => {
+    expect(render("/coach")).toMatch(/href="\/coach" aria-current="page"/);
+  });
+
+  it("has no controls for features that do not exist yet (search, quick capture)", () => {
     expect(render("/")).not.toMatch(/Search|Brain|⌘K/);
   });
 });
