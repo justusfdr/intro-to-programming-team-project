@@ -19,7 +19,7 @@ Each needs a short addition to the ontology first (on its branch), then the buil
 
 | No. | Task | Size | What belongs to it | Prototype file |
 |---|---|---|---|---|
-| B1 | **To-dos inside an event** | M | A list in the event editor with the count "2/3", tick, reorder; the count also on the block in the calendar. Its own table, at most 20 per event. | `components/calendar/SubtaskList.tsx` |
+| B1 | **To-dos inside an event** | M | Built on the branch `21-event-todos` (spec 21): the list in the event editor with the count "2/3", tick, rename, reorder, delete, each saved at once; the count on the block; its own table, at most 20 per event, not for Outlook events; the coach writes the to-dos the user names into a draft's new events. Left: the reviewer applies the migration and tries it by hand; merge after the owner confirms. | `components/calendar/SubtaskList.tsx` |
 | B2 | **Notes inside an event** | S | One text field in the event editor, up to 2,000 characters. | `components/calendar/fields.tsx` |
 | B3 | **Rating an event** ("How did it go?") | S to M | 1 to 5 and Energizing / Neutral / Draining, once the event is done. | `components/calendar/fields.tsx` |
 | B4 | **Goals page** `/goals` | M to L | A page with one card per goal: icon, status, "why", this week's progress, tasks. Without the trajectory chart. A "Goals" entry in the sidebar. | `app/goals/page.tsx`, `components/goals/GoalCard.tsx` |
