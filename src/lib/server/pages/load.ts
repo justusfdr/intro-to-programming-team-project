@@ -171,6 +171,12 @@ export async function loadChatPage(deps: Pick<Deps, "withUser" | "assistant">, u
       addDaysOf(c.oldStartAt, c.oldEndAt);
       if (c.startAt && c.endAt) addDaysOf(c.startAt, c.endAt);
     }
+    // Spec 23: the day of an event the draft adds to-dos to (a timed event's start day, an all-day
+    // event's first day), as the draft saw it.
+    for (const t of open?.addedTodos ?? []) {
+      if (t.startAt) days.add(localDateOf(new Date(t.startAt), timeZone));
+      else if (t.firstDay) days.add(t.firstDay);
+    }
     const draftDays = [...days].sort();
     let draftDayEvents: ChatPageData["draftDayEvents"] = [];
     if (draftDays.length > 0) {

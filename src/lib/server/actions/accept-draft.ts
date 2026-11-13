@@ -14,12 +14,18 @@ import "server-only";
 // again". app.chat_apply_draft then applies everything in one step (the same statements as edit_event
 // and delete_event, so Outlook gets the change as after a change by hand, R26) and remembers what
 // undo_draft needs.
+// Spec 23: a draft may also add to-dos to events already in the calendar. Each such event must still
+// be in the calendar, be one the coach may add to-dos to and have room for them (it need not be
+// unchanged); otherwise "This draft is out of date. Ask again". app.chat_apply_draft_todos then does
+// everything app.chat_apply_draft does and also writes these to-dos at the end of each event's list,
+// remembering their ids for undo.
 import { chatAllowed } from "@/lib/chat/access";
 import { checkDraft } from "@/lib/chat/checks";
 import { MESSAGES } from "@/lib/messages";
 import {
   assertDraftOpen,
   blocksOf,
+  currentAdditions,
   currentChanges,
   findOwnDraft,
   proposalsOf,
@@ -58,20 +64,22 @@ export function acceptDraft(request: Request, deps: Pick<Deps, "auth" | "withUse
         const outOfDate = () => new ActionError(409, "draft_out_of_date", MESSAGES.draftOutOfDate);
         const changes = currentChanges(draft.changes, calendar, now);
         if (changes === null) throw outOfDate();
-        const checked = checkDraft(proposalsOf(draft.proposed_events), changes, {
-          now,
-          timeZone,
-          goalIds: new Set(goals.map((g) => g.id)),
-          calendar: blocksOf(calendar),
-        });
+        const additions = currentAdditions(draft.added_todos, calendar, now, timeZone);
+        if (additions === null) throw outOfDate();
+        const checked = checkDraft(
+          proposalsOf(draft.proposed_events),
+          changes,
+          { now, timeZone, goalIds: new Set(goals.map((g) => g.id)), calendar: blocksOf(calendar) },
+          additions,
+        );
         if (!checked.ok) throw outOfDate();
 
-        const created = await query<{ id: string }>("select id from app.chat_apply_draft($1) as id", [draft.id]);
+        const created = await query<{ id: string }>("select id from app.chat_apply_draft_todos($1::uuid) as id", [draft.id]);
         const rows = await query<EventRow>(
           `select ${EVENT_COLUMNS} from app.events where id = any($1::uuid[]) order by start_at, id`,
           [created.map((c) => c.id)],
         );
-        const message = changes.length > 0 ? MESSAGES.draftApplied : MESSAGES.draftAccepted;
+        const message = changes.length > 0 || additions.length > 0 ? MESSAGES.draftApplied : MESSAGES.draftAccepted;
         return jsonOk({ message, draftId: draft.id, events: rows.map(toEventDto) }, 201);
       });
     } catch (error) {

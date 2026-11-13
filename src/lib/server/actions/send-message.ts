@@ -13,6 +13,8 @@ import "server-only";
 // Spec 20: every event in the data block gets a reference valid for this request only ("e1") and a
 // flag whether the coach may change it; no event id goes to Claude. A reference in the answer is
 // turned back into the event at once, and the draft keeps the event's id and updated_at.
+// Spec 23: the same references name the events the coach adds to-dos to; each event in the data block
+// also says whether it takes to-dos from the coach and how many it has (the count only).
 import { z } from "zod";
 import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
 import { checkAnswer, checkText } from "@/lib/chat/checks";
@@ -31,6 +33,7 @@ import {
   readTotalsInput,
   saveTurn,
   targetsOf,
+  todoTargetsOf,
   withReferences,
 } from "@/lib/server/chat/rows";
 import { chatProOnly } from "@/lib/server/config";
@@ -91,7 +94,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
     // Step 5: Claude, outside any transaction.
     const { settings, goals } = context;
     const asked = deps.now();
-    const calendar = withReferences(context.calendar, asked);
+    const calendar = withReferences(context.calendar, asked, settings.timeZone);
     const input = buildAssistantInput({
       now: asked,
       timeZone: settings.timeZone,
@@ -114,6 +117,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       goalIds: new Set(goals.map((g) => g.id)),
       calendar: blocksOf(calendar),
       targets: targetsOf(calendar),
+      todoTargets: todoTargetsOf(calendar),
     });
     if (!checked.ok) {
       console.error("Assistant answer failed a check:", checked.failure);
@@ -127,6 +131,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
         text: answer.text,
         proposals: answer.kind === "draft" ? answer.proposals : null,
         changes: answer.kind === "draft" ? answer.changes : [],
+        additions: answer.kind === "draft" ? (answer.additions ?? []) : [],
       });
       const account = await readChatAccount(query);
       return { saved, messagesLeft: Math.max(0, DAILY_MESSAGES - account.usedToday) };

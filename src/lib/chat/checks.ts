@@ -9,6 +9,11 @@
 // Spec 21: a new event may carry to-dos (the things the person wants to do during it): 0 to 20
 // titles, each 1 to 100 characters after trimming.
 //
+// Spec 23: a draft may also add to-dos to an event already in the calendar, named by its reference like
+// a move: 1 to 20 titles, each 1 to 100 characters after trimming, and the event's to-dos now plus the
+// new ones at most 20. An event the draft deletes gets nothing else; each event at most once per kind.
+// Each "to-dos for an event" counts as one of the draft's 30 things.
+//
 // The assistant answers with local date-times ("2026-11-14T09:00") in the user's time zone. They are
 // turned into instants with the project's own helpers; a time that does not exist in the zone (the
 // hour skipped when clocks go forward) fails the check.
@@ -69,6 +74,20 @@ export const AnswerShape = z
           .strict(),
       )
       .optional(),
+    /**
+     * Spec 23: to-dos for events already in the calendar, by reference. Optional here only so an answer
+     * without it (the earlier format) still reads; the schema sent to Claude requires it.
+     */
+    addTodos: z
+      .array(
+        z
+          .object({
+            ref: z.string(),
+            todos: z.array(z.string()),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict();
 
@@ -96,6 +115,41 @@ export type ChangeTarget = {
 /** A checked change: a move to new times (title, goal and everything else stay) or a delete. */
 export type Change = { kind: "move"; target: ChangeTarget; startAt: Date; endAt: Date } | { kind: "delete"; target: ChangeTarget };
 
+/**
+ * An existing event the coach may add to-dos to (spec 23), as the server read it: its title and times
+ * (to show the draft later) and how many to-dos it has now.
+ */
+export type TodoTarget = {
+  id: string;
+  title: string;
+  allDay: boolean;
+  /** A timed event's times; null for an all-day event. */
+  startAt: Date | null;
+  endAt: Date | null;
+  /** An all-day event's days ("2026-11-17"); null for a timed event. */
+  firstDay: string | null;
+  lastDay: string | null;
+  todoCount: number;
+};
+
+/** A checked addition of to-dos to an existing event: the event and the new titles, trimmed, in order. */
+export type TodoAddition = { target: TodoTarget; todos: string[] };
+
+/** The fields that decide whether the coach may add to-dos to an event (spec 23). */
+export type TodoFields = { source: string; allDay: boolean; endAt: Date | null; lastDay: string | null };
+
+/**
+ * Decision 2 of spec 23: the coach may add to-dos to the user's own events that are not from Outlook
+ * (R11, R40) and have not ended before today, also to events of a series (the to-dos go to that one
+ * event), to all-day events and to events that have started.
+ */
+export function allowsTodos(event: TodoFields, now: Date, timeZone: string): boolean {
+  if (event.source === "outlook") return false;
+  const today = localDateOf(now, timeZone);
+  if (event.allDay) return event.lastDay !== null && event.lastDay >= today;
+  return event.endAt !== null && event.endAt > startOfLocalDate(today, timeZone);
+}
+
 /** The fields that decide whether the coach may change an event. */
 export type ChangeableFields = { allDay: boolean; source: string; seriesId: string | null; startAt: Date | null };
 
@@ -119,9 +173,17 @@ export type CheckContext = {
    * it may not change. A reference not in here is unknown. Without it, no change is possible.
    */
   targets?: ReadonlyMap<string, ChangeTarget | null>;
+  /**
+   * Spec 23: the same references for adding to-dos: "e1" -> the event, or null for an event that takes
+   * no to-dos from the coach. Without it, no to-dos can be added to existing events.
+   */
+  todoTargets?: ReadonlyMap<string, TodoTarget | null>;
 };
 
-export type CheckedAnswer = { kind: "text"; text: string } | { kind: "draft"; text: string; proposals: Proposal[]; changes: Change[] };
+/** `additions` (spec 23) is left out when the draft adds no to-dos to existing events. */
+export type CheckedAnswer =
+  | { kind: "text"; text: string }
+  | { kind: "draft"; text: string; proposals: Proposal[]; changes: Change[]; additions?: TodoAddition[] };
 
 /** Why an answer failed: for the server log and the tests, never shown to the user. */
 export type CheckFailure =
@@ -144,7 +206,12 @@ export type CheckFailure =
   | "not_changeable"
   | "changed_twice"
   | "too_many_todos"
-  | "todo_title";
+  | "todo_title"
+  | "todos_not_allowed"
+  | "todos_twice"
+  | "todos_on_deleted"
+  | "no_todos"
+  | "todo_list_full";
 
 export type CheckResult<T> = { ok: true; value: T } | { ok: false; failure: CheckFailure };
 
@@ -193,13 +260,17 @@ export function checkProposals(proposals: readonly Proposal[], context: CheckCon
  * - Overlaps are checked on the calendar as it would be after the whole draft: a deleted or moved event
  *   no longer blocks at its old time; new and moved events must not overlap each other (unless both may
  *   overlap) or a remaining timed event that may not overlap (R10).
+ * - Spec 23: to-dos for existing events: each event at most once and not one the draft deletes; 1 to
+ *   20 titles of 1 to 100 characters after trimming; the event's to-dos now plus the new ones at most 20.
+ *   Their times play no part in the overlap check (the event stays where it is, or moves as a change).
  */
 export function checkDraft(
   proposals: readonly Proposal[],
   changes: readonly Change[],
   context: CheckContext,
-): CheckResult<{ proposals: Proposal[]; changes: Change[] }> {
-  const total = proposals.length + changes.length;
+  additions: readonly TodoAddition[] = [],
+): CheckResult<{ proposals: Proposal[]; changes: Change[]; additions?: TodoAddition[] }> {
+  const total = proposals.length + changes.length + additions.length;
   if (total === 0) return fail("no_events");
   if (total > MAX_PROPOSALS) return fail("too_many_events");
   const latest = latestStart(context.now, context.timeZone);
@@ -252,7 +323,23 @@ export function checkDraft(
     if (remaining.some((event) => !event.mayOverlap && overlaps(event, moved))) return fail("overlaps_calendar");
     placed.push(moved);
   }
-  return { ok: true, value: { proposals: checked, changes: [...changes] } };
+
+  // Spec 23: to-dos for events already in the calendar.
+  const deletedIds = new Set(changes.filter((c) => c.kind === "delete").map((c) => c.target.id));
+  const withTodos = new Set<string>();
+  const added: TodoAddition[] = [];
+  for (const addition of additions) {
+    if (withTodos.has(addition.target.id)) return fail("todos_twice");
+    withTodos.add(addition.target.id);
+    if (deletedIds.has(addition.target.id)) return fail("todos_on_deleted");
+    const todos = addition.todos.map((todo) => todo.trim());
+    if (todos.length === 0) return fail("no_todos");
+    if (todos.length > MAX_TODOS) return fail("too_many_todos");
+    if (todos.some((todo) => [...todo].length < 1 || [...todo].length > MAX_TODO_TITLE)) return fail("todo_title");
+    if (addition.target.todoCount + todos.length > MAX_TODOS) return fail("todo_list_full");
+    added.push({ target: addition.target, todos });
+  }
+  return { ok: true, value: { proposals: checked, changes: [...changes], ...(added.length > 0 ? { additions: added } : {}) } };
 }
 
 /** The assistant's raw answer (parsed JSON, not trusted) through every check of R23. */
@@ -261,16 +348,18 @@ export function checkAnswer(raw: unknown, context: CheckContext): CheckResult<Ch
   if (!parsed.success) return fail("shape");
   const answer = parsed.data;
   const rawChanges = answer.changes ?? [];
+  const rawTodos = answer.addTodos ?? [];
   const text = checkText(answer.text);
   if (text === null) return fail("text_length");
 
   if (answer.kind === "text") {
-    if (answer.events.length > 0 || rawChanges.length > 0) return fail("text_with_events");
+    if (answer.events.length > 0 || rawChanges.length > 0 || rawTodos.length > 0) return fail("text_with_events");
     return { ok: true, value: { kind: "text", text } };
   }
 
-  if (answer.events.length + rawChanges.length === 0) return fail("no_events");
-  if (answer.events.length + rawChanges.length > MAX_PROPOSALS) return fail("too_many_events");
+  const total = answer.events.length + rawChanges.length + rawTodos.length;
+  if (total === 0) return fail("no_events");
+  if (total > MAX_PROPOSALS) return fail("too_many_events");
   const proposals: Proposal[] = [];
   for (const event of answer.events) {
     const startAt = exactLocal(event.start, context.timeZone);
@@ -297,7 +386,17 @@ export function checkAnswer(raw: unknown, context: CheckContext): CheckResult<Ch
     changes.push({ kind: "move", target, startAt, endAt });
   }
 
-  const checked = checkDraft(proposals, changes, context);
+  // Spec 23: the same for to-dos for existing events; an event that takes none fails.
+  const additions: TodoAddition[] = [];
+  for (const raw of rawTodos) {
+    const target = context.todoTargets?.get(raw.ref);
+    if (target === undefined) return fail("unknown_ref");
+    if (target === null) return fail("todos_not_allowed");
+    additions.push({ target, todos: raw.todos });
+  }
+
+  const checked = checkDraft(proposals, changes, context, additions);
   if (!checked.ok) return checked;
-  return { ok: true, value: { kind: "draft", text, proposals: checked.value.proposals, changes: checked.value.changes } };
+  const { proposals: kept, changes: keptChanges, additions: keptAdditions } = checked.value;
+  return { ok: true, value: { kind: "draft", text, proposals: kept, changes: keptChanges, ...(keptAdditions ? { additions: keptAdditions } : {}) } };
 }
