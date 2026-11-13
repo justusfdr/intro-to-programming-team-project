@@ -1,11 +1,27 @@
 "use client";
 
 // Choosing a time as in the iPhone's Clock app: two columns that scroll, hours 00 to 23 on the left and
-// minutes 00 to 59 on the right; the row in the middle is the chosen time. The time can also be typed
+// minutes 00 to 59 on the right, both going round and round (after 23 comes 00, after 59 comes 00); the
+// row in the middle is the chosen time. The time can also be typed
 // in its field as "HH:MM". Anything else is refused with a message and changes nothing.
 // The rules themselves live in src/lib/time/wheel.ts.
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { HOURS, MINUTES, formatHHMM, indexAtScroll, maskTimeTyping, pad2, parseHHMM, withHour, withMinute } from "@/lib/time/wheel";
+import {
+  COPIES,
+  HOME_COPY,
+  HOURS,
+  MINUTES,
+  cyclicIndex,
+  formatHHMM,
+  homeScrollTop,
+  maskTimeTyping,
+  nearestScrollTop,
+  pad2,
+  parseHHMM,
+  withHour,
+  withMinute,
+  wrapStep,
+} from "@/lib/time/wheel";
 import { inputClass } from "./fields";
 
 /** Height of one row of the wheel, in pixels. Five rows are visible, the middle one is chosen. */
@@ -118,7 +134,7 @@ export function TimeWheel({ label, value, onChange }: { label: string; value: nu
 
 /**
  * One column. Scrolling (mouse wheel, trackpad, finger) stops on a row; the row in the middle is taken
- * when the scrolling stops. A click on a row takes it too. Keys: ↑ ↓, Page Up/Down (5 rows), Home, End.
+ * when the scrolling stops. A click on a row takes it too. Keys: ↑ ↓, Page Up/Down (5 rows), Home, End; ↑ at the first row goes to the last and the other way round.
  */
 function WheelColumn({
   label,
@@ -143,7 +159,9 @@ function WheelColumn({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const top = items.indexOf(selected) * ROW;
+    const index = items.indexOf(selected);
+    // The first time: straight to the home copy. After that: the nearest copy, so 23 to 00 is one row.
+    const top = placed.current ? nearestScrollTop(el.scrollTop, index, ROW, items.length) : homeScrollTop(index, ROW, items.length);
     if (Math.abs(el.scrollTop - top) > 1) {
       target.current = placed.current ? top : null;
       el.scrollTo({ top, behavior: placed.current ? "smooth" : "auto" });
@@ -160,7 +178,11 @@ function WheelColumn({
       if (Math.abs(el.scrollTop - target.current) > 1) return;
       target.current = null;
     }
-    const item = items[indexAtScroll(el.scrollTop, ROW, items.length)];
+    const index = cyclicIndex(el.scrollTop, ROW, items.length);
+    // Back to the home copy, where nothing shows a difference (the same numbers stand there).
+    const home = homeScrollTop(index, ROW, items.length);
+    if (Math.abs(el.scrollTop - home) > 1) el.scrollTo({ top: home, behavior: "instant" });
+    const item = items[index];
     if (item !== selected) onPick(item);
   };
 
@@ -169,8 +191,7 @@ function WheelColumn({
   };
 
   const step = (by: number) => {
-    const index = Math.min(items.length - 1, Math.max(0, items.indexOf(selected) + by));
-    onPick(items[index]);
+    onPick(items[wrapStep(items.indexOf(selected), by, items.length)]);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -210,21 +231,25 @@ function WheelColumn({
         maskImage: "linear-gradient(to bottom, transparent, black 35%, black 65%, transparent)",
       }}
     >
-      {items.map((item) => (
-        <div
-          key={item}
-          id={`${id}-${item}`}
-          role="option"
-          aria-selected={item === selected}
-          onClick={() => onPick(item)}
-          className={`flex snap-center items-center justify-center tabular cursor-pointer ${
-            item === selected ? "text-lg font-medium text-ink" : "text-base text-ink-3"
-          }`}
-          style={{ height: ROW }}
-        >
-          {pad2(item)}
-        </div>
-      ))}
+      {Array.from({ length: COPIES }, (_, copy) =>
+        items.map((item) => {
+          const home = copy === HOME_COPY;
+          return (
+            <div
+              key={`${copy}-${item}`}
+              // Only the home copy is for screen readers and keys; the others are the same numbers again.
+              {...(home ? { id: `${id}-${item}`, role: "option", "aria-selected": item === selected } : { "aria-hidden": true })}
+              onClick={() => onPick(item)}
+              className={`flex snap-center items-center justify-center tabular cursor-pointer ${
+                item === selected ? "text-lg font-medium text-ink" : "text-base text-ink-3"
+              }`}
+              style={{ height: ROW }}
+            >
+              {pad2(item)}
+            </div>
+          );
+        }),
+      )}
     </div>
   );
 }
