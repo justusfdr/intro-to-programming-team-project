@@ -39,7 +39,10 @@ function send(body: unknown, deps = app.deps, headers?: Record<string, string>) 
 async function snapshotWithoutCount() {
   const snap = await app.snapshot();
   const tables = snap.tables as Record<string, Record<string, unknown>[]>;
-  tables.profiles = tables.profiles.map(({ chat_count: _c, chat_count_date: _d, ...rest }) => rest);
+  for (const row of tables.profiles) {
+    delete row.chat_count;
+    delete row.chat_count_date;
+  }
   return snap;
 }
 
