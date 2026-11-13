@@ -43,13 +43,14 @@ describe("a draft's to-dos", () => {
     expect(html).toContain("Study, 12pm to 2pm, 3 to-dos");
   });
 
-  it("draws them as plain lines in a panel with the event's title, time and count, not as boxes to tick", () => {
+  it("draws them like the tasks in the goals column: the event's title, time and count, then a ring before each title", () => {
     const html = render(DRAFT);
-    // The panel's head: title, time, "3 to-dos".
-    expect(html).toMatch(/<li class="[^"]*rounded-xl bg-raised\/70[^"]*">.*>Study<\/span>.*>12 – 2pm<\/span>.*>3 to-dos<\/span>/s);
-    // A small dot before each title; no empty square that looks like a tick box.
-    expect(html).toMatch(/<span aria-hidden="true" class="[^"]*size-1 shrink-0 rounded-full[^"]*"><\/span><span[^>]*>Read chapter 3<\/span>/);
+    // The head: title, time, "3 to-dos".
+    expect(html).toMatch(/>Study<\/span>.*>12 – 2pm<\/span>.*>3 to-dos<\/span>/s);
+    // Each to-do is a row with the open ring of the goals column (a picture here, not a button).
+    expect(html).toMatch(/<li class="flex min-h-8 items-center gap-2\.5 text-\[14px\]"><span aria-hidden="true" class="block size-\[18px\] shrink-0 rounded-full border-\[1\.5px\] [^"]*"><\/span><span class="min-w-0 flex-1 text-ink"><span class="break-words">Read chapter 3<\/span>/);
     expect(html).not.toContain("size-3 shrink-0 rounded border border-line");
+    expect(html).not.toMatch(/<button[^>]*aria-label="Mark/);
     // Where they are ticked, said once on the open draft.
     expect(html).toContain("You tick them off in the event, once it is in your calendar.");
     expect(render({ ...DRAFT, status: "accepted" })).not.toContain("You tick them off");

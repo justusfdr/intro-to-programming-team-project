@@ -25,6 +25,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
+import { GoalRow } from "@/components/goals/GoalRow";
 import { GOAL_ICONS, GoalTile } from "@/components/goals/GoalTile";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { Button, LinkButton } from "@/components/ui/Button";
@@ -95,25 +96,25 @@ function addedLists(day: SketchDay, format: TimeFormat): { title: string; todos:
 }
 
 /**
- * The to-dos of one event of a draft, as a small panel under the day: the event's tile, title and time,
- * how many to-dos, and the titles as plain lines. They are not boxes to tick: ticking happens in the
- * event once it is in the calendar, and the card says so.
+ * The to-dos of one event of a draft, under the day, drawn like the tasks in the goals column (the
+ * owner asked for that look): the event's tile, title, time and how many, then one row per to-do with
+ * the open ring in the goal's colour. In a draft the rings are pictures: the to-dos exist only once
+ * the draft is applied, and they are ticked in the event (the card says so).
  */
 function TodoPanel({ label, title, time, mark, look, todos }: { label?: string; title: string; time: string; mark: string; look: GoalLook | null; todos: string[] }) {
   return (
-    <li aria-label={label} className="min-w-0 rounded-xl bg-raised/70 px-3 py-2.5">
+    <li aria-label={label} className="min-w-0">
       <p className="flex items-center gap-2">
         <GoalTile look={look} size="xs" />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">{title}</span>
         <span className="shrink-0 text-[11px] tabular text-ink-3">{time}</span>
-        <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[10px] font-medium tabular text-ink-2 ring-1 ring-line-subtle">{mark}</span>
+        <span className="shrink-0 rounded-md bg-raised px-1.5 py-0.5 text-[11px] font-medium tabular text-ink-2">{mark}</span>
       </p>
-      <ul className="mt-2 flex flex-col gap-1 pl-7">
+      <ul className="mt-1 flex cursor-default flex-col pl-px">
         {todos.map((todo, j) => (
-          <li key={j} className="flex items-start gap-2 text-[13px] leading-5 text-ink">
-            <span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-ink-3" />
-            <span className="min-w-0 break-words">{todo}</span>
-          </li>
+          <GoalRow key={j} color={look?.color ?? null} done={false}>
+            <span className="break-words">{todo}</span>
+          </GoalRow>
         ))}
       </ul>
     </li>
@@ -477,7 +478,7 @@ export function DraftCard({ draft: saved, goals, timeZone, calendar, onStatus, o
             </div>
           )}
           {day.proposals.some((block) => block.todos) && (
-            <ul aria-label="To-dos" className="ml-11 mt-2 flex flex-col gap-2">
+            <ul aria-label="To-dos" className="ml-11 mt-3 flex flex-col gap-3">
               {day.proposals
                 .filter((block) => block.todos)
                 .map((block, i) => (
@@ -493,7 +494,7 @@ export function DraftCard({ draft: saved, goals, timeZone, calendar, onStatus, o
             </ul>
           )}
           {addedLists(day, timeFormat).length > 0 && (
-            <ul aria-label="To-dos for events in the calendar" className="ml-11 mt-2 flex flex-col gap-2">
+            <ul aria-label="To-dos for events in the calendar" className="ml-11 mt-3 flex flex-col gap-3">
               {addedLists(day, timeFormat).map((list, i) => (
                 <TodoPanel
                   key={`a${i}`}
