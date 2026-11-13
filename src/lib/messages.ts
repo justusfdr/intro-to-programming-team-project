@@ -42,6 +42,10 @@ export const MESSAGES = {
   // ontology, section 5 (tasks); "Title must be 1 to 100 characters" and "Not possible in this state" are shared
   duePast: "The due date cannot be in the past",
   tooManyTasks: "You can have at most 100 open tasks",
+  // ontology, section 5 (to-dos inside an event, spec 21)
+  todoTitleLength: "A to-do needs a title of 1 to 100 characters",
+  tooManyTodos: "An event can have at most 20 to-dos",
+  todosNotOutlook: "To-dos cannot be added to Outlook events",
   // ontology, section 5 (focus sessions)
   sessionRunning: "A session is already running",
   chooseLength: "Choose 15, 30, 60, 90 or 120 minutes",
@@ -96,6 +100,12 @@ export const MESSAGES = {
   taskDone: "Task done.",
   taskReopened: "Task reopened.",
   taskDeleted: "Task deleted.",
+  todoAdded: "To-do added.",
+  todoSaved: "To-do saved.",
+  todoDone: "To-do done.",
+  todoOpen: "To-do not done.",
+  todoMoved: "To-do moved.",
+  todoDeleted: "To-do deleted.",
   sessionStarted: "Focus session started.",
   sessionPaused: "Paused.",
   sessionResumed: "Resumed.",

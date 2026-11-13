@@ -45,6 +45,8 @@ export function toAllDayEvent(e: EventDto): AllDayEvent {
     location: e.location,
     notSent: e.notSent,
     updatedAt: e.updatedAt,
+    todoCount: e.todoCount,
+    todosDone: e.todosDone,
   };
 }
 
@@ -89,6 +91,8 @@ function timedDtoOf(e: WeekEvent): TimedEventDto {
     location: e.location,
     notSent: e.notSent,
     updatedAt: e.updatedAt,
+    todoCount: e.todoCount,
+    todosDone: e.todosDone,
   };
 }
 
@@ -141,5 +145,15 @@ export function withEventStatus(week: WeekData, id: string, status: EventDto["st
       events: day.events.map((e) => (e.id === id ? { ...e, status } : e)),
       allDay: day.allDay.map((e) => (e.id === id ? { ...e, status } : e)),
     })),
+  };
+}
+
+/** The week with one event's to-do numbers changed (spec 21: shown at once after a change of its list). */
+export function withEventTodos(week: WeekData, id: string, todoCount: number, todosDone: number): WeekData {
+  const set = <E extends { id: string }>(e: E): E => (e.id === id ? { ...e, todoCount, todosDone } : e);
+  return {
+    ...week,
+    lead: week.lead.map(set),
+    days: week.days.map((day) => ({ ...day, events: day.events.map(set), allDay: day.allDay.map(set) })),
   };
 }

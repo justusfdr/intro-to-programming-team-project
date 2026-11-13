@@ -6,6 +6,8 @@ import "server-only";
 // Every database call goes through withUser, so row-level security applies; a thrown rejection
 // rolls the transaction back, so nothing is saved (R1). A series is written in the same transaction:
 // all its events or none (R28).
+// Spec 21: the new event may come with its to-dos (the editor's list of a new event, the calendar's
+// undo of a delete, R38); they are written in the same transaction, on every event of a series.
 import { randomUUID } from "node:crypto";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
@@ -15,6 +17,8 @@ import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/ro
 import { templateOf, timesOn } from "@/lib/server/events/series";
 import { assertOwnGoal } from "@/lib/server/goals/own-goal";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
+import { asTodoError, checkTodoList } from "@/lib/server/todos/input";
+import { countsOf, insertTodos } from "@/lib/server/todos/rows";
 import { requireUser } from "@/lib/server/session";
 import { readTimeZone } from "@/lib/server/settings";
 import { localDateOf } from "@/lib/time/zoned";
@@ -29,10 +33,19 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
     const body = await readJson(request, EventFields);
     if (!body.ok) return body.response;
 
+    // The database's refusal of a to-do (two requests at the same moment) becomes the ontology's answer.
+    const asAnswer = (error: unknown) => Promise.reject(asTodoError(error));
     return deps.withUser(userId, async (query) => {
       // The form sends local times or days; the user's time zone turns times into instants (stored in UTC).
       const timeZone = await readTimeZone(query);
       const event = checkEventFields(body.data, timeZone);
+      // Spec 21: the to-dos come after the event's own checks, in the ontology's order.
+      const todos = checkTodoList(body.data.todos);
+      /** The event as saved, with its to-dos (written after it, so counted here). */
+      const savedDto = async (row: EventRow) => {
+        await insertTodos(query, [row.id], todos);
+        return { ...toEventDto(row), ...countsOf(todos) };
+      };
 
       if (event.allDay) {
         checkRepeat(body.data, event.firstDay); // R29: an all-day event never repeats
@@ -40,7 +53,7 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
           `insert into app.events (title, all_day, first_day, last_day, location) values ($1, true, $2, $3, $4) returning ${EVENT_COLUMNS}`,
           [event.title, event.firstDay, event.lastDay, event.location ?? null],
         );
-        return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(row) }, 201);
+        return jsonOk({ message: MESSAGES.eventSaved, event: await savedDto(row) }, 201);
       }
 
       // The goal must be the user's own, else "Not found" (R3).
@@ -58,7 +71,7 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
            returning ${EVENT_COLUMNS}`,
           [event.title, event.startAt, event.endAt, mayOverlap, goalId, location],
         );
-        return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(row) }, 201);
+        return jsonOk({ message: MESSAGES.eventSaved, event: await savedDto(row) }, 201);
       }
 
       // A series (R28): the same title, time, length, goal, location and may_overlap on every date, one series_id.
@@ -76,8 +89,11 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
          returning ${EVENT_COLUMNS}`,
         params,
       );
-      const events = rows.map(toEventDto).sort((a, b) => (a.startAt ?? "").localeCompare(b.startAt ?? ""));
+      await insertTodos(query, rows.map((row) => row.id), todos);
+      const events = rows
+        .map((row) => ({ ...toEventDto(row), ...countsOf(todos) }))
+        .sort((a, b) => (a.startAt ?? "").localeCompare(b.startAt ?? ""));
       return jsonOk({ message: MESSAGES.seriesSaved, event: events[0], count: events.length }, 201);
-    });
+    }).catch(asAnswer);
   });
 }
