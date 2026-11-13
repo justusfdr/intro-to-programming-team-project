@@ -11,6 +11,7 @@ import { minuteOfLocal } from "@/lib/events/grid";
 import type { CalendarEvent, EventDto } from "@/lib/events/types";
 import { toAllDayEvent, toWeekEvents, withEventChange, type TimedEventDto } from "@/lib/events/week-view";
 import { addDays, parseLocalDateTime } from "@/lib/time/zoned";
+import type { NewTodo } from "@/lib/todos/types";
 import type { Scope } from "../event-changes";
 
 export type EventValues = {
@@ -111,9 +112,16 @@ export function isChanged(event: CalendarEvent, values: EventValues): boolean {
 
 export type Repeat = { frequency: "daily" | "weekly" | "monthly"; weekdays: number[]; until: string };
 
-/** The body of create_event (from "Add details"), with a repeat for a new timed series (R28). */
-export function createBody(values: EventValues, repeat: Repeat | null): Record<string, unknown> {
-  return { ...fieldsOf(values), ...(repeat && !values.allDay ? { repeat } : {}) };
+/**
+ * The body of create_event (from "Add details"), with a repeat for a new timed series (R28) and the
+ * new event's to-dos (spec 21; left out when there are none).
+ */
+export function createBody(values: EventValues, repeat: Repeat | null, todos: readonly NewTodo[] = []): Record<string, unknown> {
+  return {
+    ...fieldsOf(values),
+    ...(repeat && !values.allDay ? { repeat } : {}),
+    ...(todos.length > 0 ? { todos: todos.map((t) => ({ title: t.title, done: t.done })) } : {}),
+  };
 }
 
 /**
@@ -134,6 +142,9 @@ export function editedChange(event: CalendarEvent, values: EventValues, timeZone
     location: event.source === "outlook" ? event.location : values.location.trim() || null,
     notSent: event.notSent,
     updatedAt: event.updatedAt,
+    // A change of the event keeps its to-dos (spec 21).
+    todoCount: event.todoCount,
+    todosDone: event.todosDone,
   };
   if (event.source === "outlook") {
     const dto: EventDto = event.allDay

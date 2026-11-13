@@ -13,7 +13,8 @@ import { postJson, type PostResult } from "@/lib/client/post-json";
 import type { CalendarEvent, EventDto } from "@/lib/events/types";
 import { withEventChange, withEventStatus } from "@/lib/events/week-view";
 import { useAnnounce } from "../Announcer";
-import { savedEventChange, type Scope } from "../event-changes";
+import { deletedTodos, savedEventChange, type Scope } from "../event-changes";
+import type { NewTodo } from "@/lib/todos/types";
 import { editBody, editedChange, eventFromAnswer, isChanged, newer, valuesOf, type EventValues } from "./values";
 
 /** What the footer asks before a change or a delete of an event of a series. */
@@ -25,7 +26,8 @@ type Options = {
   shown: CalendarEvent | null | undefined;
   timeZone: string;
   outlookConnected: boolean;
-  onDeleted?: (event: CalendarEvent) => void;
+  /** One event was deleted: the calendar offers Undo, with the to-dos the answer named (spec 21). */
+  onDeleted?: (event: CalendarEvent, todos: NewTodo[]) => void;
   /** A refusal that arrives after the editor has closed: the calendar shows the message instead. */
   onRefused?: (message: string) => void;
   onClose: () => void;
@@ -162,7 +164,7 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
         setBusy(false);
         if (!deleted.ok) return setResult(deleted);
         if (outlookConnected) void postJson("/api/outlook/send", {}).then(() => live.refresh());
-        if (scope === "this" && onDeleted) onDeleted(base);
+        if (scope === "this" && onDeleted) onDeleted(base, deletedTodos(deleted));
         else if (deleted.message) announce(deleted.message);
         onClose();
       });
@@ -187,7 +189,7 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
       setBusy(false);
       if (!deleted.ok) return setResult(deleted);
       if (outlookConnected) void postJson("/api/outlook/send", {}).then(() => live.refresh());
-      if (onDeleted) onDeleted(base);
+      if (onDeleted) onDeleted(base, deletedTodos(deleted));
       else if (deleted.message) announce(deleted.message);
       onClose();
     });

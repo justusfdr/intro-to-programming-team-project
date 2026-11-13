@@ -39,7 +39,7 @@ describe("start_session accepted", () => {
     ]);
   });
 
-  it.each([15, 30, 90, 120])("accepts %i minutes", async (minutes) => {
+  it.each([1, 15, 25, 30, 70, 90, 120, 240, 241, 600, 1439])("accepts %i minutes (R12)", async (minutes) => {
     await app.signedInAs("alice@example.com");
     expect((await send({ minutes })).status).toBe(201);
   });
@@ -64,12 +64,12 @@ describe("start_session accepted", () => {
 });
 
 describe("start_session rejected: nothing is saved (R1)", () => {
-  it.each([25, 0, 61, 60.5, -15])("rejects %s minutes with 'Choose 15, 30, 60, 90 or 120 minutes' (A10)", async (minutes) => {
+  it.each([0, 1440, 2000, 60.5, -15])("rejects %s minutes with 'Choose a length from 1 minute to 23 h 59 min' (A10)", async (minutes) => {
     await app.signedInAs("alice@example.com");
     const before = await app.snapshot();
     expect(await read(await send({ minutes }))).toEqual({
       status: 400,
-      body: { error: "choose_length", message: "Choose 15, 30, 60, 90 or 120 minutes" },
+      body: { error: "choose_length", message: "Choose a length from 1 minute to 23 h 59 min" },
     });
     expect(await app.snapshot()).toEqual(before);
   });

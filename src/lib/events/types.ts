@@ -28,6 +28,12 @@ export type EventDto = {
   notSent: boolean;
   /** Sent back with every edit and delete, so the server can see whether the row changed since (R4). */
   updatedAt: string;
+  /**
+   * Spec 21: how many to-dos the event has and how many are done (the block shows "2/3"). Left out
+   * means none (an event the screen made itself before the server answered).
+   */
+  todoCount?: number;
+  todosDone?: number;
 };
 
 /** A timed event as the week view shows it: the event plus what is calculated for display. */

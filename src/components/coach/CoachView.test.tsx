@@ -1,0 +1,260 @@
+// The coach's markup (spec 19, step B): the empty page with its starters, a conversation with an open
+// draft drawn between the calendar's events, an added draft, and the three ways the field is off
+// (not allowed, not set up, no messages left). The assistant's text is plain text.
+// Spec 20: a draft that moves and deletes events, "Apply changes", "Undo" and an undone draft.
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import { DisplayProvider } from "@/components/shell/DisplayProvider";
+import type { ChatMessageDto, ChatPageData, DraftChangeDto } from "@/lib/chat/types";
+import type { EventDto } from "@/lib/events/types";
+import { MESSAGES } from "@/lib/messages";
+import { CoachView, NOT_SET_UP } from "./CoachView";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+const EXAM = { id: "goal-exam", title: "Pass the statistics exam", look: { color: "indigo" as const, icon: "graduation" as const } };
+
+const lecture: EventDto = {
+  id: "ev-1",
+  title: "Statistics lecture",
+  allDay: false,
+  startAt: "2026-11-17T09:00:00.000Z",
+  endAt: "2026-11-17T10:30:00.000Z",
+  firstDay: null,
+  lastDay: null,
+  mayOverlap: false,
+  status: "planned",
+  goalId: null,
+  seriesId: null,
+  source: "app",
+  location: null,
+  notSent: false,
+  updatedAt: "2026-11-10T00:00:00.000Z",
+};
+const examWeek: EventDto = { ...lecture, id: "ev-2", title: "Exam week", allDay: true, startAt: null, endAt: null, firstDay: "2026-11-16", lastDay: "2026-11-20" };
+
+const user = (text: string): ChatMessageDto => ({ id: `u-${text}`, role: "user", text, createdAt: "2026-11-16T20:00:00.000Z", draft: null });
+const coach = (text: string, status: "open" | "accepted" | "rejected" | "replaced" | "undone" | null, changes: DraftChangeDto[] = []): ChatMessageDto => ({
+  id: `a-${text}`,
+  role: "assistant",
+  text,
+  createdAt: "2026-11-16T20:00:30.000Z",
+  draft:
+    status === null
+      ? null
+      : {
+          id: `draft-${status}`,
+          status,
+          events: [
+            { title: "Study", startAt: "2026-11-17T11:00:00.000Z", endAt: "2026-11-17T13:00:00.000Z", goalId: EXAM.id },
+            { title: "Football", startAt: "2026-11-17T20:00:00.000Z", endAt: "2026-11-17T22:00:00.000Z", goalId: null },
+          ],
+          changes,
+        },
+});
+
+// Spec 20: the lecture moved from 9:00 to 14:00 (UTC is Lisbon's time in November), the gym deleted.
+const MOVE: DraftChangeDto = {
+  kind: "move",
+  eventId: lecture.id,
+  title: "Statistics lecture",
+  goalId: null,
+  oldStartAt: "2026-11-17T09:00:00.000Z",
+  oldEndAt: "2026-11-17T10:30:00.000Z",
+  startAt: "2026-11-17T14:00:00.000Z",
+  endAt: "2026-11-17T15:30:00.000Z",
+};
+const DELETE: DraftChangeDto = {
+  kind: "delete",
+  eventId: "ev-3",
+  title: "Gym",
+  goalId: null,
+  oldStartAt: "2026-11-17T17:00:00.000Z",
+  oldEndAt: "2026-11-17T18:00:00.000Z",
+  startAt: null,
+  endAt: null,
+};
+
+function render(fields: Partial<ChatPageData>, timeFormat: "12h" | "24h" = "12h") {
+  const data: ChatPageData = {
+    display: { timeFormat, dayStartHour: 7, dayEndHour: 21 },
+    timeZone: "Europe/Lisbon",
+    messages: [],
+    draftDayEvents: [],
+    draftDays: [],
+    goals: [EXAM],
+    messagesLeft: 17,
+    chatAllowed: true,
+    assistantConfigured: true,
+    ...fields,
+  };
+  return renderToStaticMarkup(
+    <DisplayProvider value={data.display}>
+      <CoachView data={data} />
+    </DisplayProvider>,
+  );
+}
+
+const openConversation = {
+  messages: [user("Tomorrow: study 2 hours before lunch, football at 8 in the evening"), coach("Here is a plan for Tuesday.\nThe lecture stays where it is.", "open")],
+  draftDayEvents: [lecture, examWeek],
+  draftDays: ["2026-11-17"],
+};
+
+describe("coach page", () => {
+  it("empty: the heading, the promise, four starters (one in German) and the counter", () => {
+    const html = render({});
+    expect(html).toContain("What should tomorrow look like?");
+    expect(html).toContain("nothing changes until you add it");
+    expect(html).toContain("17 of 20 messages left today");
+    expect(html).toContain("Plane meinen Tag morgen: 4 Stunden lernen, abends Fußball schauen");
+    expect(html).toContain("How much time did I spend on my goals last week?");
+    const starters = html.slice(html.indexOf('aria-label="Ideas to start with"'), html.indexOf("</ul>", html.indexOf("Ideas to start with")));
+    expect(starters.match(/<button/g)).toHaveLength(4);
+    expect(html).toContain('placeholder="Tell the coach about your day…"');
+    expect(html).toContain("What is sent?");
+    // R22 in words (hidden until opened), with the sentence about speech (R24).
+    expect(html).toContain("The last 10 messages of this chat");
+    expect(html).toContain("your block list, your tasks");
+    expect(html).toContain("We receive only the text.");
+    // Nothing typed yet: the send button is off. No "Clear chat" without messages.
+    expect(html).toMatch(/aria-label="Send" disabled=""/);
+    expect(html).not.toContain("Clear chat");
+    // The server renders no microphone: only the browser can tell whether it has speech recognition.
+    expect(html).not.toContain('aria-label="Speak"');
+  });
+
+  it("a conversation with an open draft: the messages, the day drawn with the calendar's events, and the buttons", () => {
+    const html = render(openConversation);
+    expect(html).toContain("Clear chat");
+    // The user's text and the coach's text, line breaks kept as plain text.
+    expect(html).toContain("Tomorrow: study 2 hours before lunch, football at 8 in the evening");
+    expect(html).toContain("Here is a plan for Tuesday.\nThe lecture stays where it is.");
+    expect(html).toContain("whitespace-pre-wrap");
+    expect(html).toContain("Draft for Tue, Nov 17");
+    expect(html).toMatch(/>Draft<\/span>/);
+    // The column is decoration; the list says the same for screen readers.
+    expect(html).toContain('aria-hidden="true" class="flex"');
+    expect(html).toContain("<li>Study, 11am to 1pm, goal Pass the statistics exam</li>");
+    expect(html).toContain("<li>Football, 8pm to 10pm</li>");
+    // The proposal in its goal's colour; the calendar's event and the all-day event around it.
+    expect(html).toContain("bg-indigo-50");
+    expect(html).toContain("Statistics lecture");
+    expect(html).toContain("Exam week");
+    // Spec 22: the open draft's column shows the whole visible day (7am to 9pm here; the last
+    // proposal ends at 10pm, so the column runs to 10pm), with room to drag its blocks.
+    expect(html).toContain(">7am<");
+    expect(html).toContain(">9pm<");
+    expect(html).not.toContain(">6am<");
+    expect(html).not.toContain(">10pm<");
+    expect(html.match(/data-draggable="true"/g)).toHaveLength(2);
+    expect(html).toContain("Drag a block to change its time.");
+    expect(html).toContain("Add to calendar");
+    expect(html).toContain("Discard");
+    expect(html).toContain("Or tell me what to change.");
+  });
+
+  it("shows hours and times in the user's 24-hour format", () => {
+    const html = render(openConversation, "24h");
+    expect(html).toContain(">10:00<");
+    expect(html).toContain("<li>Study, 11:00 to 13:00, goal Pass the statistics exam</li>");
+  });
+
+  it("escapes the assistant's text: no HTML from the answer is rendered", () => {
+    const html = render({ messages: [coach("<b>bold</b> and **stars**", null)] });
+    expect(html).toContain("&lt;b&gt;bold&lt;/b&gt; and **stars**");
+    expect(html).not.toContain("<b>bold</b>");
+  });
+
+  it("an added draft: the pill says Added, no buttons, a link to the day in the calendar, without the calendar's events", () => {
+    const html = render({ messages: [user("Plan tomorrow"), coach("Done.", "accepted")] });
+    expect(html).toMatch(/>Added<\/span>/);
+    expect(html).not.toContain("Add to calendar");
+    expect(html).not.toContain(">Discard<");
+    expect(html).toContain('href="/?view=day&amp;date=2026-11-17"');
+    expect(html).toContain("Open calendar");
+    expect(html).not.toContain("Statistics lecture");
+    // Spec 22: only the open draft's blocks can be dragged; a draft that is not open keeps the short window.
+    expect(html).not.toContain("data-draggable");
+    expect(html).toContain(">10am<");
+    expect(html).not.toContain(">9am<");
+  });
+
+  it("a replaced and a discarded draft are shown as such, without buttons", () => {
+    const html = render({ messages: [coach("First try.", "replaced"), coach("Second try.", "rejected")] });
+    expect(html).toMatch(/>Replaced<\/span>/);
+    expect(html).toMatch(/>Discarded<\/span>/);
+    expect(html).not.toContain("Add to calendar");
+  });
+
+  it("a draft that moves and deletes: the moved event at its new time with where it was, its old place outlined, the deleted one struck through", () => {
+    const gym: EventDto = { ...lecture, id: "ev-3", title: "Gym", startAt: DELETE.oldStartAt, endAt: DELETE.oldEndAt };
+    const html = render({
+      messages: [user("Move the lecture to the afternoon and drop the gym"), coach("Moved and removed.", "open", [MOVE, DELETE])],
+      draftDayEvents: [lecture, gym, examWeek],
+      draftDays: ["2026-11-17"],
+    });
+    expect(html).toContain("Apply changes");
+    expect(html).not.toContain("Add to calendar");
+    expect(html).toContain('data-sketch="moved"');
+    expect(html).toContain("Moved from 9am");
+    expect(html).toContain('data-sketch="old-place"');
+    expect(html).toContain('data-sketch="removed"');
+    expect(html).toContain("line-through");
+    // The changed events are not drawn a second time as the calendar's own.
+    expect(html.match(/Statistics lecture/g)).toHaveLength(3); // moved block, old place, screen-reader line
+    expect(html).toContain("<li>Statistics lecture, moved to 2pm to 3:30pm, moved from 9am</li>");
+    expect(html).toContain("<li>Gym, 5pm to 6pm, removed</li>");
+    // Spec 22: the two new events and the moved one can be dragged; the deleted one and the old place cannot.
+    expect(html.match(/data-draggable="true"/g)).toHaveLength(3);
+    expect(html).toMatch(/data-sketch="moved" data-draggable="true"/);
+    expect(html).not.toMatch(/data-sketch="removed" data-draggable/);
+  });
+
+  it("a moved event from another day says that day; a day section for the old day too", () => {
+    const fromMonday = { ...MOVE, oldStartAt: "2026-11-16T15:00:00.000Z", oldEndAt: "2026-11-16T16:30:00.000Z" };
+    const html = render({ messages: [coach("Moved to Tuesday.", "open", [fromMonday])] });
+    expect(html).toContain("Draft for Mon, Nov 16");
+    expect(html).toContain("Draft for Tue, Nov 17");
+    expect(html).toContain("Moved from Mon, Nov 16, 3pm");
+    expect(html).toContain("<li>Statistics lecture, 3pm to 4:30pm, moved to Tue, Nov 17</li>");
+  });
+
+  it("an accepted draft offers a quiet Undo next to Open calendar; an undone one says Undone and has no buttons", () => {
+    const accepted = render({ messages: [coach("Done.", "accepted", [MOVE])] });
+    expect(accepted).toContain("Open calendar");
+    expect(accepted).toMatch(/>Undo<\/button>/);
+    const undone = render({ messages: [coach("Done.", "undone", [MOVE])] });
+    expect(undone).toMatch(/>Undone<\/span>/);
+    expect(undone).not.toContain("Open calendar");
+    expect(undone).not.toMatch(/>Undo<\/button>/);
+    expect(undone).not.toContain("Apply changes");
+  });
+
+  it("not allowed (Pro only): the ontology's sentence, the field off", () => {
+    const html = render({ chatAllowed: false });
+    expect(html).toContain(MESSAGES.chatProOnly);
+    expect(html).toMatch(/<textarea[^>]*disabled=""/);
+    expect(html).not.toContain("messages left today");
+  });
+
+  it("not set up on this server: a notice, the field off", () => {
+    const html = render({ assistantConfigured: false });
+    expect(html).toContain(NOT_SET_UP);
+    expect(html).toMatch(/<textarea[^>]*disabled=""/);
+  });
+
+  it("no messages left today: the limit's sentence, the field off", () => {
+    const html = render({ messagesLeft: 0, messages: [user("Hi"), coach("Hello.", null)] });
+    expect(html).toContain("0 of 20 messages left today");
+    expect(html).toContain(MESSAGES.chatLimit.replace("'", "&#x27;"));
+    expect(html).toMatch(/<textarea[^>]*disabled=""/);
+  });
+});

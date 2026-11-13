@@ -585,6 +585,143 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
   writeFileSync(join(OUT, "analytics-empty.html"), page("Analytics", analyticsPage(empty), styles));
   writeFileSync(join(OUT, "analytics-phone.html"), phoneFrame("Analytics", analyticsHtml));
 
+  // Spec 19: the coach. The sample week's goals and its Wednesday (18 November) as the calendar around
+  // an open draft; an added draft for Tuesday; the empty page; and the page at phone width.
+  const { CoachView } = await import("@/components/coach/CoachView");
+  type ChatPageData = import("@/lib/chat/types").ChatPageData;
+  type EventDto = import("@/lib/events/types").EventDto;
+  const wednesday = week.days[2];
+  const wednesdayEvents: EventDto[] = [
+    ...wednesday.allDay.map((e) => ({ ...e, startAt: null, endAt: null })),
+    ...wednesday.events,
+  ];
+  const goalId = (title: string) => goals.find((g) => g.title === title)!.id;
+  const proposed = (title: string, start: string, end: string, goal: string | null = null) => ({
+    title,
+    startAt: `2026-11-${start}:00.000Z`,
+    endAt: `2026-11-${end}:00.000Z`,
+    goalId: goal ? goalId(goal) : null,
+  });
+  const coachData = (fields: Partial<ChatPageData>): ChatPageData => ({
+    display: { timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
+    timeZone: "Europe/Lisbon",
+    messages: [],
+    draftDayEvents: [],
+    draftDays: [],
+    goals: goalLabels,
+    messagesLeft: 17,
+    chatAllowed: true,
+    assistantConfigured: true,
+    ...fields,
+  });
+  const chat = (id: string, role: "user" | "assistant", text: string, draft: ChatPageData["messages"][number]["draft"] = null) => ({
+    id,
+    role,
+    text,
+    createdAt: "2026-11-17T20:00:00.000Z",
+    draft,
+  });
+  const openDraft = coachData({
+    messages: [
+      chat("m1", "user", "Tomorrow I want to study about 2 hours in the morning, work on the group project after lunch, go for a short run and watch football with friends in the evening."),
+      chat(
+        "m2",
+        "assistant",
+        "Here is a draft for Wednesday. I kept your coffee, the thesis meeting, the tutorial and the half-marathon training where they are.\n\nThe run is short and easy, since you train at 6pm. Football starts at 8pm.",
+        {
+          id: "d1",
+          status: "open",
+          events: [
+            proposed("Statistics revision", "18T09:00", "18T10:45", "Pass the statistics exam"),
+            proposed("Group project", "18T13:00", "18T15:30", "Finish the group project"),
+            proposed("Easy run", "18T17:00", "18T17:45", "Run a half marathon"),
+            proposed("Football with friends", "18T20:00", "18T22:30"),
+          ],
+          changes: [],
+        },
+      ),
+    ],
+    draftDayEvents: wednesdayEvents,
+    draftDays: ["2026-11-18"],
+  });
+  const addedDraft = coachData({
+    messagesLeft: 15,
+    messages: [
+      chat("m1", "user", "Plane meinen Tag morgen: 4 Stunden lernen, abends Fußball schauen"),
+      chat("m2", "assistant", "Hier ist ein Entwurf für Dienstag: zwei Lernblöcke um deine Termine herum (3,5 Stunden, mehr passt nicht), Fußball ab 20 Uhr.", {
+        id: "d1",
+        status: "accepted",
+        events: [
+          proposed("Lernen", "17T07:00", "17T09:00", "Pass the statistics exam"),
+          proposed("Lernen", "17T11:00", "17T12:30", "Pass the statistics exam"),
+          proposed("Fußball schauen", "17T20:00", "17T22:00"),
+        ],
+        changes: [],
+      }),
+      chat("m3", "user", "Fits."),
+      chat("m4", "assistant", "Added. Have a good evening and good luck with the revision tomorrow."),
+    ],
+  });
+  // Spec 20: a draft that moves one of Wednesday's events and deletes another, and a new event.
+  const movable = wednesday.events.filter((e) => e.source !== "outlook" && !e.seriesId);
+  const changesDraft = coachData({
+    messages: [
+      chat("m1", "user", "Move my first block of the day to the afternoon, drop the second one and add a short walk."),
+      chat("m2", "assistant", "Done: the first block moves to the afternoon, the second is removed, and a walk fits at 12:30.", {
+        id: "d1",
+        status: "open",
+        events: [proposed("Walk", "18T12:30", "18T13:00")],
+        changes: [
+          ...(movable[0]
+            ? [
+                {
+                  kind: "move" as const,
+                  eventId: movable[0].id,
+                  title: movable[0].title,
+                  goalId: movable[0].goalId,
+                  oldStartAt: movable[0].startAt!,
+                  oldEndAt: movable[0].endAt!,
+                  startAt: "2026-11-18T15:30:00.000Z",
+                  endAt: new Date(Date.parse("2026-11-18T15:30:00.000Z") + Date.parse(movable[0].endAt!) - Date.parse(movable[0].startAt!)).toISOString(),
+                },
+              ]
+            : []),
+          ...(movable[1]
+            ? [
+                {
+                  kind: "delete" as const,
+                  eventId: movable[1].id,
+                  title: movable[1].title,
+                  goalId: movable[1].goalId,
+                  oldStartAt: movable[1].startAt!,
+                  oldEndAt: movable[1].endAt!,
+                  startAt: null,
+                  endAt: null,
+                },
+              ]
+            : []),
+        ],
+      }),
+    ],
+    draftDayEvents: wednesdayEvents,
+    draftDays: ["2026-11-18"],
+  });
+  const coachPage = (data: ChatPageData) =>
+    renderToStaticMarkup(
+      <Announcer>
+        <AppShell current="/coach" display={data.display}>
+          <CoachView data={data} />
+        </AppShell>
+      </Announcer>,
+    );
+  const coachOpenHtml = page("Coach", coachPage(openDraft), styles);
+  writeFileSync(join(OUT, "coach-empty.html"), page("Coach", coachPage(coachData({ messagesLeft: 20 })), styles));
+  writeFileSync(join(OUT, "coach-draft.html"), coachOpenHtml);
+  writeFileSync(join(OUT, "coach-added.html"), page("Coach", coachPage(addedDraft), styles));
+  writeFileSync(join(OUT, "coach-changes.html"), page("Coach", coachPage(changesDraft), styles));
+  writeFileSync(join(OUT, "coach-phone.html"), phoneFrame("Coach", coachOpenHtml));
+  writeFileSync(join(OUT, "coach-empty-phone.html"), phoneFrame("Coach", page("Coach", coachPage(coachData({ messagesLeft: 20 })), styles)));
+
   writeFileSync(join(OUT, "sign-in.html"), page("Sign in", renderToStaticMarkup(<SignInPage />), styles));
   writeFileSync(join(OUT, "sign-up.html"), page("Sign up", renderToStaticMarkup(<SignUpPage />), styles));
 

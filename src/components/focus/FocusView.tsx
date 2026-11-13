@@ -1,17 +1,26 @@
 "use client";
 
-// The Focus page in the prototype's look: start a session (length 15 to 120 minutes, optionally for
-// an event), the running session with its ring and time left, the rating after it ended, and recent
+// The Focus page in the prototype's look: start a session (a suggested length or any custom length
+// from 1 minute to 23 h 59 min on a wheel, R12, optionally for an event), the running session with its ring and time
+// left, the rating after it ended, and recent
 // sessions. It only sends the user's choices and shows the server's answers; the server decides
 // every state change (spec 04), including the end of a session at its planned length (R13).
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
 import { Pause, Play } from "lucide-react";
 import { postJson, type PostResult } from "@/lib/client/post-json";
-import { clockText, minutesText, secondsLeft, SESSION_LENGTHS, type SessionTimes } from "@/lib/focus/session-time";
+import {
+  clockText,
+  isSessionLength,
+  minutesText,
+  secondsLeft,
+  SUGGESTED_LENGTHS,
+  type SessionTimes,
+} from "@/lib/focus/session-time";
+import { MESSAGES } from "@/lib/messages";
 import type { FocusData, SessionDto } from "@/lib/focus/types";
 import type { BlockerData } from "@/lib/blocker/types";
 import { useDisplay } from "@/components/shell/DisplayProvider";
@@ -21,6 +30,8 @@ import { GOAL_ICONS, GoalTile } from "@/components/goals/GoalTile";
 import { goalColor } from "@/lib/goals/colors";
 import { BlockerChip } from "./BlockerChip";
 import { FocusRing } from "./FocusRing";
+import { ROW, SIDE, WheelColumn } from "@/components/calendar/TimeWheel";
+import { HOURS, MINUTES, withHour, withMinute } from "@/lib/time/wheel";
 
 const eyebrow = "text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3";
 const card = "rounded-card border border-line-subtle bg-surface p-5";
@@ -86,9 +97,57 @@ function GoalLine({ goal }: { goal: FocusGoal | null }) {
   );
 }
 
+const isSuggested = (minutes: number) => (SUGGESTED_LENGTHS as readonly number[]).includes(minutes);
+
+/**
+ * The custom length as in the Clock app's timer: a column of hours (0 to 23) and a column of minutes
+ * (0 to 59), slid with a finger, the trackpad or the arrow keys. 0 hours 0 min is not a length (R12).
+ */
+function LengthWheel({
+  value,
+  onChange,
+  describedBy,
+}: {
+  value: number;
+  /** Takes a change of the length so far, so hours and minutes slid at the same time both count. */
+  onChange: (change: (minutes: number) => number) => void;
+  describedBy: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Custom length"
+      aria-describedby={describedBy}
+      className="relative mx-auto flex w-fit items-center justify-center gap-6 select-none"
+    >
+      {/* The band behind the chosen row, as on the calendar's time wheel. */}
+      <div aria-hidden className="pointer-events-none absolute -inset-x-4 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
+      <div className="relative flex items-center gap-1.5">
+        <WheelColumn label="Hours" items={HOURS} selected={Math.floor(value / 60)} onPick={(h) => onChange((now) => withHour(now, h))} format={String} />
+        <span aria-hidden className="w-12 text-sm font-medium text-ink">
+          hours
+        </span>
+      </div>
+      <div className="relative flex items-center gap-1.5">
+        <WheelColumn label="Minutes" items={MINUTES} selected={value % 60} onPick={(m) => onChange((now) => withMinute(now, m))} format={String} />
+        <span aria-hidden className="w-12 text-sm font-medium text-ink">
+          min
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: FocusGoal | null }) {
-  const [minutes, setMinutes] = useState<number>(forEvent?.suggestedMinutes ?? 60);
+  const initial = forEvent?.suggestedMinutes ?? 60;
+  // A suggested length is one of the chips; any other length starts on the custom wheel (R12).
+  const [chosen, setChosen] = useState<number | "custom">(isSuggested(initial) ? initial : "custom");
+  const [customMinutes, setCustomMinutes] = useState(initial);
+  const hintId = useId();
   const { run, busy, failure } = useSessionAction();
+
+  const minutes = chosen === "custom" ? customMinutes : chosen;
+  const valid = isSessionLength(minutes);
 
   return (
     <section aria-labelledby="start-title" className={card}>
@@ -106,28 +165,46 @@ function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: 
       <fieldset className="mt-5">
         <legend className={`${eyebrow} mb-2`}>Length</legend>
         <div className="inline-flex w-fit max-w-full flex-wrap rounded-full bg-raised p-1">
-          {SESSION_LENGTHS.map((length) => (
+          {[...SUGGESTED_LENGTHS, "custom" as const].map((length) => (
             <label
               key={length}
               className={`flex h-8 cursor-pointer items-center rounded-full px-3.5 text-sm tabular transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ink/30 ${
-                minutes === length ? "bg-surface font-semibold text-ink shadow-sm" : "text-ink-2 hover:text-ink"
+                chosen === length ? "bg-surface font-semibold text-ink shadow-sm" : "text-ink-2 hover:text-ink"
               }`}
             >
               <input
                 type="radio"
                 name="length"
                 value={length}
-                checked={minutes === length}
-                onChange={() => setMinutes(length)}
+                checked={chosen === length}
+                onChange={() => {
+                  // Custom opens on the length chosen so far, so the wheel starts somewhere sensible.
+                  if (length === "custom" && chosen !== "custom") setCustomMinutes(chosen);
+                  setChosen(length);
+                }}
                 className="sr-only"
               />
-              {minutesText(length)}
+              {length === "custom" ? "Custom" : minutesText(length)}
             </label>
           ))}
         </div>
+        {chosen === "custom" && (
+          <div className="mt-5 flex flex-col items-center gap-3">
+            <LengthWheel value={customMinutes} onChange={setCustomMinutes} describedBy={hintId} />
+            {/* Only 0 hours 0 min can be wrong on the wheel; then the rule shows and Start stays off. */}
+            <p id={hintId} role={valid ? undefined : "alert"} className={`text-sm ${valid ? "sr-only" : "text-danger"}`}>
+              {valid ? minutesText(customMinutes) : MESSAGES.chooseLength}
+            </p>
+          </div>
+        )}
       </fieldset>
       {failure && <FormMessage tone="error" text={failure.message} />}
-      <Button size="lg" className="mt-6 w-full" disabled={busy} onClick={() => run("/api/sessions", { minutes, eventId: forEvent?.id ?? null })}>
+      <Button
+        size="lg"
+        className="mt-6 w-full"
+        disabled={busy || !valid}
+        onClick={() => run("/api/sessions", { minutes, eventId: forEvent?.id ?? null })}
+      >
         <Play className="size-4" />
         {busy ? "Starting…" : "Start focus"}
       </Button>

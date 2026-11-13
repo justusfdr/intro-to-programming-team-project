@@ -83,3 +83,24 @@ export function outlookTokenKey(): Buffer | null {
 export function outlookConfigured(): boolean {
   return microsoftConfig() !== null && outlookTokenKey() !== null;
 }
+
+/**
+ * The Claude API (docs/setup.md, section 10). The key is a secret: read only here, never logged, never
+ * sent to the browser. Null when the key is not set: the coach then answers every message with
+ * "The assistant is not available right now. Your calendar is unchanged".
+ */
+export function anthropicConfig(): { apiKey: string; model: string } | null {
+  const apiKey = read("ANTHROPIC_API_KEY");
+  if (!apiKey) return null;
+  return { apiKey, model: read("ANTHROPIC_MODEL") || DEFAULT_ANTHROPIC_MODEL };
+}
+
+export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5";
+
+/**
+ * R21: "true" makes the coach Pro only, as the ontology says. Anything else (or unset): every signed-in
+ * user may use it, until Free and Pro are built.
+ */
+export function chatProOnly(): boolean {
+  return read("CHAT_PRO_ONLY").toLowerCase() === "true";
+}

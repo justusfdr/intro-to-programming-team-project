@@ -6,7 +6,7 @@ A user works on one thing with a timer, alone or for a planned event, and rates 
 
 ## What
 - [ ] `start_session` with 60 minutes and no event: `running`, `started_at` now, `paused_seconds` 0.
-- [ ] `start_session` with 25 minutes: "Choose 15, 30, 60, 90 or 120 minutes"; nothing saved (A10).
+- [ ] `start_session` with 0 minutes (or 1440, or not a whole number): "Choose a length from 1 minute to 23 h 59 min"; nothing saved (A10, R12).
 - [ ] A second `start_session` while one is `running` or `paused`: "A session is already running"; the database allows only one, also from two devices (R4).
 - [ ] `start_session` from the user's own event links it; another user's event is "Not found".
 - [ ] `pause_session` sets `paused`; `resume_session` adds the paused time to `paused_seconds`. Pausing a paused or resuming a running session: "Not possible in this state".
@@ -16,7 +16,7 @@ A user works on one thing with a timer, alone or for a planned event, and rates 
 - [ ] `cancel_session` deletes the session. Ending with under one focused minute deletes it too (R14).
 - [ ] `rate_session` on a finished session saves 0 to 5 and can change it; 6 or 4.5: "Rating must be a whole number from 0 to 5". No rating stays empty; 0 is a rating (R14).
 - [ ] User B's session is "Not found" for user A; nothing of B's changes (R3).
-- [ ] Focus page: choice of 15, 30, 60, 90, 120 minutes; a ring with the time left; pause, resume, end, cancel; the rating after the end. Every state is announced to screen readers.
+- [ ] Focus page: the suggested lengths 15, 30, 60, 90, 120 minutes and "Custom", a wheel of hours and minutes for any length from 1 minute to 23 h 59 min (R12); a ring with the time left; pause, resume, end, cancel; the rating after the end. Every state is announced to screen readers.
 - [ ] "Focus" in the sidebar; the event editor offers "Start focus" for an event.
 
 ## Out of scope

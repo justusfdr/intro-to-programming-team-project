@@ -6,6 +6,8 @@ import { cookies } from "next/headers";
 import { storeCookieJar } from "./auth/cookies";
 import { createSupabaseAuth } from "./auth/supabase";
 import type { AuthService } from "./auth/types";
+import { claudeAssistant } from "./claude/client";
+import type { Assistant } from "./claude/types";
 import { withUser, type WithUser } from "./db";
 
 export type Deps = {
@@ -13,11 +15,13 @@ export type Deps = {
   withUser: WithUser;
   /** The current time. Tests pass a clock they can move. */
   now: () => Date;
+  /** Claude, for the coach (spec 19); null when ANTHROPIC_API_KEY is not set on this server. */
+  assistant: Assistant | null;
 };
 
 /** The real services for the current request. Call it inside a route handler. */
 export async function realDeps(): Promise<Deps> {
-  return { auth: createSupabaseAuth(storeCookieJar(await cookies())), withUser, now: () => new Date() };
+  return { auth: createSupabaseAuth(storeCookieJar(await cookies())), withUser, now: () => new Date(), assistant: claudeAssistant() };
 }
 
 /**
@@ -29,5 +33,6 @@ export async function pageDeps(): Promise<Deps> {
     auth: createSupabaseAuth(storeCookieJar(await cookies(), { readOnly: true })),
     withUser,
     now: () => new Date(),
+    assistant: claudeAssistant(),
   };
 }

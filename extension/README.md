@@ -5,6 +5,10 @@ extension only follows (spec 05, ontology R15 to R18). Plain JavaScript, Manifes
 no code from anywhere else.
 
 ## Load the extension
+Users of the app download the extension in Settings, "Focus blocker": the file `lockedin-blocker.zip` is this
+folder with the app's own address already in `config.js` (spec 18). The steps below are for working on the
+extension from the project folder.
+
 1. In `config.js`, set `APP_URL` to the app's address: the deployed address for the real app, or
    `http://localhost:3000` while working locally. No slash at the end. This is the only setting.
 2. In Chrome, open `chrome://extensions` and switch on **Developer mode**.
