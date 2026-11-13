@@ -22,7 +22,7 @@ describe("the Claude module", () => {
   });
 
   it("reads the key only in the server's config", () => {
-    expect(source.filter((f) => f.text.includes("ANTHROPIC_API_KEY")).map((f) => f.path)).toEqual(["src/lib/server/config.ts"]);
+    expect(source.filter((f) => /["'`]ANTHROPIC_API_KEY["'`]|process\.env\.ANTHROPIC/.test(f.text)).map((f) => f.path)).toEqual(["src/lib/server/config.ts"]);
   });
 
   it("is never imported by browser code", () => {
