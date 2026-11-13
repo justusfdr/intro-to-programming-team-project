@@ -217,8 +217,9 @@ describe("the endless column", () => {
   });
 
   it("rests in the middle copy", () => {
-    expect(HOME_COPY).toBe(3);
-    expect(homeScrollTop(0, ROW, 24)).toBe(3 * 24 * ROW);
+    expect(COPIES).toBe(11);
+    expect(HOME_COPY).toBe(5);
+    expect(homeScrollTop(0, ROW, 24)).toBe(5 * 24 * ROW);
     expect(cyclicIndex(homeScrollTop(17, ROW, 24), ROW, 24)).toBe(17);
   });
 
@@ -251,26 +252,26 @@ describe("when the endless column jumps back to the middle", () => {
     expect(needsRecentre(home(0), ROW, 24)).toBe(false);
   });
 
-  it("does not jump anywhere in the three middle copies", () => {
-    for (let top = 2 * ROUND; top < 5 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(false);
+  it("does not jump anywhere in the seven middle copies", () => {
+    for (let top = 2 * ROUND; top < 9 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(false);
   });
 
   it("jumps once outside them, in either direction", () => {
     for (let top = 0; top < 2 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(true);
-    for (let top = 5 * ROUND; top < 7 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(true);
+    for (let top = 9 * ROUND; top < 11 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(true);
   });
 
   it("the jump lands on the same number it left", () => {
-    for (let top = 0; top < 7 * ROUND; top += ROW) {
+    for (let top = 0; top < 11 * ROUND; top += ROW) {
       const index = cyclicIndex(top, ROW, 24);
       expect(cyclicIndex(home(index), ROW, 24)).toBe(index);
     }
   });
 
-  it("a resting place always has two rounds left before an edge, for hours and minutes", () => {
+  it("a resting place always has at least two rounds left before an edge, for hours and minutes", () => {
     for (const count of [24, 60]) {
       const round = count * ROW;
-      expect(COPIES * round - 5 * round).toBe(2 * round);
+      expect(COPIES * round - 9 * round).toBe(2 * round);
     }
   });
 
