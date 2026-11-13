@@ -139,7 +139,7 @@ export async function loadSettingsPageAll(deps: PageDeps, userId: string): Promi
 
 /**
  * The coach's page (spec 19): the messages with their drafts, the events of the days the open draft
- * touches (to draw it in the calendar's style), the goals with their look, the messages left today,
+ * touches (to draw it in the calendar's style; spec 20: also the old day of a moved event), the goals with their look, the messages left today,
  * whether the chat is allowed for this user, and whether Claude is set up on this server.
  * One transaction; nothing is changed.
  */
@@ -159,11 +159,17 @@ export async function loadChatPage(deps: Pick<Deps, "withUser" | "assistant">, u
 
     const open = messages.find((m) => m.draft?.status === "open")?.draft ?? null;
     const days = new Set<string>();
-    for (const e of open?.events ?? []) {
-      const start = localDateOf(new Date(e.startAt), timeZone);
+    const addDaysOf = (startAt: string, endAt: string) => {
+      const start = localDateOf(new Date(startAt), timeZone);
       // An event ending at midnight does not touch the next day.
-      const last = localDateOf(new Date(Date.parse(e.endAt) - 1), timeZone);
+      const last = localDateOf(new Date(Date.parse(endAt) - 1), timeZone);
       for (let day = start; day <= last; day = addDays(day, 1)) days.add(day);
+    };
+    for (const e of open?.events ?? []) addDaysOf(e.startAt, e.endAt);
+    // Spec 20: a moved event's old and new day, a deleted event's day.
+    for (const c of open?.changes ?? []) {
+      addDaysOf(c.oldStartAt, c.oldEndAt);
+      if (c.startAt && c.endAt) addDaysOf(c.startAt, c.endAt);
     }
     const draftDays = [...days].sort();
     let draftDayEvents: ChatPageData["draftDayEvents"] = [];
