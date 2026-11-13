@@ -32,6 +32,7 @@ export const MESSAGES = {
   guestsNeedOutlook: "Connect Outlook to invite guests",
   guestsNotInSeries: "Events of a series cannot have guests",
   guestsNotDemo: "Demo events cannot have guests",
+  guestsNotEnded: "Guests can only be invited to events that have not ended",
   // ontology, section 5 (goals and rules)
   goalTitleLength: "Title must be 1 to 80 characters",
   addRule: "Add at least one rule",

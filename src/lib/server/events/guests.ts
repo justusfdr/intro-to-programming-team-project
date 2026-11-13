@@ -7,6 +7,7 @@ import { cleanGuestList } from "@/lib/events/guests";
 import { MESSAGES } from "@/lib/messages";
 import type { Query } from "@/lib/server/db";
 import { ActionError } from "@/lib/server/errors";
+import { localDateOf } from "@/lib/time/zoned";
 
 /** The list from the body, cleaned (lower-case, each once), or undefined when the body leaves it out. */
 export function checkGuests(raw: readonly string[] | undefined): string[] | undefined {
@@ -26,6 +27,20 @@ export async function assertMayInvite(query: Query, event: { seriesId: string | 
   if (event.demo) throw new ActionError(400, "guests_demo", MESSAGES.guestsNotDemo);
   const [row] = await query<{ ok: boolean }>("select exists (select 1 from app.calendar_connections where status = 'connected') as ok");
   if (!row?.ok) throw new ActionError(409, "guests_need_outlook", MESSAGES.guestsNeedOutlook);
+}
+
+/**
+ * Only an event that has not ended goes to Outlook (R26), so only such an event can invite anyone.
+ * Without this the guests of a past event would be saved and no invitation would ever go out. The
+ * same test as the one the sync uses to pick the events it sends.
+ */
+export function assertNotEnded(
+  event: { allDay: true; lastDay: string } | { allDay: false; endAt: Date | string },
+  now: Date,
+  timeZone: string,
+): void {
+  const upcoming = event.allDay ? event.lastDay >= localDateOf(now, timeZone) : new Date(event.endAt).getTime() > now.getTime();
+  if (!upcoming) throw new ActionError(400, "guests_ended", MESSAGES.guestsNotEnded);
 }
 
 /**

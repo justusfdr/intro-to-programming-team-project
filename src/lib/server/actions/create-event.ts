@@ -15,7 +15,7 @@ import { randomUUID } from "node:crypto";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
 import { handleAction } from "@/lib/server/errors";
-import { asGuestError, assertMayInvite, checkGuests } from "@/lib/server/events/guests";
+import { asGuestError, assertMayInvite, assertNotEnded, checkGuests } from "@/lib/server/events/guests";
 import { checkEventFields, checkRepeat, EventFields } from "@/lib/server/events/input";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
 import { templateOf, timesOn } from "@/lib/server/events/series";
@@ -27,7 +27,7 @@ import { requireUser } from "@/lib/server/session";
 import { readTimeZone } from "@/lib/server/settings";
 import { localDateOf } from "@/lib/time/zoned";
 
-export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUser">): Promise<Response> {
+export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now">): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -48,7 +48,10 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
       // Spec 24: the guests last; none is saved as no list at all.
       const guestList = checkGuests(body.data.guests) ?? [];
       const guests = guestList.length > 0 ? guestList : null;
-      if (guests) await assertMayInvite(query, { seriesId: Boolean(body.data.repeat) && !event.allDay, demo: false });
+      if (guests) {
+        await assertMayInvite(query, { seriesId: Boolean(body.data.repeat) && !event.allDay, demo: false });
+        assertNotEnded(event, deps.now(), timeZone);
+      }
       /** The event as saved, with its to-dos (written after it, so counted here). */
       const savedDto = async (row: EventRow) => {
         await insertTodos(query, [row.id], todos);

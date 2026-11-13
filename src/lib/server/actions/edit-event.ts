@@ -23,7 +23,7 @@ import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { sameGuests } from "@/lib/events/guests";
-import { asGuestError, assertMayInvite, checkGuests } from "@/lib/server/events/guests";
+import { asGuestError, assertMayInvite, assertNotEnded, checkGuests } from "@/lib/server/events/guests";
 import { checkEventFields, EventFields } from "@/lib/server/events/input";
 import { assertUnchangedSince, findOwnEvent } from "@/lib/server/events/own-event";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
@@ -48,7 +48,7 @@ const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay"
 
 const badRequest = () => new ActionError(400, "bad_request", MESSAGES.badRequest);
 
-export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser">, id: string): Promise<Response> {
+export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now">, id: string): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -99,6 +99,9 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
       const guestsChange = guests !== undefined && !sameGuests(guests, row.guests ?? []);
       if (guestsChange) {
         await assertMayInvite(query, { seriesId: row.series_id, demo: row.demo });
+        // Somebody new on the list needs an invitation, and only an event that has not ended sends one.
+        // Taking guests off a past event stays possible.
+        if (guests.some((address) => !(row.guests ?? []).includes(address))) assertNotEnded(event, deps.now(), timeZone);
         await query("update app.events set guests = $2::text[] where id = $1::uuid", [id, guests]);
       }
 

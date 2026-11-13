@@ -180,6 +180,9 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
   const save = useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose });
   const { event, values } = save;
   const fromOutlook = event.source === "outlook";
+  // Whole days only (the editor knows today's date, not the time): an event that ended earlier today
+  // still shows the field, and the server refuses with the same sentence.
+  const endedBeforeToday = (event.allDay ? event.lastDay : event.endLocal.slice(0, 10)) < today;
   const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);
   // The question before deleting an event with guests (spec 24), in the footer like the series question.
   const [askDelete, setAskDelete] = useState(false);
@@ -208,6 +211,9 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
       <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotDemo}. Create your own event to invite someone.`} />
     ) : event.seriesId ? (
       <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotInSeries}.`} />
+    ) : endedBeforeToday ? (
+      // Outlook gets no past events (R26), so nobody could be invited; the server refuses it too.
+      <GuestsSection key="guests" mode="unavailable" guests={values.guests ?? []} reason={`This event has ended. ${MESSAGES.guestsNotEnded}.`} />
     ) : outlookConnected ? (
       <GuestsSection key="guests" mode="edit" guests={values.guests ?? []} onChange={(guests) => save.change({ guests })} />
     ) : (

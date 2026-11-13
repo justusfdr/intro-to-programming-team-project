@@ -73,6 +73,16 @@ describe("the editor of our own event", () => {
     expect(html).toContain("lea@example.com");
   });
 
+  it("an event that ended before today shows the reason and no field; its saved guests still show", () => {
+    const past = { startAt: "2026-11-11T18:00:00.000Z", endAt: "2026-11-11T19:00:00.000Z", startLocal: "2026-11-11T18:00", endLocal: "2026-11-11T19:00" };
+    const html = edit(event({ ...past, guests: ["lea@example.com"] }));
+    expect(html).toContain(">Guests</p>");
+    expect(html).toContain("This event has ended. Guests can only be invited to events that have not ended.");
+    expect(html).toContain("lea@example.com");
+    expect(html).not.toContain("Add a guest");
+    expect(html).not.toContain('aria-label="Remove lea@example.com"');
+  });
+
   // Rewritten: the section used to be left out here, and the owner looked for it in vain.
   it("an event of a series and a demo event keep the section, with the reason and no field", () => {
     const series = edit(event({ seriesId: "s1" }));

@@ -10,8 +10,9 @@
 // - Not connected: "Connect Outlook to invite guests", a link to the Outlook card in Settings, no field
 //   (guests already saved still show, without the x).
 // - An Outlook event: read-only, the organizer first ("Organizer"), then the others (R11).
-// - An event that cannot have guests (a demo event, an event of a series): the section stays, with one
-//   quiet line that says why, so nobody looks for a field that is not there.
+// - An event that cannot have guests (a demo event, an event of a series, an event that has ended:
+//   Outlook gets no past events, so no invitation would go out): the section stays, with one quiet
+//   line that says why, so nobody looks for a field that is not there. Guests saved earlier still show.
 import Link from "next/link";
 import { useState } from "react";
 import { Users, X } from "lucide-react";
@@ -23,7 +24,7 @@ type Props =
   | { mode: "edit"; guests: readonly string[]; onChange: (guests: string[]) => void }
   | { mode: "connect"; guests: readonly string[] }
   | { mode: "outlook"; guests: readonly string[]; organizer: string | null }
-  | { mode: "unavailable"; reason: string };
+  | { mode: "unavailable"; reason: string; guests?: readonly string[] };
 
 const CHIP = "inline-flex h-7 max-w-full items-center gap-1 rounded-full border border-line-subtle bg-raised pl-2.5 text-xs text-ink";
 
@@ -52,6 +53,13 @@ export function GuestsSection(props: Props) {
     return (
       <section className="flex flex-col gap-1.5">
         <Eyebrow>Guests</Eyebrow>
+        {props.guests && props.guests.length > 0 && (
+          <ul aria-label="Guests" className="flex flex-wrap gap-1.5">
+            {props.guests.map((address) => (
+              <GuestChip key={address} address={address} />
+            ))}
+          </ul>
+        )}
         <p className="flex items-start gap-2 text-sm text-ink-3">
           <Users aria-hidden className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} />
           <span>{props.reason}</span>
