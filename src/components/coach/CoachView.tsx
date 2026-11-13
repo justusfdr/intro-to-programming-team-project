@@ -11,7 +11,7 @@ import { useAnnounce } from "@/components/calendar/Announcer";
 import { LogoMark } from "@/components/shell/Logo";
 import { Button } from "@/components/ui/Button";
 import { DAILY_MESSAGES } from "@/lib/chat/access";
-import type { ChatMessageDto, ChatPageData, DraftStatus } from "@/lib/chat/types";
+import type { ChatMessageDto, ChatPageData, DraftDto, DraftStatus } from "@/lib/chat/types";
 import { postJson } from "@/lib/client/post-json";
 import { MESSAGES } from "@/lib/messages";
 import { Composer } from "./Composer";
@@ -156,6 +156,11 @@ export function CoachView({ data, defaultText = "", defaultConfirmingClear = fal
     setMessages((current) => current.map((m) => (m.draft?.id === draftId ? { ...m, draft: { ...m.draft, status } } : m)));
   }
 
+  // Spec 22: the person dragged a block of the open draft and the server saved it.
+  function draftEdited(draft: DraftDto) {
+    setMessages((current) => current.map((m) => (m.draft?.id === draft.id ? { ...m, draft } : m)));
+  }
+
   async function clear() {
     setClearing(true);
     const answer = await postJson("/api/chat/clear", {});
@@ -256,6 +261,7 @@ export function CoachView({ data, defaultText = "", defaultConfirmingClear = fal
                         timeZone={data.timeZone}
                         calendar={m.draft.id === loadedOpenDraft ? data.draftDayEvents : []}
                         onStatus={draftChanged}
+                        onEdited={draftEdited}
                       />
                     )}
                   </div>
