@@ -6,13 +6,15 @@ export type Plan = "free" | "pro";
 /** €4.99 per month, in cents, as Stripe counts it. The real price lives in Stripe (STRIPE_PRICE_ID). */
 export const PRO_PRICE_CENTS = 499;
 
-export const PLANS: ReadonlyArray<{ id: Plan; name: string; price: string; per: string; summary: string; features: readonly string[] }> = [
+export type PlanInfo = { id: Plan; name: string; price: string; per: string; summary: string; features: readonly string[] };
+
+export const PLANS: readonly PlanInfo[] = [
   {
     id: "free",
     name: "Free",
     price: "€0",
-    per: "forever",
-    summary: "Plan your weeks and stay focused.",
+    per: "per month",
+    summary: "Everything you need to plan your weeks and stay focused.",
     features: ["Calendar with goals and to-dos", "Focus sessions with the site blocker", "Analytics of your weeks", "Outlook calendar"],
   },
   {
@@ -20,8 +22,14 @@ export const PLANS: ReadonlyArray<{ id: Plan; name: string; price: string; per: 
     name: "Pro",
     price: "€4.99",
     per: "per month",
-    summary: "Everything in Free, plus a coach that plans with you.",
-    features: ["Everything in Free", "The AI coach: plans your days in a chat", "Speak or type what your day should hold", "Cancel any time"],
+    summary: "Everything in Free, plus a personalized coach that plans with you.",
+    features: [
+      "Everything in Free",
+      "The AI coach, personalized to your goals and your calendar",
+      "Say or type your day and get a plan with times",
+      "It moves events and adds to-dos when you ask",
+      "Undo any accepted plan with one click",
+    ],
   },
 ];
 

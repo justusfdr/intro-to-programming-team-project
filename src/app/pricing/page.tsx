@@ -5,7 +5,7 @@ import { AppShell } from "@/components/shell/AppShell";
 import { pageDeps } from "@/lib/server/deps";
 import { loadPricingPage } from "@/lib/server/pages/load";
 
-export const metadata: Metadata = { title: "Plans" };
+export const metadata: Metadata = { title: "Pricing" };
 
 // The pricing page (spec 24): Free and Pro. Reads only; Stripe's return here (?checkout=success)
 // changes nothing, the plan changes on Stripe's signed message (R25).
@@ -19,7 +19,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   const data = await loadPricingPage(deps, userId);
 
   return (
-    <AppShell current="/settings" display={data.display}>
+    <AppShell current="/pricing" display={data.display}>
       <PricingView plan={data.plan} paymentReady={data.paymentReady} checkout={typeof checkout === "string" ? checkout : undefined} />
     </AppShell>
   );

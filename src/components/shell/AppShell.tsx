@@ -1,13 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CalendarDays, ChartColumn, MessageCircle, Settings, Timer, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChartColumn, CreditCard, MessageCircle, Settings, Timer, type LucideIcon } from "lucide-react";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
 import { DEFAULT_DISPLAY, type Display } from "@/lib/time/display";
 import { Logo } from "./Logo";
 
 // The frame of every signed-in page, copied from the prototype's shell: the sidebar on wider screens
-// (mark and name, navigation, Settings at the bottom, then the account row) and the floating tab bar
+// (mark and name, navigation, Pricing and Settings at the bottom, then the account row) and the floating tab bar
 // on phones. Navigation shows only what exists; the Goals page takes its place between Calendar and
 // Focus in a later step. The coach (the AI chat, spec 19) is a page of its own, second in the list.
 // Search and quick capture come with their features. Side panels go in as in the prototype: the goals
@@ -23,6 +23,8 @@ const NAV: NavItem[] = [
 ];
 
 const SETTINGS: NavItem = { href: "/settings", label: "Settings", icon: Settings };
+/** The plans and payment (spec 24), at the bottom above Settings. */
+const PRICING: NavItem = { href: "/pricing", label: "Pricing", icon: CreditCard };
 
 type Props = {
   /** The address of the current page, to mark it in the navigation. */
@@ -64,7 +66,10 @@ function Sidebar({ current }: { current: string }) {
         ))}
       </nav>
       <div className="mt-auto flex flex-col gap-2">
-        <SidebarLink item={SETTINGS} on={current === SETTINGS.href} />
+        <div className="flex flex-col gap-0.5">
+          <SidebarLink item={PRICING} on={current === PRICING.href} />
+          <SidebarLink item={SETTINGS} on={current === SETTINGS.href} />
+        </div>
         <SignOutButton />
       </div>
     </aside>
@@ -79,7 +84,7 @@ function TabBar({ current }: { current: string }) {
         aria-label="Tab bar"
         className="pointer-events-auto flex h-14 items-center gap-1 rounded-full border border-line-subtle bg-surface/90 px-2 shadow-float backdrop-blur-xl"
       >
-        {[...NAV, SETTINGS].map(({ href, label, icon: Icon }) => {
+        {[...NAV, PRICING, SETTINGS].map(({ href, label, icon: Icon }) => {
           const on = current === href;
           return (
             <Link
