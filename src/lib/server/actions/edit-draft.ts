@@ -97,7 +97,7 @@ export function editDraft(request: Request, deps: Pick<Deps, "auth" | "withUser"
           throw new ActionError(refusal.status, refusal.code, refusal.message);
         }
 
-        await query("select app.chat_edit_draft($1, $2, $3, $4, $5::timestamptz, $6::timestamptz)", [
+        await query("select app.chat_edit_draft($1::uuid, $2::integer, $3::integer, $4::uuid, $5::timestamptz, $6::timestamptz)", [
           draft.id,
           draft.version,
           item.kind === "new" ? item.index : null,
