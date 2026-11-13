@@ -51,11 +51,13 @@ const COMMON = { goals: [], timeZone: "Europe/Lisbon", today: "2026-11-16", anch
 const edit = (e: WeekEvent, outlookConnected = true) => renderToStaticMarkup(<EditEventCard event={e} {...COMMON} outlookConnected={outlookConnected} />);
 
 describe("the editor of our own event", () => {
-  it("shows GUESTS after LOCATION and before OVERLAP: chips with an x, the field and the quiet line", () => {
+  // Rewritten when the section moved up (the owner did not find it below Location).
+  it("shows GUESTS right under WHEN, before the to-dos and LOCATION: chips with an x, the field and the quiet line", () => {
     const html = edit(event({ guests: GUESTS }));
     const at = (text: string) => html.indexOf(text);
-    expect(at(">Location</p>")).toBeGreaterThan(-1);
-    expect(at(">Guests</p>")).toBeGreaterThan(at(">Location</p>"));
+    expect(at(">When</p>")).toBeGreaterThan(-1);
+    expect(at(">Guests</p>")).toBeGreaterThan(at(">When</p>"));
+    expect(at(">Location</p>")).toBeGreaterThan(at(">Guests</p>"));
     expect(at(">Overlap</p>")).toBeGreaterThan(at(">Guests</p>"));
     expect(html).toContain('aria-label="Remove lea@example.com"');
     expect(html).toContain('aria-label="Remove tom@uni.example.org"');
@@ -71,9 +73,16 @@ describe("the editor of our own event", () => {
     expect(html).toContain("lea@example.com");
   });
 
-  it("leaves the section out for an event of a series and a demo event", () => {
-    expect(edit(event({ seriesId: "s1" }))).not.toContain(">Guests</p>");
-    expect(edit(event({ demo: true }))).not.toContain(">Guests</p>");
+  // Rewritten: the section used to be left out here, and the owner looked for it in vain.
+  it("an event of a series and a demo event keep the section, with the reason and no field", () => {
+    const series = edit(event({ seriesId: "s1" }));
+    expect(series).toContain(">Guests</p>");
+    expect(series).toContain("Events of a series cannot have guests.");
+    expect(series).not.toContain("Add a guest");
+    const demo = edit(event({ demo: true }));
+    expect(demo).toContain(">Guests</p>");
+    expect(demo).toContain("Demo events cannot have guests. Create your own event to invite someone.");
+    expect(demo).not.toContain("Add a guest");
   });
 
   it("the bin names the guests it will tell; without guests it is the plain bin", () => {
@@ -105,9 +114,11 @@ describe("a new event ('Add details')", () => {
     expect(renderToStaticMarkup(<NewEventCard draft={draft} {...COMMON} />)).toContain("Connect Outlook to invite guests");
   });
 
-  it("a new series shows no guests section", () => {
+  it("a new series shows the section with the reason and no field", () => {
     const draft = { start: "2026-11-17T14:00", end: "2026-11-17T15:00", repeat: "weekly" as const };
-    expect(renderToStaticMarkup(<NewEventCard draft={draft} {...COMMON} outlookConnected />)).not.toContain(">Guests</p>");
+    const html = renderToStaticMarkup(<NewEventCard draft={draft} {...COMMON} outlookConnected />);
+    expect(html).toContain("Events of a series cannot have guests.");
+    expect(html).not.toContain("Add a guest");
   });
 });
 

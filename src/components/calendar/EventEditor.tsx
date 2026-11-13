@@ -21,7 +21,7 @@
 // To-dos are saved at once, each change on its own (not with the Save button); a new event keeps its
 // list until "Add event" sends it with the event. Outlook events have none (R11).
 // Guests (spec 24) wait for Save like the location; Outlook sends the invitations. An Outlook event shows
-// its people read-only; events of a series and demo events have no guests section. The bin asks once,
+// its people read-only; events of a series and demo events show the section with the reason why not. The bin asks once,
 // in place, before it deletes an event with guests (Outlook tells them).
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
@@ -200,6 +200,19 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
     />,
     <EditorChips key="chips" event={event} />,
     <WhenSection key="when" event={event} values={values} onChange={(patch) => save.change(patch)} todayKey={today} />,
+    // Spec 24: right under the time. An Outlook event shows its people read-only (R11); a demo event
+    // and an event of a series cannot have guests and say so.
+    fromOutlook ? (
+      <GuestsSection key="guests" mode="outlook" guests={event.guests ?? []} organizer={event.organizer ?? null} />
+    ) : event.demo ? (
+      <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotDemo}. Create your own event to invite someone.`} />
+    ) : event.seriesId ? (
+      <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotInSeries}.`} />
+    ) : outlookConnected ? (
+      <GuestsSection key="guests" mode="edit" guests={values.guests ?? []} onChange={(guests) => save.change({ guests })} />
+    ) : (
+      <GuestsSection key="guests" mode="connect" guests={values.guests ?? []} />
+    ),
     // Right under the time, as in the prototype; saved at once. Outlook events have none (R11).
     !fromOutlook && <EventTodos key="todos" eventId={event.id} />,
     // All-day events have no goal (R29).
@@ -211,17 +224,6 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
       onType={(location) => save.change({ location })}
       onDone={() => {}}
     />,
-    fromOutlook ? (
-      <GuestsSection key="guests" mode="outlook" guests={event.guests ?? []} organizer={event.organizer ?? null} />
-    ) : (
-      !event.seriesId &&
-      !event.demo &&
-      (outlookConnected ? (
-        <GuestsSection key="guests" mode="edit" guests={values.guests ?? []} onChange={(guests) => save.change({ guests })} />
-      ) : (
-        <GuestsSection key="guests" mode="connect" guests={values.guests ?? []} />
-      ))
-    ),
     !values.allDay && !fromOutlook && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => save.change({ mayOverlap })} />,
     <Refusal
       key="refusal"
@@ -358,6 +360,14 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
         />
       )}
     </WhenSection>,
+    // Spec 24: right under the time. A new series takes no guests (one invitation per date would flood them).
+    !values.allDay && frequency !== "none" ? (
+      <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotInSeries}.`} />
+    ) : outlookConnected ? (
+      <GuestsSection key="guests" mode="edit" guests={values.guests ?? []} onChange={(guests) => change({ guests })} />
+    ) : (
+      <GuestsSection key="guests" mode="connect" guests={[]} />
+    ),
     <TodoList
       key="todos"
       todos={todos}
@@ -379,13 +389,6 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
     />,
     !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => change({ goalId })} />,
     <LocationSection key="location" value={values.location} editable onType={(location) => change({ location })} onDone={() => {}} />,
-    // Spec 24: a new series takes no guests (one invitation per date would flood them).
-    (values.allDay || frequency === "none") &&
-      (outlookConnected ? (
-        <GuestsSection key="guests" mode="edit" guests={values.guests ?? []} onChange={(guests) => change({ guests })} />
-      ) : (
-        <GuestsSection key="guests" mode="connect" guests={[]} />
-      )),
     !values.allDay && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => change({ mayOverlap })} />,
     <Refusal key="refusal" result={result} onReload={onClose} />,
   ];

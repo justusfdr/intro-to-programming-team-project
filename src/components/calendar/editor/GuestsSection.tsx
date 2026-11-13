@@ -1,6 +1,7 @@
 "use client";
 
-// GUESTS (spec 24), after LOCATION, in the look of the other sections. Outlook does the inviting: the
+// GUESTS (spec 24), right under WHEN (so it is seen without scrolling; the owner did not find it
+// further down), in the look of the other sections. Outlook does the inviting: the
 // guests are saved with the editor's Save button (or "Add event"), and Outlook sends each one an
 // invitation when the event reaches it.
 // - Our own event while Outlook is connected: the guests as small chips (the address, an x to remove
@@ -9,7 +10,8 @@
 // - Not connected: "Connect Outlook to invite guests", a link to the Outlook card in Settings, no field
 //   (guests already saved still show, without the x).
 // - An Outlook event: read-only, the organizer first ("Organizer"), then the others (R11).
-// The caller leaves the section out for an event of a series and a demo event.
+// - An event that cannot have guests (a demo event, an event of a series): the section stays, with one
+//   quiet line that says why, so nobody looks for a field that is not there.
 import Link from "next/link";
 import { useState } from "react";
 import { Users, X } from "lucide-react";
@@ -20,7 +22,8 @@ import { Eyebrow, inputClass } from "../fields";
 type Props =
   | { mode: "edit"; guests: readonly string[]; onChange: (guests: string[]) => void }
   | { mode: "connect"; guests: readonly string[] }
-  | { mode: "outlook"; guests: readonly string[]; organizer: string | null };
+  | { mode: "outlook"; guests: readonly string[]; organizer: string | null }
+  | { mode: "unavailable"; reason: string };
 
 const CHIP = "inline-flex h-7 max-w-full items-center gap-1 rounded-full border border-line-subtle bg-raised pl-2.5 text-xs text-ink";
 
@@ -45,6 +48,17 @@ function GuestChip({ address, onRemove, note }: { address: string; onRemove?: ()
 }
 
 export function GuestsSection(props: Props) {
+  if (props.mode === "unavailable") {
+    return (
+      <section className="flex flex-col gap-1.5">
+        <Eyebrow>Guests</Eyebrow>
+        <p className="flex items-start gap-2 text-sm text-ink-3">
+          <Users aria-hidden className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} />
+          <span>{props.reason}</span>
+        </p>
+      </section>
+    );
+  }
   if (props.mode === "outlook") {
     if (!props.organizer && props.guests.length === 0) return null;
     return (
