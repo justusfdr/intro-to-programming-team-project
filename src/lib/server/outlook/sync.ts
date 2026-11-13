@@ -133,7 +133,7 @@ async function sendPending(deps: Deps, userId: string, service: OutlookService, 
     }
   }
   await deps.withUser(userId, async (q) => {
-    if (sent.length > 0) await q("select app.outlook_mark_sent($1::jsonb)", [JSON.stringify(sent)]);
+    if (sent.length > 0) await q("select app.outlook_mark_sent($1::text::jsonb)", [JSON.stringify(sent)]);
     if (forgotten.length > 0) await q("select app.outlook_forget_deletions($1)", [forgotten]);
   });
   return sent.length + forgotten.length;
@@ -175,7 +175,7 @@ export async function syncOutlook(deps: Deps, outlook: OutlookDeps, userId: stri
       transaction_id: e.transactionId,
     }));
     await deps.withUser(userId, async (q) => {
-      await q("select app.outlook_import($1, $2, $3::jsonb)", [from, to, JSON.stringify(rows)]);
+      await q("select app.outlook_import($1::timestamptz, $2::timestamptz, $3::text::jsonb)", [from, to, JSON.stringify(rows)]);
       await q("select app.outlook_finish_sync()");
     });
     return { ran: true, ok: true };
