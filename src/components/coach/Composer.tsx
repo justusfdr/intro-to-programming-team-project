@@ -59,9 +59,12 @@ export function WhatIsSent() {
     <div className="rounded-card border border-line-subtle bg-surface p-4 text-left text-xs leading-5 text-ink-2 shadow-float">
       <p className="font-semibold text-ink">Sent with every message to the AI service behind the coach</p>
       <ul className="mt-1 list-disc pl-4">
-        <li>The last 10 messages of this chat, with the events of their drafts</li>
+        <li>The last 10 messages of this chat, with the events and changes of their drafts</li>
         <li>Your goals with their deadlines and rules</li>
-        <li>Your events from today to 14 days ahead: title, start, end, whether they may overlap, all day</li>
+        <li>
+          Your events from today to 14 days ahead: title, start, end, whether they may overlap, all day, and a short
+          reference for this one message with whether the coach may change the event
+        </li>
         <li>Your weekly totals: time spent per goal</li>
         <li>Your time zone, the current date and time, and the hours your calendar shows</li>
       </ul>

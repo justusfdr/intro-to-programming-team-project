@@ -4,9 +4,12 @@
 // A proposal belongs to the day it starts (R2), also when it runs past midnight. The column runs from
 // the hour before the first proposal to the hour after the last one; the calendar's own events are
 // cut to that window.
+// Spec 20: a draft may also move and delete existing events. A moved event is drawn on the day of its
+// new start, like a proposal, and its old place as an outline on the day it started; a deleted event is
+// drawn at its place, struck through. Both stop being drawn as the calendar's own events.
 import type { EventDto } from "@/lib/events/types";
 import { localDateOf, localTimeOf, type LocalDate } from "@/lib/time/zoned";
-import type { ProposedEventDto } from "./types";
+import type { DraftChangeDto, ProposedEventDto } from "./types";
 
 /** Height of one hour in the small column, in pixels (smaller than the calendar's 52). */
 export const SKETCH_HOUR_PX = 40;
@@ -37,7 +40,16 @@ export type SketchDay = {
   hours: number[];
   /** The draft's proposals that start on this day, by start. */
   proposals: SketchBlock[];
-  /** The calendar's timed events that lie in the window on this day, by start. */
+  /**
+   * Moved events at their new place on this day, by start; `from` is where they were ("14:00", and the
+   * old day when it is another one).
+   */
+  moved: (SketchBlock & { fromTime: string; fromDate: LocalDate })[];
+  /** The old places of events the draft moves away from this day: pale dashed outlines; `toDate` is the new day. */
+  oldPlaces: (SketchBlock & { toDate: LocalDate })[];
+  /** Events the draft deletes on this day: pale, struck through, "Removed". */
+  removed: SketchBlock[];
+  /** The calendar's timed events that lie in the window on this day and that the draft leaves alone, by start. */
   existing: SketchBlock[];
   /** The calendar's all-day events covering this day (their titles). */
   allDay: string[];
@@ -45,10 +57,20 @@ export type SketchDay = {
 
 const minuteOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 
-/** The local days a draft's proposals start on, in order, without repeats. */
-export function draftDaysOf(events: readonly ProposedEventDto[], timeZone: string): LocalDate[] {
-  return [...new Set(events.map((e) => localDateOf(new Date(e.startAt), timeZone)))].sort();
+/**
+ * The local days a draft's proposals start on, in order, without repeats; with changes (spec 20) also
+ * a moved event's old and new day and a deleted event's day.
+ */
+export function draftDaysOf(events: readonly ProposedEventDto[], timeZone: string, changes: readonly DraftChangeDto[] = []): LocalDate[] {
+  const starts = [
+    ...events.map((e) => e.startAt),
+    ...changes.flatMap((c) => (c.startAt ? [c.oldStartAt, c.startAt] : [c.oldStartAt])),
+  ];
+  return [...new Set(starts.map((start) => localDateOf(new Date(start), timeZone)))].sort();
 }
+
+const byStart = (a: SketchBlock, b: SketchBlock) => a.startMin - b.startMin || b.endMin - a.endMin;
+const isBlock = <T>(b: T | null): b is T => b !== null;
 
 /** One timed event as a block on `date`, or null when no part of it lies on that day. */
 function blockOn(
@@ -73,36 +95,65 @@ function blockOn(
 
 /**
  * The days of a draft with their columns. `calendar` are the calendar's events around it (empty for a
- * draft that is not open: then only the proposals are drawn).
+ * draft that is not open: then only the draft itself is drawn). `changes` (spec 20) are its moves and
+ * deletes; they carry their own titles and times, so they are drawn also without the calendar.
  */
 export function sketchDraft(
   events: readonly ProposedEventDto[],
   calendar: readonly EventDto[],
   timeZone: string,
+  changes: readonly DraftChangeDto[] = [],
 ): SketchDay[] {
-  return draftDaysOf(events, timeZone).map((date) => {
+  const startDay = (iso: string) => localDateOf(new Date(iso), timeZone);
+  const changedIds = new Set(changes.map((c) => c.eventId));
+  const old = (c: DraftChangeDto) => ({ title: c.title, goalId: c.goalId, startAt: c.oldStartAt, endAt: c.oldEndAt });
+
+  return draftDaysOf(events, timeZone, changes).map((date) => {
     const proposals = events
-      .filter((e) => localDateOf(new Date(e.startAt), timeZone) === date)
+      .filter((e) => startDay(e.startAt) === date)
       .map((e) => blockOn(e, date, timeZone))
-      .filter((b): b is SketchBlock => b !== null)
-      .sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
-    const first = Math.min(...proposals.map((p) => p.startMin));
-    const last = Math.max(...proposals.map((p) => p.endMin));
+      .filter(isBlock)
+      .sort(byStart);
+    const moved = changes
+      .filter((c) => c.kind === "move" && c.startAt && c.endAt && startDay(c.startAt) === date)
+      .map((c) => {
+        const block = blockOn({ title: c.title, goalId: c.goalId, startAt: c.startAt!, endAt: c.endAt! }, date, timeZone);
+        return block ? { ...block, fromTime: localTimeOf(new Date(c.oldStartAt), timeZone), fromDate: startDay(c.oldStartAt) } : null;
+      })
+      .filter(isBlock)
+      .sort(byStart);
+    const oldPlaces = changes
+      .filter((c) => c.kind === "move" && c.startAt && startDay(c.oldStartAt) === date)
+      .map((c) => {
+        const block = blockOn(old(c), date, timeZone);
+        return block ? { ...block, toDate: startDay(c.startAt!) } : null;
+      })
+      .filter(isBlock)
+      .sort(byStart);
+    const removed = changes
+      .filter((c) => c.kind === "delete" && startDay(c.oldStartAt) === date)
+      .map((c) => blockOn(old(c), date, timeZone))
+      .filter(isBlock)
+      .sort(byStart);
+
+    const drawn = [...proposals, ...moved, ...oldPlaces, ...removed];
+    const first = Math.min(...drawn.map((p) => p.startMin));
+    const last = Math.max(...drawn.map((p) => p.endMin));
     const startMin = Math.max(0, Math.floor(first / 60) * 60 - 60);
     const endMin = Math.min(DAY_MIN, Math.ceil(last / 60) * 60 + 60);
     const hours: number[] = [];
     for (let m = startMin; m <= endMin; m += 60) hours.push(m);
 
     const existing = calendar
-      .filter((e) => !e.allDay && e.startAt && e.endAt)
+      .filter((e) => !e.allDay && e.startAt && e.endAt && !changedIds.has(e.id))
       .map((e) => blockOn({ title: e.title, goalId: e.goalId, startAt: e.startAt!, endAt: e.endAt! }, date, timeZone))
       .filter((b): b is SketchBlock => b !== null && b.endMin > startMin && b.startMin < endMin)
-      .sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+      .sort(byStart);
     const allDay = calendar
       .filter((e) => e.allDay && e.firstDay && e.lastDay && e.firstDay <= date && e.lastDay >= date)
       .map((e) => e.title);
 
-    return { date, startMin, endMin, hours, proposals, existing, allDay };
+    return { date, startMin, endMin, hours, proposals, moved, oldPlaces, removed, existing, allDay };
   });
 }
 

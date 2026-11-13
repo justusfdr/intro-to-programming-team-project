@@ -6,6 +6,10 @@
 // and outlined beneath them. The column is decoration; the same proposals are a list for screen
 // readers. An open draft has "Add to calendar" (accept_draft) and "Discard" (reject_draft); the server
 // decides both, and a refusal shows its sentence here. Geometry: src/lib/chat/day-sketch.ts.
+// Spec 20: a moved event is drawn at its new time like a proposal, with "Moved from 14:00", its old
+// place as a pale dashed outline; a deleted event pale and struck through, "Removed". A draft that
+// changes anything is applied with "Apply changes". An accepted draft offers a quiet "Undo"
+// (undo_draft), and an undone one says so.
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
@@ -18,12 +22,14 @@ import { postJson } from "@/lib/client/post-json";
 import type { EventDto } from "@/lib/events/types";
 import { goalColor } from "@/lib/goals/colors";
 import { fmtDateLong, fmtDateShort, fmtHour, fmtTime, fmtRange, type TimeFormat } from "@/lib/time/display";
+import type { LocalDate } from "@/lib/time/zoned";
 
 const PILL: Record<DraftStatus, { label: string; className: string }> = {
   open: { label: "Draft", className: "bg-ink text-white" },
   accepted: { label: "Added", className: "bg-success-soft text-success" },
   rejected: { label: "Discarded", className: "bg-raised text-ink-3" },
   replaced: { label: "Replaced", className: "bg-raised text-ink-3" },
+  undone: { label: "Undone", className: "bg-raised text-ink-3" },
 };
 
 const NEUTRAL_BLOCK = "bg-raised border-line text-ink";
@@ -36,6 +42,12 @@ function timeText(block: SketchBlock, format: TimeFormat): string {
 function spokenTime(block: SketchBlock, format: TimeFormat): string {
   const end = fmtTime(block.endTime, format);
   return `${fmtTime(block.startTime, format)} to ${block.endsNextDay ? `${end} the next day` : end}`;
+}
+
+/** "Moved from 14:00", or with the old day when it was another one ("Moved from Nov 17, 14:00"). */
+function movedFrom(block: { fromTime: string; fromDate: LocalDate }, date: LocalDate, format: TimeFormat): string {
+  const time = fmtTime(block.fromTime, format);
+  return block.fromDate === date ? `Moved from ${time}` : `Moved from ${fmtDateShort(block.fromDate)}, ${time}`;
 }
 
 function DayColumn({ day, goals, open }: { day: SketchDay; goals: ChatGoal[]; open: boolean }) {
@@ -69,24 +81,55 @@ function DayColumn({ day, goals, open }: { day: SketchDay; goals: ChatGoal[]; op
               </div>
             );
           })}
-        {day.proposals.map((block, i) => {
+        {day.oldPlaces.map((block, i) => {
           const { top, height: h } = sketchBox(block, day);
-          const goal = goalOf(block.goalId);
-          const Icon = goal ? GOAL_ICONS[goal.look.icon] : null;
           return (
             <div
-              key={`p${i}`}
-              className={`absolute left-1 right-6 z-[2] overflow-hidden rounded-lg border px-1.5 py-0.5 shadow-float ${goal ? goalColor(goal.look.color).block : NEUTRAL_BLOCK}`}
+              key={`o${i}`}
+              data-sketch="old-place"
+              className="absolute left-1 right-6 z-[1] overflow-hidden rounded-lg border border-dashed border-line px-1.5 py-0.5 text-ink-3 opacity-70"
               style={{ top, height: h }}
             >
-              <span className="flex items-center gap-1 text-[11px] font-medium leading-[14px]">
-                {Icon && <Icon className="size-3 shrink-0" />}
-                <span className="truncate">{block.title}</span>
-              </span>
-              {h >= 34 && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{timeText(block, timeFormat)}</span>}
+              <span className="block truncate text-[10px] leading-[13px]">{block.title}</span>
             </div>
           );
         })}
+        {day.removed.map((block, i) => {
+          const { top, height: h } = sketchBox(block, day);
+          return (
+            <div
+              key={`r${i}`}
+              data-sketch="removed"
+              className="absolute left-1 right-6 z-[2] overflow-hidden rounded-lg border border-line bg-raised px-1.5 py-0.5 text-ink-3 opacity-60"
+              style={{ top, height: h }}
+            >
+              <span className="block truncate text-[11px] font-medium leading-[14px] line-through">{block.title}</span>
+              {h >= 34 && <span className="block truncate text-[10px] leading-[13px]">Removed</span>}
+            </div>
+          );
+        })}
+        {[...day.proposals.map((block) => ({ block, from: null as string | null })), ...day.moved.map((block) => ({ block, from: movedFrom(block, day.date, timeFormat) }))].map(
+          ({ block, from }, i) => {
+            const { top, height: h } = sketchBox(block, day);
+            const goal = goalOf(block.goalId);
+            const Icon = goal ? GOAL_ICONS[goal.look.icon] : null;
+            return (
+              <div
+                key={`p${i}`}
+                data-sketch={from ? "moved" : "proposal"}
+                className={`absolute left-1 right-6 z-[3] overflow-hidden rounded-lg border px-1.5 py-0.5 shadow-float ${goal ? goalColor(goal.look.color).block : NEUTRAL_BLOCK}`}
+                style={{ top, height: h }}
+              >
+                <span className="flex items-center gap-1 text-[11px] font-medium leading-[14px]">
+                  {Icon && <Icon className="size-3 shrink-0" />}
+                  <span className="truncate">{block.title}</span>
+                </span>
+                {from && <span className="block truncate text-[10px] leading-[13px] opacity-80">{from}</span>}
+                {h >= (from ? 48 : 34) && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{timeText(block, timeFormat)}</span>}
+              </div>
+            );
+          },
+        )}
       </div>
     </div>
   );
@@ -109,23 +152,26 @@ export function DraftCard({ draft, goals, timeZone, calendar, onStatus }: Props)
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState("");
   const open = draft.status === "open";
-  const days = sketchDraft(draft.events, open ? calendar : [], timeZone);
+  const days = sketchDraft(draft.events, open ? calendar : [], timeZone, draft.changes);
   const pill = PILL[draft.status];
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
+  const changes = draft.changes.length > 0;
 
-  async function act(kind: "accept" | "reject") {
+  async function act(kind: "accept" | "reject" | "undo") {
     setBusy(true);
     setRefusal("");
     const answer = await postJson(`/api/chat/drafts/${draft.id}/${kind}`, {});
     setBusy(false);
     if (!answer.ok) {
       setRefusal(answer.message);
-      // Not open any more, or out of date: read the page again to show the draft as it is now.
+      // Not open any more, out of date, or no longer undoable: read the page again to show the draft as it is now.
       if (answer.status === 409) router.refresh();
       return;
     }
-    onStatus(draft.id, kind === "accept" ? "accepted" : "rejected");
+    onStatus(draft.id, kind === "accept" ? "accepted" : kind === "undo" ? "undone" : "rejected");
     announce(answer.message);
+    // Outlook gets the change at once, as after a change in the calendar (nothing happens when not connected).
+    if (kind !== "reject") void postJson("/api/outlook/send", {});
     router.refresh();
   }
 
@@ -155,15 +201,26 @@ export function DraftCard({ draft, goals, timeZone, calendar, onStatus }: Props)
           <ul className="sr-only">
             {day.proposals.map((block, i) => {
               const goal = goalOf(block.goalId);
-              return <li key={i}>{`${block.title}, ${spokenTime(block, timeFormat)}${goal ? `, goal ${goal.title}` : ""}`}</li>;
+              return <li key={`p${i}`}>{`${block.title}, ${spokenTime(block, timeFormat)}${goal ? `, goal ${goal.title}` : ""}`}</li>;
             })}
+            {day.moved.map((block, i) => (
+              <li key={`m${i}`}>{`${block.title}, moved to ${spokenTime(block, timeFormat)}, ${movedFrom(block, day.date, timeFormat).replace("Moved", "moved")}`}</li>
+            ))}
+            {day.oldPlaces
+              .filter((block) => block.toDate !== day.date)
+              .map((block, i) => (
+                <li key={`o${i}`}>{`${block.title}, ${spokenTime(block, timeFormat)}, moved to ${fmtDateShort(block.toDate)}`}</li>
+              ))}
+            {day.removed.map((block, i) => (
+              <li key={`r${i}`}>{`${block.title}, ${spokenTime(block, timeFormat)}, removed`}</li>
+            ))}
           </ul>
         </section>
       ))}
       {open && (
         <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-raised/50 p-3">
           <Button size="sm" disabled={busy} onClick={() => void act("accept")}>
-            Add to calendar
+            {changes ? "Apply changes" : "Add to calendar"}
           </Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => void act("reject")}>
             Discard
@@ -176,6 +233,9 @@ export function DraftCard({ draft, goals, timeZone, calendar, onStatus }: Props)
           <LinkButton size="sm" variant="secondary" href={`/?view=day&date=${days[0].date}`}>
             Open calendar
           </LinkButton>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => void act("undo")}>
+            Undo
+          </Button>
         </div>
       )}
       {refusal && (
