@@ -6,6 +6,7 @@ import "server-only";
 // 100 dates. Each throws the ontology's message.
 import { z } from "zod";
 import { repeatDates, type RepeatRule, type Weekday } from "@/lib/events/repeat";
+import type { TravelMode } from "@/lib/settings/types";
 import { MESSAGES } from "@/lib/messages";
 import { ActionError } from "@/lib/server/errors";
 import { TodoListField } from "@/lib/server/todos/input";
@@ -28,6 +29,8 @@ export const EventFields = z.object({
   goalId: z.string().max(40).nullable().optional(),
   /** Where it takes place; empty or null means none. Left out: unchanged (edit) or none (create). */
   location: z.string().max(1000).nullable().optional(),
+  /** How the user gets there; null means the standard from the settings. Left out: unchanged (edit) or standard (create). */
+  travelMode: z.enum(["driving", "cycling", "walking", "transit"]).nullable().optional(),
   repeat: z
     .object({
       frequency: z.enum(["daily", "weekly", "monthly"]),
@@ -57,6 +60,7 @@ export type CheckedTimed = {
   mayOverlap: boolean | undefined;
   goalId: string | null | undefined;
   location: string | null | undefined;
+  travelMode: TravelMode | null | undefined;
 };
 
 /** A checked all-day event: days only, no times, no goal (R29). */
@@ -95,6 +99,8 @@ export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent
     const days = Math.round((Date.parse(fields.lastDay) - Date.parse(fields.firstDay)) / DAY_MS) + 1;
     if (days > 31) throw new ActionError(400, "too_many_days", MESSAGES.atMost31Days);
     if (fields.goalId) throw new ActionError(400, "all_day_goal", MESSAGES.allDayNoGoal);
+    // R29: an all-day event has no travel time, so no way of getting there.
+    if (fields.travelMode) throw badRequest();
     return { allDay: true, title, firstDay: fields.firstDay, lastDay: fields.lastDay, location };
   }
 
@@ -103,7 +109,7 @@ export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent
   if (!startAt || !endAt) throw badRequest();
   if (endAt <= startAt) throw new ActionError(400, "end_before_start", MESSAGES.endAfterStart);
   if (endAt.getTime() - startAt.getTime() > MAX_LENGTH_MS) throw new ActionError(400, "too_long", MESSAGES.atMost24Hours);
-  return { allDay: false, title, startAt, endAt, mayOverlap: fields.mayOverlap, goalId: fields.goalId, location };
+  return { allDay: false, title, startAt, endAt, mayOverlap: fields.mayOverlap, goalId: fields.goalId, location, travelMode: fields.travelMode };
 }
 
 /**
