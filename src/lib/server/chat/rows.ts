@@ -2,10 +2,19 @@ import "server-only";
 
 // Reading and writing the coach's rows (spec 19), always inside withUser, so row-level security limits
 // every statement to the signed-in user (R3).
-import { isChangeable, type CalendarBlock, type Change, type ChangeTarget, type Proposal } from "@/lib/chat/checks";
+import {
+  allowsTodos,
+  isChangeable,
+  type CalendarBlock,
+  type Change,
+  type ChangeTarget,
+  type Proposal,
+  type TodoAddition,
+  type TodoTarget,
+} from "@/lib/chat/checks";
 import type { CalendarInput, GoalInput, HistoryInput } from "@/lib/chat/input";
 import { totalsWindow, type DoneEventInput, type SessionInput } from "@/lib/chat/totals";
-import type { ChatMessageDto, ChatRole, DraftChangeDto, DraftDto, DraftStatus, ProposedEventDto } from "@/lib/chat/types";
+import type { ChatMessageDto, ChatRole, DraftChangeDto, DraftDto, DraftStatus, DraftTodosDto, ProposedEventDto } from "@/lib/chat/types";
 import type { Plan } from "@/lib/chat/access";
 import { focusedMinutes } from "@/lib/focus/session-time";
 import { MESSAGES } from "@/lib/messages";
@@ -44,6 +53,22 @@ type StoredChange = {
   end_at: string | null;
 };
 
+/**
+ * To-dos for an event already in the calendar as the database keeps them in draft_plans.added_todos
+ * (spec 23): the event's id, its title and times as the draft saw them (to show the draft later; a
+ * timed event has start_at and end_at, an all-day one first_day and last_day), and the new titles.
+ */
+type StoredAddition = {
+  event_id: string;
+  title: string;
+  all_day: boolean;
+  start_at: string | null;
+  end_at: string | null;
+  first_day: string | null;
+  last_day: string | null;
+  todos: string[];
+};
+
 type MessageRow = {
   id: string;
   role: ChatRole;
@@ -55,10 +80,12 @@ type MessageRow = {
   changes: StoredChange[] | string | null;
   /** Spec 22: 0 as the assistant wrote the draft, one more for each change by the person. */
   draft_version: number | null;
+  /** Spec 23: to-dos for events already in the calendar. */
+  added_todos: StoredAddition[] | string | null;
 };
 
 const MESSAGE_SELECT = `select m.id, m.role, m.text, m.created_at, d.id as draft_id, d.status as draft_status, d.proposed_events, d.changes,
-       d.version as draft_version
+       d.version as draft_version, d.added_todos
   from app.chat_messages m left join app.draft_plans d on d.message_id = m.id`;
 
 // The driver may hand JSON over as text.
@@ -67,6 +94,33 @@ const storedOf = (value: StoredProposal[] | string | null): StoredProposal[] =>
 
 const storedChangesOf = (value: StoredChange[] | string | null | undefined): StoredChange[] =>
   value === null || value === undefined ? [] : typeof value === "string" ? (JSON.parse(value) as StoredChange[]) : value;
+
+const storedAdditionsOf = (value: StoredAddition[] | string | null | undefined): StoredAddition[] =>
+  value === null || value === undefined ? [] : typeof value === "string" ? (JSON.parse(value) as StoredAddition[]) : value;
+
+export function toStoredAdditions(additions: readonly TodoAddition[]): StoredAddition[] {
+  return additions.map((a) => ({
+    event_id: a.target.id,
+    title: a.target.title,
+    all_day: a.target.allDay,
+    start_at: a.target.startAt ? a.target.startAt.toISOString() : null,
+    end_at: a.target.endAt ? a.target.endAt.toISOString() : null,
+    first_day: a.target.firstDay,
+    last_day: a.target.lastDay,
+    todos: [...a.todos],
+  }));
+}
+
+const additionDto = (a: StoredAddition): DraftTodosDto => ({
+  eventId: a.event_id,
+  title: a.title,
+  allDay: a.all_day === true,
+  startAt: a.start_at ? new Date(a.start_at).toISOString() : null,
+  endAt: a.end_at ? new Date(a.end_at).toISOString() : null,
+  firstDay: a.first_day ?? null,
+  lastDay: a.last_day ?? null,
+  todos: [...a.todos],
+});
 
 export function toStoredChanges(changes: readonly Change[]): StoredChange[] {
   return changes.map((c) => ({
@@ -122,6 +176,7 @@ const proposedDto = (p: Proposal): ProposedEventDto => ({
 });
 
 function toMessageDto(row: MessageRow): ChatMessageDto {
+  const added = storedAdditionsOf(row.added_todos).map(additionDto);
   const draft: DraftDto | null =
     row.draft_id && row.draft_status
       ? {
@@ -130,6 +185,8 @@ function toMessageDto(row: MessageRow): ChatMessageDto {
           events: proposalsOf(row.proposed_events).map(proposedDto),
           changes: storedChangesOf(row.changes).map(changeDto),
           version: row.draft_version ?? 0,
+          // Spec 23: only when the draft adds to-dos to existing events.
+          ...(added.length > 0 ? { addedTodos: added } : {}),
         }
       : null;
   return { id: row.id, role: row.role, text: row.text, createdAt: new Date(row.created_at).toISOString(), draft };
@@ -166,6 +223,10 @@ export function historyOf(messages: readonly ChatMessageDto[]): HistoryInput[] {
             startAt: c.startAt === null ? null : new Date(c.startAt),
             endAt: c.endAt === null ? null : new Date(c.endAt),
           })),
+          // Spec 23: in words, the event's title and the to-dos.
+          ...(m.draft.addedTodos && m.draft.addedTodos.length > 0
+            ? { addedTodos: m.draft.addedTodos.map((a) => ({ title: a.title, todos: [...a.todos] })) }
+            : {}),
         }
       : null,
   }));
@@ -218,6 +279,8 @@ type CalendarRow = {
   series_id: string | null;
   source: string;
   updated_at: Date;
+  /** Spec 23: how many to-dos the event has (the count only). */
+  todo_count: number;
 };
 
 /**
@@ -231,18 +294,21 @@ export type CalendarEntry = CalendarInput & {
   goalId: string | null;
   source: string;
   seriesId: string | null;
+  /** Spec 23: how many to-dos the event has now (the count only; the titles are never read here). */
+  todoCount: number;
 };
 
-/** The user's events in the window. No location is read. */
+/** The user's events in the window, each with the number of its to-dos (spec 23). No location is read. */
 export async function readCalendar(query: Query, now: Date, timeZone: string): Promise<CalendarEntry[]> {
   const w = calendarWindow(now, timeZone);
   const rows = await query<CalendarRow>(
-    `select id, title, all_day, start_at, end_at, first_day::text as first_day, last_day::text as last_day, may_overlap,
-            goal_id, series_id, source, updated_at
-       from app.events
-      where (not all_day and end_at > $1 and start_at < $2)
-         or (all_day and last_day >= $3::date and first_day <= $4::date)
-      order by coalesce(start_at, first_day::timestamptz), id`,
+    `select e.id, e.title, e.all_day, e.start_at, e.end_at, e.first_day::text as first_day, e.last_day::text as last_day,
+            e.may_overlap, e.goal_id, e.series_id, e.source, e.updated_at,
+            (select count(*) from app.event_todos t where t.event_id = e.id)::integer as todo_count
+       from app.events e
+      where (not e.all_day and e.end_at > $1::timestamptz and e.start_at < $2::timestamptz)
+         or (e.all_day and e.last_day >= $3::date and e.first_day <= $4::date)
+      order by coalesce(e.start_at, e.first_day::timestamptz), e.id`,
     [w.from, w.until, w.today, w.lastDay],
   );
   return rows.map((r) => {
@@ -252,6 +318,7 @@ export async function readCalendar(query: Query, now: Date, timeZone: string): P
       goalId: r.goal_id,
       source: r.source,
       seriesId: r.series_id,
+      todoCount: Number(r.todo_count ?? 0),
     };
     return r.all_day
       ? { ...own, allDay: true as const, title: r.title, firstDay: r.first_day!, lastDay: r.last_day!, mayOverlap: r.may_overlap }
@@ -259,16 +326,60 @@ export async function readCalendar(query: Query, now: Date, timeZone: string): P
   });
 }
 
+/** Spec 23, decision 2: whether the coach may add to-dos to this event. */
+function takesTodos(e: CalendarEntry, now: Date, timeZone: string): boolean {
+  return allowsTodos(
+    { source: e.source, allDay: e.allDay, endAt: e.allDay ? null : e.endAt, lastDay: e.allDay ? e.lastDay : null },
+    now,
+    timeZone,
+  );
+}
+
 /**
  * Spec 20, decision 2: gives every event a reference valid for this one request ("e1", "e2", … in
- * calendar order) and whether the coach may change it (decision 3).
+ * calendar order) and whether the coach may change it (decision 3). Spec 23: and whether it may add
+ * to-dos to it.
  */
-export function withReferences(calendar: readonly CalendarEntry[], now: Date): CalendarEntry[] {
+export function withReferences(calendar: readonly CalendarEntry[], now: Date, timeZone: string): CalendarEntry[] {
   return calendar.map((e, i) => ({
     ...e,
     ref: `e${i + 1}`,
     changeable: isChangeable({ allDay: e.allDay, source: e.source, seriesId: e.seriesId, startAt: e.allDay ? null : e.startAt }, now),
+    canAddTodos: takesTodos(e, now, timeZone),
   }));
+}
+
+/** An event the coach may add to-dos to, as the checks take it (spec 23). */
+function todoTargetOf(e: CalendarEntry): TodoTarget {
+  return e.allDay
+    ? { id: e.id, title: e.title, allDay: true, startAt: null, endAt: null, firstDay: e.firstDay, lastDay: e.lastDay, todoCount: e.todoCount }
+    : { id: e.id, title: e.title, allDay: false, startAt: e.startAt, endAt: e.endAt, firstDay: null, lastDay: null, todoCount: e.todoCount };
+}
+
+/** Spec 23: the references of this request for adding to-dos: "e1" -> the event, or null when it takes none. */
+export function todoTargetsOf(calendar: readonly CalendarEntry[]): Map<string, TodoTarget | null> {
+  return new Map(calendar.filter((e) => e.ref !== undefined).map((e) => [e.ref!, e.canAddTodos ? todoTargetOf(e) : null]));
+}
+
+/**
+ * accept_draft and edit_draft (spec 23): the saved to-dos for existing events against the calendar as
+ * it is now. Each event must still be in the calendar's window and still take to-dos from the coach;
+ * it need not be unchanged (decision 5), and the count of its to-dos is the one of now. Otherwise null
+ * ("This draft is out of date").
+ */
+export function currentAdditions(
+  stored: StoredAddition[] | string | null | undefined,
+  calendar: readonly CalendarEntry[],
+  now: Date,
+  timeZone: string,
+): TodoAddition[] | null {
+  const additions: TodoAddition[] = [];
+  for (const a of storedAdditionsOf(stored)) {
+    const event = calendar.find((e) => e.id === a.event_id);
+    if (!event || !takesTodos(event, now, timeZone) || !Array.isArray(a.todos)) return null;
+    additions.push({ target: todoTargetOf(event), todos: [...a.todos] });
+  }
+  return additions;
 }
 
 /** An event the coach may change, as the checks take it. */
@@ -358,7 +469,7 @@ export async function readTotalsInput(
 export async function saveTurn(
   query: Query,
   userText: string,
-  answer: { text: string; proposals: readonly Proposal[] | null; changes?: readonly Change[] },
+  answer: { text: string; proposals: readonly Proposal[] | null; changes?: readonly Change[]; additions?: readonly TodoAddition[] },
 ): Promise<ChatMessageDto[]> {
   await query("select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat:' || auth.uid()::text))");
   if (answer.proposals) await query("update app.draft_plans set status = 'replaced' where status = 'open'");
@@ -371,12 +482,16 @@ export async function saveTurn(
     // $2::text::jsonb, not $2::jsonb: the real database driver encodes a parameter it knows to be jsonb
     // as JSON itself, so an already encoded string would be saved as one JSON string, not as a list.
     // As text it arrives unchanged and the database turns it into jsonb.
-    // The same for the changes (spec 20).
-    await query("insert into app.draft_plans (message_id, proposed_events, changes) values ($1, $2::text::jsonb, $3::text::jsonb)", [
-      assistant.id,
-      JSON.stringify(toStored(answer.proposals)),
-      JSON.stringify(toStoredChanges(answer.changes ?? [])),
-    ]);
+    // The same for the changes (spec 20) and the to-dos for existing events (spec 23).
+    await query(
+      "insert into app.draft_plans (message_id, proposed_events, changes, added_todos) values ($1::uuid, $2::text::jsonb, $3::text::jsonb, $4::text::jsonb)",
+      [
+        assistant.id,
+        JSON.stringify(toStored(answer.proposals)),
+        JSON.stringify(toStoredChanges(answer.changes ?? [])),
+        JSON.stringify(toStoredAdditions(answer.additions ?? [])),
+      ],
+    );
   }
   const rows = await query<MessageRow>(`${MESSAGE_SELECT} where m.id = any($1::uuid[]) order by m.seq`, [[user.id, assistant.id]]);
   return rows.map(toMessageDto);
@@ -389,12 +504,14 @@ export type DraftRow = {
   version: number;
   proposed_events: StoredProposal[] | string;
   changes: StoredChange[] | string;
+  /** Spec 23: to-dos for events already in the calendar. */
+  added_todos: StoredAddition[] | string;
 };
 
 /** The user's draft, locked until the transaction ends (a second device waits). "Not found" otherwise (R3). */
 export async function findOwnDraft(query: Query, id: string): Promise<DraftRow> {
   if (!UUID.test(id)) throw notFound();
-  const [row] = await query<DraftRow>("select id, status, version, proposed_events, changes from app.draft_plans where id = $1 for update", [id]);
+  const [row] = await query<DraftRow>("select id, status, version, proposed_events, changes, added_todos from app.draft_plans where id = $1 for update", [id]);
   if (!row) throw notFound();
   return row;
 }

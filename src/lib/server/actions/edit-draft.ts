@@ -11,13 +11,24 @@ import "server-only";
 //      assistant's answer and for accepting). One failed check refuses the change and nothing is
 //      saved (R1). Then app.chat_edit_draft writes the two times and moves the version on; it checks
 //      again what the database can.
+// Spec 23: a draft's to-dos for existing events are not blocks and cannot be dragged; the draft's other
+// blocks can, and the checks run on the whole draft with them.
 // The calendar does not change: only "Add to calendar" / "Apply changes" (accept_draft) does that, with
 // the draft as the person left it.
 import { z } from "zod";
 import { checkDraft } from "@/lib/chat/checks";
 import { editRefusal, withEditedBlock, type DraftItem } from "@/lib/chat/edit";
 import { MESSAGES } from "@/lib/messages";
-import { assertDraftOpen, blocksOf, currentChanges, findOwnDraft, proposalsOf, readCalendar, readDraft } from "@/lib/server/chat/rows";
+import {
+  assertDraftOpen,
+  blocksOf,
+  currentAdditions,
+  currentChanges,
+  findOwnDraft,
+  proposalsOf,
+  readCalendar,
+  readDraft,
+} from "@/lib/server/chat/rows";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { notFound } from "@/lib/server/events/own-event";
@@ -83,7 +94,10 @@ export function editDraft(request: Request, deps: Pick<Deps, "auth" | "withUser"
         const proposals = proposalsOf(draft.proposed_events);
         const changes = currentChanges(draft.changes, calendar, now);
         if (changes === null) throw outOfDate();
-        if (!checkDraft(proposals, changes, context).ok) throw outOfDate();
+        // Spec 23: to-dos for existing events cannot be dragged, but they count for the draft's checks.
+        const additions = currentAdditions(draft.added_todos, calendar, now, timeZone);
+        if (additions === null) throw outOfDate();
+        if (!checkDraft(proposals, changes, context, additions).ok) throw outOfDate();
 
         // The draft as it would be with the block at its new times, through every check of R23.
         const edited = withEditedBlock(proposals, changes, item, startAt, endAt, timeZone);
@@ -91,7 +105,7 @@ export function editDraft(request: Request, deps: Pick<Deps, "auth" | "withUser"
           const refusal = editRefusal(edited.failure, item);
           throw new ActionError(refusal.status, refusal.code, refusal.message);
         }
-        const checked = checkDraft(edited.proposals, edited.changes, context);
+        const checked = checkDraft(edited.proposals, edited.changes, context, additions);
         if (!checked.ok) {
           const refusal = editRefusal(checked.failure, item);
           throw new ActionError(refusal.status, refusal.code, refusal.message);
