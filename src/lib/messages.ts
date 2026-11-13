@@ -56,6 +56,13 @@ export const MESSAGES = {
   // ontology, section 5 (settings and account)
   bufferRange: "Buffer must be 0 to 120 minutes",
   cancelPro: "Cancel Pro before deleting your account",
+  // ontology, section 5 (AI chat, spec 19)
+  chatProOnly: "The AI chat is part of Pro",
+  chatLimit: "Today's 20 messages are used",
+  chatFailedChecks: "The assistant's answer failed our checks. Please try again",
+  chatUnavailable: "The assistant is not available right now. Your calendar is unchanged",
+  draftNotOpen: "This draft is no longer open",
+  draftOutOfDate: "This draft is out of date. Ask again",
   // ontology, section 7 (when a service is down)
   databaseDown: "Your data cannot be loaded right now.",
   emailDown: "We could not send the email. Try again later",
@@ -79,6 +86,10 @@ export const MESSAGES = {
   goalDeleted: "Goal deleted.",
   ruleRemoved: "Rule removed.",
   taskSaved: "Task saved.",
+  chatTextLength: "A message must be 1 to 4,000 characters",
+  draftAccepted: "Added to your calendar.",
+  draftRejected: "Draft rejected.",
+  chatCleared: "Chat cleared.",
   taskDone: "Task done.",
   taskReopened: "Task reopened.",
   taskDeleted: "Task deleted.",
