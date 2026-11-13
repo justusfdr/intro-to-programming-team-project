@@ -36,10 +36,13 @@ export async function insertTodos(query: Query, eventIds: readonly string[], tod
   if (eventIds.length === 0 || todos.length === 0) return;
   await query(
     `insert into app.event_todos (event_id, title, done, position)
-     select e.id, t.title, t.done, (t.n - 1)::int
+     select e.id, t.title, t.done::boolean, (t.n - 1)::int
        from unnest($1::uuid[]) as e(id)
-       cross join unnest($2::text[], $3::boolean[]) with ordinality as t(title, done, n)`,
-    [eventIds, todos.map((t) => t.title), todos.map((t) => t.done)],
+       cross join unnest($2::text[], $3::text[]) with ordinality as t(title, done, n)`,
+    // "done" travels as text and is cast in the database (t.done::boolean above): the real driver
+    // sends a list of booleans as one boolean, which the database then refuses to read as a list.
+    // The test database does not show this.
+    [eventIds, todos.map((t) => t.title), todos.map((t) => String(t.done))],
   );
 }
 
