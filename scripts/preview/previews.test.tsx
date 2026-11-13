@@ -637,6 +637,7 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
             proposed("Easy run", "18T17:00", "18T17:45", "Run a half marathon"),
             proposed("Football with friends", "18T20:00", "18T22:30"),
           ],
+          changes: [],
         },
       ),
     ],
@@ -655,10 +656,55 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
           proposed("Lernen", "17T11:00", "17T12:30", "Pass the statistics exam"),
           proposed("Fußball schauen", "17T20:00", "17T22:00"),
         ],
+        changes: [],
       }),
       chat("m3", "user", "Fits."),
       chat("m4", "assistant", "Added. Have a good evening and good luck with the revision tomorrow."),
     ],
+  });
+  // Spec 20: a draft that moves one of Wednesday's events and deletes another, and a new event.
+  const movable = wednesday.events.filter((e) => e.source !== "outlook" && !e.seriesId);
+  const changesDraft = coachData({
+    messages: [
+      chat("m1", "user", "Move my first block of the day to the afternoon, drop the second one and add a short walk."),
+      chat("m2", "assistant", "Done: the first block moves to the afternoon, the second is removed, and a walk fits at 12:30.", {
+        id: "d1",
+        status: "open",
+        events: [proposed("Walk", "18T12:30", "18T13:00")],
+        changes: [
+          ...(movable[0]
+            ? [
+                {
+                  kind: "move" as const,
+                  eventId: movable[0].id,
+                  title: movable[0].title,
+                  goalId: movable[0].goalId,
+                  oldStartAt: movable[0].startAt!,
+                  oldEndAt: movable[0].endAt!,
+                  startAt: "2026-11-18T15:30:00.000Z",
+                  endAt: new Date(Date.parse("2026-11-18T15:30:00.000Z") + Date.parse(movable[0].endAt!) - Date.parse(movable[0].startAt!)).toISOString(),
+                },
+              ]
+            : []),
+          ...(movable[1]
+            ? [
+                {
+                  kind: "delete" as const,
+                  eventId: movable[1].id,
+                  title: movable[1].title,
+                  goalId: movable[1].goalId,
+                  oldStartAt: movable[1].startAt!,
+                  oldEndAt: movable[1].endAt!,
+                  startAt: null,
+                  endAt: null,
+                },
+              ]
+            : []),
+        ],
+      }),
+    ],
+    draftDayEvents: wednesdayEvents,
+    draftDays: ["2026-11-18"],
   });
   const coachPage = (data: ChatPageData) =>
     renderToStaticMarkup(
@@ -672,6 +718,7 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
   writeFileSync(join(OUT, "coach-empty.html"), page("Coach", coachPage(coachData({ messagesLeft: 20 })), styles));
   writeFileSync(join(OUT, "coach-draft.html"), coachOpenHtml);
   writeFileSync(join(OUT, "coach-added.html"), page("Coach", coachPage(addedDraft), styles));
+  writeFileSync(join(OUT, "coach-changes.html"), page("Coach", coachPage(changesDraft), styles));
   writeFileSync(join(OUT, "coach-phone.html"), phoneFrame("Coach", coachOpenHtml));
   writeFileSync(join(OUT, "coach-empty-phone.html"), phoneFrame("Coach", page("Coach", coachPage(coachData({ messagesLeft: 20 })), styles)));
 

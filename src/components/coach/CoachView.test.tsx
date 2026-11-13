@@ -1,10 +1,11 @@
 // The coach's markup (spec 19, step B): the empty page with its starters, a conversation with an open
 // draft drawn between the calendar's events, an added draft, and the three ways the field is off
 // (not allowed, not set up, no messages left). The assistant's text is plain text.
+// Spec 20: a draft that moves and deletes events, "Apply changes", "Undo" and an undone draft.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
-import type { ChatMessageDto, ChatPageData } from "@/lib/chat/types";
+import type { ChatMessageDto, ChatPageData, DraftChangeDto } from "@/lib/chat/types";
 import type { EventDto } from "@/lib/events/types";
 import { MESSAGES } from "@/lib/messages";
 import { CoachView, NOT_SET_UP } from "./CoachView";
@@ -40,7 +41,7 @@ const lecture: EventDto = {
 const examWeek: EventDto = { ...lecture, id: "ev-2", title: "Exam week", allDay: true, startAt: null, endAt: null, firstDay: "2026-11-16", lastDay: "2026-11-20" };
 
 const user = (text: string): ChatMessageDto => ({ id: `u-${text}`, role: "user", text, createdAt: "2026-11-16T20:00:00.000Z", draft: null });
-const coach = (text: string, status: "open" | "accepted" | "rejected" | "replaced" | null): ChatMessageDto => ({
+const coach = (text: string, status: "open" | "accepted" | "rejected" | "replaced" | "undone" | null, changes: DraftChangeDto[] = []): ChatMessageDto => ({
   id: `a-${text}`,
   role: "assistant",
   text,
@@ -55,8 +56,31 @@ const coach = (text: string, status: "open" | "accepted" | "rejected" | "replace
             { title: "Study", startAt: "2026-11-17T11:00:00.000Z", endAt: "2026-11-17T13:00:00.000Z", goalId: EXAM.id },
             { title: "Football", startAt: "2026-11-17T20:00:00.000Z", endAt: "2026-11-17T22:00:00.000Z", goalId: null },
           ],
+          changes,
         },
 });
+
+// Spec 20: the lecture moved from 9:00 to 14:00 (UTC is Lisbon's time in November), the gym deleted.
+const MOVE: DraftChangeDto = {
+  kind: "move",
+  eventId: lecture.id,
+  title: "Statistics lecture",
+  goalId: null,
+  oldStartAt: "2026-11-17T09:00:00.000Z",
+  oldEndAt: "2026-11-17T10:30:00.000Z",
+  startAt: "2026-11-17T14:00:00.000Z",
+  endAt: "2026-11-17T15:30:00.000Z",
+};
+const DELETE: DraftChangeDto = {
+  kind: "delete",
+  eventId: "ev-3",
+  title: "Gym",
+  goalId: null,
+  oldStartAt: "2026-11-17T17:00:00.000Z",
+  oldEndAt: "2026-11-17T18:00:00.000Z",
+  startAt: null,
+  endAt: null,
+};
 
 function render(fields: Partial<ChatPageData>, timeFormat: "12h" | "24h" = "12h") {
   const data: ChatPageData = {
@@ -160,6 +184,46 @@ describe("coach page", () => {
     expect(html).toMatch(/>Replaced<\/span>/);
     expect(html).toMatch(/>Discarded<\/span>/);
     expect(html).not.toContain("Add to calendar");
+  });
+
+  it("a draft that moves and deletes: the moved event at its new time with where it was, its old place outlined, the deleted one struck through", () => {
+    const gym: EventDto = { ...lecture, id: "ev-3", title: "Gym", startAt: DELETE.oldStartAt, endAt: DELETE.oldEndAt };
+    const html = render({
+      messages: [user("Move the lecture to the afternoon and drop the gym"), coach("Moved and removed.", "open", [MOVE, DELETE])],
+      draftDayEvents: [lecture, gym, examWeek],
+      draftDays: ["2026-11-17"],
+    });
+    expect(html).toContain("Apply changes");
+    expect(html).not.toContain("Add to calendar");
+    expect(html).toContain('data-sketch="moved"');
+    expect(html).toContain("Moved from 9am");
+    expect(html).toContain('data-sketch="old-place"');
+    expect(html).toContain('data-sketch="removed"');
+    expect(html).toContain("line-through");
+    // The changed events are not drawn a second time as the calendar's own.
+    expect(html.match(/Statistics lecture/g)).toHaveLength(3); // moved block, old place, screen-reader line
+    expect(html).toContain("<li>Statistics lecture, moved to 2pm to 3:30pm, moved from 9am</li>");
+    expect(html).toContain("<li>Gym, 5pm to 6pm, removed</li>");
+  });
+
+  it("a moved event from another day says that day; a day section for the old day too", () => {
+    const fromMonday = { ...MOVE, oldStartAt: "2026-11-16T15:00:00.000Z", oldEndAt: "2026-11-16T16:30:00.000Z" };
+    const html = render({ messages: [coach("Moved to Tuesday.", "open", [fromMonday])] });
+    expect(html).toContain("Draft for Mon, Nov 16");
+    expect(html).toContain("Draft for Tue, Nov 17");
+    expect(html).toContain("Moved from Mon, Nov 16, 3pm");
+    expect(html).toContain("<li>Statistics lecture, 3pm to 4:30pm, moved to Tue, Nov 17</li>");
+  });
+
+  it("an accepted draft offers a quiet Undo next to Open calendar; an undone one says Undone and has no buttons", () => {
+    const accepted = render({ messages: [coach("Done.", "accepted", [MOVE])] });
+    expect(accepted).toContain("Open calendar");
+    expect(accepted).toMatch(/>Undo<\/button>/);
+    const undone = render({ messages: [coach("Done.", "undone", [MOVE])] });
+    expect(undone).toMatch(/>Undone<\/span>/);
+    expect(undone).not.toContain("Open calendar");
+    expect(undone).not.toMatch(/>Undo<\/button>/);
+    expect(undone).not.toContain("Apply changes");
   });
 
   it("not allowed (Pro only): the ontology's sentence, the field off", () => {

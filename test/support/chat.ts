@@ -27,12 +27,21 @@ export async function sentToday(db: TestDb, userId: string): Promise<number> {
 
 export type SeedProposal = { title: string; start: string; end: string; goalId?: string | null };
 
-/** An assistant message carrying a draft (status open unless given), with a user message before it. */
+/** A change of an existing event in a draft (spec 20): the event as seedEvent returned it, and the new times of a move. */
+export type SeedChange =
+  | { kind: "move"; event: { id: string; updatedAt: string }; title?: string; oldStart: string; oldEnd: string; start: string; end: string }
+  | { kind: "delete"; event: { id: string; updatedAt: string }; title?: string; oldStart: string; oldEnd: string };
+
+/**
+ * An assistant message carrying a draft (status open unless given), with a user message before it.
+ * `changes` (spec 20) are saved as send_message saves them.
+ */
 export async function seedDraft(
   db: TestDb,
   userId: string,
   proposals: SeedProposal[],
   status: "open" | "accepted" | "rejected" | "replaced" = "open",
+  changes: SeedChange[] = [],
 ): Promise<{ messageId: string; draftId: string }> {
   await db.admin("insert into app.chat_messages (user_id, role, text) values ($1, 'user', 'Plan tomorrow')", [userId]);
   const [m] = await db.admin<{ id: string }>(
@@ -40,9 +49,20 @@ export async function seedDraft(
     [userId],
   );
   const stored = proposals.map((p) => ({ title: p.title, start_at: p.start, end_at: p.end, goal_id: p.goalId ?? null }));
+  const storedChanges = changes.map((c) => ({
+    kind: c.kind,
+    event_id: c.event.id,
+    updated_at: c.event.updatedAt,
+    title: c.title ?? "Statistics revision",
+    goal_id: null,
+    old_start_at: c.oldStart,
+    old_end_at: c.oldEnd,
+    start_at: c.kind === "move" ? c.start : null,
+    end_at: c.kind === "move" ? c.end : null,
+  }));
   const [d] = await db.admin<{ id: string }>(
-    "insert into app.draft_plans (user_id, message_id, proposed_events) values ($1, $2, $3::jsonb) returning id",
-    [userId, m.id, JSON.stringify(stored)],
+    "insert into app.draft_plans (user_id, message_id, proposed_events, changes) values ($1, $2, $3::jsonb, $4::jsonb) returning id",
+    [userId, m.id, JSON.stringify(stored), JSON.stringify(storedChanges)],
   );
   if (status !== "open") await db.admin("update app.draft_plans set status = $2 where id = $1", [d.id, status]);
   return { messageId: m.id, draftId: d.id };

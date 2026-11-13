@@ -10,6 +10,9 @@ import "server-only";
 //   6. run every check of R23 on the answer; one failure rejects it, nothing saved, no second try
 //   7. second transaction: the user's message, the answer and its draft saved together.
 // The calendar never changes here: a draft becomes events only with accept_draft.
+// Spec 20: every event in the data block gets a reference valid for this request only ("e1") and a
+// flag whether the coach may change it; no event id goes to Claude. A reference in the answer is
+// turned back into the event at once, and the draft keeps the event's id and updated_at.
 import { z } from "zod";
 import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
 import { checkAnswer, checkText } from "@/lib/chat/checks";
@@ -27,6 +30,8 @@ import {
   readMessages,
   readTotalsInput,
   saveTurn,
+  targetsOf,
+  withReferences,
 } from "@/lib/server/chat/rows";
 import { chatProOnly } from "@/lib/server/config";
 import type { Deps } from "@/lib/server/deps";
@@ -84,8 +89,9 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
     });
 
     // Step 5: Claude, outside any transaction.
-    const { settings, goals, calendar } = context;
+    const { settings, goals } = context;
     const asked = deps.now();
+    const calendar = withReferences(context.calendar, asked);
     const input = buildAssistantInput({
       now: asked,
       timeZone: settings.timeZone,
@@ -107,6 +113,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       timeZone: settings.timeZone,
       goalIds: new Set(goals.map((g) => g.id)),
       calendar: blocksOf(calendar),
+      targets: targetsOf(calendar),
     });
     if (!checked.ok) {
       console.error("Assistant answer failed a check:", checked.failure);
@@ -119,6 +126,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       const saved = await saveTurn(query, context.text, {
         text: answer.text,
         proposals: answer.kind === "draft" ? answer.proposals : null,
+        changes: answer.kind === "draft" ? answer.changes : [],
       });
       const account = await readChatAccount(query);
       return { saved, messagesLeft: Math.max(0, DAILY_MESSAGES - account.usedToday) };

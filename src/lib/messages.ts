@@ -63,6 +63,7 @@ export const MESSAGES = {
   chatUnavailable: "The assistant is not available right now. Your calendar is unchanged",
   draftNotOpen: "This draft is no longer open",
   draftOutOfDate: "This draft is out of date. Ask again",
+  draftCannotUndo: "This can no longer be undone",
   // ontology, section 7 (when a service is down)
   databaseDown: "Your data cannot be loaded right now.",
   emailDown: "We could not send the email. Try again later",
@@ -88,6 +89,8 @@ export const MESSAGES = {
   taskSaved: "Task saved.",
   chatTextLength: "A message must be 1 to 4,000 characters",
   draftAccepted: "Added to your calendar.",
+  draftApplied: "Your calendar is updated.",
+  draftUndone: "Undone. Your calendar is as before.",
   draftRejected: "Draft rejected.",
   chatCleared: "Chat cleared.",
   taskDone: "Task done.",

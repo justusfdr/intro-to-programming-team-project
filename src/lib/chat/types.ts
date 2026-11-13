@@ -5,12 +5,29 @@ import type { Display } from "@/lib/time/display";
 
 export type ChatRole = "user" | "assistant";
 
-export type DraftStatus = "open" | "accepted" | "rejected" | "replaced";
+/** "undone" (spec 20): an accepted draft whose changes were taken back; final. */
+export type DraftStatus = "open" | "accepted" | "rejected" | "replaced" | "undone";
 
 /** One proposed event of a draft. Times are ISO strings in UTC. */
 export type ProposedEventDto = { title: string; startAt: string; endAt: string; goalId: string | null };
 
-export type DraftDto = { id: string; status: DraftStatus; events: ProposedEventDto[] };
+/**
+ * A proposed change of an existing event (spec 20): a move to new times, or a delete. The title, goal
+ * and old times are the event's as the draft saw them, so the draft can still be shown after the event
+ * changed. Times are ISO strings in UTC; `startAt` and `endAt` are null for a delete.
+ */
+export type DraftChangeDto = {
+  kind: "move" | "delete";
+  eventId: string;
+  title: string;
+  goalId: string | null;
+  oldStartAt: string;
+  oldEndAt: string;
+  startAt: string | null;
+  endAt: string | null;
+};
+
+export type DraftDto = { id: string; status: DraftStatus; events: ProposedEventDto[]; changes: DraftChangeDto[] };
 
 export type ChatMessageDto = {
   id: string;
@@ -31,7 +48,10 @@ export type ChatPageData = {
   timeZone: string;
   /** Oldest first; at most the latest 100. */
   messages: ChatMessageDto[];
-  /** The events of the days the open draft touches, to draw the draft between them; empty without an open draft. */
+  /**
+   * The events of the days the open draft touches (also the old day of a moved event), to draw the
+   * draft between them; empty without an open draft.
+   */
   draftDayEvents: EventDto[];
   /** The local days the open draft touches ("2026-11-17"), in order; empty without an open draft. */
   draftDays: string[];

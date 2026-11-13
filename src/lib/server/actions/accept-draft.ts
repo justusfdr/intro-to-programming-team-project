@@ -8,10 +8,24 @@ import "server-only";
 //      then app.chat_accept_draft creates all events with source "assistant" and marks the draft
 //      accepted. Two devices accepting the same draft take turns on the lock: the second one is told
 //      "This draft is no longer open", and the database itself accepts a draft only once (R4).
+// Spec 20: a draft may also move and delete existing events. Each one must still be there with the
+// updated_at the draft remembers and still be one the coach may change (R4, decision 3), and the checks
+// run on the calendar as it would be after the whole draft; otherwise "This draft is out of date. Ask
+// again". app.chat_apply_draft then applies everything in one step (the same statements as edit_event
+// and delete_event, so Outlook gets the change as after a change by hand, R26) and remembers what
+// undo_draft needs.
 import { chatAllowed } from "@/lib/chat/access";
-import { checkProposals } from "@/lib/chat/checks";
+import { checkDraft } from "@/lib/chat/checks";
 import { MESSAGES } from "@/lib/messages";
-import { assertDraftOpen, blocksOf, findOwnDraft, proposalsOf, readCalendar, readChatAccount } from "@/lib/server/chat/rows";
+import {
+  assertDraftOpen,
+  blocksOf,
+  currentChanges,
+  findOwnDraft,
+  proposalsOf,
+  readCalendar,
+  readChatAccount,
+} from "@/lib/server/chat/rows";
 import { chatProOnly } from "@/lib/server/config";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
@@ -41,25 +55,34 @@ export function acceptDraft(request: Request, deps: Pick<Deps, "auth" | "withUse
           readCalendar(query, now, timeZone),
           query<{ id: string }>("select id from app.goals"),
         ]);
-        const checked = checkProposals(proposalsOf(draft.proposed_events), {
+        const outOfDate = () => new ActionError(409, "draft_out_of_date", MESSAGES.draftOutOfDate);
+        const changes = currentChanges(draft.changes, calendar, now);
+        if (changes === null) throw outOfDate();
+        const checked = checkDraft(proposalsOf(draft.proposed_events), changes, {
           now,
           timeZone,
           goalIds: new Set(goals.map((g) => g.id)),
           calendar: blocksOf(calendar),
         });
-        if (!checked.ok) throw new ActionError(409, "draft_out_of_date", MESSAGES.draftOutOfDate);
+        if (!checked.ok) throw outOfDate();
 
-        const created = await query<{ id: string }>("select id from app.chat_accept_draft($1) as id", [draft.id]);
+        const created = await query<{ id: string }>("select id from app.chat_apply_draft($1) as id", [draft.id]);
         const rows = await query<EventRow>(
           `select ${EVENT_COLUMNS} from app.events where id = any($1::uuid[]) order by start_at, id`,
           [created.map((c) => c.id)],
         );
-        return jsonOk({ message: MESSAGES.draftAccepted, draftId: draft.id, events: rows.map(toEventDto) }, 201);
+        const message = changes.length > 0 ? MESSAGES.draftApplied : MESSAGES.draftAccepted;
+        return jsonOk({ message, draftId: draft.id, events: rows.map(toEventDto) }, 201);
       });
     } catch (error) {
       // The database's own refusal (a second device got there first between our read and the function).
-      if ((error as { constraint?: unknown } | null)?.constraint === "draft_plans_status_forward") {
+      const constraint = (error as { constraint?: unknown } | null)?.constraint;
+      if (constraint === "draft_plans_status_forward") {
         throw new ActionError(409, "draft_not_open", MESSAGES.draftNotOpen);
+      }
+      // An event changed between our read and the function's lock.
+      if (constraint === "draft_plans_out_of_date") {
+        throw new ActionError(409, "draft_out_of_date", MESSAGES.draftOutOfDate);
       }
       throw error;
     }
