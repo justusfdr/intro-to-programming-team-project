@@ -96,6 +96,8 @@ create table app.draft_plans (
 
 -- One open draft per user (ontology section 2), also when two answers arrive at the same moment.
 create unique index draft_plans_one_open on app.draft_plans (user_id) where status = 'open';
+-- A user's drafts are found by user (reading the chat, deleting the account).
+create index draft_plans_user on app.draft_plans (user_id);
 
 -- A draft belongs to an assistant message, and its status only moves forward:
 -- open -> accepted, rejected or replaced; nothing after that. "accepted" is set only by
