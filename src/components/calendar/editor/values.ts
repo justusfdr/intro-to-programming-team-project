@@ -49,7 +49,8 @@ export function valuesOf(event: CalendarEvent): EventValues {
     goalId: event.goalId,
     mayOverlap: event.mayOverlap,
     location: event.location ?? "",
-    ...(event.guests && event.guests.length > 0 ? { guests: [...event.guests] } : {}),
+    // Always named (also when undefined), so Discard and an answer put the saved guests back.
+    guests: event.guests && event.guests.length > 0 ? [...event.guests] : undefined,
   };
   if (event.allDay) {
     return { ...common, allDay: true, date: event.firstDay, startMin: 9 * 60, endMin: 10 * 60, firstDay: event.firstDay, lastDay: event.lastDay, goalId: null };

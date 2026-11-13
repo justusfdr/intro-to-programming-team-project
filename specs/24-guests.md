@@ -1,0 +1,25 @@
+# Spec 24: Guests on an event, invited through Outlook
+Asked for by the owner on 13 Nov 2026: "I want an event where I can invite someone. In Outlook that exists already." Decided with him: Outlook does the inviting. Plan: `docs/ontology.md` (`event`'s `guests` and `organizer`, `create_event`, `edit_event`, `delete_event`, R11, R22, R26, R38, R41, section 7, the out-of-scope list; changes of 13 Nov 2026 on this branch). Branch: `24-guests`, from `main`.
+
+## Why
+Study groups, project meetings and calls have other people in them. Outlook already knows how to invite people and how to tell them when the time changes or the meeting is cancelled. The app should let the user name the guests on their own event and leave the inviting to Outlook, without the app showing anybody's rows to anybody else.
+
+## What
+- [x] A single event of the user's own (source app or assistant, timed or all-day) may have up to 20 guests: plain e-mail addresses, at most 254 characters, lower-cased, each once. No names, no accounts, no list of the app's users. Saved on the user's own event (R3 unchanged).
+- [x] Guests are set only while the user's Outlook is connected ("Connect Outlook to invite guests"); never on an Outlook event (R11, "Change this event in Outlook"), a demo event ("Demo events cannot have guests"), an event of a series or a new series ("Events of a series cannot have guests"). Messages: "This is not an e-mail address" / "An event can have at most 20 guests".
+- [x] `create_event` and `edit_event` take the list like the location: left out of an edit, the guests stay; a list equal to the saved one changes nothing; with the same `updated_at` check (R4). In the editor they wait for Save (R39).
+- [x] To Outlook (R26): an event with guests is created and updated with them as required attendees, and Outlook sends the invitations; removing all guests sends an empty list. An event that never had guests is sent exactly as before (no attendees field). Outlook down: "Not sent to Outlook", the guests are invited at the next sync.
+- [x] From Outlook: the sync also reads each event's attendees (without rooms and equipment, plain addresses only, at most 100) and organizer. An Outlook event shows them read-only, the organizer first; the database refuses a change of them as of the title. The user's own events with guests are still recognised as their own and not imported again.
+- [x] Deleting an event with guests deletes it in Outlook, which tells them; the editor's bin asks once, in place ("Delete and tell the 2 guests?"). The calendar's Undo of a delete creates the event again with its guests (R38), which invites them again.
+- [x] The coach: guests are never sent to Claude, the coach never sets them, and an event with guests is flagged as not changeable (it may not be moved or deleted; the coach says so in words). It may still add to-dos to it.
+- [x] Screen: a "Guests" section after Location (chips with an x, the field "Add a guest's e-mail", Enter or a comma adds, "Outlook sends each guest an invitation when you save."); not connected: "Connect Outlook to invite guests" with a link to the Outlook card in Settings; left out for an event of a series, a demo event and a new series; the new event's editor has it too. A block tall enough shows a small people icon with the number of guests.
+- [x] Database (`supabase/migrations/20261129000000_event_guests.sql`, additive): the columns `guests` (a list, null when never set) and `organizer` on `app.events`; checks for the shape and the limits (20 on the user's events, 100 on Outlook events; none on a series or a demo event; an organizer only on Outlook events); the user's role may write the guests of its own events only, and only while connected (a trigger); `app.outlook_import` replaced by a version that also takes attendees and organizer and does everything the old one did for the input `main` sends.
+- [x] Privacy (section 7): guests' addresses stay in the owner's rows, are shown only to the owner, never logged, never sent to Claude.
+
+## Out of scope
+Whether a guest accepted or declined; accepting or declining invitations inside the app; choosing people from a list or a team; guests' names or pictures; optional attendees; guests on a series; anything shared between accounts (sharing and social features stay out of scope).
+
+Still open: the reviewer applies the migration and checks that `main` still works against it; the owner and a teammate try it with two real accounts (invitation arrives, update after a move, cancellation after a delete, the invited event arriving through the teammate's own Outlook sync); the team confirms the ontology changes with the merge.
+
+## Done when
+All tests pass on a temporary database with the fake Outlook and the fake assistant; existing server, database and rule tests unchanged. New: `test/db/event-guests-schema.test.ts`, `src/lib/server/actions/event-guests.test.ts`, `src/lib/events/guests.test.ts`, `src/components/calendar/Guests.test.tsx`. `npm run check` and `npm audit --omit=dev` pass. Reviewed by another member; merged only after the owner has tried it.
