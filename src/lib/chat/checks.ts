@@ -151,14 +151,29 @@ export function allowsTodos(event: TodoFields, now: Date, timeZone: string): boo
 }
 
 /** The fields that decide whether the coach may change an event. */
-export type ChangeableFields = { allDay: boolean; source: string; seriesId: string | null; startAt: Date | null };
+export type ChangeableFields = {
+  allDay: boolean;
+  source: string;
+  seriesId: string | null;
+  startAt: Date | null;
+  /** Spec 24: the event has guests (only whether; the addresses never come here). */
+  hasGuests?: boolean;
+};
 
 /**
  * Decision 3 of spec 20: the coach may move or delete the user's own events that are timed, not from
  * Outlook (R11), not part of a series (R28, no scope question in the chat) and not started yet.
+ * Spec 24: and that have no guests (they would get update or cancellation mails nobody asked for).
  */
 export function isChangeable(event: ChangeableFields, now: Date): boolean {
-  return !event.allDay && event.source !== "outlook" && event.seriesId === null && event.startAt !== null && event.startAt > now;
+  return (
+    !event.allDay &&
+    event.source !== "outlook" &&
+    event.seriesId === null &&
+    event.hasGuests !== true &&
+    event.startAt !== null &&
+    event.startAt > now
+  );
 }
 
 export type CheckContext = {

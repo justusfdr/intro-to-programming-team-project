@@ -3,6 +3,7 @@ import "server-only";
 // The real Outlook: Microsoft's sign-in (authorization code with PKCE) and the calendar of Microsoft
 // Graph. Ported from the prototype's tested Graph module and translated. Every call gives up after
 // 10 seconds; throttling (429) and server errors mean "not now". Tokens are never logged or returned.
+import { cleanGuest } from "@/lib/events/guests";
 import { addDays } from "@/lib/time/zoned";
 import {
   OUTLOOK_SCOPE,
@@ -86,6 +87,32 @@ function clean(text: unknown, max: number): string | null {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** At most this many attendees of an Outlook event are kept (spec 24; the database checks the same). */
+export const MAX_OUTLOOK_ATTENDEES = 100;
+
+/** An attendee's or organizer's address as Graph gives it ({ emailAddress: { address } }), cleaned; null when it is not a plain address. */
+function addressOf(person: unknown): string | null {
+  const address = (person as { emailAddress?: { address?: unknown } } | null | undefined)?.emailAddress?.address;
+  return typeof address === "string" ? cleanGuest(address) : null;
+}
+
+/**
+ * Spec 24: who an Outlook event has: the organizer, and the attendees without rooms and equipment
+ * ("resource"), without the organizer, each once, at most 100. Names are not kept. Each key only when
+ * Outlook names someone.
+ */
+export function peopleOf(e: Record<string, unknown>): { attendees?: string[]; organizer?: string } {
+  const organizer = addressOf(e.organizer);
+  const attendees: string[] = [];
+  for (const person of Array.isArray(e.attendees) ? e.attendees : []) {
+    if ((person as { type?: unknown } | null)?.type === "resource") continue;
+    const address = addressOf(person);
+    if (address && address !== organizer && !attendees.includes(address)) attendees.push(address);
+    if (attendees.length === MAX_OUTLOOK_ATTENDEES) break;
+  }
+  return { ...(attendees.length > 0 ? { attendees } : {}), ...(organizer ? { organizer } : {}) };
+}
+
 /**
  * One Graph event into ours, or null: cancelled, "free", broken, not in UTC, or not something our
  * rules can hold (a timed event over 24 hours, an all-day event over 31 days).
@@ -107,7 +134,7 @@ export function mapGraphEvent(raw: unknown): OutlookEvent | null {
   const title = clean(e.subject, 100) ?? "Event";
   const location = clean((e.location as { displayName?: unknown } | null | undefined)?.displayName, 200);
   const transactionId = typeof e.transactionId === "string" ? e.transactionId : null;
-  const base = { outlookId: e.id, title, location, transactionId };
+  const base = { outlookId: e.id, title, location, transactionId, ...peopleOf(e) };
 
   if (e.isAllDay === true) {
     const firstDay = allDayDate(startAt);
@@ -156,6 +183,10 @@ export function graphBody(event: OutgoingEvent, create: boolean): Record<string,
     subject: event.title,
     ...times,
     ...(event.location !== undefined ? { location: { displayName: event.location ?? "" } } : {}),
+    // Spec 24: Outlook sends each required attendee an invitation (an update, a cancellation).
+    ...(event.attendees !== undefined
+      ? { attendees: event.attendees.map((address) => ({ emailAddress: { address }, type: "required" })) }
+      : {}),
     ...(create ? { transactionId: event.transactionId, showAs: "busy", isReminderOn: false } : {}),
   };
 }
@@ -258,7 +289,7 @@ export function createGraphOutlook(config: GraphConfig, fetchFn: Fetch = fetch):
       first.search = new URLSearchParams({
         startDateTime: from.toISOString(),
         endDateTime: to.toISOString(),
-        $select: "id,subject,start,end,isAllDay,showAs,isCancelled,location,transactionId",
+        $select: "id,subject,start,end,isAllDay,showAs,isCancelled,location,transactionId,attendees,organizer",
         $top: "250",
       }).toString();
       const events: OutlookEvent[] = [];
