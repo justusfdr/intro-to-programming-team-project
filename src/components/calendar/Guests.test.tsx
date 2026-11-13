@@ -111,7 +111,7 @@ describe("a new event ('Add details')", () => {
   });
 });
 
-describe("the block in the calendar", () => {
+describe("a calendar block", () => {
   function render(events: WeekEvent[]) {
     const data: WeekData = {
       timeZone: "Europe/Lisbon",
