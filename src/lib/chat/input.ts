@@ -5,6 +5,9 @@
 // R31's totals, the time zone, the current local date and time, and the calendar's visible hours.
 // Never sent: email, password, locations, the block list, payment data, tasks, or the id of anything
 // except a goal. Each field below is copied by name, so nothing else can slip through.
+// Spec 20: each event in the block carries a short reference ("e1") that is valid for this one request
+// only, and whether the coach may change it; an earlier draft carries its changes in words (title, old
+// and new time), never an event's id.
 import type { ChatTotals } from "./totals";
 import { addDays, localDateOf, localDateTimeOf, startOfLocalDate } from "@/lib/time/zoned";
 import type { ChatRole, DraftStatus } from "./types";
@@ -12,10 +15,17 @@ import type { ChatRole, DraftStatus } from "./types";
 export const HISTORY_LENGTH = 10;
 export const DAYS_AHEAD = 14;
 
+/** An earlier draft's change of an existing event, as words: what it was and where it went. */
+export type HistoryChange = { kind: "move" | "delete"; title: string; oldStartAt: Date; oldEndAt: Date; startAt: Date | null; endAt: Date | null };
+
 export type HistoryInput = {
   role: ChatRole;
   text: string;
-  draft: { status: DraftStatus; events: { title: string; startAt: Date; endAt: Date; goalId: string | null }[] } | null;
+  draft: {
+    status: DraftStatus;
+    events: { title: string; startAt: Date; endAt: Date; goalId: string | null }[];
+    changes?: HistoryChange[];
+  } | null;
 };
 
 export type GoalInput = {
@@ -25,9 +35,14 @@ export type GoalInput = {
   rules: { kind: "count" | "hours"; target: number; minMinutes: number | null }[];
 };
 
-export type CalendarInput =
+/**
+ * `ref` and `changeable` (spec 20) are set by the server for every event it reads; they are sent only
+ * when present.
+ */
+export type CalendarInput = (
   | { allDay: false; title: string; startAt: Date; endAt: Date; mayOverlap: boolean }
-  | { allDay: true; title: string; firstDay: string; lastDay: string; mayOverlap: boolean };
+  | { allDay: true; title: string; firstDay: string; lastDay: string; mayOverlap: boolean }
+) & { ref?: string; changeable?: boolean };
 
 export type AssistantInputSource = {
   now: Date;
@@ -63,11 +78,12 @@ export function buildAssistantInput(source: AssistantInputSource) {
 
   const events = source.calendar
     .filter((e) => (e.allDay ? e.lastDay >= today && e.firstDay <= lastDay : e.startAt < until && e.endAt > from))
-    .map((e) =>
-      e.allDay
+    .map((e) => ({
+      ...(e.ref !== undefined ? { ref: e.ref, changeable: e.changeable === true } : {}),
+      ...(e.allDay
         ? { title: e.title, allDay: true as const, firstDay: e.firstDay, lastDay: e.lastDay, mayOverlap: e.mayOverlap }
-        : { title: e.title, allDay: false as const, start: local(e.startAt), end: local(e.endAt), mayOverlap: e.mayOverlap },
-    )
+        : { title: e.title, allDay: false as const, start: local(e.startAt), end: local(e.endAt), mayOverlap: e.mayOverlap }),
+    }))
     .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 
   return {
@@ -98,6 +114,15 @@ export function buildAssistantInput(source: AssistantInputSource) {
               end: local(e.endAt),
               goalId: e.goalId,
             })),
+            ...(m.draft.changes && m.draft.changes.length > 0
+              ? {
+                  changes: m.draft.changes.map((c) =>
+                    c.kind === "move" && c.startAt && c.endAt
+                      ? { change: "move" as const, title: c.title, from: local(c.oldStartAt), fromEnd: local(c.oldEndAt), to: local(c.startAt), toEnd: local(c.endAt) }
+                      : { change: "delete" as const, title: c.title, start: local(c.oldStartAt), end: local(c.oldEndAt) },
+                  ),
+                }
+              : {}),
           }
         : {}),
     })),
