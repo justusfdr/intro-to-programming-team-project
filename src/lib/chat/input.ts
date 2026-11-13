@@ -9,6 +9,10 @@
 // to-dos of events already in the calendar are not sent (R22 keeps what is sent small).
 // Spec 22: a draft the person changed by hand (dragging its blocks) is marked "adjusted by the person",
 // so Claude builds on it instead of putting its blocks back.
+// Spec 23: the coach may add to-dos to events already in the calendar. Each event in the block says
+// how many to-dos it has ("todoCount", the count only, never the titles; left out when none) and, when
+// the coach may not add any ("canAddTodos": false, an Outlook event), says so; an earlier draft carries
+// the to-dos it adds to existing events in words (the event's title and the to-dos).
 // Spec 20: each event in the block carries a short reference ("e1") that is valid for this one request
 // only, and whether the coach may change it; an earlier draft carries its changes in words (title, old
 // and new time), never an event's id.
@@ -31,6 +35,8 @@ export type HistoryInput = {
     adjusted?: boolean;
     events: { title: string; startAt: Date; endAt: Date; goalId: string | null; todos?: string[] }[];
     changes?: HistoryChange[];
+    /** Spec 23: to-dos the draft adds to events already in the calendar. */
+    addedTodos?: { title: string; todos: string[] }[];
   } | null;
 };
 
@@ -43,12 +49,13 @@ export type GoalInput = {
 
 /**
  * `ref` and `changeable` (spec 20) are set by the server for every event it reads; they are sent only
- * when present.
+ * when present. `canAddTodos` and `todoCount` (spec 23) likewise: the flag is sent only when the coach
+ * may not add to-dos (false), the count only when the event has to-dos.
  */
 export type CalendarInput = (
   | { allDay: false; title: string; startAt: Date; endAt: Date; mayOverlap: boolean }
   | { allDay: true; title: string; firstDay: string; lastDay: string; mayOverlap: boolean }
-) & { ref?: string; changeable?: boolean };
+) & { ref?: string; changeable?: boolean; canAddTodos?: boolean; todoCount?: number };
 
 export type AssistantInputSource = {
   now: Date;
@@ -86,9 +93,11 @@ export function buildAssistantInput(source: AssistantInputSource) {
     .filter((e) => (e.allDay ? e.lastDay >= today && e.firstDay <= lastDay : e.startAt < until && e.endAt > from))
     .map((e) => ({
       ...(e.ref !== undefined ? { ref: e.ref, changeable: e.changeable === true } : {}),
+      ...(e.ref !== undefined && e.canAddTodos === false ? { canAddTodos: false as const } : {}),
       ...(e.allDay
         ? { title: e.title, allDay: true as const, firstDay: e.firstDay, lastDay: e.lastDay, mayOverlap: e.mayOverlap }
         : { title: e.title, allDay: false as const, start: local(e.startAt), end: local(e.endAt), mayOverlap: e.mayOverlap }),
+      ...(typeof e.todoCount === "number" && e.todoCount > 0 ? { todoCount: e.todoCount } : {}),
     }))
     .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 
@@ -130,6 +139,9 @@ export function buildAssistantInput(source: AssistantInputSource) {
                       : { change: "delete" as const, title: c.title, start: local(c.oldStartAt), end: local(c.oldEndAt) },
                   ),
                 }
+              : {}),
+            ...(m.draft.addedTodos && m.draft.addedTodos.length > 0
+              ? { addedTodos: m.draft.addedTodos.map((a) => ({ title: a.title, todos: [...a.todos] })) }
               : {}),
           }
         : {}),

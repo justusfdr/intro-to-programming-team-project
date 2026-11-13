@@ -10,9 +10,13 @@
 // Spec 22: the open draft's blocks can be dragged. Its column then shows the whole visible day (the
 // settings' day_start_hour to day_end_hour, widened to everything it has to show), so there is room
 // to drag; each block it creates or moves carries a key to find it again ("new:0", "move:<id>").
+// Spec 23: a draft may add to-dos to events already in the calendar. Such an event is drawn as the
+// calendar's own (pale, never dragged) with a mark "+2 to-dos", on the day it starts (an all-day event
+// among the all-day chips, on its first day), also when the draft has nothing else on that day. An
+// event the draft also moves carries the mark on its moved block instead.
 import type { EventDto } from "@/lib/events/types";
 import { localDateOf, localTimeOf, type LocalDate } from "@/lib/time/zoned";
-import type { DraftChangeDto, ProposedEventDto } from "./types";
+import type { DraftChangeDto, DraftTodosDto, ProposedEventDto } from "./types";
 
 /** Height of one hour in the small column, in pixels (smaller than the calendar's 52). */
 export const SKETCH_HOUR_PX = 40;
@@ -36,6 +40,8 @@ export type SketchBlock = {
   todos?: string[];
   /** Spec 22: which block of the draft this is, for a new event ("new:0") or a moved one ("move:<event id>"). */
   key?: string;
+  /** Spec 23: the to-dos the draft adds to this existing event (left out when none). */
+  addedTodos?: string[];
 };
 
 export type SketchDay = {
@@ -60,20 +66,49 @@ export type SketchDay = {
   existing: SketchBlock[];
   /** The calendar's all-day events covering this day (their titles). */
   allDay: string[];
+  /**
+   * Spec 23: existing timed events on this day that the draft adds to-dos to and does not move, drawn as
+   * the calendar's own with the mark (`addedTodos` is set on each).
+   */
+  withTodos: SketchBlock[];
+  /** Spec 23: existing all-day events (first day on this day) the draft adds to-dos to: title and the to-dos. */
+  allDayTodos: { title: string; addedTodos: string[] }[];
 };
+
+/** "+2 to-dos": the mark on an event the draft adds to-dos to (spec 23). */
+export function addedTodosText(count: number): string {
+  return `+${count} ${count === 1 ? "to-do" : "to-dos"}`;
+}
+
+/** The day an existing event with new to-dos is shown on (spec 23): a timed event's start, an all-day event's first day. */
+function additionDay(a: DraftTodosDto, timeZone: string): LocalDate | null {
+  if (a.startAt) return localDateOf(new Date(a.startAt), timeZone);
+  return a.firstDay;
+}
 
 const minuteOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 
 /**
  * The local days a draft's proposals start on, in order, without repeats; with changes (spec 20) also
- * a moved event's old and new day and a deleted event's day.
+ * a moved event's old and new day and a deleted event's day; with to-dos for existing events (spec 23)
+ * the day each such event is shown on (an event the draft also moves is shown on its moved block).
  */
-export function draftDaysOf(events: readonly ProposedEventDto[], timeZone: string, changes: readonly DraftChangeDto[] = []): LocalDate[] {
+export function draftDaysOf(
+  events: readonly ProposedEventDto[],
+  timeZone: string,
+  changes: readonly DraftChangeDto[] = [],
+  added: readonly DraftTodosDto[] = [],
+): LocalDate[] {
   const starts = [
     ...events.map((e) => e.startAt),
     ...changes.flatMap((c) => (c.startAt ? [c.oldStartAt, c.startAt] : [c.oldStartAt])),
   ];
-  return [...new Set(starts.map((start) => localDateOf(new Date(start), timeZone)))].sort();
+  const movedIds = new Set(changes.filter((c) => c.kind === "move").map((c) => c.eventId));
+  const addedDays = added.filter((a) => !movedIds.has(a.eventId)).flatMap((a) => {
+    const day = additionDay(a, timeZone);
+    return day ? [day] : [];
+  });
+  return [...new Set([...starts.map((start) => localDateOf(new Date(start), timeZone)), ...addedDays])].sort();
 }
 
 const byStart = (a: SketchBlock, b: SketchBlock) => a.startMin - b.startMin || b.endMin - a.endMin;
@@ -113,12 +148,17 @@ export function sketchDraft(
   changes: readonly DraftChangeDto[] = [],
   /** Spec 22, the open draft: the visible hours of the settings; the column shows at least these. */
   visible?: { startHour: number; endHour: number },
+  /** Spec 23: the to-dos the draft adds to existing events. */
+  added: readonly DraftTodosDto[] = [],
 ): SketchDay[] {
   const startDay = (iso: string) => localDateOf(new Date(iso), timeZone);
   const changedIds = new Set(changes.map((c) => c.eventId));
   const old = (c: DraftChangeDto) => ({ title: c.title, goalId: c.goalId, startAt: c.oldStartAt, endAt: c.oldEndAt });
+  const addedTo = new Map(added.map((a) => [a.eventId, a]));
+  /** An existing event with new to-dos, as the calendar has it now when it is there, else as the draft saw it. */
+  const current = (a: DraftTodosDto) => calendar.find((e) => e.id === a.eventId);
 
-  return draftDaysOf(events, timeZone, changes).map((date) => {
+  return draftDaysOf(events, timeZone, changes, added).map((date) => {
     const proposals = events
       .map((e, index) => ({ e, key: `new:${index}` }))
       .filter(({ e }) => startDay(e.startAt) === date)
@@ -132,8 +172,15 @@ export function sketchDraft(
       .filter((c) => c.kind === "move" && c.startAt && c.endAt && startDay(c.startAt) === date)
       .map((c) => {
         const block = blockOn({ title: c.title, goalId: c.goalId, startAt: c.startAt!, endAt: c.endAt! }, date, timeZone);
+        const todos = addedTo.get(c.eventId)?.todos;
         return block
-          ? { ...block, key: `move:${c.eventId}`, fromTime: localTimeOf(new Date(c.oldStartAt), timeZone), fromDate: startDay(c.oldStartAt) }
+          ? {
+              ...block,
+              key: `move:${c.eventId}`,
+              fromTime: localTimeOf(new Date(c.oldStartAt), timeZone),
+              fromDate: startDay(c.oldStartAt),
+              ...(todos ? { addedTodos: [...todos] } : {}),
+            }
           : null;
       })
       .filter(isBlock)
@@ -152,28 +199,58 @@ export function sketchDraft(
       .filter(isBlock)
       .sort(byStart);
 
-    const drawn = [...proposals, ...moved, ...oldPlaces, ...removed];
-    const first = Math.min(...drawn.map((p) => p.startMin));
-    const last = Math.max(...drawn.map((p) => p.endMin));
-    const startMin = visible
-      ? Math.max(0, Math.min(visible.startHour * 60, Math.floor(first / 60) * 60))
-      : Math.max(0, Math.floor(first / 60) * 60 - 60);
-    const endMin = visible
-      ? Math.min(DAY_MIN, Math.max(visible.endHour * 60, Math.ceil(last / 60) * 60))
-      : Math.min(DAY_MIN, Math.ceil(last / 60) * 60 + 60);
+    // Spec 23: existing events the draft adds to-dos to (and does not move), at their place.
+    const withTodos = added
+      .filter((a) => !changedIds.has(a.eventId))
+      .map((a) => {
+        const now = current(a);
+        const timed = now ? (!now.allDay && now.startAt && now.endAt ? { startAt: now.startAt, endAt: now.endAt } : null) : a.startAt && a.endAt ? { startAt: a.startAt, endAt: a.endAt } : null;
+        if (!timed || startDay(timed.startAt) !== date) return null;
+        const block = blockOn({ title: now?.title ?? a.title, goalId: now?.goalId ?? null, ...timed }, date, timeZone);
+        return block ? { ...block, addedTodos: [...a.todos] } : null;
+      })
+      .filter(isBlock)
+      .sort(byStart);
+    const allDayTodos = added
+      .filter((a) => !changedIds.has(a.eventId))
+      .flatMap((a) => {
+        const now = current(a);
+        const firstDay = now ? (now.allDay ? now.firstDay : null) : a.allDay ? a.firstDay : null;
+        return firstDay === date ? [{ title: now?.title ?? a.title, addedTodos: [...a.todos] }] : [];
+      });
+
+    const drawn = [...proposals, ...moved, ...oldPlaces, ...removed, ...withTodos];
+    // A day with nothing timed of the draft (only to-dos for an all-day event): the open draft shows
+    // the visible day, any other draft no column (startMin = endMin).
+    const first = drawn.length > 0 ? Math.min(...drawn.map((p) => p.startMin)) : visible ? visible.startHour * 60 : 0;
+    const last = drawn.length > 0 ? Math.max(...drawn.map((p) => p.endMin)) : visible ? visible.endHour * 60 : 0;
+    const startMin =
+      drawn.length === 0 && !visible
+        ? 0
+        : visible
+          ? Math.max(0, Math.min(visible.startHour * 60, Math.floor(first / 60) * 60))
+          : Math.max(0, Math.floor(first / 60) * 60 - 60);
+    const endMin =
+      drawn.length === 0 && !visible
+        ? 0
+        : visible
+          ? Math.min(DAY_MIN, Math.max(visible.endHour * 60, Math.ceil(last / 60) * 60))
+          : Math.min(DAY_MIN, Math.ceil(last / 60) * 60 + 60);
     const hours: number[] = [];
-    for (let m = startMin; m <= endMin; m += 60) hours.push(m);
+    if (endMin > startMin) for (let m = startMin; m <= endMin; m += 60) hours.push(m);
 
     const existing = calendar
-      .filter((e) => !e.allDay && e.startAt && e.endAt && !changedIds.has(e.id))
+      .filter((e) => !e.allDay && e.startAt && e.endAt && !changedIds.has(e.id) && !addedTo.has(e.id))
       .map((e) => blockOn({ title: e.title, goalId: e.goalId, startAt: e.startAt!, endAt: e.endAt! }, date, timeZone))
       .filter((b): b is SketchBlock => b !== null && b.endMin > startMin && b.startMin < endMin)
       .sort(byStart);
     const allDay = calendar
       .filter((e) => e.allDay && e.firstDay && e.lastDay && e.firstDay <= date && e.lastDay >= date)
+      // Spec 23: an all-day event with new to-dos is shown among allDayTodos on its first day.
+      .filter((e) => !(addedTo.has(e.id) && e.firstDay === date))
       .map((e) => e.title);
 
-    return { date, startMin, endMin, hours, proposals, moved, oldPlaces, removed, existing, allDay };
+    return { date, startMin, endMin, hours, proposals, moved, oldPlaces, removed, existing, allDay, withTodos, allDayTodos };
   });
 }
 

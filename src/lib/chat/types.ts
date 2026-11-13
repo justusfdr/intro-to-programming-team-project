@@ -28,10 +28,35 @@ export type DraftChangeDto = {
 };
 
 /**
+ * To-dos the draft adds to an event that is already in the calendar (spec 23). The event's title and
+ * times are as the draft saw them, so the draft can still be shown after the event changed: a timed
+ * event has `startAt` and `endAt` (ISO strings in UTC), an all-day one `firstDay` and `lastDay`. The
+ * titles are added at the end of the event's list when the draft is applied.
+ */
+export type DraftTodosDto = {
+  eventId: string;
+  title: string;
+  allDay: boolean;
+  startAt: string | null;
+  endAt: string | null;
+  firstDay: string | null;
+  lastDay: string | null;
+  todos: string[];
+};
+
+/**
  * `version` (spec 22): 0 as the assistant wrote it, one more for each change the person made by
  * dragging (R4: a change carries the version the screen last saw). Left out counts as 0.
  */
-export type DraftDto = { id: string; status: DraftStatus; events: ProposedEventDto[]; changes: DraftChangeDto[]; version?: number };
+export type DraftDto = {
+  id: string;
+  status: DraftStatus;
+  events: ProposedEventDto[];
+  changes: DraftChangeDto[];
+  version?: number;
+  /** Spec 23: to-dos for events already in the calendar; left out when the draft has none. */
+  addedTodos?: DraftTodosDto[];
+};
 
 export type ChatMessageDto = {
   id: string;
