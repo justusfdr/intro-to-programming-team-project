@@ -14,6 +14,7 @@ import {
   indexAtScroll,
   maskTimeTyping,
   nearestScrollTop,
+  needsRecentre,
   parseHHMM,
   withHour,
   withMinute,
@@ -216,8 +217,8 @@ describe("the endless column", () => {
   });
 
   it("rests in the middle copy", () => {
-    expect(HOME_COPY).toBe(2);
-    expect(homeScrollTop(0, ROW, 24)).toBe(2 * 24 * ROW);
+    expect(HOME_COPY).toBe(3);
+    expect(homeScrollTop(0, ROW, 24)).toBe(3 * 24 * ROW);
     expect(cyclicIndex(homeScrollTop(17, ROW, 24), ROW, 24)).toBe(17);
   });
 
@@ -236,5 +237,46 @@ describe("the endless column", () => {
         expect(cyclicIndex(top, ROW, 24)).toBe(to);
         expect(Math.abs(top - homeScrollTop(from, ROW, 24))).toBeLessThanOrEqual(12 * ROW);
       }
+  });
+});
+
+describe("when the endless column jumps back to the middle", () => {
+  const ROW = 32;
+  const ROUND = 24 * ROW;
+  const home = (i: number) => homeScrollTop(i, ROW, 24);
+
+  it("does not jump when passing from 23 to 00 or from 00 to 23 (that was the hitch)", () => {
+    expect(needsRecentre(home(23) + ROW, ROW, 24)).toBe(false);
+    expect(needsRecentre(home(0) - ROW, ROW, 24)).toBe(false);
+    expect(needsRecentre(home(0), ROW, 24)).toBe(false);
+  });
+
+  it("does not jump anywhere in the three middle copies", () => {
+    for (let top = 2 * ROUND; top < 5 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(false);
+  });
+
+  it("jumps once outside them, in either direction", () => {
+    for (let top = 0; top < 2 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(true);
+    for (let top = 5 * ROUND; top < 7 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(true);
+  });
+
+  it("the jump lands on the same number it left", () => {
+    for (let top = 0; top < 7 * ROUND; top += ROW) {
+      const index = cyclicIndex(top, ROW, 24);
+      expect(cyclicIndex(home(index), ROW, 24)).toBe(index);
+    }
+  });
+
+  it("a resting place always has two rounds left before an edge, for hours and minutes", () => {
+    for (const count of [24, 60]) {
+      const round = count * ROW;
+      expect(COPIES * round - 5 * round).toBe(2 * round);
+    }
+  });
+
+  it("answers false for nonsense", () => {
+    expect(needsRecentre(Number.NaN, ROW, 24)).toBe(false);
+    expect(needsRecentre(100, 0, 24)).toBe(false);
+    expect(needsRecentre(100, ROW, 0)).toBe(false);
   });
 });

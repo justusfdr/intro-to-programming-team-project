@@ -60,11 +60,11 @@ describe("the wheel", () => {
     expect(html).toMatch(/role="listbox" tabindex="0" aria-label="Start minute"/);
   });
 
-  it("goes round and round: the numbers are laid out five times, but only one set is for screen readers", () => {
+  it("goes round and round: the numbers are laid out seven times, but only one set is for screen readers", () => {
     const column = /role="listbox"[^>]*aria-label="Start hour"[^>]*>(.*?)<\/div><\/div>/s.exec(html)![1];
-    expect(column.match(/aria-hidden="true"/g)).toHaveLength(24 * 4);
+    expect(column.match(/aria-hidden="true"/g)).toHaveLength(24 * 6);
     expect(column.match(/role="option"/g)).toHaveLength(24);
-    expect(column.match(/>14</g)).toHaveLength(5);
+    expect(column.match(/>14</g)).toHaveLength(7);
   });
 
   it("works at the edges of the day: 00:00 and 23:59", () => {

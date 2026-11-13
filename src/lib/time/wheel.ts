@@ -57,7 +57,7 @@ export function indexAtScroll(scrollTop: number, rowHeight: number, count: numbe
 }
 
 /** How many times a column's rows are laid out one after the other, so it can be scrolled round and round. */
-export const COPIES = 5;
+export const COPIES = 7;
 /** The copy the column rests in (the middle one); after scrolling stops it jumps back here unseen. */
 export const HOME_COPY = (COPIES - 1) / 2;
 
@@ -71,6 +71,17 @@ export function cyclicIndex(scrollTop: number, rowHeight: number, count: number)
 /** The scroll position of `index` in the home copy. */
 export function homeScrollTop(index: number, rowHeight: number, count: number): number {
   return (HOME_COPY * count + index) * rowHeight;
+}
+
+/**
+ * Whether the column has left the three middle copies, so it is time to jump back to the home copy.
+ * Jumping is not free (it cuts a gliding scroll short), so it waits until an edge is near and is never
+ * done just for passing from 23 to 00.
+ */
+export function needsRecentre(scrollTop: number, rowHeight: number, count: number): boolean {
+  if (!Number.isFinite(scrollTop) || !(rowHeight > 0) || !(count > 0)) return false;
+  const round = count * rowHeight;
+  return scrollTop < (HOME_COPY - 1) * round || scrollTop >= (HOME_COPY + 2) * round;
 }
 
 /**

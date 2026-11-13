@@ -16,6 +16,7 @@ import {
   homeScrollTop,
   maskTimeTyping,
   nearestScrollTop,
+  needsRecentre,
   pad2,
   parseHHMM,
   withHour,
@@ -179,9 +180,9 @@ function WheelColumn({
       target.current = null;
     }
     const index = cyclicIndex(el.scrollTop, ROW, items.length);
-    // Back to the home copy, where nothing shows a difference (the same numbers stand there).
-    const home = homeScrollTop(index, ROW, items.length);
-    if (Math.abs(el.scrollTop - home) > 1) el.scrollTo({ top: home, behavior: "instant" });
+    // Far from the middle copy: jump back to it, where the same numbers stand (nothing shows). Not for every
+    // pass from 23 to 00: a jump cuts a gliding scroll short, which showed as a hitch.
+    if (needsRecentre(el.scrollTop, ROW, items.length)) el.scrollTo({ top: homeScrollTop(index, ROW, items.length), behavior: "instant" });
     const item = items[index];
     if (item !== selected) onPick(item);
   };
