@@ -18,6 +18,10 @@
 // is edit_draft with the version the screen last saw (R4): the block moves at once and goes back with
 // the server's sentence when the server refuses. The list for screen readers always says the current
 // times. There is no keyboard form of dragging (the calendar has none either); telling the coach works.
+// Spec 23: a draft may add to-dos to events already in the calendar. Such an event is drawn as the
+// calendar's own, pale, with a small mark "+2 to-dos" (an all-day event among the all-day chips), its
+// day shown also when the draft has nothing else on it; under the column the list says "To-dos for
+// 'Lernblock'" with the new titles. It is never dragged. The draft is applied with "Apply changes".
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
@@ -25,6 +29,7 @@ import { GOAL_ICONS } from "@/components/goals/GoalTile";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { Button, LinkButton } from "@/components/ui/Button";
 import {
+  addedTodosText,
   canDragBlock,
   keepInWindow,
   SKETCH_HOUR_PX,
@@ -69,6 +74,23 @@ function spokenTime(block: SketchBlock, format: TimeFormat): string {
 function movedFrom(block: { fromTime: string; fromDate: LocalDate }, date: LocalDate, format: TimeFormat): string {
   const time = fmtTime(block.fromTime, format);
   return block.fromDate === date ? `Moved from ${time}` : `Moved from ${fmtDateShort(block.fromDate)}, ${time}`;
+}
+
+/** Spec 23: ", 2 to-dos added" for an existing event the draft adds to-dos to; empty otherwise. */
+function spokenAdded(todos: string[] | undefined): string {
+  if (!todos || todos.length === 0) return "";
+  return `, ${todos.length} ${todos.length === 1 ? "to-do" : "to-dos"} added`;
+}
+
+/** Spec 23: the lists of new to-dos for existing events on a day, in the order they are drawn. */
+function addedLists(day: SketchDay): { title: string; todos: string[] }[] {
+  return [
+    ...day.allDayTodos.map((chip) => ({ title: chip.title, todos: chip.addedTodos })),
+    ...[...day.withTodos, ...day.moved]
+      .filter((block) => block.addedTodos && block.addedTodos.length > 0)
+      .sort((a, b) => a.startMin - b.startMin)
+      .map((block) => ({ title: block.title, todos: block.addedTodos! })),
+  ];
 }
 
 type Gesture = { kind: "move" | "resize"; pointerId: number; block: SketchBlock; y: number; x: number; grabMin: number; active: boolean };
@@ -217,6 +239,23 @@ function DayColumn({ day, goals, open, canDrag, onDrop }: DayColumnProps) {
               </div>
             );
           })}
+        {day.withTodos.map((block, i) => {
+          const { top, height: h } = sketchBox(block, day);
+          return (
+            <div
+              key={`w${i}`}
+              data-sketch="todos"
+              className="absolute left-1 right-6 z-[2] overflow-hidden rounded-lg border border-dashed border-line bg-canvas px-1.5 py-0.5 text-ink-2"
+              style={{ top, height: h }}
+            >
+              <span className="block truncate text-[11px] font-medium leading-[14px]">{block.title}</span>
+              {h >= 48 && <span className="block truncate text-[10px] leading-[13px] tabular text-ink-3">{timeText(block, timeFormat)}</span>}
+              <span data-sketch="todo-mark" className="absolute bottom-0.5 right-1 rounded bg-surface px-1 text-[10px] font-medium tabular text-ink-2">
+                {addedTodosText(block.addedTodos?.length ?? 0)}
+              </span>
+            </div>
+          );
+        })}
         {day.oldPlaces.map((block, i) => {
           const { top, height: h } = sketchBox(block, day);
           return (
@@ -270,6 +309,11 @@ function DayColumn({ day, goals, open, canDrag, onDrop }: DayColumnProps) {
                 {block.todos && h >= 52 && (
                   <span className="absolute bottom-1 right-1 text-[10px] tabular opacity-80">{todoCountText(0, block.todos.length)}</span>
                 )}
+                {block.addedTodos && (
+                  <span data-sketch="todo-mark" className="absolute bottom-0.5 right-1 rounded bg-surface/80 px-1 text-[10px] font-medium tabular text-ink-2">
+                    {addedTodosText(block.addedTodos.length)}
+                  </span>
+                )}
                 {draggable && <span onPointerDown={(e) => begin(e, drawn, "resize")} className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize" />}
               </div>
             );
@@ -309,10 +353,20 @@ export function DraftCard({ draft: saved, goals, timeZone, calendar, onStatus, o
   const [moving, setMoving] = useState<{ item: DraftItem; startAt: string; endAt: string } | null>(null);
   const draft = moving ? withBlockAt(saved, moving.item, moving.startAt, moving.endAt) : saved;
   const open = draft.status === "open";
-  const days = sketchDraft(draft.events, open ? calendar : [], timeZone, draft.changes, open ? { startHour: dayStartHour, endHour: dayEndHour } : undefined);
+  const added = draft.addedTodos ?? [];
+  const days = sketchDraft(
+    draft.events,
+    open ? calendar : [],
+    timeZone,
+    draft.changes,
+    open ? { startHour: dayStartHour, endHour: dayEndHour } : undefined,
+    added,
+  );
   const pill = PILL[draft.status];
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
-  const changes = draft.changes.length > 0;
+  const changes = draft.changes.length > 0 || added.length > 0;
+  // Spec 23: a draft of only to-dos for existing events has no block to drag.
+  const hasBlocks = draft.events.length > 0 || draft.changes.some((c) => c.kind === "move");
   const working = busy || moving !== null;
 
   async function drop(key: string, date: LocalDate, span: Span) {
@@ -368,18 +422,33 @@ export function DraftCard({ draft: saved, goals, timeZone, calendar, onStatus, o
             <h3 className="text-sm font-semibold tracking-snug text-ink">Draft for {fmtDateShort(day.date)}</h3>
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${pill.className}`}>{pill.label}</span>
           </div>
-          {open && day.allDay.length > 0 && (
+          {((open && day.allDay.length > 0) || day.allDayTodos.length > 0) && (
             <ul aria-label="All day" className="mb-2 ml-11 flex flex-wrap gap-1">
-              {day.allDay.map((title, i) => (
-                <li key={i} className="max-w-full truncate rounded-md border border-line bg-raised px-1.5 py-0.5 text-[10px] font-medium text-ink-3">
-                  {title}
+              {day.allDayTodos.map((chip, i) => (
+                <li
+                  key={`t${i}`}
+                  data-sketch="todos"
+                  className="flex max-w-full items-center gap-1 rounded-md border border-dashed border-line bg-canvas px-1.5 py-0.5 text-[10px] font-medium text-ink-2"
+                >
+                  <span className="truncate">{chip.title}</span>
+                  <span data-sketch="todo-mark" className="shrink-0 tabular">
+                    {addedTodosText(chip.addedTodos.length)}
+                  </span>
                 </li>
               ))}
+              {open &&
+                day.allDay.map((title, i) => (
+                  <li key={i} className="max-w-full truncate rounded-md border border-line bg-raised px-1.5 py-0.5 text-[10px] font-medium text-ink-3">
+                    {title}
+                  </li>
+                ))}
             </ul>
           )}
-          <div className={open ? "" : "opacity-60"}>
-            <DayColumn day={day} goals={goals} open={open} canDrag={open && !working} onDrop={(key, date, span) => void drop(key, date, span)} />
-          </div>
+          {day.endMin > day.startMin && (
+            <div className={open ? "" : "opacity-60"}>
+              <DayColumn day={day} goals={goals} open={open} canDrag={open && !working} onDrop={(key, date, span) => void drop(key, date, span)} />
+            </div>
+          )}
           {day.proposals.some((block) => block.todos) && (
             <ul aria-label="To-dos" className="ml-11 mt-2 flex flex-col gap-2">
               {day.proposals
@@ -404,6 +473,26 @@ export function DraftCard({ draft: saved, goals, timeZone, calendar, onStatus, o
                 ))}
             </ul>
           )}
+          {addedLists(day).length > 0 && (
+            <ul aria-label="To-dos for events in the calendar" className="ml-11 mt-2 flex flex-col gap-2">
+              {addedLists(day).map((list, i) => (
+                <li key={`a${i}`} className="min-w-0">
+                  <p className="flex items-center justify-between gap-2 text-[11px] font-medium text-ink-2">
+                    <span className="truncate">{`To-dos for '${list.title}'`}</span>
+                    <span className="shrink-0 tabular text-ink-3">{addedTodosText(list.todos.length)}</span>
+                  </p>
+                  <ul className="mt-1 flex flex-col gap-1">
+                    {list.todos.map((todo, j) => (
+                      <li key={j} className="flex items-start gap-1.5 text-xs text-ink">
+                        <span aria-hidden className="mt-0.5 size-3 shrink-0 rounded border border-line" />
+                        <span className="min-w-0 break-words">{todo}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
           <ul className="sr-only">
             {day.proposals.map((block, i) => {
               const goal = goalOf(block.goalId);
@@ -411,7 +500,15 @@ export function DraftCard({ draft: saved, goals, timeZone, calendar, onStatus, o
               return <li key={`p${i}`}>{`${block.title}, ${spokenTime(block, timeFormat)}${goal ? `, goal ${goal.title}` : ""}${todos}`}</li>;
             })}
             {day.moved.map((block, i) => (
-              <li key={`m${i}`}>{`${block.title}, moved to ${spokenTime(block, timeFormat)}, ${movedFrom(block, day.date, timeFormat).replace("Moved", "moved")}`}</li>
+              <li key={`m${i}`}>
+                {`${block.title}, moved to ${spokenTime(block, timeFormat)}, ${movedFrom(block, day.date, timeFormat).replace("Moved", "moved")}${spokenAdded(block.addedTodos)}`}
+              </li>
+            ))}
+            {day.withTodos.map((block, i) => (
+              <li key={`w${i}`}>{`${block.title}, ${spokenTime(block, timeFormat)}, already in the calendar${spokenAdded(block.addedTodos)}`}</li>
+            ))}
+            {day.allDayTodos.map((chip, i) => (
+              <li key={`d${i}`}>{`${chip.title}, all day, already in the calendar${spokenAdded(chip.addedTodos)}`}</li>
             ))}
             {day.oldPlaces
               .filter((block) => block.toDate !== day.date)
@@ -432,7 +529,9 @@ export function DraftCard({ draft: saved, goals, timeZone, calendar, onStatus, o
           <Button size="sm" variant="ghost" disabled={working} onClick={() => void act("reject")}>
             Discard
           </Button>
-          <span className="text-xs text-ink-3">Drag a block to change its time. Or tell me what to change.</span>
+          <span className="text-xs text-ink-3">
+            {hasBlocks ? "Drag a block to change its time. Or tell me what to change." : "Tell me what to change."}
+          </span>
         </div>
       )}
       {draft.status === "accepted" && days.length > 0 && (
