@@ -355,6 +355,49 @@ describe("undo_draft", () => {
   });
 });
 
+describe("A21 end to end", () => {
+  it("send_message, accept_draft, undo_draft, and undo again", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    await tuesday(alice);
+    const call = await seedEvent(app.db, alice, { title: "Team call", start: "2026-11-17T10:00:00Z", end: "2026-11-17T11:00:00Z" });
+    await app.db.admin("update app.events set source = 'outlook', outlook_id = 'o-1' where id = $1", [call.id]);
+    app.assistant.answerJson({
+      kind: "draft",
+      text: "Lecture at 4, gym gone, study in its place.",
+      events: [{ title: "Study", start: "2026-11-17T14:00", end: "2026-11-17T15:30", goalId: null }],
+      changes: [
+        { ref: "e2", action: "move", start: "2026-11-17T16:00", end: "2026-11-17T17:00" },
+        { ref: "e3", action: "delete", start: null, end: null },
+      ],
+    });
+
+    const sent = await read(await send("Move the lecture to 4, drop the gym and put study time in its place"));
+
+    expect(sent.status).toBe(201);
+    const block = app.assistant.lastData().events as { ref: string; title: string; changeable: boolean }[];
+    expect(block.map((e) => [e.ref, e.title, e.changeable])).toEqual([
+      ["e1", "Team call", false],
+      ["e2", "Lecture", true],
+      ["e3", "Gym", true],
+    ]);
+    expect(app.assistant.requests[0].data).not.toContain(call.id);
+    const before = await times(alice);
+    const draftId = (sent.body.messages as { draft: { id: string } | null }[])[1].draft!.id;
+
+    expect((await accept(draftId)).status).toBe(201);
+    expect(await times(alice)).toEqual([
+      ["Team call", "2026-11-17T10:00:00.000Z", "planned", "outlook"],
+      ["Study", "2026-11-17T14:00:00.000Z", "planned", "assistant"],
+      ["Lecture", "2026-11-17T16:00:00.000Z", "planned", "app"],
+    ]);
+
+    expect(await read(await undo(draftId))).toMatchObject({ status: 200, body: { message: "Undone. Your calendar is as before." } });
+    expect(await times(alice)).toEqual(before);
+    expect(await draftsOf(app.db, alice)).toEqual([{ id: draftId, status: "undone" }]);
+    expect(await read(await undo(draftId))).toEqual(CANNOT_UNDO);
+  });
+});
+
 describe("the page loader with changes", () => {
   it("adds a moved event's old and new day and a deleted event's day, with the events on them", async () => {
     const alice = await app.signedInAs("alice@example.com");
