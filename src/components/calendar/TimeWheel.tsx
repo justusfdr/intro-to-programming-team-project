@@ -11,7 +11,8 @@ import { inputClass } from "./fields";
 /** Height of one row of the wheel, in pixels. Five rows are visible, the middle one is chosen. */
 export const ROW = 32;
 const VISIBLE = 5;
-const SIDE = ((VISIBLE - 1) / 2) * ROW;
+/** Space above and below the middle row; the band behind the chosen row starts here. */
+export const SIDE = ((VISIBLE - 1) / 2) * ROW;
 
 /**
  * The time as a field ("09:30"). Typing shows only digits and puts the colon in by itself; a complete
@@ -119,17 +120,21 @@ export function TimeWheel({ label, value, onChange }: { label: string; value: nu
 /**
  * One column. Scrolling (mouse wheel, trackpad, finger) stops on a row; the row in the middle is taken
  * when the scrolling stops. A click on a row takes it too. Keys: ↑ ↓, Page Up/Down (5 rows), Home, End.
+ * Also used for the custom length on the Focus page, where rows show "0" instead of "00".
  */
-function WheelColumn({
+export function WheelColumn({
   label,
   items,
   selected,
   onPick,
+  format = pad2,
 }: {
   label: string;
   items: readonly number[];
   selected: number;
   onPick: (item: number) => void;
+  /** How a row shows its number; two digits unless told otherwise. */
+  format?: (item: number) => string;
 }) {
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -222,7 +227,7 @@ function WheelColumn({
           }`}
           style={{ height: ROW }}
         >
-          {pad2(item)}
+          {format(item)}
         </div>
       ))}
     </div>

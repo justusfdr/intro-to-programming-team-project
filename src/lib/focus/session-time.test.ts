@@ -18,9 +18,9 @@ function session(fields: Partial<SessionTimes>): SessionTimes {
 }
 
 describe("session arithmetic (R12, R13)", () => {
-  it("allows any whole number of minutes from 1 to 240 (R12)", () => {
-    for (const length of [1, 3, 15, 25, 30, 60, 61, 70, 90, 120, 239, 240]) expect(isSessionLength(length)).toBe(true);
-    for (const other of [0, -15, 241, 600, 60.5, "60", null, Number.NaN]) expect(isSessionLength(other)).toBe(false);
+  it("allows any whole number of minutes from 1 minute to 23 h 59 min (R12)", () => {
+    for (const length of [1, 3, 15, 25, 30, 60, 61, 70, 90, 120, 240, 241, 600, 1438, 1439]) expect(isSessionLength(length)).toBe(true);
+    for (const other of [0, -15, 1440, 2000, 60.5, "60", null, Number.NaN]) expect(isSessionLength(other)).toBe(false);
   });
 
   it("A2: 60 minutes from 09:00, paused 09:20 to 09:30, ended 09:55: focused 45 minutes", () => {
@@ -47,9 +47,9 @@ describe("session arithmetic (R12, R13)", () => {
     expect(secondsLeft(session({}), at("11:00"))).toBe(0);
   });
 
-  it("suggests the event's own length, kept within 1 to 240 minutes (R12)", () => {
-    expect([lengthForEvent(10), lengthForEvent(45), lengthForEvent(60), lengthForEvent(240), lengthForEvent(300), lengthForEvent(0)]).toEqual([
-      10, 45, 60, 240, 240, 1,
+  it("suggests the event's own length, kept within 1 minute to 23 h 59 min (R12)", () => {
+    expect([lengthForEvent(10), lengthForEvent(45), lengthForEvent(60), lengthForEvent(300), lengthForEvent(1439), lengthForEvent(2000), lengthForEvent(0)]).toEqual([
+      10, 45, 60, 300, 1439, 1439, 1,
     ]);
   });
 

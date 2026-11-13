@@ -4,7 +4,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { FocusData, SessionDto } from "@/lib/focus/types";
-import { afterRejection, FocusView, parseCustomMinutes } from "./FocusView";
+import { afterRejection, FocusView } from "./FocusView";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 vi.mock("next/link", () => ({
@@ -34,6 +34,18 @@ function session(fields: Partial<SessionDto>): SessionDto {
   };
 }
 
+/** The column of the custom length wheel with this label, as rendered markup. */
+function column(html: string, label: string): string {
+  const start = html.indexOf(`role="listbox" tabindex="0" aria-label="${label}"`);
+  expect(start).toBeGreaterThan(-1);
+  // The column ends where its last row and the column itself close.
+  return html.slice(start, html.indexOf("</div></div>", start) + "</div>".length);
+}
+/** The rows of a wheel column, in order. */
+const rowsOf = (html: string, label: string) => [...column(html, label).matchAll(/role="option"[^>]*>([^<]*)</g)].map((m) => m[1]);
+/** The row a wheel column stands on. */
+const chosenOn = (html: string, label: string) => /aria-selected="true"[^>]*>([^<]*)</.exec(column(html, label))?.[1];
+
 function render(data: Partial<FocusData>) {
   // The blocker card lives in Settings (its own test); here only the chip that links there.
   const blocker = { sites: [], connected: true, blockingOn: false, blockingUntil: null, timeZone: "Europe/Lisbon" };
@@ -44,7 +56,7 @@ describe("Focus page", () => {
   it("offers the five suggested lengths and Custom as a radio group with 60 minutes chosen, and Start focus (R12)", () => {
     const html = render({});
     for (const label of ["15 min", "30 min", "1 h", "1 h 30 min", "2 h", "Custom"]) expect(html).toContain(label);
-    expect(html).not.toContain("Custom length in minutes");
+    expect(html).not.toContain('aria-label="Custom length"');
     expect(html).toMatch(/<input[^>]*checked=""[^>]*value="60"|<input[^>]*value="60"[^>]*checked=""/);
     expect(html).toContain("Start focus");
     expect(html).toContain("No finished sessions yet.");
@@ -56,18 +68,25 @@ describe("Focus page", () => {
     expect(html).toMatch(/<input[^>]*checked=""[^>]*value="120"|<input[^>]*value="120"[^>]*checked=""/);
   });
 
-  it("opens Custom with the event's length when it is not one of the suggestions (R12)", () => {
+  it("opens Custom with the event's length on a wheel of hours and minutes when it is not a suggestion (R12)", () => {
     const html = render({ forEvent: { id: "e1", title: "Short call", suggestedMinutes: 45 } });
     expect(html).toMatch(/<input[^>]*checked=""[^>]*value="custom"|<input[^>]*value="custom"[^>]*checked=""/);
-    expect(html).toContain("Custom length in minutes");
-    expect(html).toMatch(/<input[^>]*type="number"[^>]*value="45"/);
-    // Under an hour the field already says it, so no "= 45 min" behind it.
-    expect(html).not.toContain("= 45 min");
+    expect(html).toContain('aria-label="Custom length"');
+    expect([chosenOn(html, "Hours"), chosenOn(html, "Minutes")]).toEqual(["0", "45"]);
+    expect(html).toContain(">hours<");
+    expect(html).toContain(">min<");
+    expect(html).not.toContain('type="number"');
   });
 
-  it("spells out a custom length of an hour or more in hours and minutes", () => {
-    const html = render({ forEvent: { id: "e1", title: "Long read", suggestedMinutes: 70 } });
-    expect(html).toContain("= 1 h 10 min");
+  it("shows a custom length over an hour as hours and minutes on the wheel, up to 23 h 59 min (R12)", () => {
+    const long = render({ forEvent: { id: "e1", title: "Long read", suggestedMinutes: 70 } });
+    expect([chosenOn(long, "Hours"), chosenOn(long, "Minutes")]).toEqual(["1", "10"]);
+    const day = render({ forEvent: { id: "e1", title: "Hackathon", suggestedMinutes: 1439 } });
+    expect([chosenOn(day, "Hours"), chosenOn(day, "Minutes")]).toEqual(["23", "59"]);
+    // The hours go from 0 to 23 and the minutes from 0 to 59, nothing beyond.
+    expect(rowsOf(day, "Hours")).toEqual(Array.from({ length: 24 }, (_, h) => String(h)));
+    expect(rowsOf(day, "Minutes")).toEqual(Array.from({ length: 60 }, (_, m) => String(m)));
+    expect(day).not.toContain("Choose a length");
   });
 
   it("shows a running session with the time left as a timer and Pause, End session, Cancel", () => {
@@ -130,8 +149,12 @@ describe("Focus page", () => {
     expect(afterRejection({ ok: false, status: 0, message: "We could not reach the server." })).toEqual({ reload: false });
   });
 
-  it("reads a custom length only as a whole number of minutes; the server checks 1 to 240 (R12)", () => {
-    expect(["10", " 70 ", "3", "0", "999"].map(parseCustomMinutes)).toEqual([10, 70, 3, 0, 999]);
-    for (const text of ["", "  ", "1.5", "-5", "ten", "1e2", "10 min"]) expect(parseCustomMinutes(text)).toBeNull();
+  it("keeps Start focus off and shows the rule when the wheel stands on 0 hours 0 min (R12, A10)", () => {
+    const zero = render({ forEvent: { id: "e1", title: "Nothing", suggestedMinutes: 0 } });
+    expect([chosenOn(zero, "Hours"), chosenOn(zero, "Minutes")]).toEqual(["0", "0"]);
+    expect(zero).toContain("Choose a length from 1 minute to 23 h 59 min");
+    expect(zero).toMatch(/<button[^>]*disabled=""[^>]*>[\s\S]*?Start focus/);
+    const fine = render({ forEvent: { id: "e1", title: "Short call", suggestedMinutes: 45 } });
+    expect(fine).not.toMatch(/<button[^>]*disabled=""[^>]*>[\s\S]*?Start focus/);
   });
 });

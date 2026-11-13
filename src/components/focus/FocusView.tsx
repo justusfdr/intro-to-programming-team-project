@@ -1,7 +1,7 @@
 "use client";
 
 // The Focus page in the prototype's look: start a session (a suggested length or any custom length
-// from 1 to 240 minutes, R12, optionally for an event), the running session with its ring and time
+// from 1 minute to 23 h 59 min on a wheel, R12, optionally for an event), the running session with its ring and time
 // left, the rating after it ended, and recent
 // sessions. It only sends the user's choices and shows the server's answers; the server decides
 // every state change (spec 04), including the end of a session at its planned length (R13).
@@ -15,8 +15,6 @@ import { postJson, type PostResult } from "@/lib/client/post-json";
 import {
   clockText,
   isSessionLength,
-  MAX_SESSION_MINUTES,
-  MIN_SESSION_MINUTES,
   minutesText,
   secondsLeft,
   SUGGESTED_LENGTHS,
@@ -32,6 +30,8 @@ import { GOAL_ICONS, GoalTile } from "@/components/goals/GoalTile";
 import { goalColor } from "@/lib/goals/colors";
 import { BlockerChip } from "./BlockerChip";
 import { FocusRing } from "./FocusRing";
+import { ROW, SIDE, WheelColumn } from "@/components/calendar/TimeWheel";
+import { HOURS, MINUTES, withHour, withMinute } from "@/lib/time/wheel";
 
 const eyebrow = "text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3";
 const card = "rounded-card border border-line-subtle bg-surface p-5";
@@ -99,27 +99,55 @@ function GoalLine({ goal }: { goal: FocusGoal | null }) {
 
 const isSuggested = (minutes: number) => (SUGGESTED_LENGTHS as readonly number[]).includes(minutes);
 
-/** The custom length typed in, as a number, or null while the text is not a whole number. */
-export function parseCustomMinutes(text: string): number | null {
-  const trimmed = text.trim();
-  return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+/**
+ * The custom length as in the Clock app's timer: a column of hours (0 to 23) and a column of minutes
+ * (0 to 59), slid with a finger, the trackpad or the arrow keys. 0 hours 0 min is not a length (R12).
+ */
+function LengthWheel({
+  value,
+  onChange,
+  describedBy,
+}: {
+  value: number;
+  /** Takes a change of the length so far, so hours and minutes slid at the same time both count. */
+  onChange: (change: (minutes: number) => number) => void;
+  describedBy: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Custom length"
+      aria-describedby={describedBy}
+      className="relative mx-auto flex w-fit items-center justify-center gap-6 select-none"
+    >
+      {/* The band behind the chosen row, as on the calendar's time wheel. */}
+      <div aria-hidden className="pointer-events-none absolute -inset-x-4 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
+      <div className="relative flex items-center gap-1.5">
+        <WheelColumn label="Hours" items={HOURS} selected={Math.floor(value / 60)} onPick={(h) => onChange((now) => withHour(now, h))} format={String} />
+        <span aria-hidden className="w-12 text-sm font-medium text-ink">
+          hours
+        </span>
+      </div>
+      <div className="relative flex items-center gap-1.5">
+        <WheelColumn label="Minutes" items={MINUTES} selected={value % 60} onPick={(m) => onChange((now) => withMinute(now, m))} format={String} />
+        <span aria-hidden className="w-12 text-sm font-medium text-ink">
+          min
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: FocusGoal | null }) {
   const initial = forEvent?.suggestedMinutes ?? 60;
-  // A suggested length is one of the chips; any other length starts in the custom field (R12).
+  // A suggested length is one of the chips; any other length starts on the custom wheel (R12).
   const [chosen, setChosen] = useState<number | "custom">(isSuggested(initial) ? initial : "custom");
-  const [customText, setCustomText] = useState(isSuggested(initial) ? "" : String(initial));
-  const customId = useId();
+  const [customMinutes, setCustomMinutes] = useState(initial);
   const hintId = useId();
   const { run, busy, failure } = useSessionAction();
 
-  const customMinutes = parseCustomMinutes(customText);
   const minutes = chosen === "custom" ? customMinutes : chosen;
-  const validMinutes = minutes !== null && isSessionLength(minutes) ? minutes : null;
-  const valid = validMinutes !== null;
-  // Show the rule only once something was typed, so an empty field does not start with an error.
-  const showHint = chosen === "custom" && customText.trim() !== "" && !valid;
+  const valid = isSessionLength(minutes);
 
   return (
     <section aria-labelledby="start-title" className={card}>
@@ -149,7 +177,11 @@ function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: 
                 name="length"
                 value={length}
                 checked={chosen === length}
-                onChange={() => setChosen(length)}
+                onChange={() => {
+                  // Custom opens on the length chosen so far, so the wheel starts somewhere sensible.
+                  if (length === "custom" && chosen !== "custom") setCustomMinutes(chosen);
+                  setChosen(length);
+                }}
                 className="sr-only"
               />
               {length === "custom" ? "Custom" : minutesText(length)}
@@ -157,37 +189,11 @@ function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: 
           ))}
         </div>
         {chosen === "custom" && (
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <label htmlFor={customId} className="sr-only">
-              Custom length in minutes
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                id={customId}
-                type="number"
-                inputMode="numeric"
-                min={MIN_SESSION_MINUTES}
-                max={MAX_SESSION_MINUTES}
-                step={1}
-                placeholder="e.g. 45"
-                value={customText}
-                onChange={(e) => setCustomText(e.target.value)}
-                aria-invalid={showHint}
-                aria-describedby={hintId}
-                autoFocus={!forEvent}
-                className="h-9 w-24 rounded-lg border border-line bg-surface px-3 text-sm tabular text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10 aria-[invalid=true]:border-danger"
-              />
-              <span className="text-sm text-ink-2">min</span>
-            </div>
-            <p id={hintId} className={`text-sm ${showHint ? "text-danger" : "text-ink-2"}`}>
-              {/* Under an hour the field already says it ("10 min"); from 60 on the hours help ("= 1 h 10 min"). */}
-              {showHint
-                ? MESSAGES.chooseLength
-                : validMinutes !== null
-                  ? validMinutes >= 60
-                    ? `= ${minutesText(validMinutes)}`
-                    : ""
-                  : "Any length from 1 to 240 minutes"}
+          <div className="mt-5 flex flex-col items-center gap-3">
+            <LengthWheel value={customMinutes} onChange={setCustomMinutes} describedBy={hintId} />
+            {/* Only 0 hours 0 min can be wrong on the wheel; then the rule shows and Start stays off. */}
+            <p id={hintId} role={valid ? undefined : "alert"} className={`text-sm ${valid ? "sr-only" : "text-danger"}`}>
+              {valid ? minutesText(customMinutes) : MESSAGES.chooseLength}
             </p>
           </div>
         )}

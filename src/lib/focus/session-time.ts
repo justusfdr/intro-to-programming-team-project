@@ -6,10 +6,10 @@
 
 /** R12: the lengths the app suggests, in minutes. Any whole number from MIN to MAX is allowed. */
 export const SUGGESTED_LENGTHS = [15, 30, 60, 90, 120] as const;
-/** R12: the shortest and the longest session, in minutes. */
+/** R12: the shortest and the longest session, in minutes (1 minute to 23 h 59 min). */
 export const MIN_SESSION_MINUTES = 1;
-export const MAX_SESSION_MINUTES = 240;
-/** A session length in minutes: a whole number from 1 to 240 (R12). */
+export const MAX_SESSION_MINUTES = 23 * 60 + 59;
+/** A session length in minutes: a whole number from 1 to 1439 (R12). */
 export type SessionLength = number;
 
 export type SessionStatus = "running" | "paused" | "finished";
@@ -26,7 +26,7 @@ export type SessionTimes = {
   endedAt: Date | null;
 };
 
-/** R12: a whole number of minutes from 1 to 240. */
+/** R12: a whole number of minutes from 1 minute to 23 h 59 min. */
 export function isSessionLength(value: unknown): value is SessionLength {
   return (
     typeof value === "number" &&
@@ -64,7 +64,7 @@ export function pausedSecondsAfterResume(session: Pick<SessionTimes, "pausedAt" 
   return session.pausedSeconds + Math.max(0, Math.floor((now.getTime() - session.pausedAt.getTime()) / 1000));
 }
 
-/** The length to suggest for an event: the event's own length in whole minutes, kept within 1 to 240 (R12). */
+/** The length to suggest for an event: the event's own length in whole minutes, kept within 1 minute to 23 h 59 min (R12). */
 export function lengthForEvent(minutes: number): SessionLength {
   return Math.min(MAX_SESSION_MINUTES, Math.max(MIN_SESSION_MINUTES, Math.round(minutes)));
 }

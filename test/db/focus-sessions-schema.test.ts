@@ -51,11 +51,11 @@ describe("one running or paused session per user (R4)", () => {
 });
 
 describe("checks the database enforces itself", () => {
-  it.each([0, -5, 241, 600])("refuses a length of %i minutes (R12)", async (minutes) => {
+  it.each([0, -5, 1440, 2000])("refuses a length of %i minutes (R12)", async (minutes) => {
     await expect(startAs(alice, minutes)).rejects.toThrow(/focus_sessions_length/);
   });
 
-  it.each([1, 25, 61, 180, 240])("accepts a length of %i minutes (R12)", async (minutes) => {
+  it.each([1, 25, 61, 180, 240, 241, 600, 1439])("accepts a length of %i minutes (R12)", async (minutes) => {
     const [row] = await startAs(alice, minutes);
     expect(row.status).toBe("running");
   });
