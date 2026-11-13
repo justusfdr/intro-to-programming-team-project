@@ -10,7 +10,7 @@ Keep every key and password in your password manager. Never paste them into the 
 ## 2. Create the tables
 1. Open **SQL Editor** in the project.
 2. Run each file in `supabase/migrations/` in name order (oldest first): open the file, copy all of it, paste it into a new query, press **Run**. Each file runs only once.
-3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles`, `settings`, `events`, `goals`, `rules`, `focus_sessions`, `blocked_sites`, `blocked_attempts`, `calendar_connections`, `outlook_deletions` and `tasks`.
+3. Check under **Table Editor**: choose the schema `app`; it has the tables `profiles`, `settings`, `events`, `goals`, `rules`, `focus_sessions`, `blocked_sites`, `blocked_attempts`, `calendar_connections`, `outlook_deletions`, `tasks`, `chat_messages` and `draft_plans`.
 4. Open **Project Settings > Data API**. Under **Exposed schemas**, `app` must **not** be listed. Do not add it. (Our server is the only way to our tables.)
 
 ## 3. Switch on e-mail confirmation
@@ -96,3 +96,14 @@ Without this, everything else works; the **Outlook calendar** card in Settings t
 10. Put the same three values (and `MICROSOFT_TENANT` if you set it) into Vercel (**Settings → Environment Variables**) and deploy again.
 11. Work or school accounts: some organisations only allow apps their IT has approved. Then Microsoft says so on its page, and the app shows "Outlook was not connected". Ask the IT, or use a personal account for the demo.
 
+## 10. The Claude API key (the coach)
+Without it, everything else works; the coach then answers every message with "The assistant is not available right now. Your calendar is unchanged", and its page says the coach is not set up on this server.
+
+1. Sign in at **platform.claude.com** (the Claude Console) with the team's account. This is the developer platform and is billed separately: a Claude chat subscription (Pro, Max or Team on claude.ai) does **not** include API use, and its login is not an API key.
+2. **Billing:** add credit, then open **Limits** and set a **monthly spending limit** for the workspace (for the course a few euros is plenty). At the limit Claude refuses further calls; the app then shows "not available" and nothing breaks (ontology R21: the provider account has a spending limit).
+3. **API Keys** → **Create Key**, name it "LockedIn" (or one key per environment: "LockedIn local", "LockedIn Vercel"). Copy it at once (it is shown only once) into `ANTHROPIC_API_KEY`. It is a secret: password manager, `.env.local` and Vercel only; never in the code, a chat or an issue.
+4. Optional: `ANTHROPIC_MODEL`. Leave it unset for the default `claude-opus-5-5`. To save money set `claude-haiku-5-5` (cheaper and faster, plans a little less carefully). Use the exact model name; the app sends refusal fallbacks only to models that take them.
+5. Optional: `CHAT_PRO_ONLY`. Leave it unset while Free and Pro are not built: every signed-in user may use the coach. Set it to `true` to allow only Pro users (ontology R21).
+6. Put the same values into Vercel (**Settings → Environment Variables**) and deploy again.
+7. Try it: open the coach, write "Tomorrow I want to study 4 hours and watch football in the evening" (and once in German); a draft appears; "Add to calendar" puts the events in the calendar. Each user has 20 messages a day.
+8. After a leak: delete the key in the Console (**API Keys**), create a new one, put it in both places, and check **Usage** for calls you did not make.
