@@ -20,6 +20,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   devIndicators: false,
+  // The download of the Chrome extension reads the project's `extension` folder at run time (spec 18).
+  outputFileTracingIncludes: { "/api/extension/download": ["./extension/**/*"] },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
