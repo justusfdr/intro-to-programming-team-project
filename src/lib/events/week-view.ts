@@ -47,6 +47,10 @@ export function toAllDayEvent(e: EventDto): AllDayEvent {
     updatedAt: e.updatedAt,
     todoCount: e.todoCount,
     todosDone: e.todosDone,
+    // Spec 24: only when there are any, as the server sends them.
+    ...(e.guests ? { guests: e.guests } : {}),
+    ...(e.organizer ? { organizer: e.organizer } : {}),
+    ...(e.demo ? { demo: true } : {}),
   };
 }
 

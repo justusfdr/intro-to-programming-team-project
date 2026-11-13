@@ -41,6 +41,8 @@ export type EventDto = {
   guests?: string[];
   /** Spec 24: an Outlook event's organizer. */
   organizer?: string;
+  /** Part of the demo week (spec 13; never sent to Outlook, so it takes no guests). Left out when not. */
+  demo?: boolean;
 };
 
 /** A timed event as the week view shows it: the event plus what is calculated for display. */

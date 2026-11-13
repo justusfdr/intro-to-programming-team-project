@@ -69,5 +69,6 @@ export function toEventDto(row: EventRow): EventDto {
     // Spec 24: only when there are any, so an event without guests looks as before. Only the owner gets them (R3).
     ...(row.guests && row.guests.length > 0 ? { guests: [...row.guests] } : {}),
     ...(row.organizer ? { organizer: row.organizer } : {}),
+    ...(row.demo ? { demo: true } : {}),
   };
 }

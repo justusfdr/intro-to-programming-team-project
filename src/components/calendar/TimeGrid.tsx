@@ -28,7 +28,7 @@ import {
   type Span,
 } from "@/lib/events/drag";
 import type { AllDayEvent, CalendarEvent, WeekDay, WeekEvent } from "@/lib/events/types";
-import { CalendarDays, TriangleAlert } from "lucide-react";
+import { CalendarDays, TriangleAlert, Users } from "lucide-react";
 import { NotSentIcon } from "@/components/ui/icons";
 import { goalColor } from "@/lib/goals/colors";
 import type { GoalLook } from "@/lib/goals/style";
@@ -36,6 +36,7 @@ import { useDisplay } from "@/components/shell/DisplayProvider";
 import { fmtDateLong, fmtHour, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { dayParts } from "@/lib/time/zoned";
 import { todoCountText } from "@/lib/todos/types";
+import { guestCountText } from "@/lib/events/guests";
 import { anchorOf, pointAnchor, type Anchor } from "./FloatingPanel";
 
 /** What the grid and the event editor need of a goal: its name, colour and icon. */
@@ -163,6 +164,7 @@ function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined,
   if (event.conflict) parts.push("overlaps another event");
   if (event.status === "done") parts.push("done");
   if (event.todoCount) parts.push(`${event.todosDone ?? 0} of ${event.todoCount} to-dos done`);
+  if (event.guests?.length) parts.push(guestCountText(event.guests.length));
   parts.push(...outlookWords(event));
   return parts.join(", ");
 }
@@ -242,6 +244,13 @@ function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, 
       ) : (
         done && <span className="absolute bottom-1 right-1 block size-1.5 rounded-full bg-success" />
       )}
+      {/* Spec 24: a small people icon with the number of guests, when the block is tall enough. */}
+      {event.guests?.length && height >= (event.location ? 88 : 68) ? (
+        <span aria-hidden className="absolute bottom-1 left-1.5 flex items-center gap-0.5 text-[10px] tabular opacity-80">
+          <Users className="size-3" strokeWidth={2} />
+          {event.guests.length}
+        </span>
+      ) : null}
       {draggable && (
         <span aria-hidden onPointerDown={(e) => onResizeStart(e, block, dayIndex)} className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize" />
       )}

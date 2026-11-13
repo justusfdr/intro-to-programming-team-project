@@ -64,13 +64,23 @@ export function movedChange(event: WeekEvent, start: string, end: string, timeZo
     updatedAt: event.updatedAt,
     todoCount: event.todoCount,
     todosDone: event.todosDone,
+    // Spec 24: a move keeps the guests (Outlook sends them the new time) and an Outlook event's organizer.
+    guests: event.guests,
+    organizer: event.organizer,
+    demo: event.demo,
   };
   return { week: (week) => withEventChange(week, { event: moved }) };
 }
 
-/** The body of create_event that brings a deleted event back (it gets a new id), with its to-dos (spec 21). */
+/**
+ * The body of create_event that brings a deleted event back (it gets a new id), with its to-dos (spec
+ * 21) and its guests (spec 24: Outlook invites them again).
+ */
 export function recreateBody(event: CalendarEvent, todos: readonly NewTodo[] = []) {
-  const list = todos.length > 0 ? { todos: todos.map((t) => ({ title: t.title, done: t.done })) } : {};
+  const list = {
+    ...(todos.length > 0 ? { todos: todos.map((t) => ({ title: t.title, done: t.done })) } : {}),
+    ...(event.guests && event.guests.length > 0 ? { guests: [...event.guests] } : {}),
+  };
   if (event.allDay) return { title: event.title, allDay: true, firstDay: event.firstDay, lastDay: event.lastDay, ...list };
   return { title: event.title, start: event.startLocal, end: event.endLocal, mayOverlap: event.mayOverlap, goalId: event.goalId, ...list };
 }
