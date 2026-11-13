@@ -2,16 +2,23 @@
 // rejected input is checked, and every one of the 1440 times of a day goes there and back.
 import { describe, expect, it } from "vitest";
 import {
+  COPIES,
+  HOME_COPY,
   HOURS,
   LAST_MINUTE,
   MINUTES,
+  cyclicIndex,
   endProblem,
   formatHHMM,
+  homeScrollTop,
   indexAtScroll,
   maskTimeTyping,
+  nearestScrollTop,
+  needsRecentre,
   parseHHMM,
   withHour,
   withMinute,
+  wrapStep,
 } from "./wheel";
 
 describe("the wheel's columns", () => {
@@ -175,5 +182,102 @@ describe("endProblem: the end must come at least 15 minutes after the start", ()
     expect(endProblem(9 * 60, 9 * 60 + 14)).toBe(message);
     expect(endProblem(10 * 60, 9 * 60)).toBe(message);
     expect(endProblem(23 * 60 + 50, LAST_MINUTE)).toBe(message);
+  });
+});
+
+describe("the endless column", () => {
+  const ROW = 32;
+  it("goes round: after 59 comes 00 and before 00 comes 23 / 59", () => {
+    expect(wrapStep(59, 1, 60)).toBe(0);
+    expect(wrapStep(0, -1, 60)).toBe(59);
+    expect(wrapStep(23, 1, 24)).toBe(0);
+    expect(wrapStep(0, -1, 24)).toBe(23);
+    expect(wrapStep(3, 5, 24)).toBe(8);
+    expect(wrapStep(2, -5, 24)).toBe(21);
+    expect(wrapStep(0, 60 * 3 + 7, 60)).toBe(7);
+  });
+
+  it("reads the middle row in every copy as the same item", () => {
+    for (let copy = 0; copy < COPIES; copy++)
+      for (const i of [0, 1, 23, 59]) expect(cyclicIndex((copy * 60 + i) * ROW, ROW, 60)).toBe(i);
+  });
+
+  it("reads rows between two as the nearer one, and never outside 0 to count - 1", () => {
+    expect(cyclicIndex(10 * ROW + 15, ROW, 60)).toBe(10);
+    expect(cyclicIndex(10 * ROW + 17, ROW, 60)).toBe(11);
+    expect(cyclicIndex(-3 * ROW, ROW, 60)).toBe(57);
+    expect(cyclicIndex(60 * 9 * ROW, ROW, 60)).toBe(0);
+  });
+
+  it("refuses nonsense and answers 0", () => {
+    expect(cyclicIndex(Number.NaN, ROW, 60)).toBe(0);
+    expect(cyclicIndex(Infinity, ROW, 60)).toBe(0);
+    expect(cyclicIndex(100, 0, 60)).toBe(0);
+    expect(cyclicIndex(100, ROW, 0)).toBe(0);
+  });
+
+  it("rests in the middle copy", () => {
+    expect(COPIES).toBe(11);
+    expect(HOME_COPY).toBe(5);
+    expect(homeScrollTop(0, ROW, 24)).toBe(5 * 24 * ROW);
+    expect(cyclicIndex(homeScrollTop(17, ROW, 24), ROW, 24)).toBe(17);
+  });
+
+  it("goes the short way round: from 23 to 00 one row on, from 00 to 23 one row back", () => {
+    const at23 = homeScrollTop(23, ROW, 24);
+    expect(nearestScrollTop(at23, 0, ROW, 24)).toBe(at23 + ROW);
+    const at0 = homeScrollTop(0, ROW, 24);
+    expect(nearestScrollTop(at0, 23, ROW, 24)).toBe(at0 - ROW);
+    expect(nearestScrollTop(at0, 5, ROW, 24)).toBe(at0 + 5 * ROW);
+  });
+
+  it("always lands on a row of the wanted item", () => {
+    for (let from = 0; from < 24; from++)
+      for (let to = 0; to < 24; to++) {
+        const top = nearestScrollTop(homeScrollTop(from, ROW, 24), to, ROW, 24);
+        expect(cyclicIndex(top, ROW, 24)).toBe(to);
+        expect(Math.abs(top - homeScrollTop(from, ROW, 24))).toBeLessThanOrEqual(12 * ROW);
+      }
+  });
+});
+
+describe("when the endless column jumps back to the middle", () => {
+  const ROW = 32;
+  const ROUND = 24 * ROW;
+  const home = (i: number) => homeScrollTop(i, ROW, 24);
+
+  it("does not jump when passing from 23 to 00 or from 00 to 23 (that was the hitch)", () => {
+    expect(needsRecentre(home(23) + ROW, ROW, 24)).toBe(false);
+    expect(needsRecentre(home(0) - ROW, ROW, 24)).toBe(false);
+    expect(needsRecentre(home(0), ROW, 24)).toBe(false);
+  });
+
+  it("does not jump anywhere in the seven middle copies", () => {
+    for (let top = 2 * ROUND; top < 9 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(false);
+  });
+
+  it("jumps once outside them, in either direction", () => {
+    for (let top = 0; top < 2 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(true);
+    for (let top = 9 * ROUND; top < 11 * ROUND; top += ROW) expect(needsRecentre(top, ROW, 24)).toBe(true);
+  });
+
+  it("the jump lands on the same number it left", () => {
+    for (let top = 0; top < 11 * ROUND; top += ROW) {
+      const index = cyclicIndex(top, ROW, 24);
+      expect(cyclicIndex(home(index), ROW, 24)).toBe(index);
+    }
+  });
+
+  it("a resting place always has at least two rounds left before an edge, for hours and minutes", () => {
+    for (const count of [24, 60]) {
+      const round = count * ROW;
+      expect(COPIES * round - 9 * round).toBe(2 * round);
+    }
+  });
+
+  it("answers false for nonsense", () => {
+    expect(needsRecentre(Number.NaN, ROW, 24)).toBe(false);
+    expect(needsRecentre(100, 0, 24)).toBe(false);
+    expect(needsRecentre(100, ROW, 0)).toBe(false);
   });
 });
