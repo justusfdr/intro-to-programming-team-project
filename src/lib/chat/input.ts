@@ -1,0 +1,108 @@
+// R22: exactly what Claude receives with every message, built in one place. Pure, so the tests can
+// check what is in it and what is not.
+// Sent: the last 10 messages (an assistant message with its draft's proposed events), the goals with
+// deadlines and rules, the events from today to 14 days ahead (title, start, end, may_overlap, all_day),
+// R31's totals, the time zone, the current local date and time, and the calendar's visible hours.
+// Never sent: email, password, locations, the block list, payment data, tasks, or the id of anything
+// except a goal. Each field below is copied by name, so nothing else can slip through.
+import type { ChatTotals } from "./totals";
+import { addDays, localDateOf, localDateTimeOf, startOfLocalDate } from "@/lib/time/zoned";
+import type { ChatRole, DraftStatus } from "./types";
+
+export const HISTORY_LENGTH = 10;
+export const DAYS_AHEAD = 14;
+
+export type HistoryInput = {
+  role: ChatRole;
+  text: string;
+  draft: { status: DraftStatus; events: { title: string; startAt: Date; endAt: Date; goalId: string | null }[] } | null;
+};
+
+export type GoalInput = {
+  id: string;
+  title: string;
+  deadline: string;
+  rules: { kind: "count" | "hours"; target: number; minMinutes: number | null }[];
+};
+
+export type CalendarInput =
+  | { allDay: false; title: string; startAt: Date; endAt: Date; mayOverlap: boolean }
+  | { allDay: true; title: string; firstDay: string; lastDay: string; mayOverlap: boolean };
+
+export type AssistantInputSource = {
+  now: Date;
+  timeZone: string;
+  dayStartHour: number;
+  dayEndHour: number;
+  /** Oldest first; only the last 10 are sent. */
+  history: readonly HistoryInput[];
+  goals: readonly GoalInput[];
+  calendar: readonly CalendarInput[];
+  totals: ChatTotals;
+  /** The user's new message, already checked. */
+  message: string;
+};
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function weekdayOf(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
+const sortKey = (e: { allDay: true; firstDay: string } | { allDay: false; start: string }) => (e.allDay ? e.firstDay : e.start);
+
+/** The data block of the user turn. */
+export function buildAssistantInput(source: AssistantInputSource) {
+  const { now, timeZone } = source;
+  const local = (instant: Date) => localDateTimeOf(instant, timeZone);
+  const today = localDateOf(now, timeZone);
+  const lastDay = addDays(today, DAYS_AHEAD);
+  const from = startOfLocalDate(today, timeZone);
+  const until = startOfLocalDate(addDays(lastDay, 1), timeZone);
+
+  const events = source.calendar
+    .filter((e) => (e.allDay ? e.lastDay >= today && e.firstDay <= lastDay : e.startAt < until && e.endAt > from))
+    .map((e) =>
+      e.allDay
+        ? { title: e.title, allDay: true as const, firstDay: e.firstDay, lastDay: e.lastDay, mayOverlap: e.mayOverlap }
+        : { title: e.title, allDay: false as const, start: local(e.startAt), end: local(e.endAt), mayOverlap: e.mayOverlap },
+    )
+    .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+
+  return {
+    now: local(now),
+    today,
+    weekday: weekdayOf(today),
+    timeZone,
+    dayStartHour: source.dayStartHour,
+    dayEndHour: source.dayEndHour,
+    lastDayForProposals: lastDay,
+    goals: source.goals.map((g) => ({
+      id: g.id,
+      title: g.title,
+      deadline: g.deadline,
+      rules: g.rules.map((r) => ({ kind: r.kind, target: r.target, minMinutes: r.minMinutes })),
+    })),
+    events,
+    totals: source.totals,
+    history: source.history.slice(-HISTORY_LENGTH).map((m) => ({
+      role: m.role,
+      text: m.text,
+      ...(m.draft
+        ? {
+            draftStatus: m.draft.status,
+            proposedEvents: m.draft.events.map((e) => ({
+              title: e.title,
+              start: local(e.startAt),
+              end: local(e.endAt),
+              goalId: e.goalId,
+            })),
+          }
+        : {}),
+    })),
+    message: source.message,
+  };
+}
+
+export type AssistantInput = ReturnType<typeof buildAssistantInput>;
