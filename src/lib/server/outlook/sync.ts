@@ -138,7 +138,7 @@ async function sendPending(deps: Deps, userId: string, service: OutlookService, 
     }
   }
   await deps.withUser(userId, async (q) => {
-    if (sent.length > 0) await q("select app.outlook_mark_sent($1::jsonb)", [JSON.stringify(sent)]);
+    if (sent.length > 0) await q("select app.outlook_mark_sent($1::text::jsonb)", [JSON.stringify(sent)]);
     if (forgotten.length > 0) await q("select app.outlook_forget_deletions($1)", [forgotten]);
   });
   return sent.length + forgotten.length;
