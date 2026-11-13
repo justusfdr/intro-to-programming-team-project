@@ -219,7 +219,10 @@ export async function saveTurn(
     [answer.text],
   );
   if (answer.proposals) {
-    await query("insert into app.draft_plans (message_id, proposed_events) values ($1, $2::jsonb)", [
+    // $2::text::jsonb, not $2::jsonb: the real database driver encodes a parameter it knows to be jsonb
+    // as JSON itself, so an already encoded string would be saved as one JSON string, not as a list.
+    // As text it arrives unchanged and the database turns it into jsonb.
+    await query("insert into app.draft_plans (message_id, proposed_events) values ($1, $2::text::jsonb)", [
       assistant.id,
       JSON.stringify(toStored(answer.proposals)),
     ]);
