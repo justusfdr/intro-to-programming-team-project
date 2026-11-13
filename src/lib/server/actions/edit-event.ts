@@ -7,8 +7,9 @@ import "server-only";
 // Status, source, user_id and series_id are never changed here (status only goes back to planned
 // when a timed event becomes all-day, which can never be done, R29).
 //
-// The location (up to 200 characters, empty means none) is set through app.set_event_location; left
-// out of the body, it stays as it is.
+// The location (up to 200 characters, empty means none) is set through app.set_event_location, the travel
+// mode (null: the standard from the settings) through app.set_event_travel_mode; left out of the body,
+// each stays as it is.
 //
 // Scope (R28): "this" changes the one event. "this_and_following" changes this event and the later
 // ones of its series in one transaction; every event keeps its own date and gets the new times.
@@ -37,7 +38,7 @@ const EditBody = EventFields.partial({ title: true }).extend({
 });
 
 /** Fields that Outlook owns for an imported event (R11). */
-const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "repeat"] as const;
+const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "travelMode", "repeat"] as const;
 
 const badRequest = () => new ActionError(400, "bad_request", MESSAGES.badRequest);
 
@@ -85,6 +86,11 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
         if (event.location !== undefined) await query("select app.set_event_location($1, $2)", [eventId, event.location]);
       };
 
+      // The travel mode works the same way: through its own narrow function, only when the body names it.
+      const setTravelMode = async (eventId: string) => {
+        if (!event.allDay && event.travelMode !== undefined) await query("select app.set_event_travel_mode($1, $2)", [eventId, event.travelMode]);
+      };
+
       if (event.allDay) {
         // A series is timed (R29: all-day events never repeat); the form does not offer this.
         if (row.series_id) throw badRequest();
@@ -114,6 +120,7 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
         let opened: EventRow | undefined;
         for (const other of later) {
           await setLocation(other.id);
+          await setTravelMode(other.id);
           const { startAt, endAt } = timesOn(localDateOf(new Date(other.start_at!), timeZone), template, timeZone);
           const [updated] = await query<EventRow>(
             `update app.events
@@ -130,6 +137,7 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
 
       // updated_at is set again by the database trigger; the user never sets it.
       await setLocation(id);
+      await setTravelMode(id);
       const [updated] = await query<EventRow>(
         // may_overlap and goal_id change only when the body names them ($7: whether it names the goal).
         `update app.events

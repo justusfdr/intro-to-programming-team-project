@@ -19,7 +19,7 @@ const SettingsBody = z
   .strictObject({
     timeZone: z.string().max(100),
     homeAddress: z.string().max(2000),
-    travelMode: z.enum(["driving", "cycling", "walking"]),
+    travelMode: z.enum(["driving", "cycling", "walking", "transit"]),
     travelBufferMinutes: z.number(),
     timeFormat: z.enum(["12h", "24h"]),
     dayStartHour: z.number(),

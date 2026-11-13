@@ -50,6 +50,7 @@ import { dropText, movedChange, recreateBody, savedEvent, savedEventChange, time
 import { anchorOf, FloatingPanel, type Anchor } from "./FloatingPanel";
 import { MonthView } from "./MonthView";
 import { NewEventPopover } from "./NewEventPopover";
+import { useTravelTimes } from "./useTravelTimes";
 import { OutlookChip } from "./OutlookChip";
 import { TimeGrid, type GoalLabel } from "./TimeGrid";
 import { MEDIA, useMediaQuery } from "./useMedia";
@@ -226,6 +227,9 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
   }, [coerced, week.days, week.lead, date]);
 
   const placed = useMemo(() => placeWeek(days, lead), [days, lead]);
+  // R27: when to leave for the shown events with a location (dashed blocks before them).
+  const shownEvents = useMemo(() => placed.flat().map((b) => b.event), [placed]);
+  const travel = useTravelTimes(shownEvents);
   const range = useMemo(
     () => gridRange(placed, { startMin: dayStartHour * 60, endMin: dayEndHour * 60 }),
     [placed, dayStartHour, dayEndHour],
@@ -363,6 +367,7 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
               onOpenEvent={(event, anchor) => setEditor({ mode: "edit", event, anchor })}
               onCreate={(day, span, anchor) => setPop({ kind: "new", date: day, span, anchor })}
               onDrop={onDrop}
+              travel={travel}
             />
           )}
         </div>

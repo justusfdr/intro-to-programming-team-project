@@ -60,6 +60,7 @@ export function movedChange(event: WeekEvent, start: string, end: string, timeZo
     seriesId: event.seriesId,
     source: event.source,
     location: event.location,
+    travelMode: event.travelMode,
     notSent: event.notSent,
     updatedAt: event.updatedAt,
     todoCount: event.todoCount,
@@ -72,7 +73,15 @@ export function movedChange(event: WeekEvent, start: string, end: string, timeZo
 export function recreateBody(event: CalendarEvent, todos: readonly NewTodo[] = []) {
   const list = todos.length > 0 ? { todos: todos.map((t) => ({ title: t.title, done: t.done })) } : {};
   if (event.allDay) return { title: event.title, allDay: true, firstDay: event.firstDay, lastDay: event.lastDay, ...list };
-  return { title: event.title, start: event.startLocal, end: event.endLocal, mayOverlap: event.mayOverlap, goalId: event.goalId, ...list };
+  return {
+    title: event.title,
+    start: event.startLocal,
+    end: event.endLocal,
+    mayOverlap: event.mayOverlap,
+    goalId: event.goalId,
+    ...(event.travelMode ? { travelMode: event.travelMode } : {}),
+    ...list,
+  };
 }
 
 /** The to-dos a delete's answer names (spec 21), to bring them back with Undo. */
