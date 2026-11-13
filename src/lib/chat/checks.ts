@@ -233,8 +233,8 @@ export function checkDraft(
     if (checked.some((other) => overlaps(other, proposal))) return fail("overlaps_proposal");
     // R10: ending exactly when the next starts is no overlap. An event that may overlap never blocks.
     if (remaining.some((event) => !event.mayOverlap && overlaps(event, proposal))) return fail("overlaps_calendar");
-    const { todos: _raw, ...rest } = proposal;
-    checked.push(todos.length > 0 ? { ...rest, title, todos } : { ...rest, title });
+    const kept: Proposal = { title, startAt: proposal.startAt, endAt: proposal.endAt, goalId: proposal.goalId };
+    checked.push(todos.length > 0 ? { ...kept, todos } : kept);
   }
 
   // Moved events at their new times: against the new events, each other and what stays.

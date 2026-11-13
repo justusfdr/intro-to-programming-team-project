@@ -39,6 +39,7 @@ import {
 import { leadInto } from "@/lib/events/week-view";
 import { fmtDateLong, fmtWeekday } from "@/lib/time/display";
 import { localDateTimeOf } from "@/lib/time/zoned";
+import type { NewTodo } from "@/lib/todos/types";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { useLive, useLiveWeek } from "@/components/live/Live";
@@ -193,10 +194,10 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
     [moveEvent],
   );
 
-  /** Undo of a delete: the same event again (create_event; it gets a new id), done again if it was. */
+  /** Undo of a delete: the same event again (create_event; it gets a new id) with its to-dos, done again if it was. */
   const recreate = useCallback(
-    async (event: CalendarEvent) => {
-      const answer = await live.run({ send: () => postJson("/api/events", recreateBody(event)), fromAnswer: savedEventChange });
+    async (event: CalendarEvent, todos: NewTodo[]) => {
+      const answer = await live.run({ send: () => postJson("/api/events", recreateBody(event, todos)), fromAnswer: savedEventChange });
       if (!answer.ok) return showToast(answer.message);
       const saved = savedEvent(answer);
       if (saved && event.status === "done" && !event.allDay) {
@@ -208,7 +209,10 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
     [live, showToast, sendToOutlook],
   );
 
-  const onDeleted = useCallback((event: CalendarEvent) => showToast("Event deleted", () => void recreate(event)), [showToast, recreate]);
+  const onDeleted = useCallback(
+    (event: CalendarEvent, todos: NewTodo[]) => showToast("Event deleted", () => void recreate(event, todos)),
+    [showToast, recreate],
+  );
 
   // Phones have no week view: a week's address shows its day there (as in the prototype).
   const view = coerceView(week.view, isPhone);
