@@ -11,6 +11,9 @@ import "server-only";
 //   page's reading then fails.
 // The counting test (load.test.ts) fails when a page opens more transactions than that.
 import type { AnalyticsData } from "@/lib/analytics/types";
+import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
+import type { ChatPageData } from "@/lib/chat/types";
+import { lookOf } from "@/lib/goals/style";
 import type { BlockerData } from "@/lib/blocker/types";
 import type { WeekData } from "@/lib/events/types";
 import type { View } from "@/lib/events/views";
@@ -20,6 +23,10 @@ import type { SettingsPageData } from "@/lib/settings/types";
 import type { TaskDto } from "@/lib/tasks/types";
 import type { Display } from "@/lib/time/display";
 import { readAnalytics } from "@/lib/server/analytics/load";
+import { readChatAccount, readMessages } from "@/lib/server/chat/rows";
+import { chatProOnly } from "@/lib/server/config";
+import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
+import { readGoals } from "@/lib/server/goals/rows";
 import { readBlocker } from "@/lib/server/blocker/page";
 import type { Deps } from "@/lib/server/deps";
 import { welcomeDue } from "@/lib/server/demo/rows";
@@ -33,8 +40,12 @@ import { readSettingsPage } from "@/lib/server/settings-page";
 import { readTasks } from "@/lib/server/tasks/rows";
 import { settleTasks } from "@/lib/server/tasks/settle";
 import { sortTasks } from "@/lib/tasks/order";
+import { addDays, localDateOf, startOfLocalDate } from "@/lib/time/zoned";
 
 type PageDeps = Pick<Deps, "withUser" | "now">;
+
+/** How many of the latest messages the chat page shows. */
+const CHAT_PAGE_MESSAGES = 100;
 
 function displayOf(settings: { timeFormat: Display["timeFormat"]; dayStartHour: number; dayEndHour: number }): Display {
   return { timeFormat: settings.timeFormat, dayStartHour: settings.dayStartHour, dayEndHour: settings.dayEndHour };
@@ -123,5 +134,69 @@ export async function loadSettingsPageAll(deps: PageDeps, userId: string): Promi
       readBlocker(query, now, settingsRead.then((s) => s.timeZone)),
     ]);
     return { display: displayOf(page.settings), page, blocker };
+  });
+}
+
+/**
+ * The coach's page (spec 19): the messages with their drafts, the events of the days the open draft
+ * touches (to draw it in the calendar's style), the goals with their look, the messages left today,
+ * whether the chat is allowed for this user, and whether Claude is set up on this server.
+ * One transaction; nothing is changed.
+ */
+export async function loadChatPage(deps: Pick<Deps, "withUser" | "assistant">, userId: string): Promise<ChatPageData> {
+  return deps.withUser(userId, async (query) => {
+    // Reads without parameters first (one round), the messages (with a parameter) after them.
+    const settingsRead = readSettings(query);
+    const goalsRead = readGoals(query);
+    const accountRead = readChatAccount(query);
+    const [settings, goals, account, messages] = await Promise.all([
+      settingsRead,
+      goalsRead,
+      accountRead,
+      readMessages(query, CHAT_PAGE_MESSAGES),
+    ]);
+    const timeZone = settings.timeZone;
+
+    const open = messages.find((m) => m.draft?.status === "open")?.draft ?? null;
+    const days = new Set<string>();
+    for (const e of open?.events ?? []) {
+      const start = localDateOf(new Date(e.startAt), timeZone);
+      // An event ending at midnight does not touch the next day.
+      const last = localDateOf(new Date(Date.parse(e.endAt) - 1), timeZone);
+      for (let day = start; day <= last; day = addDays(day, 1)) days.add(day);
+    }
+    const draftDays = [...days].sort();
+    let draftDayEvents: ChatPageData["draftDayEvents"] = [];
+    if (draftDays.length > 0) {
+      const first = draftDays[0];
+      const last = draftDays[draftDays.length - 1];
+      const rows = await query<EventRow>(
+        `select ${EVENT_COLUMNS} from app.events
+          where (not all_day and start_at < $2 and end_at > $1) or (all_day and last_day >= $3::date and first_day <= $4::date)
+          order by coalesce(start_at, first_day::timestamptz), id`,
+        [startOfLocalDate(first, timeZone), startOfLocalDate(addDays(last, 1), timeZone), first, last],
+      );
+      // Only the days the draft touches (the range may have gaps).
+      draftDayEvents = rows
+        .filter((r) => {
+          if (r.all_day) return draftDays.some((d) => d >= r.first_day! && d <= r.last_day!);
+          const from = localDateOf(new Date(r.start_at!), timeZone);
+          const to = localDateOf(new Date(new Date(r.end_at!).getTime() - 1), timeZone);
+          return draftDays.some((d) => d >= from && d <= to);
+        })
+        .map(toEventDto);
+    }
+
+    return {
+      display: displayOf(settings),
+      timeZone,
+      messages,
+      draftDayEvents,
+      draftDays,
+      goals: goals.map(({ goal }, index) => ({ id: goal.id, title: goal.title, look: lookOf(goal, index) })),
+      messagesLeft: Math.max(0, DAILY_MESSAGES - account.usedToday),
+      chatAllowed: chatAllowed(account.plan, chatProOnly()),
+      assistantConfigured: deps.assistant !== null,
+    };
   });
 }
