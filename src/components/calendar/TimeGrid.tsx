@@ -35,6 +35,7 @@ import type { GoalLook } from "@/lib/goals/style";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { fmtDateLong, fmtHour, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { dayParts } from "@/lib/time/zoned";
+import { todoCountText } from "@/lib/todos/types";
 import { anchorOf, pointAnchor, type Anchor } from "./FloatingPanel";
 
 /** What the grid and the event editor need of a goal: its name, colour and icon. */
@@ -161,6 +162,7 @@ function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined,
   if (goal) parts.push(`goal ${goal.title}`);
   if (event.conflict) parts.push("overlaps another event");
   if (event.status === "done") parts.push("done");
+  if (event.todoCount) parts.push(`${event.todosDone ?? 0} of ${event.todoCount} to-dos done`);
   parts.push(...outlookWords(event));
   return parts.join(", ");
 }
@@ -234,7 +236,12 @@ function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, 
           {event.conflict && <TriangleAlert className="size-3 text-danger" />}
         </span>
       )}
-      {done && <span className="absolute bottom-1 right-1 block size-1.5 rounded-full bg-success" />}
+      {/* As in the prototype: the to-dos' count ("2/3") when the block has room under title and time, else the done dot. */}
+      {event.todoCount && height >= 68 ? (
+        <span className="absolute bottom-1 right-1 text-[10px] tabular opacity-80">{todoCountText(event.todosDone ?? 0, event.todoCount)}</span>
+      ) : (
+        done && <span className="absolute bottom-1 right-1 block size-1.5 rounded-full bg-success" />
+      )}
       {draggable && (
         <span aria-hidden onPointerDown={(e) => onResizeStart(e, block, dayIndex)} className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize" />
       )}

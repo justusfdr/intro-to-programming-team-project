@@ -8,8 +8,8 @@ export type ChatRole = "user" | "assistant";
 /** "undone" (spec 20): an accepted draft whose changes were taken back; final. */
 export type DraftStatus = "open" | "accepted" | "rejected" | "replaced" | "undone";
 
-/** One proposed event of a draft. Times are ISO strings in UTC. */
-export type ProposedEventDto = { title: string; startAt: string; endAt: string; goalId: string | null };
+/** One proposed event of a draft. Times are ISO strings in UTC. `todos` (spec 21): its to-dos, left out when it has none. */
+export type ProposedEventDto = { title: string; startAt: string; endAt: string; goalId: string | null; todos?: string[] };
 
 /**
  * A proposed change of an existing event (spec 20): a move to new times, or a delete. The title, goal

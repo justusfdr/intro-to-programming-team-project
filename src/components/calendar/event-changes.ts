@@ -6,13 +6,15 @@
 //   stay as they are.
 // - Undo of a move or a resize is edit_event back to the old times, with the updated_at of the move's
 //   answer. If the event changed again since, the server refuses (R4) and its message shows.
-// - Undo of a delete is create_event with the same fields: the event comes back with a new id.
+// - Undo of a delete is create_event with the same fields: the event comes back with a new id, with
+//   the to-dos the delete's answer named (spec 21).
 import type { Changes } from "@/components/live/Live";
 import type { PostResult } from "@/lib/client/post-json";
 import type { CalendarEvent, EventDto, WeekEvent } from "@/lib/events/types";
 import { withEventChange } from "@/lib/events/week-view";
 import { fmtDateShort, fmtRange, type TimeFormat } from "@/lib/time/display";
 import { parseLocalDateTime } from "@/lib/time/zoned";
+import type { NewTodo } from "@/lib/todos/types";
 
 export type Scope = "this" | "this_and_following";
 
@@ -60,14 +62,26 @@ export function movedChange(event: WeekEvent, start: string, end: string, timeZo
     location: event.location,
     notSent: event.notSent,
     updatedAt: event.updatedAt,
+    todoCount: event.todoCount,
+    todosDone: event.todosDone,
   };
   return { week: (week) => withEventChange(week, { event: moved }) };
 }
 
-/** The body of create_event that brings a deleted event back (it gets a new id). */
-export function recreateBody(event: CalendarEvent) {
-  if (event.allDay) return { title: event.title, allDay: true, firstDay: event.firstDay, lastDay: event.lastDay };
-  return { title: event.title, start: event.startLocal, end: event.endLocal, mayOverlap: event.mayOverlap, goalId: event.goalId };
+/** The body of create_event that brings a deleted event back (it gets a new id), with its to-dos (spec 21). */
+export function recreateBody(event: CalendarEvent, todos: readonly NewTodo[] = []) {
+  const list = todos.length > 0 ? { todos: todos.map((t) => ({ title: t.title, done: t.done })) } : {};
+  if (event.allDay) return { title: event.title, allDay: true, firstDay: event.firstDay, lastDay: event.lastDay, ...list };
+  return { title: event.title, start: event.startLocal, end: event.endLocal, mayOverlap: event.mayOverlap, goalId: event.goalId, ...list };
+}
+
+/** The to-dos a delete's answer names (spec 21), to bring them back with Undo. */
+export function deletedTodos(answer: PostResult): NewTodo[] {
+  const todos = (answer.data as { todos?: unknown } | undefined)?.todos;
+  if (!Array.isArray(todos)) return [];
+  return todos.flatMap((t) =>
+    t && typeof t === "object" && typeof (t as NewTodo).title === "string" ? [{ title: (t as NewTodo).title, done: (t as NewTodo).done === true }] : [],
+  );
 }
 
 /**

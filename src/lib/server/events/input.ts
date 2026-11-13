@@ -8,6 +8,7 @@ import { z } from "zod";
 import { repeatDates, type RepeatRule, type Weekday } from "@/lib/events/repeat";
 import { MESSAGES } from "@/lib/messages";
 import { ActionError } from "@/lib/server/errors";
+import { TodoListField } from "@/lib/server/todos/input";
 import { isLocalDate, parseLocalDateTime, type LocalDate } from "@/lib/time/zoned";
 
 /**
@@ -35,6 +36,11 @@ export const EventFields = z.object({
     })
     .nullable()
     .optional(),
+  /**
+   * Spec 21, only for create_event: the new event's to-dos (title, done), in order; a series gets them
+   * on every event. Checked by the action (checkTodoList).
+   */
+  todos: TodoListField.optional(),
 });
 
 type Fields = z.infer<typeof EventFields>;

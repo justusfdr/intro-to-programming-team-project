@@ -30,3 +30,15 @@ export async function postJson(path: string, body: unknown): Promise<PostResult>
     return { ok: false, status: 0, message: NETWORK_ERROR };
   }
 }
+
+/** Reads data from one of our route handlers (a GET on our own site), in the same shape as postJson. */
+export async function getJson(path: string): Promise<PostResult> {
+  try {
+    const response = await fetch(path, { method: "GET", headers: { accept: "application/json" }, cache: "no-store" });
+    const data = (await response.json().catch(() => ({}))) as { message?: unknown };
+    const message = typeof data.message === "string" ? data.message : response.ok ? "" : NETWORK_ERROR;
+    return { ok: response.ok, status: response.status, message, data };
+  } catch {
+    return { ok: false, status: 0, message: NETWORK_ERROR };
+  }
+}

@@ -15,11 +15,13 @@
 // filled in, for repeating, all-day, location or overlap. "Add event" creates it (create_event) and the
 // editor then edits the saved event.
 //
-// The sections, in the prototype's order: header (goal tile, title, close), chips, WHEN, GOAL,
-// LOCATION, then ours: OVERLAP. Each is its own component in ./editor, so a later section (to-dos,
-// notes, the rating, the travel line) is one more entry in the list.
+// The sections, in the prototype's order: header (goal tile, title, close), chips, WHEN, TO-DOS (spec
+// 21), GOAL, LOCATION, then ours: OVERLAP. Each is its own component in ./editor, so a later section
+// (notes, the rating, the travel line) is one more entry in the list.
+// To-dos are saved at once, each change on its own (not with the Save button); a new event keeps its
+// list until "Add event" sends it with the event. Outlook events have none (R11).
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode, type Ref } from "react";
+import { useRef, useState, type ReactNode, type Ref } from "react";
 import { Play, Trash2 } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useLive } from "@/components/live/Live";
@@ -27,13 +29,18 @@ import { Button, LinkButton } from "@/components/ui/Button";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent } from "@/lib/events/types";
+import { MESSAGES } from "@/lib/messages";
+import { cleanTitle, hasRoom, moveTo, type TodoItem } from "@/lib/todos/list";
+import type { NewTodo } from "@/lib/todos/types";
 import { addDays } from "@/lib/time/zoned";
 import { useAnnounce } from "./Announcer";
 import { EditorChips } from "./editor/EditorChips";
 import { EditorHeader } from "./editor/EditorHeader";
+import { EventTodos } from "./editor/EventTodos";
 import { GoalSection } from "./editor/GoalSection";
 import { LocationSection } from "./editor/LocationSection";
 import { OverlapSection } from "./editor/OverlapSection";
+import { TodoList } from "./editor/TodoList";
 import { useEventSave } from "./editor/useEventSave";
 import { createBody, eventFromAnswer, newValues, type EventValues } from "./editor/values";
 import { RepeatFields, WhenSection, type Frequency } from "./editor/WhenSection";
@@ -64,8 +71,8 @@ type Props = Common & {
   state: EditorState;
   /** The event as the calendar shows it now (with the latest re-read), or null. */
   shown?: CalendarEvent | null;
-  /** One event was deleted (not "this and following"): the calendar offers Undo. */
-  onDeleted?: (event: CalendarEvent) => void;
+  /** One event was deleted (not "this and following"): the calendar offers Undo, with its to-dos. */
+  onDeleted?: (event: CalendarEvent, todos: NewTodo[]) => void;
   /** A change was refused after the editor closed: the calendar shows the message. */
   onRefused?: (message: string) => void;
   /** A new event was added: the editor goes on with it. */
@@ -158,7 +165,7 @@ type EditProps = Common & {
   /** Null: drawn without the floating panel (previews, markup tests). */
   anchor: Anchor | null;
   shown?: CalendarEvent | null;
-  onDeleted?: (event: CalendarEvent) => void;
+  onDeleted?: (event: CalendarEvent, todos: NewTodo[]) => void;
   onRefused?: (message: string) => void;
 };
 
@@ -182,6 +189,8 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
     />,
     <EditorChips key="chips" event={event} />,
     <WhenSection key="when" event={event} values={values} onChange={(patch) => save.change(patch)} todayKey={today} />,
+    // Right under the time, as in the prototype; saved at once. Outlook events have none (R11).
+    !fromOutlook && <EventTodos key="todos" eventId={event.id} />,
     // All-day events have no goal (R29).
     !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => save.change({ goalId })} />,
     <LocationSection
@@ -260,7 +269,15 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
   const [until, setUntil] = useState(() => addDays(draft.start.slice(0, 10), 28));
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PostResult | null>(null);
+  // The new event's to-dos, kept here until "Add event" sends them with it (spec 21).
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [todoError, setTodoError] = useState("");
+  const nextKey = useRef(1);
   const change = (patch: Partial<EventValues>) => setValues((v) => ({ ...v, ...patch }));
+  const editTodos = (next: (list: TodoItem[]) => TodoItem[]) => {
+    setTodos(next);
+    setTodoError("");
+  };
   const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);
 
   async function add() {
@@ -270,7 +287,7 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
         ? null
         : { frequency, weekdays: frequency === "weekly" ? [...new Set([...weekdays, first])].sort((a, b) => a - b) : [], until };
     setBusy(true);
-    const answer = await live.run({ send: () => postJson("/api/events", createBody(values, repeat)), fromAnswer: savedEventChange });
+    const answer = await live.run({ send: () => postJson("/api/events", createBody(values, repeat, todos)), fromAnswer: savedEventChange });
     setBusy(false);
     if (!answer.ok) return setResult(answer);
     if (answer.message) announce(answer.message);
@@ -299,6 +316,25 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
         />
       )}
     </WhenSection>,
+    <TodoList
+      key="todos"
+      todos={todos}
+      error={todoError}
+      onAdd={(raw) => {
+        const title = cleanTitle(raw);
+        if (!title) return setTodoError(MESSAGES.todoTitleLength);
+        if (!hasRoom(todos)) return setTodoError(MESSAGES.tooManyTodos);
+        editTodos((list) => [...list, { key: `new-${nextKey.current++}`, title, done: false }]);
+      }}
+      onRename={(key, raw) => {
+        const title = cleanTitle(raw);
+        if (!title) return setTodoError(MESSAGES.todoTitleLength);
+        editTodos((list) => list.map((t) => (t.key === key ? { ...t, title } : t)));
+      }}
+      onToggle={(key) => editTodos((list) => list.map((t) => (t.key === key ? { ...t, done: !t.done } : t)))}
+      onMove={(key, toIndex) => editTodos((list) => moveTo(list, key, toIndex))}
+      onDelete={(key) => editTodos((list) => list.filter((t) => t.key !== key))}
+    />,
     !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => change({ goalId })} />,
     <LocationSection key="location" value={values.location} editable onType={(location) => change({ location })} onDone={() => {}} />,
     !values.allDay && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => change({ mayOverlap })} />,

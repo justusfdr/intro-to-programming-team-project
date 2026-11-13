@@ -10,6 +10,8 @@
 // place as a pale dashed outline; a deleted event pale and struck through, "Removed". A draft that
 // changes anything is applied with "Apply changes". An accepted draft offers a quiet "Undo"
 // (undo_draft), and an undone one says so.
+// Spec 21: a proposal with to-dos shows their count on its block ("0/3", when the block is tall
+// enough, as in the calendar) and their titles in a list under the day.
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
@@ -23,6 +25,7 @@ import type { EventDto } from "@/lib/events/types";
 import { goalColor } from "@/lib/goals/colors";
 import { fmtDateLong, fmtDateShort, fmtHour, fmtTime, fmtRange, type TimeFormat } from "@/lib/time/display";
 import type { LocalDate } from "@/lib/time/zoned";
+import { todoCountText } from "@/lib/todos/types";
 
 const PILL: Record<DraftStatus, { label: string; className: string }> = {
   open: { label: "Draft", className: "bg-ink text-white" },
@@ -126,6 +129,9 @@ function DayColumn({ day, goals, open }: { day: SketchDay; goals: ChatGoal[]; op
                 </span>
                 {from && <span className="block truncate text-[10px] leading-[13px] opacity-80">{from}</span>}
                 {h >= (from ? 48 : 34) && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{timeText(block, timeFormat)}</span>}
+                {block.todos && h >= 52 && (
+                  <span className="absolute bottom-1 right-1 text-[10px] tabular opacity-80">{todoCountText(0, block.todos.length)}</span>
+                )}
               </div>
             );
           },
@@ -198,10 +204,35 @@ export function DraftCard({ draft, goals, timeZone, calendar, onStatus }: Props)
           <div className={open ? "" : "opacity-60"}>
             <DayColumn day={day} goals={goals} open={open} />
           </div>
+          {day.proposals.some((block) => block.todos) && (
+            <ul aria-label="To-dos" className="ml-11 mt-2 flex flex-col gap-2">
+              {day.proposals
+                .filter((block) => block.todos)
+                .map((block, i) => (
+                  <li key={`t${i}`} className="min-w-0">
+                    <p className="flex items-center justify-between gap-2 text-[11px] font-medium text-ink-2">
+                      <span className="truncate">{block.title}</span>
+                      <span className="shrink-0 tabular text-ink-3" aria-label={`${block.todos!.length} to-dos`}>
+                        {todoCountText(0, block.todos!.length)}
+                      </span>
+                    </p>
+                    <ul className="mt-1 flex flex-col gap-1">
+                      {block.todos!.map((todo, j) => (
+                        <li key={j} className="flex items-start gap-1.5 text-xs text-ink">
+                          <span aria-hidden className="mt-0.5 size-3 shrink-0 rounded border border-line" />
+                          <span className="min-w-0 break-words">{todo}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+            </ul>
+          )}
           <ul className="sr-only">
             {day.proposals.map((block, i) => {
               const goal = goalOf(block.goalId);
-              return <li key={`p${i}`}>{`${block.title}, ${spokenTime(block, timeFormat)}${goal ? `, goal ${goal.title}` : ""}`}</li>;
+              const todos = block.todos ? `, ${block.todos.length} to-dos` : "";
+              return <li key={`p${i}`}>{`${block.title}, ${spokenTime(block, timeFormat)}${goal ? `, goal ${goal.title}` : ""}${todos}`}</li>;
             })}
             {day.moved.map((block, i) => (
               <li key={`m${i}`}>{`${block.title}, moved to ${spokenTime(block, timeFormat)}, ${movedFrom(block, day.date, timeFormat).replace("Moved", "moved")}`}</li>

@@ -29,6 +29,8 @@ export type SketchBlock = {
   endsNextDay: boolean;
   /** The block began on an earlier day (only the calendar's events, cut at midnight). */
   startsBefore: boolean;
+  /** Spec 21: a proposal's to-dos (left out when it has none). */
+  todos?: string[];
 };
 
 export type SketchDay = {
@@ -74,7 +76,7 @@ const isBlock = <T>(b: T | null): b is T => b !== null;
 
 /** One timed event as a block on `date`, or null when no part of it lies on that day. */
 function blockOn(
-  e: { title: string; goalId: string | null; startAt: string; endAt: string },
+  e: { title: string; goalId: string | null; startAt: string; endAt: string; todos?: string[] },
   date: LocalDate,
   timeZone: string,
 ): SketchBlock | null {
@@ -90,7 +92,8 @@ function blockOn(
   // Ends on a later day: the block runs to midnight. An end at exactly midnight is the same.
   const endMin = endDay > date ? DAY_MIN : minuteOf(endTime);
   if (endMin <= startMin) return null;
-  return { title: e.title, goalId: e.goalId, startMin, endMin, startTime, endTime, endsNextDay: endDay > startDay, startsBefore };
+  const block: SketchBlock = { title: e.title, goalId: e.goalId, startMin, endMin, startTime, endTime, endsNextDay: endDay > startDay, startsBefore };
+  return e.todos && e.todos.length > 0 ? { ...block, todos: [...e.todos] } : block;
 }
 
 /**

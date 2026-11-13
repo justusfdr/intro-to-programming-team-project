@@ -3,9 +3,15 @@ import "server-only";
 // Reading event rows: the columns every query returns, and how a row becomes what the page gets.
 import type { EventDto, EventSource, EventStatus } from "@/lib/events/types";
 
-/** The columns to select (or return) for an event. Use it in every query that hands an event out. */
+/**
+ * The columns to select (or return) for an event. Use it in every query that hands an event out, on
+ * app.events without another name. The last two are its to-dos' numbers (spec 21), counted in the same
+ * statement, so the calendar gets them without one more round trip.
+ */
 export const EVENT_COLUMNS =
-  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, outlook_id is not null as in_outlook, demo, updated_at";
+  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, outlook_id is not null as in_outlook, demo, updated_at, " +
+  "(select count(*)::int from app.event_todos t where t.event_id = events.id) as todo_count, " +
+  "(select count(*)::int from app.event_todos t where t.event_id = events.id and t.done) as todos_done";
 
 export type EventRow = {
   id: string;
@@ -28,6 +34,9 @@ export type EventRow = {
   /** Part of the demo week (spec 13): never sent to Outlook. */
   demo: boolean;
   updated_at: Date;
+  /** How many to-dos the event has, and how many of them are done (spec 21). */
+  todo_count: number;
+  todos_done: number;
 };
 
 const iso = (value: Date | null) => (value ? new Date(value).toISOString() : null);
@@ -49,5 +58,7 @@ export function toEventDto(row: EventRow): EventDto {
     location: row.location,
     notSent: false,
     updatedAt: new Date(row.updated_at).toISOString(),
+    todoCount: row.todo_count ?? 0,
+    todosDone: row.todos_done ?? 0,
   };
 }

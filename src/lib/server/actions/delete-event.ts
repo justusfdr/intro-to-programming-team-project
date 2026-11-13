@@ -6,6 +6,8 @@ import "server-only";
 //      since the device last saw it (R4), delete it   5. one answer per outcome.
 // Scope (R28): "this" deletes the one event; "this_and_following" also the later events of its
 // series, in the same transaction. The two-device check is on the event the user opened.
+// Spec 21: the event's to-dos go with it (the database deletes them). Deleting one event answers with
+// its to-dos (title and done, in order), so the calendar's Undo can bring them back with it (R38).
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
@@ -13,6 +15,7 @@ import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertUnchangedSince, findOwnEvent } from "@/lib/server/events/own-event";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
+import { readTodos } from "@/lib/server/todos/rows";
 
 /** The updated_at the device last saw (R4). */
 const DeleteBody = z.object({
@@ -41,8 +44,14 @@ export function deleteEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
         await query("delete from app.events where series_id = $1 and start_at >= $2", [row.series_id, row.start_at]);
         return jsonOk({ message: MESSAGES.seriesDeleted });
       }
+      const todos = await readTodos(query, id);
       await query(`delete from app.events where id = $1`, [id]);
-      return jsonOk({ message: MESSAGES.eventDeleted });
+      // Only when it had to-dos, so the answer of an event without them stays as it was.
+      return jsonOk(
+        todos.length > 0
+          ? { message: MESSAGES.eventDeleted, todos: todos.map((t) => ({ title: t.title, done: t.done })) }
+          : { message: MESSAGES.eventDeleted },
+      );
     });
   });
 }
