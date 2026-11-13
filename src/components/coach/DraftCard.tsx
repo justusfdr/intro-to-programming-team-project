@@ -25,7 +25,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
-import { GOAL_ICONS } from "@/components/goals/GoalTile";
+import { GOAL_ICONS, GoalTile } from "@/components/goals/GoalTile";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { Button, LinkButton } from "@/components/ui/Button";
 import {
@@ -46,6 +46,7 @@ import { exceedsThreshold, localAt, minuteAtY, moveSpan, resizeSpan, type Span }
 import { formatMinute } from "@/lib/events/grid";
 import type { EventDto } from "@/lib/events/types";
 import { goalColor } from "@/lib/goals/colors";
+import type { GoalLook } from "@/lib/goals/style";
 import { fmtDateLong, fmtDateShort, fmtHour, fmtTime, fmtRange, type TimeFormat } from "@/lib/time/display";
 import { parseLocalDateTime, type LocalDate } from "@/lib/time/zoned";
 import { todoCountText } from "@/lib/todos/types";
@@ -83,14 +84,40 @@ function spokenAdded(todos: string[] | undefined): string {
 }
 
 /** Spec 23: the lists of new to-dos for existing events on a day, in the order they are drawn. */
-function addedLists(day: SketchDay): { title: string; todos: string[] }[] {
+function addedLists(day: SketchDay, format: TimeFormat): { title: string; todos: string[]; time: string; goalId: string | null }[] {
   return [
-    ...day.allDayTodos.map((chip) => ({ title: chip.title, todos: chip.addedTodos })),
+    ...day.allDayTodos.map((chip) => ({ title: chip.title, todos: chip.addedTodos, time: "All day", goalId: null })),
     ...[...day.withTodos, ...day.moved]
       .filter((block) => block.addedTodos && block.addedTodos.length > 0)
       .sort((a, b) => a.startMin - b.startMin)
-      .map((block) => ({ title: block.title, todos: block.addedTodos! })),
+      .map((block) => ({ title: block.title, todos: block.addedTodos!, time: timeText(block, format), goalId: block.goalId })),
   ];
+}
+
+/**
+ * The to-dos of one event of a draft, as a small panel under the day: the event's tile, title and time,
+ * how many to-dos, and the titles as plain lines. They are not boxes to tick: ticking happens in the
+ * event once it is in the calendar, and the card says so.
+ */
+function TodoPanel({ label, title, time, mark, look, todos }: { label?: string; title: string; time: string; mark: string; look: GoalLook | null; todos: string[] }) {
+  return (
+    <li aria-label={label} className="min-w-0 rounded-xl bg-raised/70 px-3 py-2.5">
+      <p className="flex items-center gap-2">
+        <GoalTile look={look} size="xs" />
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-ink">{title}</span>
+        <span className="shrink-0 text-[11px] tabular text-ink-3">{time}</span>
+        <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[10px] font-medium tabular text-ink-2 ring-1 ring-line-subtle">{mark}</span>
+      </p>
+      <ul className="mt-2 flex flex-col gap-1 pl-7">
+        {todos.map((todo, j) => (
+          <li key={j} className="flex items-start gap-2 text-[13px] leading-5 text-ink">
+            <span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-ink-3" />
+            <span className="min-w-0 break-words">{todo}</span>
+          </li>
+        ))}
+      </ul>
+    </li>
+  );
 }
 
 type Gesture = { kind: "move" | "resize"; pointerId: number; block: SketchBlock; y: number; x: number; grabMin: number; active: boolean };
@@ -454,44 +481,34 @@ export function DraftCard({ draft: saved, goals, timeZone, calendar, onStatus, o
               {day.proposals
                 .filter((block) => block.todos)
                 .map((block, i) => (
-                  <li key={`t${i}`} className="min-w-0">
-                    <p className="flex items-center justify-between gap-2 text-[11px] font-medium text-ink-2">
-                      <span className="truncate">{block.title}</span>
-                      <span className="shrink-0 tabular text-ink-3" aria-label={`${block.todos!.length} to-dos`}>
-                        {todoCountText(0, block.todos!.length)}
-                      </span>
-                    </p>
-                    <ul className="mt-1 flex flex-col gap-1">
-                      {block.todos!.map((todo, j) => (
-                        <li key={j} className="flex items-start gap-1.5 text-xs text-ink">
-                          <span aria-hidden className="mt-0.5 size-3 shrink-0 rounded border border-line" />
-                          <span className="min-w-0 break-words">{todo}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
+                  <TodoPanel
+                    key={`t${i}`}
+                    title={block.title}
+                    time={timeText(block, timeFormat)}
+                    mark={`${block.todos!.length} ${block.todos!.length === 1 ? "to-do" : "to-dos"}`}
+                    look={goals.find((g) => g.id === block.goalId)?.look ?? null}
+                    todos={block.todos!}
+                  />
                 ))}
             </ul>
           )}
-          {addedLists(day).length > 0 && (
+          {addedLists(day, timeFormat).length > 0 && (
             <ul aria-label="To-dos for events in the calendar" className="ml-11 mt-2 flex flex-col gap-2">
-              {addedLists(day).map((list, i) => (
-                <li key={`a${i}`} className="min-w-0">
-                  <p className="flex items-center justify-between gap-2 text-[11px] font-medium text-ink-2">
-                    <span className="truncate">{`To-dos for '${list.title}'`}</span>
-                    <span className="shrink-0 tabular text-ink-3">{addedTodosText(list.todos.length)}</span>
-                  </p>
-                  <ul className="mt-1 flex flex-col gap-1">
-                    {list.todos.map((todo, j) => (
-                      <li key={j} className="flex items-start gap-1.5 text-xs text-ink">
-                        <span aria-hidden className="mt-0.5 size-3 shrink-0 rounded border border-line" />
-                        <span className="min-w-0 break-words">{todo}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
+              {addedLists(day, timeFormat).map((list, i) => (
+                <TodoPanel
+                  key={`a${i}`}
+                  label={`To-dos for '${list.title}'`}
+                  title={list.title}
+                  time={list.time}
+                  mark={addedTodosText(list.todos.length)}
+                  look={goals.find((g) => g.id === list.goalId)?.look ?? null}
+                  todos={list.todos}
+                />
               ))}
             </ul>
+          )}
+          {open && (day.proposals.some((block) => block.todos) || addedLists(day, timeFormat).length > 0) && (
+            <p className="ml-11 mt-1.5 text-[11px] text-ink-3">You tick them off in the event, once it is in your calendar.</p>
           )}
           <ul className="sr-only">
             {day.proposals.map((block, i) => {

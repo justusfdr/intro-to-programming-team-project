@@ -43,6 +43,18 @@ describe("a draft's to-dos", () => {
     expect(html).toContain("Study, 12pm to 2pm, 3 to-dos");
   });
 
+  it("draws them as plain lines in a panel with the event's title, time and count, not as boxes to tick", () => {
+    const html = render(DRAFT);
+    // The panel's head: title, time, "3 to-dos".
+    expect(html).toMatch(/<li class="[^"]*rounded-xl bg-raised\/70[^"]*">.*>Study<\/span>.*>12 – 2pm<\/span>.*>3 to-dos<\/span>/s);
+    // A small dot before each title; no empty square that looks like a tick box.
+    expect(html).toMatch(/<span aria-hidden="true" class="[^"]*size-1 shrink-0 rounded-full[^"]*"><\/span><span[^>]*>Read chapter 3<\/span>/);
+    expect(html).not.toContain("size-3 shrink-0 rounded border border-line");
+    // Where they are ticked, said once on the open draft.
+    expect(html).toContain("You tick them off in the event, once it is in your calendar.");
+    expect(render({ ...DRAFT, status: "accepted" })).not.toContain("You tick them off");
+  });
+
   it("a draft without to-dos shows no list", () => {
     const html = render({ ...DRAFT, events: [DRAFT.events[1]] });
     expect(html).not.toContain('aria-label="To-dos"');
