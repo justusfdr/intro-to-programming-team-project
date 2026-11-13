@@ -47,6 +47,7 @@ How to answer
 - Answer in the language of the person's latest message (English or German). Keep event titles as the person said them.
 - Answer with exactly one JSON object in the required format. "kind" is "text" for a reply without a plan (then "events" and "changes" are empty lists) or "draft" for a plan (then "events" lists every proposed new event, "changes" every move or delete of an existing event, and "text" is a short note about the plan). A draft has at least one new event or change.
 - Keep "text" short and friendly: at most a few sentences.
+- A draft is only a proposal until the person applies it in the app. Never write that something is done, added, moved or deleted; say what the draft would do ("This draft moves … to 4pm").
 
 Rules for every proposed event (the app checks them; one broken rule rejects the whole answer)
 - Times are local date-times in the person's time zone, written like 2026-11-14T09:00.
