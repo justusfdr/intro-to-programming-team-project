@@ -60,6 +60,10 @@ export const MESSAGES = {
   // ontology, section 5 (settings and account)
   bufferRange: "Buffer must be 0 to 120 minutes",
   cancelPro: "Cancel Pro before deleting your account",
+  // ontology, section 5 (upgrade_to_pro, cancel_pro) and section 7 (Stripe down), spec 24
+  alreadyPro: "You already have Pro",
+  notPro: "You do not have Pro",
+  paymentUnavailable: "Payment is not available right now.",
   // ontology, section 5 (AI chat, spec 19)
   chatProOnly: "The AI chat is part of Pro",
   chatLimit: "Today's 20 messages are used",

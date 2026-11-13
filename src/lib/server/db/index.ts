@@ -1,13 +1,16 @@
 import "server-only";
 
 // The database module: the only place that connects to Postgres (Supabase).
-// It exports withUser and nothing that gives raw access to the database.
+// It exports withUser and the billing store's one fixed statement (billing.ts), nothing that
+// gives raw access to the database.
 import postgres from "postgres";
 import { databaseCaCert, databaseUrl } from "@/lib/server/config";
 import { connectionOptions, UNVERIFIED_WARNING } from "./options";
+import { createBillingStore, type BillingStore } from "./billing";
 import { createWithUser, type Driver, type Row, type WithUser } from "./with-user";
 
 export type { Query, WithUser } from "./with-user";
+export type { BillingStore } from "./billing";
 
 let client: postgres.Sql | null = null;
 
@@ -42,3 +45,6 @@ const postgresDriver: Driver = {
 
 /** Runs `fn` in one transaction as the signed-in user. See with-user.ts. */
 export const withUser: WithUser = createWithUser(postgresDriver);
+
+/** Sets a user's plan for a verified message from Stripe (R6, spec 24). See billing.ts. */
+export const billingStore: BillingStore = createBillingStore(postgresDriver);

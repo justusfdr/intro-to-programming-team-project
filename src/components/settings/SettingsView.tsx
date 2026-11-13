@@ -26,7 +26,7 @@ export function SettingsView({
         <PreferencesCard settings={data.settings} defaultView={data.defaultView} timeZones={timeZones} />
         <TravelCard settings={data.settings} />
         <BlockerCard data={blocker} />
-        <YourAccountCard hasDemo={data.hasDemo} />
+        <YourAccountCard hasDemo={data.hasDemo} plan={data.plan} />
       </div>
     </div>
   );

@@ -14,6 +14,12 @@ export const ACCOUNT_PAGES = [
 /** Server addresses of the account actions (sign_up, sign_in, sign_out, …): no sign-in needed. */
 const ACCOUNT_API = "/api/auth";
 
+/**
+ * Stripe's messages to our server (spec 24). Stripe has no session; the route checks Stripe's
+ * signature itself and changes nothing without it.
+ */
+export const STRIPE_WEBHOOK = "/api/billing/webhook";
+
 export const SIGN_IN_PAGE = "/sign-in";
 
 export type GuardDecision = { kind: "allow" } | { kind: "redirect"; to: string } | { kind: "unauthorized" };
@@ -23,7 +29,7 @@ function matches(pathname: string, base: string): boolean {
 }
 
 export function isPublic(pathname: string): boolean {
-  return matches(pathname, ACCOUNT_API) || ACCOUNT_PAGES.some((page) => matches(pathname, page));
+  return pathname === STRIPE_WEBHOOK || matches(pathname, ACCOUNT_API) || ACCOUNT_PAGES.some((page) => matches(pathname, page));
 }
 
 /**

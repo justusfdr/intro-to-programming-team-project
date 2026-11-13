@@ -97,6 +97,27 @@ export function anthropicConfig(): { apiKey: string; model: string } | null {
 
 export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5";
 
+export type StripeConfig = { secretKey: string; webhookSecret: string; priceId: string };
+
+/**
+ * Stripe, for Pro (spec 24, docs/setup.md section 11). The secret key and the webhook secret are
+ * secrets: read only here, never logged, never sent to the browser. Null when anything is missing:
+ * payment is then off ("Payment is not available right now.").
+ * R25: test mode only. A secret key that does not start with "sk_test_" is not used, and the error is
+ * logged (without the key).
+ */
+export function stripeConfig(): StripeConfig | null {
+  const secretKey = read("STRIPE_SECRET_KEY");
+  const webhookSecret = read("STRIPE_WEBHOOK_SECRET");
+  const priceId = read("STRIPE_PRICE_ID");
+  if (!secretKey || !webhookSecret || !priceId) return null;
+  if (!secretKey.startsWith("sk_test_")) {
+    console.error("STRIPE_SECRET_KEY is not a test-mode key (sk_test_…). Payment stays off (R25).");
+    return null;
+  }
+  return { secretKey, webhookSecret, priceId };
+}
+
 /**
  * R21: "true" makes the coach Pro only, as the ontology says. Anything else (or unset): every signed-in
  * user may use it, until Free and Pro are built.

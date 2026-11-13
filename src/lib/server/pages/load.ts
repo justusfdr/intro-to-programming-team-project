@@ -212,3 +212,16 @@ export async function loadChatPage(deps: Pick<Deps, "withUser" | "assistant">, u
     };
   });
 }
+
+export type PricingPageData = { display: Display; plan: "free" | "pro"; paymentReady: boolean };
+
+/** The pricing page (spec 24): the user's plan and whether payment is set up on this server. Reads only. */
+export async function loadPricingPage(deps: Pick<Deps, "withUser" | "stripe">, userId: string): Promise<PricingPageData> {
+  return deps.withUser(userId, async (query) => {
+    const [[profile], settings] = await Promise.all([
+      query<{ plan: "free" | "pro" }>("select plan from app.profiles"),
+      readSettings(query),
+    ]);
+    return { display: displayOf(settings), plan: profile?.plan ?? "free", paymentReady: deps.stripe !== null };
+  });
+}

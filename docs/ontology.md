@@ -232,7 +232,7 @@ The first six actions need no sign-in; all others need it and touch only the use
 ## 9 Open decisions
 Each with its default.
 - Public transport for travel time? Not offered.
-- Price of Pro? €5 per month, test mode, no trial.
+- Price of Pro? €4.99 per month, test mode, no trial.
 - E-mail sender: built-in or our own? Our own sender before step 1 is deployed; its password is a secret.
 - Does finishing a session mark its event done? No, the user marks it.
 

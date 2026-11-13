@@ -6,6 +6,8 @@ import { FakeAssistant } from "@/lib/server/claude/fake";
 import type { Deps } from "@/lib/server/deps";
 import { FakeOutlook } from "@/lib/server/outlook/fake";
 import type { OutlookDeps } from "@/lib/server/outlook/sync";
+import { createBillingStore } from "@/lib/server/db/billing";
+import { FakeStripeApi, fakeStripe } from "@/lib/server/stripe/fake";
 import { createTestDb, type TestDb } from "../db/harness";
 
 export const OWN_ORIGIN = "http://localhost:3000";
@@ -22,6 +24,8 @@ export type TestApp = {
   outlookDeps: NonNullable<OutlookDeps>;
   /** The stand-in Claude (spec 19); also what deps.assistant is. */
   assistant: FakeAssistant;
+  /** The stand-in Stripe (spec 24); deps.stripe uses it. */
+  stripe: FakeStripeApi;
   /**
    * Everything an action could change: rows in auth.users and in every table of the app schema
    * (found automatically, so new tables are included), the fake's accounts (confirmed, password),
@@ -56,12 +60,21 @@ export async function createTestApp(): Promise<TestApp> {
   });
   const outlook = new FakeOutlook();
   const assistant = new FakeAssistant();
+  const stripe = new FakeStripeApi();
   return {
     db,
     auth,
-    deps: { auth, withUser: db.withUser, now: () => new Date(now), assistant },
+    deps: {
+      auth,
+      withUser: db.withUser,
+      now: () => new Date(now),
+      assistant,
+      stripe: fakeStripe(stripe),
+      billing: createBillingStore(db.driver),
+    },
     outlook,
     assistant,
+    stripe,
     outlookDeps: { service: outlook, key: OUTLOOK_TEST_KEY },
     async snapshot() {
       const tables: Record<string, unknown> = {};
@@ -91,6 +104,7 @@ export async function createTestApp(): Promise<TestApp> {
       auth.reset();
       outlook.reset();
       assistant.reset();
+      stripe.reset();
       await db.admin("delete from auth.users");
     },
     advance(ms) {

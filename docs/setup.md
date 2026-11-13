@@ -107,3 +107,17 @@ Without it, everything else works; the coach then answers every message with "Th
 6. Put the same values into Vercel (**Settings → Environment Variables**) and deploy again.
 7. Try it: open the coach, write "Tomorrow I want to study 4 hours and watch football in the evening" (and once in German); a draft appears; "Add to calendar" puts the events in the calendar. Each user has 20 messages a day.
 8. After a leak: delete the key in the Console (**API Keys**), create a new one, put it in both places, and check **Usage** for calls you did not make.
+
+## 11. Stripe in test mode (Pro, €4.99 per month)
+Without it, everything else works; the pricing page then says "Payment is not available right now." Test mode only: the server refuses any secret key that does not start with `sk_test_` (ontology R25), so no real money can move.
+
+1. Sign in at **dashboard.stripe.com** and switch to the **sandbox** (test mode). The team's sandbox is "fokus website sandbox".
+2. **Product catalog**: the product "LockedIn Pro" with a recurring price of €4.99 per month exists already. Copy the price's id (`price_…`) into `STRIPE_PRICE_ID`. It is not a secret.
+3. **Developers → API keys**: copy the **Secret key** (`sk_test_…`) into `STRIPE_SECRET_KEY`. It is a secret: password manager, `.env.local` and Vercel only; never in the code, a chat or an issue.
+4. The webhook: Stripe tells our server about payments at `/api/billing/webhook`; the plan changes only then.
+   - **On your computer:** install the Stripe CLI (docs.stripe.com/stripe-cli), run `stripe login`, then keep `stripe listen --forward-to localhost:3000/api/billing/webhook` running while you test. It prints a signing secret (`whsec_…`): put it into `STRIPE_WEBHOOK_SECRET` and restart `npm run dev`.
+   - **On Vercel:** **Developers → Webhooks → Add endpoint**, the address `https://your-app.vercel.app/api/billing/webhook`, the events `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated` and `customer.subscription.deleted`. Copy its signing secret into Vercel's `STRIPE_WEBHOOK_SECRET`.
+5. Set `CHAT_PRO_ONLY=true` so only Pro users can use the coach (ontology R21).
+6. Try it: as a Free user open **Settings → Your account → See plans**, choose **Upgrade to Pro**, pay with the card `4242 4242 4242 4242`, any future date, any three digits. Back in the app the page becomes Pro within a few seconds, and the coach opens. A declined card is `4000 0000 0000 0002`. **Cancel Pro** keeps Pro until the paid month ends; to end it at once in a test, cancel the subscription in the Dashboard (**Subscriptions**), and the user is Free again.
+7. Run the migration `supabase/migrations/20261129000000_billing.sql` once in the SQL editor (it adds the customer id to the profile).
+8. After a leak: **Developers → API keys → Roll key**, put the new key in both places.
