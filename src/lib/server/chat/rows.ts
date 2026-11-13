@@ -53,9 +53,12 @@ type MessageRow = {
   draft_status: DraftStatus | null;
   proposed_events: StoredProposal[] | string | null;
   changes: StoredChange[] | string | null;
+  /** Spec 22: 0 as the assistant wrote the draft, one more for each change by the person. */
+  draft_version: number | null;
 };
 
-const MESSAGE_SELECT = `select m.id, m.role, m.text, m.created_at, d.id as draft_id, d.status as draft_status, d.proposed_events, d.changes
+const MESSAGE_SELECT = `select m.id, m.role, m.text, m.created_at, d.id as draft_id, d.status as draft_status, d.proposed_events, d.changes,
+       d.version as draft_version
   from app.chat_messages m left join app.draft_plans d on d.message_id = m.id`;
 
 // The driver may hand JSON over as text.
@@ -126,6 +129,7 @@ function toMessageDto(row: MessageRow): ChatMessageDto {
           status: row.draft_status,
           events: proposalsOf(row.proposed_events).map(proposedDto),
           changes: storedChangesOf(row.changes).map(changeDto),
+          version: row.draft_version ?? 0,
         }
       : null;
   return { id: row.id, role: row.role, text: row.text, createdAt: new Date(row.created_at).toISOString(), draft };
@@ -145,6 +149,8 @@ export function historyOf(messages: readonly ChatMessageDto[]): HistoryInput[] {
     draft: m.draft
       ? {
           status: m.draft.status,
+          // Spec 22: the person changed this draft by hand; Claude builds on it.
+          ...((m.draft.version ?? 0) > 0 ? { adjusted: true } : {}),
           events: m.draft.events.map((e) => ({
             title: e.title,
             startAt: new Date(e.startAt),
@@ -379,6 +385,8 @@ export async function saveTurn(
 export type DraftRow = {
   id: string;
   status: DraftStatus;
+  /** Spec 22: the draft's version (R4). */
+  version: number;
   proposed_events: StoredProposal[] | string;
   changes: StoredChange[] | string;
 };
@@ -386,9 +394,15 @@ export type DraftRow = {
 /** The user's draft, locked until the transaction ends (a second device waits). "Not found" otherwise (R3). */
 export async function findOwnDraft(query: Query, id: string): Promise<DraftRow> {
   if (!UUID.test(id)) throw notFound();
-  const [row] = await query<DraftRow>("select id, status, proposed_events, changes from app.draft_plans where id = $1 for update", [id]);
+  const [row] = await query<DraftRow>("select id, status, version, proposed_events, changes from app.draft_plans where id = $1 for update", [id]);
   if (!row) throw notFound();
   return row;
+}
+
+/** One draft with its message's other fields left out, as the page shows it (spec 22: after a change). */
+export async function readDraft(query: Query, id: string): Promise<DraftDto | null> {
+  const [row] = await query<MessageRow>(`${MESSAGE_SELECT} where d.id = $1`, [id]);
+  return row ? toMessageDto(row).draft : null;
 }
 
 export function assertDraftOpen(draft: DraftRow): void {

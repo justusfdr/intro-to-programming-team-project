@@ -68,6 +68,13 @@ export const MESSAGES = {
   draftNotOpen: "This draft is no longer open",
   draftOutOfDate: "This draft is out of date. Ask again",
   draftCannotUndo: "This can no longer be undone",
+  // ontology, section 5 (edit_draft, spec 22); "Not found", "End must be after start", "An event can
+  // last at most 24 hours", "Changed on another device…" and the two draft sentences above are shared
+  draftEditOverlap: "This would overlap another event",
+  draftEditLength: "A new event lasts 15 minutes to 8 hours",
+  draftEditPast: "This time is in the past",
+  draftEditTooLate: "The coach plans only the next 14 days",
+  draftEditOtherDay: "A block stays on its day. Ask the coach to move it to another day",
   // ontology, section 7 (when a service is down)
   databaseDown: "Your data cannot be loaded right now.",
   emailDown: "We could not send the email. Try again later",
@@ -96,6 +103,7 @@ export const MESSAGES = {
   draftApplied: "Your calendar is updated.",
   draftUndone: "Undone. Your calendar is as before.",
   draftRejected: "Draft rejected.",
+  draftEdited: "Draft changed.",
   chatCleared: "Chat cleared.",
   taskDone: "Task done.",
   taskReopened: "Task reopened.",

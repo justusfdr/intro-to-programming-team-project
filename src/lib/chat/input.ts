@@ -7,6 +7,8 @@
 // except a goal. Each field below is copied by name, so nothing else can slip through.
 // Spec 21: an earlier draft's new events carry their to-dos, so "add one more" can be understood. The
 // to-dos of events already in the calendar are not sent (R22 keeps what is sent small).
+// Spec 22: a draft the person changed by hand (dragging its blocks) is marked "adjusted by the person",
+// so Claude builds on it instead of putting its blocks back.
 // Spec 20: each event in the block carries a short reference ("e1") that is valid for this one request
 // only, and whether the coach may change it; an earlier draft carries its changes in words (title, old
 // and new time), never an event's id.
@@ -25,6 +27,8 @@ export type HistoryInput = {
   text: string;
   draft: {
     status: DraftStatus;
+    /** Spec 22: the person changed the draft's times by hand before it was applied or replaced. */
+    adjusted?: boolean;
     events: { title: string; startAt: Date; endAt: Date; goalId: string | null; todos?: string[] }[];
     changes?: HistoryChange[];
   } | null;
@@ -110,6 +114,7 @@ export function buildAssistantInput(source: AssistantInputSource) {
       ...(m.draft
         ? {
             draftStatus: m.draft.status,
+            ...(m.draft.adjusted ? { draftNote: "adjusted by the person" as const } : {}),
             proposedEvents: m.draft.events.map((e) => ({
               title: e.title,
               start: local(e.startAt),

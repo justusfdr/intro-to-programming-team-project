@@ -27,7 +27,11 @@ export type DraftChangeDto = {
   endAt: string | null;
 };
 
-export type DraftDto = { id: string; status: DraftStatus; events: ProposedEventDto[]; changes: DraftChangeDto[] };
+/**
+ * `version` (spec 22): 0 as the assistant wrote it, one more for each change the person made by
+ * dragging (R4: a change carries the version the screen last saw). Left out counts as 0.
+ */
+export type DraftDto = { id: string; status: DraftStatus; events: ProposedEventDto[]; changes: DraftChangeDto[]; version?: number };
 
 export type ChatMessageDto = {
   id: string;

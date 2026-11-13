@@ -7,6 +7,9 @@
 // Spec 20: a draft may also move and delete existing events. A moved event is drawn on the day of its
 // new start, like a proposal, and its old place as an outline on the day it started; a deleted event is
 // drawn at its place, struck through. Both stop being drawn as the calendar's own events.
+// Spec 22: the open draft's blocks can be dragged. Its column then shows the whole visible day (the
+// settings' day_start_hour to day_end_hour, widened to everything it has to show), so there is room
+// to drag; each block it creates or moves carries a key to find it again ("new:0", "move:<id>").
 import type { EventDto } from "@/lib/events/types";
 import { localDateOf, localTimeOf, type LocalDate } from "@/lib/time/zoned";
 import type { DraftChangeDto, ProposedEventDto } from "./types";
@@ -31,6 +34,8 @@ export type SketchBlock = {
   startsBefore: boolean;
   /** Spec 21: a proposal's to-dos (left out when it has none). */
   todos?: string[];
+  /** Spec 22: which block of the draft this is, for a new event ("new:0") or a moved one ("move:<event id>"). */
+  key?: string;
 };
 
 export type SketchDay = {
@@ -106,6 +111,8 @@ export function sketchDraft(
   calendar: readonly EventDto[],
   timeZone: string,
   changes: readonly DraftChangeDto[] = [],
+  /** Spec 22, the open draft: the visible hours of the settings; the column shows at least these. */
+  visible?: { startHour: number; endHour: number },
 ): SketchDay[] {
   const startDay = (iso: string) => localDateOf(new Date(iso), timeZone);
   const changedIds = new Set(changes.map((c) => c.eventId));
@@ -113,15 +120,21 @@ export function sketchDraft(
 
   return draftDaysOf(events, timeZone, changes).map((date) => {
     const proposals = events
-      .filter((e) => startDay(e.startAt) === date)
-      .map((e) => blockOn(e, date, timeZone))
+      .map((e, index) => ({ e, key: `new:${index}` }))
+      .filter(({ e }) => startDay(e.startAt) === date)
+      .map(({ e, key }) => {
+        const block = blockOn(e, date, timeZone);
+        return block ? { ...block, key } : null;
+      })
       .filter(isBlock)
       .sort(byStart);
     const moved = changes
       .filter((c) => c.kind === "move" && c.startAt && c.endAt && startDay(c.startAt) === date)
       .map((c) => {
         const block = blockOn({ title: c.title, goalId: c.goalId, startAt: c.startAt!, endAt: c.endAt! }, date, timeZone);
-        return block ? { ...block, fromTime: localTimeOf(new Date(c.oldStartAt), timeZone), fromDate: startDay(c.oldStartAt) } : null;
+        return block
+          ? { ...block, key: `move:${c.eventId}`, fromTime: localTimeOf(new Date(c.oldStartAt), timeZone), fromDate: startDay(c.oldStartAt) }
+          : null;
       })
       .filter(isBlock)
       .sort(byStart);
@@ -142,8 +155,12 @@ export function sketchDraft(
     const drawn = [...proposals, ...moved, ...oldPlaces, ...removed];
     const first = Math.min(...drawn.map((p) => p.startMin));
     const last = Math.max(...drawn.map((p) => p.endMin));
-    const startMin = Math.max(0, Math.floor(first / 60) * 60 - 60);
-    const endMin = Math.min(DAY_MIN, Math.ceil(last / 60) * 60 + 60);
+    const startMin = visible
+      ? Math.max(0, Math.min(visible.startHour * 60, Math.floor(first / 60) * 60))
+      : Math.max(0, Math.floor(first / 60) * 60 - 60);
+    const endMin = visible
+      ? Math.min(DAY_MIN, Math.max(visible.endHour * 60, Math.ceil(last / 60) * 60))
+      : Math.min(DAY_MIN, Math.ceil(last / 60) * 60 + 60);
     const hours: number[] = [];
     for (let m = startMin; m <= endMin; m += 60) hours.push(m);
 
@@ -172,4 +189,24 @@ export function sketchBox(block: { startMin: number; endMin: number }, day: { st
 /** The column's height in pixels. */
 export function sketchHeight(day: { startMin: number; endMin: number }): number {
   return ((day.endMin - day.startMin) / 60) * SKETCH_HOUR_PX;
+}
+
+/**
+ * Spec 22: whether a block of the open draft can be dragged: a new event or a moved event (they carry
+ * a key) that ends on the day it starts (as in the calendar, the part after midnight cannot be dragged).
+ */
+export function canDragBlock(block: SketchBlock): boolean {
+  // An end at exactly midnight has nothing on the next day: the block is whole.
+  const pastMidnight = block.endsNextDay && block.endTime !== "00:00";
+  return block.key !== undefined && !pastMidnight && !block.startsBefore;
+}
+
+/**
+ * Spec 22: a dragged span kept inside the column's window (the drag maths of src/lib/events/drag.ts
+ * keep it inside the day; the column may show less than the whole day). The length stays.
+ */
+export function keepInWindow(span: { startMin: number; endMin: number }, day: { startMin: number; endMin: number }): { startMin: number; endMin: number } {
+  const length = Math.min(span.endMin - span.startMin, day.endMin - day.startMin);
+  const startMin = Math.min(Math.max(span.startMin, day.startMin), day.endMin - length);
+  return { startMin, endMin: startMin + length };
 }

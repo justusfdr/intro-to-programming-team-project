@@ -148,10 +148,14 @@ describe("coach page", () => {
     expect(html).toContain("bg-indigo-50");
     expect(html).toContain("Statistics lecture");
     expect(html).toContain("Exam week");
-    // Hours from the hour before the first proposal (10am) to the hour after the last (11pm).
-    expect(html).toContain(">10am<");
-    expect(html).toContain(">10pm<");
-    expect(html).not.toContain(">9am<");
+    // Spec 22: the open draft's column shows the whole visible day (7am to 9pm here; the last
+    // proposal ends at 10pm, so the column runs to 10pm), with room to drag its blocks.
+    expect(html).toContain(">7am<");
+    expect(html).toContain(">9pm<");
+    expect(html).not.toContain(">6am<");
+    expect(html).not.toContain(">10pm<");
+    expect(html.match(/data-draggable="true"/g)).toHaveLength(2);
+    expect(html).toContain("Drag a block to change its time.");
     expect(html).toContain("Add to calendar");
     expect(html).toContain("Discard");
     expect(html).toContain("Or tell me what to change.");
@@ -177,6 +181,10 @@ describe("coach page", () => {
     expect(html).toContain('href="/?view=day&amp;date=2026-11-17"');
     expect(html).toContain("Open calendar");
     expect(html).not.toContain("Statistics lecture");
+    // Spec 22: only the open draft's blocks can be dragged; a draft that is not open keeps the short window.
+    expect(html).not.toContain("data-draggable");
+    expect(html).toContain(">10am<");
+    expect(html).not.toContain(">9am<");
   });
 
   it("a replaced and a discarded draft are shown as such, without buttons", () => {
@@ -204,6 +212,10 @@ describe("coach page", () => {
     expect(html.match(/Statistics lecture/g)).toHaveLength(3); // moved block, old place, screen-reader line
     expect(html).toContain("<li>Statistics lecture, moved to 2pm to 3:30pm, moved from 9am</li>");
     expect(html).toContain("<li>Gym, 5pm to 6pm, removed</li>");
+    // Spec 22: the two new events and the moved one can be dragged; the deleted one and the old place cannot.
+    expect(html.match(/data-draggable="true"/g)).toHaveLength(3);
+    expect(html).toMatch(/data-sketch="moved" data-draggable="true"/);
+    expect(html).not.toMatch(/data-sketch="removed" data-draggable/);
   });
 
   it("a moved event from another day says that day; a day section for the old day too", () => {
