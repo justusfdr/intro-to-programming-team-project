@@ -47,13 +47,13 @@ describe("loadFocus", () => {
     ]);
   });
 
-  it("suggests a length for the user's own event and ignores another user's event (R3)", async () => {
+  it("suggests the event's own length for the user's own event (R12) and ignores another user's event (R3)", async () => {
     const bob = await app.signedInAs("bob@example.com");
     const bobs = await seedEvent(app.db, bob, { title: "Bob's", start: "2026-11-16T10:00:00Z", end: "2026-11-16T11:00:00Z" });
     const alice = await app.signedInAs("alice@example.com");
     const own = await seedEvent(app.db, alice, { title: "Statistics revision", start: "2026-11-16T10:00:00Z", end: "2026-11-16T10:45:00Z" });
 
-    expect((await loadFocus(app.deps, alice, own.id)).forEvent).toEqual({ id: own.id, title: "Statistics revision", suggestedMinutes: 60 });
+    expect((await loadFocus(app.deps, alice, own.id)).forEvent).toEqual({ id: own.id, title: "Statistics revision", suggestedMinutes: 45 });
     expect((await loadFocus(app.deps, alice, bobs.id)).forEvent).toBeNull();
     expect((await loadFocus(app.deps, alice, "not-a-uuid")).forEvent).toBeNull();
   });
