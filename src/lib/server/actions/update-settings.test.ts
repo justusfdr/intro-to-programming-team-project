@@ -83,6 +83,12 @@ describe("update_settings accepted", () => {
     expect((await settingsOf(alice)).travel_buffer_minutes).toBe(120);
   });
 
+  it("accepts public transport as the travel mode", async () => {
+    const alice = await app.signedInAs("alice@example.com", { timeZone: "Europe/Berlin" });
+    expect((await send({ travelMode: "transit" })).status).toBe(200);
+    expect((await settingsOf(alice)).travel_mode).toBe("transit");
+  });
+
   it("stores an empty address as no address", async () => {
     const alice = await app.signedInAs("alice@example.com", { timeZone: "Europe/Berlin" });
     await send({ homeAddress: "Rua Augusta 100, Lisbon" });

@@ -36,6 +36,8 @@ import { useDisplay } from "@/components/shell/DisplayProvider";
 import { fmtDateLong, fmtHour, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { dayParts } from "@/lib/time/zoned";
 import { todoCountText } from "@/lib/todos/types";
+import { travelBlock, type TravelBlock } from "@/lib/travel/blocks";
+import type { TravelAnswer } from "@/lib/travel/types";
 import { anchorOf, pointAnchor, type Anchor } from "./FloatingPanel";
 
 /** What the grid and the event editor need of a goal: its name, colour and icon. */
@@ -59,6 +61,8 @@ type Props = {
   onCreate: (date: string, span: Span, anchor: Anchor) => void;
   /** A block was dropped somewhere else (moved, or its end dragged). */
   onDrop?: (event: WeekEvent, date: string, span: Span, anchor: Anchor) => void;
+  /** R27: the travel answers by event id; an event with a time to leave gets a dashed block before it. */
+  travel?: Readonly<Record<string, TravelAnswer>>;
 };
 
 type Gesture =
@@ -249,6 +253,49 @@ function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, 
   );
 }
 
+const TRAVEL_BY: Record<TravelBlock["mode"], string> = { driving: "by car", cycling: "by bike", walking: "on foot", transit: "by public transport" };
+
+/**
+ * R27: the trip to an event, drawn as a dashed, striped block from the time to leave to the event's start,
+ * in the event's lane. Only a picture: clicks go through to the grid, and the event's editor says it in words.
+ */
+function TravelBox({ trip, block, range }: { trip: TravelBlock; block: Placed; range: GridRange }) {
+  const { timeFormat } = useDisplay();
+  if (trip.toMin <= range.startMin) return null;
+  const top = minuteToPx(Math.max(trip.fromMin, range.startMin), range);
+  const height = minuteToPx(trip.toMin, range) - top;
+  if (height < 4) return null;
+  const leave = fmtTime(trip.toMin - trip.totalMin, timeFormat);
+  return (
+    <div
+      aria-hidden
+      data-travel-for={block.event.id}
+      className="pointer-events-none absolute z-[1] overflow-hidden rounded-lg border border-dashed border-ink-3/70 px-1.5 text-ink-2"
+      style={{
+        top: top + 1,
+        height: height - 1,
+        left: `calc(${(block.lane / block.lanes) * 100}% + 2px)`,
+        width: `calc(${100 / block.lanes}% - 4px)`,
+        backgroundImage: "repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, currentColor 9%, transparent) 6px 7px)",
+      }}
+    >
+      {height >= 16 && (
+        <span className="block truncate pt-0.5 text-[10px] leading-[12px]">
+          Leave {leave}
+        </span>
+      )}
+      {height >= 30 && <span className="block truncate text-[10px] leading-[12px] opacity-80">{`${fmtMinutesShort(trip.tripMin)} ${TRAVEL_BY[trip.mode]}`}</span>}
+    </div>
+  );
+}
+
+/** 25 → "25m", 95 → "1h 35m". */
+function fmtMinutesShort(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 /** "Exam week, all day, Monday 16 November to Friday 20 November". */
 function allDayLabel(event: AllDayEvent): string {
   const first = fmtDateLong(event.firstDay);
@@ -326,6 +373,7 @@ export function TimeGrid({
   onOpenEvent,
   onCreate,
   onDrop,
+  travel,
 }: Props) {
   const { timeFormat } = useDisplay();
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
@@ -605,6 +653,12 @@ export function TimeGrid({
                   </div>
                 )}
                 {listed.length === 0 && <p className="sr-only">No events</p>}
+                {/* R27: the trips, under the event blocks, so an event that overlaps a trip stays on top. */}
+                {travel &&
+                  blocks.map((block) => {
+                    const trip = travelBlock(block.event, block.startMin, block.continuesBefore, travel[block.event.id]);
+                    return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} />;
+                  })}
                 <ul className="pointer-events-none absolute inset-0">
                   {blocks.filter((block) => !isBeforeGrid(block, range)).map((block) => (
                     <li key={`${block.event.id}-${block.continuesBefore ? "after" : "start"}`}>

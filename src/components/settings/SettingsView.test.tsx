@@ -70,6 +70,22 @@ describe("settings page", () => {
     expect(html).toContain("Example: 1:30pm");
   });
 
+  it("offers four ways of getting there, public transport among them, and a Confirm button for the address", () => {
+    const html = render();
+    for (const mode of ["driving", "cycling", "walking", "transit"]) expect(html).toMatch(new RegExp(`<input type="radio"[^>]*value="${mode}"`));
+    expect(html).toContain("Public transport");
+    expect(html).toMatch(/<button[^>]*>Confirm<\/button>/);
+    // Suggestions only appear after typing.
+    expect(html).not.toContain('role="listbox" aria-label="Address suggestions"');
+  });
+
+  it("names the map and timetable data once, as their licence asks (R27)", () => {
+    const html = render();
+    expect(html).toContain('href="https://www.openstreetmap.org/copyright"');
+    expect(html).toContain("OpenStreetMap contributors");
+    expect(html).toContain("Transitous");
+  });
+
   it("offers the calendar's default view first in Preferences, Day, Week or Month, with the saved one chosen (spec 14)", () => {
     const html = render();
     expect(html.indexOf(">Default view<")).toBeGreaterThan(-1);

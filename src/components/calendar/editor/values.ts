@@ -4,6 +4,7 @@
 // The editor shows an event as plain values (title, day, start and end in minutes, goal, location …).
 // An existing event is saved with the Save button (spec 17): edit_event gets all the event's fields
 // and the updated_at the screen last saw (R4). An Outlook event sends only its goal (R11).
+import type { TravelMode } from "@/lib/settings/types";
 import type { Changes } from "@/components/live/Live";
 import type { PostResult } from "@/lib/client/post-json";
 import { localAt } from "@/lib/events/drag";
@@ -29,6 +30,8 @@ export type EventValues = {
   mayOverlap: boolean;
   /** "" is none. */
   location: string;
+  /** How to get there; null is the standard from the settings (R27). */
+  travelMode: TravelMode | null;
 };
 
 /** The end in minutes from midnight of the start's day; past midnight it is more than 24 hours. */
@@ -39,7 +42,7 @@ function endMinuteOf(start: string, end: string): number {
 
 /** The values of an existing event. Timed and all-day fields both get values, so the switch can flip. */
 export function valuesOf(event: CalendarEvent): EventValues {
-  const common = { title: event.title, goalId: event.goalId, mayOverlap: event.mayOverlap, location: event.location ?? "" };
+  const common = { title: event.title, goalId: event.goalId, mayOverlap: event.mayOverlap, location: event.location ?? "", travelMode: event.travelMode ?? null };
   if (event.allDay) {
     return { ...common, allDay: true, date: event.firstDay, startMin: 9 * 60, endMin: 10 * 60, firstDay: event.firstDay, lastDay: event.lastDay, goalId: null };
   }
@@ -69,6 +72,7 @@ export function newValues(draft: { start: string; end: string; title?: string; g
     goalId: draft.goalId ?? null,
     mayOverlap: false,
     location: "",
+    travelMode: null,
   };
 }
 
@@ -95,6 +99,7 @@ function fieldsOf(values: EventValues) {
     mayOverlap: values.mayOverlap,
     goalId: values.goalId,
     location,
+    travelMode: values.travelMode,
   };
 }
 
@@ -140,6 +145,7 @@ export function editedChange(event: CalendarEvent, values: EventValues, timeZone
     seriesId: event.seriesId,
     source: event.source,
     location: event.source === "outlook" ? event.location : values.location.trim() || null,
+    travelMode: event.source === "outlook" || values.allDay ? event.travelMode : values.travelMode,
     notSent: event.notSent,
     updatedAt: event.updatedAt,
     // A change of the event keeps its to-dos (spec 21).

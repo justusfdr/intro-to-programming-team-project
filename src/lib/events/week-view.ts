@@ -89,6 +89,7 @@ function timedDtoOf(e: WeekEvent): TimedEventDto {
     seriesId: e.seriesId,
     source: e.source,
     location: e.location,
+    travelMode: e.travelMode,
     notSent: e.notSent,
     updatedAt: e.updatedAt,
     todoCount: e.todoCount,
