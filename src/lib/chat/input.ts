@@ -5,6 +5,8 @@
 // R31's totals, the time zone, the current local date and time, and the calendar's visible hours.
 // Never sent: email, password, locations, the block list, payment data, tasks, or the id of anything
 // except a goal. Each field below is copied by name, so nothing else can slip through.
+// Spec 21: an earlier draft's new events carry their to-dos, so "add one more" can be understood. The
+// to-dos of events already in the calendar are not sent (R22 keeps what is sent small).
 // Spec 20: each event in the block carries a short reference ("e1") that is valid for this one request
 // only, and whether the coach may change it; an earlier draft carries its changes in words (title, old
 // and new time), never an event's id.
@@ -23,7 +25,7 @@ export type HistoryInput = {
   text: string;
   draft: {
     status: DraftStatus;
-    events: { title: string; startAt: Date; endAt: Date; goalId: string | null }[];
+    events: { title: string; startAt: Date; endAt: Date; goalId: string | null; todos?: string[] }[];
     changes?: HistoryChange[];
   } | null;
 };
@@ -113,6 +115,7 @@ export function buildAssistantInput(source: AssistantInputSource) {
               start: local(e.startAt),
               end: local(e.endAt),
               goalId: e.goalId,
+              ...(e.todos && e.todos.length > 0 ? { todos: e.todos } : {}),
             })),
             ...(m.draft.changes && m.draft.changes.length > 0
               ? {

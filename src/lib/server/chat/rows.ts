@@ -18,8 +18,14 @@ import { addDays, localDateOf, startOfLocalDate } from "@/lib/time/zoned";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** A proposed event as the database keeps it in draft_plans.proposed_events. */
-type StoredProposal = { title: string; start_at: string; end_at: string; goal_id: string | null };
+/**
+ * A proposed event as the database keeps it in draft_plans.proposed_events. `todos` (spec 21): its
+ * to-dos' titles, only when it has some (app.chat_apply_draft writes them with the event).
+ */
+type StoredProposal = { title: string; start_at: string; end_at: string; goal_id: string | null; todos?: string[] };
+
+/** The to-dos of a proposal as a field to spread: left out when there are none. */
+const todosField = (todos: readonly string[] | undefined) => (todos && todos.length > 0 ? { todos: [...todos] } : {});
 
 /**
  * A change of an existing event as the database keeps it in draft_plans.changes (spec 20): the event's
@@ -90,6 +96,7 @@ export function toStored(proposals: readonly Proposal[]): StoredProposal[] {
     start_at: p.startAt.toISOString(),
     end_at: p.endAt.toISOString(),
     goal_id: p.goalId,
+    ...todosField(p.todos),
   }));
 }
 
@@ -99,6 +106,7 @@ export function proposalsOf(value: StoredProposal[] | string | null): Proposal[]
     startAt: new Date(p.start_at),
     endAt: new Date(p.end_at),
     goalId: p.goal_id ?? null,
+    ...todosField(p.todos),
   }));
 }
 
@@ -107,6 +115,7 @@ const proposedDto = (p: Proposal): ProposedEventDto => ({
   startAt: p.startAt.toISOString(),
   endAt: p.endAt.toISOString(),
   goalId: p.goalId,
+  ...todosField(p.todos),
 });
 
 function toMessageDto(row: MessageRow): ChatMessageDto {
@@ -136,7 +145,13 @@ export function historyOf(messages: readonly ChatMessageDto[]): HistoryInput[] {
     draft: m.draft
       ? {
           status: m.draft.status,
-          events: m.draft.events.map((e) => ({ title: e.title, startAt: new Date(e.startAt), endAt: new Date(e.endAt), goalId: e.goalId })),
+          events: m.draft.events.map((e) => ({
+            title: e.title,
+            startAt: new Date(e.startAt),
+            endAt: new Date(e.endAt),
+            goalId: e.goalId,
+            ...todosField(e.todos),
+          })),
           changes: m.draft.changes.map((c) => ({
             kind: c.kind,
             title: c.title,

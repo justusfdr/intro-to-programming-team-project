@@ -6,10 +6,14 @@
 // reference it got with this one request ("e1"); the server turns it back into the event at once
 // (`targets`). Moves and deletes are checked on the calendar as it would be after the whole draft.
 //
+// Spec 21: a new event may carry to-dos (the things the person wants to do during it): 0 to 20
+// titles, each 1 to 100 characters after trimming.
+//
 // The assistant answers with local date-times ("2026-11-14T09:00") in the user's time zone. They are
 // turned into instants with the project's own helpers; a time that does not exist in the zone (the
 // hour skipped when clocks go forward) fails the check.
 import { z } from "zod";
+import { MAX_TODO_TITLE, MAX_TODOS } from "@/lib/todos/types";
 import {
   addDays,
   localDateOf,
@@ -41,6 +45,11 @@ export const AnswerShape = z
           start: z.string(),
           end: z.string(),
           goalId: z.string().nullable(),
+          /**
+           * Spec 21: the event's to-dos. Optional here only so an answer without it (the earlier
+           * format) still reads; the schema sent to Claude requires it.
+           */
+          todos: z.array(z.string()).optional(),
         })
         .strict(),
     ),
@@ -63,8 +72,8 @@ export const AnswerShape = z
   })
   .strict();
 
-/** A proposed event with its times as instants. */
-export type Proposal = { title: string; startAt: Date; endAt: Date; goalId: string | null };
+/** A proposed event with its times as instants, and its to-dos (spec 21; left out when it has none). */
+export type Proposal = { title: string; startAt: Date; endAt: Date; goalId: string | null; todos?: string[] };
 
 /**
  * A timed event already in the calendar, as the overlap check needs it. All-day events never block (R29).
@@ -133,7 +142,9 @@ export type CheckFailure =
   | "overlaps_calendar"
   | "unknown_ref"
   | "not_changeable"
-  | "changed_twice";
+  | "changed_twice"
+  | "too_many_todos"
+  | "todo_title";
 
 export type CheckResult<T> = { ok: true; value: T } | { ok: false; failure: CheckFailure };
 
@@ -215,10 +226,15 @@ export function checkDraft(
     if (length < MIN_LENGTH_MS) return fail("too_short");
     if (length > MAX_LENGTH_MS) return fail("too_long");
     if (proposal.goalId !== null && !context.goalIds.has(proposal.goalId)) return fail("unknown_goal");
+    // Spec 21: at most 20 to-dos, each 1 to 100 characters after trimming.
+    const todos = (proposal.todos ?? []).map((todo) => todo.trim());
+    if (todos.length > MAX_TODOS) return fail("too_many_todos");
+    if (todos.some((todo) => [...todo].length < 1 || [...todo].length > MAX_TODO_TITLE)) return fail("todo_title");
     if (checked.some((other) => overlaps(other, proposal))) return fail("overlaps_proposal");
     // R10: ending exactly when the next starts is no overlap. An event that may overlap never blocks.
     if (remaining.some((event) => !event.mayOverlap && overlaps(event, proposal))) return fail("overlaps_calendar");
-    checked.push({ ...proposal, title });
+    const { todos: _raw, ...rest } = proposal;
+    checked.push(todos.length > 0 ? { ...rest, title, todos } : { ...rest, title });
   }
 
   // Moved events at their new times: against the new events, each other and what stays.
@@ -260,7 +276,8 @@ export function checkAnswer(raw: unknown, context: CheckContext): CheckResult<Ch
     const startAt = exactLocal(event.start, context.timeZone);
     const endAt = exactLocal(event.end, context.timeZone);
     if (!startAt || !endAt) return fail("bad_time");
-    proposals.push({ title: event.title, startAt, endAt, goalId: event.goalId === "" ? null : event.goalId });
+    const goalId = event.goalId === "" ? null : event.goalId;
+    proposals.push(event.todos && event.todos.length > 0 ? { title: event.title, startAt, endAt, goalId, todos: event.todos } : { title: event.title, startAt, endAt, goalId });
   }
 
   // A reference is turned back into its event at once; an unknown one fails.
