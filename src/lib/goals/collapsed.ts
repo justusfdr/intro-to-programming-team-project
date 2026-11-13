@@ -1,7 +1,7 @@
 // Which goal sections the user collapsed in the goals column. Kept only in this browser
 // (localStorage), never in the database: it is a view setting, not app data. Pure, no React.
 
-export const COLLAPSED_KEY = "lock-in:goals-collapsed:v1";
+export const COLLAPSED_KEY = "lockedin:goals-collapsed:v1";
 
 /** Adds the goal to the list, or removes it when it is there already. */
 export function toggleCollapsed(collapsed: readonly string[], goalId: string): string[] {

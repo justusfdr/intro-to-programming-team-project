@@ -537,7 +537,7 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
     .replace('<script type="module" src="blocked.js"></script>', "")
     .replace("This site is blocked while you focus.", "instagram.com is blocked while you focus.")
     .replace('<p id="until" hidden></p>', '<p id="until">Blocking ends at 10:20.</p>')
-    .replace('<a id="back" href="#">Open Lock In</a>', '<a id="back" href="#">Back to Lock In</a>');
+    .replace('<a id="back" href="#">Open LockedIn</a>', '<a id="back" href="#">Back to LockedIn</a>');
   writeFileSync(join(OUT, "block-page.html"), blockedHtml);
   writeFileSync(join(OUT, "focus-running-phone.html"), phoneFrame("Focus", page("Focus", focusPage(focusStates[2][1]), styles)));
 

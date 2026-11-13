@@ -210,7 +210,7 @@ function InstallSteps() {
             </a>
           </p>
           <p>
-            Open the downloaded file <Code>lock-in-blocker.zip</Code> to unpack it. You get a folder <Code>lock-in-blocker</Code>. Move it to a place
+            Open the downloaded file <Code>lockedin-blocker.zip</Code> to unpack it. You get a folder <Code>lockedin-blocker</Code>. Move it to a place
             where it can stay, for example Documents: Chrome loads the extension from that folder every time.
           </p>
         </Step>
@@ -226,13 +226,13 @@ function InstallSteps() {
         </Step>
         <Step n={4} title="Load the folder">
           <p>
-            Click <strong className="font-medium text-ink">Load unpacked</strong> at the top left and choose the folder <Code>lock-in-blocker</Code>.
-            &ldquo;Lock In Blocker&rdquo; appears in the list.
+            Click <strong className="font-medium text-ink">Load unpacked</strong> at the top left and choose the folder <Code>lockedin-blocker</Code>.
+            &ldquo;LockedIn Blocker&rdquo; appears in the list.
           </p>
         </Step>
         <Step n={5} title="Done">
           <p>
-            Stay signed in to Lock In in the same Chrome profile. Within a minute this card says &ldquo;Blocker connected&rdquo;.
+            Stay signed in to LockedIn in the same Chrome profile. Within a minute this card says &ldquo;Blocker connected&rdquo;.
           </p>
         </Step>
       </ol>
@@ -241,11 +241,11 @@ function InstallSteps() {
         <summary className={`cursor-pointer rounded text-sm font-medium text-ink ${FOCUS}`}>Still &ldquo;Not connected&rdquo; after a minute?</summary>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-ink-2">
           <li>
-            <strong className="font-medium text-ink">Not in Chrome?</strong> The blocker does not work in Safari, Firefox or other browsers. Open Lock In
+            <strong className="font-medium text-ink">Not in Chrome?</strong> The blocker does not work in Safari, Firefox or other browsers. Open LockedIn
             in Chrome and sign in there.
           </li>
           <li>
-            <strong className="font-medium text-ink">Another Chrome profile?</strong> The extension and your Lock In sign-in must be in the same profile.
+            <strong className="font-medium text-ink">Another Chrome profile?</strong> The extension and your LockedIn sign-in must be in the same profile.
           </li>
           <li>
             <strong className="font-medium text-ink">Third-party cookies blocked?</strong> In Chrome&rsquo;s settings, under Privacy and security, Third-party

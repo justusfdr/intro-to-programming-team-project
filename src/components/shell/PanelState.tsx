@@ -16,8 +16,8 @@ type PanelControls = {
   openSheet: (panel: PanelName | null) => void;
 };
 
-const STORAGE_KEY = "lock-in.collapsed-panels";
-const CHANGED = "lock-in:panels-changed";
+const STORAGE_KEY = "lockedin.collapsed-panels";
+const CHANGED = "lockedin:panels-changed";
 
 const PanelContext = createContext<PanelControls>({
   isOpen: () => true,

@@ -1,5 +1,5 @@
 /* global chrome */
-// The extension's service worker. Once a minute it asks the Lock In app what to block (R16), keeps
+// The extension's service worker. Once a minute it asks the LockedIn app what to block (R16), keeps
 // Chrome's redirect rules in line with the answer, moves tabs already open on a blocked site to the
 // block page (R15), and sends the attempts the block page reports. All decisions are in lib/.
 //

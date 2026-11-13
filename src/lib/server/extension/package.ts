@@ -9,8 +9,8 @@ import path from "node:path";
 import { zipStore, type ZipFile } from "@/lib/zip/store";
 
 /** The folder inside the ZIP, and the one the user picks in Chrome. */
-export const EXTENSION_FOLDER = "lock-in-blocker";
-export const EXTENSION_ZIP_NAME = "lock-in-blocker.zip";
+export const EXTENSION_FOLDER = "lockedin-blocker";
+export const EXTENSION_ZIP_NAME = "lockedin-blocker.zip";
 
 const APP_URL_LINE = /^export const APP_URL = .*;$/m;
 
