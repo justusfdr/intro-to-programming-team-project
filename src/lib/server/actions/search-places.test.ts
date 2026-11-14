@@ -104,6 +104,76 @@ describe("search_places", () => {
     expect(String(fetchImpl.mock.calls[0][0])).toContain("nominatim.openstreetmap.org");
   });
 
+  describe("kind=city (the time zone in the settings)", () => {
+    const CITIES = {
+      features: [
+        { geometry: { coordinates: [-9.1365919, 38.7077507] }, properties: { name: "Lisbon", county: "Lisbon", country: "Portugal", osm_value: "city" } },
+        { geometry: { coordinates: [-6.046717, 54.5112856] }, properties: { name: "Lisburn", state: "Northern Ireland", country: "United Kingdom" } },
+        { geometry: { coordinates: [-91.3854913, 41.9211165] }, properties: { name: "Lisbon", state: "Iowa", country: "United States" } },
+      ],
+    };
+    const askCity = (q: string, fetchImpl: typeof fetch) =>
+      searchPlaces(
+        new Request(`http://localhost:3000/api/places?q=${encodeURIComponent(q)}&kind=city`, {
+          headers: { host: "localhost:3000", origin: "http://localhost:3000", "sec-fetch-site": "same-origin" },
+        }),
+        app.deps,
+        fetchImpl,
+      );
+
+    it("gives the cities the service found, each with its time zone, and asks Photon for cities only", async () => {
+      await app.reset();
+      await app.signedInAs("alice@example.com", { timeZone: "Europe/Lisbon" });
+      const fetchImpl = service(CITIES);
+      expect(await read(await askCity("Lisbon", fetchImpl as unknown as typeof fetch))).toEqual({
+        status: 200,
+        body: {
+          places: [
+            { label: "Lisbon, Portugal", lat: 38.7077507, lon: -9.1365919, timeZone: "Europe/Lisbon" },
+            { label: "Lisburn, Northern Ireland, United Kingdom", lat: 54.5112856, lon: -6.046717, timeZone: "Europe/London" },
+            { label: "Lisbon, Iowa, United States", lat: 41.9211165, lon: -91.3854913, timeZone: "America/Chicago" },
+          ],
+        },
+      });
+      expect(fetchImpl).toHaveBeenCalledOnce();
+      const asked = new URL(String(fetchImpl.mock.calls[0][0]));
+      expect(asked.hostname).toBe("photon.komoot.io");
+      expect(asked.searchParams.get("layer")).toBe("city");
+    });
+
+    it("keeps a city found by its name in another language (Tokio → Tokyo), which the address filter would drop", async () => {
+      await app.reset();
+      await app.signedInAs("alice@example.com", { timeZone: "Europe/Lisbon" });
+      const tokyo = { features: [{ geometry: { coordinates: [139.7594549, 35.6828387] }, properties: { name: "Tokyo", country: "Japan", osm_value: "city" } }] };
+      expect(await read(await askCity("Tokio", service(tokyo) as unknown as typeof fetch))).toEqual({
+        status: 200,
+        body: { places: [{ label: "Tokyo, Japan", lat: 35.6828387, lon: 139.7594549, timeZone: "Asia/Tokyo" }] },
+      });
+    });
+
+    it("gives an empty list for a city that does not exist", async () => {
+      await app.reset();
+      await app.signedInAs("alice@example.com", { timeZone: "Europe/Lisbon" });
+      expect(await read(await askCity("Qqqqqville", service({ features: [] }) as unknown as typeof fetch))).toEqual({ status: 200, body: { places: [] } });
+    });
+
+    it("leaves out a result whose position has no time zone", async () => {
+      await app.reset();
+      await app.signedInAs("alice@example.com", { timeZone: "Europe/Lisbon" });
+      const broken = { features: [{ geometry: { coordinates: [500, 95] }, properties: { name: "Lisbon", country: "Portugal" } }] };
+      expect(await read(await askCity("Lisbon", service(broken) as unknown as typeof fetch))).toEqual({ status: 200, body: { places: [] } });
+    });
+
+    it("refuses a signed-out request (401) and says so when the service is down (502)", async () => {
+      await app.reset();
+      const fetchImpl = service(CITIES);
+      expect((await askCity("Lisbon", fetchImpl as unknown as typeof fetch)).status).toBe(401);
+      expect(fetchImpl).not.toHaveBeenCalled();
+      await app.signedInAs("alice@example.com", { timeZone: "Europe/Lisbon" });
+      expect((await askCity("Lisbon", service({}, false) as unknown as typeof fetch)).status).toBe(502);
+    });
+  });
+
   it("Confirm falls back to Photon when Nominatim finds nothing", async () => {
     await app.reset();
     await app.signedInAs("alice@example.com", { timeZone: "Europe/Lisbon" });

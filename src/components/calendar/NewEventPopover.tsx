@@ -19,7 +19,8 @@ import { FloatingPanel, type Anchor } from "./FloatingPanel";
 import { TimeField, TimeWheel } from "./TimeWheel";
 import type { GoalLabel } from "./TimeGrid";
 
-const DURATIONS = [
+/** The length chips, also in the full editor. */
+export const DURATIONS = [
   { min: 30, label: "30m" },
   { min: 60, label: "1h" },
   { min: 90, label: "1.5h" },

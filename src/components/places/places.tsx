@@ -4,17 +4,26 @@
 // asking our server (/api/places), the suggestions while typing, and the list under the field.
 // The server does the actual asking of the OpenStreetMap-based services (src/lib/server/actions/search-places.ts).
 import { useEffect, useState } from "react";
-import type { PlaceSuggestion } from "@/lib/places/places";
+import type { CitySuggestion, PlaceSuggestion } from "@/lib/places/places";
 
 /**
  * Suggestions for what is typed, or null when the search is not available. `exact` is the look-up of one
  * address (the Confirm button and the "Look up" row): it also finds streets the suggestions miss.
  */
 export async function lookUp(query: string, signal?: AbortSignal, exact = false): Promise<PlaceSuggestion[] | null> {
+  return ask<PlaceSuggestion>(`/api/places?q=${encodeURIComponent(query)}${exact ? "&mode=confirm" : ""}`, signal);
+}
+
+/** Cities for what is typed, each with its time zone (for the settings), or null when the search is not available. */
+export function lookUpCities(query: string, signal?: AbortSignal): Promise<CitySuggestion[] | null> {
+  return ask<CitySuggestion>(`/api/places?q=${encodeURIComponent(query)}&kind=city`, signal);
+}
+
+async function ask<T>(url: string, signal?: AbortSignal): Promise<T[] | null> {
   try {
-    const response = await fetch(`/api/places?q=${encodeURIComponent(query)}${exact ? "&mode=confirm" : ""}`, { signal });
+    const response = await fetch(url, { signal });
     if (!response.ok) return null;
-    return ((await response.json()) as { places: PlaceSuggestion[] }).places;
+    return ((await response.json()) as { places: T[] }).places;
   } catch {
     return null;
   }
@@ -35,19 +44,28 @@ export async function lookUpCurrent(text: string, current: () => string): Promis
  * older text are never shown.
  */
 export function usePlaceSuggestions(typed: string, skip: boolean): PlaceSuggestion[] {
-  const [found, setFound] = useState<{ query: string; places: PlaceSuggestion[] }>({ query: "", places: [] });
+  return useSuggestions(typed, skip, lookUp);
+}
+
+/** The same for cities (the time zone in the settings). */
+export function useCitySuggestions(typed: string, skip: boolean): CitySuggestion[] {
+  return useSuggestions(typed, skip, lookUpCities);
+}
+
+function useSuggestions<T>(typed: string, skip: boolean, find: (query: string, signal: AbortSignal) => Promise<T[] | null>): T[] {
+  const [found, setFound] = useState<{ query: string; places: T[] }>({ query: "", places: [] });
   useEffect(() => {
     if (typed.length < 3 || skip) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
-      const places = await lookUp(typed, controller.signal);
+      const places = await find(typed, controller.signal);
       if (!controller.signal.aborted) setFound({ query: typed, places: places ?? [] });
     }, 300);
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [typed, skip]);
+  }, [typed, skip, find]);
   return found.query === typed && !skip ? found.places : [];
 }
 
@@ -56,26 +74,28 @@ export function usePlaceSuggestions(typed: string, skip: boolean): PlaceSuggesti
  * typed (for an address the suggestions miss, such as a house number OpenStreetMap does not know).
  * `active` is the row chosen with the arrow keys; the last row has the index `suggestions.length`.
  */
-export function PlaceList({
+export function PlaceList<T extends PlaceSuggestion>({
   id,
   suggestions,
   typed,
   active,
   onPick,
   onLookUp,
+  label = "Address suggestions",
 }: {
   id: string;
-  suggestions: PlaceSuggestion[];
+  suggestions: T[];
   typed: string;
   active: number;
-  onPick: (place: PlaceSuggestion) => void;
+  onPick: (place: T) => void;
   onLookUp: () => void;
+  label?: string;
 }) {
   return (
     <ul
       id={id}
       role="listbox"
-      aria-label="Address suggestions"
+      aria-label={label}
       className="absolute left-0 top-full z-20 mt-1 w-full overflow-hidden rounded-lg border border-line bg-surface shadow-lg"
     >
       {suggestions.map((place, i) => (

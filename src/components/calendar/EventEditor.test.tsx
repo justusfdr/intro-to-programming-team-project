@@ -76,8 +76,9 @@ describe("an existing event", () => {
   it("has the date button, start and end with the length, the all-day switch, and no Repeat", () => {
     const html = edit(TIMED);
     expect(html).toMatch(/<button type="button" aria-expanded="false" aria-label="Date: Tue, Nov 17"[^>]*><svg[^>]*lucide-calendar-days[^>]*>.*<span[^>]*>Tue, Nov 17<\/span><\/button>/s);
-    expect(html).toMatch(/<select aria-label="Start time"[^>]*>.*<option value="540" selected="">9am<\/option>/s);
-    expect(html).toMatch(/<select aria-label="End time"[^>]*>.*<option value="600" selected="">10am · 1h<\/option>/s);
+    expect(html).toMatch(/<input[^>]*aria-label="Start time"[^>]*value="09:00"/);
+    expect(html).toMatch(/<input[^>]*aria-label="End time"[^>]*value="10:00"/);
+    expect(html).toContain("End · 1h");
     expect(html).toMatch(/<label[^>]*>All day<input type="checkbox" role="switch"/);
     expect(html).not.toContain("Does not repeat");
   });

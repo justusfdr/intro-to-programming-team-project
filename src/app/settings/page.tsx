@@ -9,15 +9,6 @@ import { loadSettingsPageAll } from "@/lib/server/pages/load";
 
 export const metadata: Metadata = { title: "Settings" };
 
-/** Every time zone the server knows, so the browser shows the same list the server rendered. */
-function knownTimeZones(): string[] {
-  try {
-    return Intl.supportedValuesOf("timeZone");
-  } catch {
-    return [];
-  }
-}
-
 // The settings page (spec 12), in the prototype's layout: one column of cards, Outlook first.
 export default async function SettingsPage() {
   const deps = await pageDeps();
@@ -32,7 +23,7 @@ export default async function SettingsPage() {
     <Announcer>
       <LiveProvider>
         <AppShell current="/settings" display={display}>
-          <SettingsView data={data} blocker={blocker} timeZones={knownTimeZones()} />
+          <SettingsView data={data} blocker={blocker} />
         </AppShell>
       </LiveProvider>
     </Announcer>

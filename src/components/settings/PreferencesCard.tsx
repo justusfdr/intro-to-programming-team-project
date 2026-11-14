@@ -2,7 +2,8 @@
 
 // Card "Preferences", copied from the prototype: the calendar's default view, time format, visible
 // hours, and the time zone (here instead of the prototype's week start and check-in time, which are
-// decided out: weeks start on Monday, the check-in is gone). Each change is saved at once.
+// decided out: weeks start on Monday, the check-in is gone). Each change is saved at once; the time zone
+// is chosen by city (TimeZoneField).
 import { useId, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
@@ -14,6 +15,7 @@ import { Card } from "@/components/ui/Card";
 import type { SettingsData } from "@/lib/settings/types";
 import { fmtHourSetting, type TimeFormat } from "@/lib/time/display";
 import { FieldRow, SegmentedField, SelectField, SettingsCardHeader, type FieldOption } from "./fields";
+import { TimeZoneField } from "./TimeZoneField";
 import { useSaveSettings } from "./useSaveSettings";
 
 const VIEW_OPTIONS: FieldOption<View>[] = VIEWS.map((value) => ({ value, label: viewLabel(value) }));
@@ -51,20 +53,12 @@ const FORMAT_OPTIONS: FieldOption<TimeFormat>[] = [
   { value: "24h", label: "24-hour" },
 ];
 
-/** The time zones the server knows (from the page, so server and browser render the same list), with the saved one always in it. */
-function timeZoneOptions(current: string, known: string[]): FieldOption<string>[] {
-  const names = known.includes(current) ? known : [...known, current].sort();
-  return names.map((name) => ({ value: name, label: name.replaceAll("_", " ") }));
-}
-
 export function PreferencesCard({
   settings: serverSettings,
   defaultView: savedView,
-  timeZones,
 }: {
   settings: SettingsData;
   defaultView: View;
-  timeZones: string[];
 }) {
   // The saved values, with a change that is on its way shown at once.
   const settings = useLiveSettings(serverSettings);
@@ -144,15 +138,7 @@ export function PreferencesCard({
         </FieldRow>
 
         <FieldRow label="Time zone" htmlFor={ids.zone} hintId={ids.zoneHint} hint="Your calendar, weeks and analytics use it.">
-          <SelectField
-            id={ids.zone}
-            value={settings.timeZone}
-            options={timeZoneOptions(settings.timeZone, timeZones)}
-            ariaDescribedBy={ids.zoneHint}
-            disabled={busy}
-            className="w-full sm:w-64"
-            onChange={(timeZone) => void save({ timeZone })}
-          />
+          <TimeZoneField id={ids.zone} hintId={ids.zoneHint} timeZone={settings.timeZone} busy={busy} save={save} />
         </FieldRow>
       </div>
       {failure && <FormMessage tone="error" text={failure.message} />}
