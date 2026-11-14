@@ -4,16 +4,25 @@
 // also shows the length). Ours in the same style: the all-day switch next to the heading (not for an
 // event of a series, R29), first and last day for an all-day event, and the repeat choice for a new
 // timed event (R28). An Outlook event shows its time as text (R11).
-import type { ReactNode } from "react";
+// Start and end are chosen as in the "New event" card: a field to type "HH:MM", the scrolling wheel under
+// it, and the length chips. An end at or before the start is on the next day (an event may run past midnight).
+import { useState, type ReactNode } from "react";
 import { useDisplay } from "@/components/shell/DisplayProvider";
-import { MIN_DURATION } from "@/lib/events/drag";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent } from "@/lib/events/types";
-import { fmtDateShort, fmtRange, fmtTime } from "@/lib/time/display";
-import { DateField, Eyebrow, TimeSelect, ToggleChip, inputClass } from "../fields";
+import { fmtDateShort, fmtMinutes, fmtRange, fmtTime } from "@/lib/time/display";
+import { endProblem } from "@/lib/time/wheel";
+import { DateField, Eyebrow, ToggleChip, inputClass } from "../fields";
+import { DURATIONS } from "../NewEventPopover";
+import { TimeField, TimeWheel } from "../TimeWheel";
 import { moveFirstDay, switchAllDay, type EventValues, type Repeat } from "./values";
 
 const DAY = 24 * 60;
+
+/** The end for a time picked on the wheel or typed (0 to 23:59): at or before the start, it is on the next day. */
+export function endFromPicked(startMin: number, picked: number): number {
+  return picked <= startMin ? picked + DAY : picked;
+}
 
 const switchClass =
   "relative h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-line transition-colors checked:bg-ink before:absolute before:top-0.5 before:left-0.5 before:size-4 before:rounded-full before:bg-white before:shadow-sm before:transition-transform checked:before:translate-x-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-1";
@@ -30,6 +39,8 @@ type Props = {
 
 export function WhenSection({ event, values, onChange, todayKey, children }: Props) {
   const { timeFormat } = useDisplay();
+  // Which time's wheel is showing under the fields, if any.
+  const [wheel, setWheel] = useState<"start" | "end" | null>(null);
 
   if (event?.source === "outlook") {
     return (
@@ -44,8 +55,11 @@ export function WhenSection({ event, values, onChange, todayKey, children }: Pro
   }
 
   const inSeries = Boolean(event?.seriesId);
+  const length = values.endMin - values.startMin;
   // A new start keeps the length.
-  const setStart = (startMin: number) => onChange({ startMin, endMin: startMin + (values.endMin - values.startMin) });
+  const setStart = (startMin: number) => onChange({ startMin, endMin: startMin + length });
+  const setEnd = (picked: number) => onChange({ endMin: endFromPicked(values.startMin, picked) });
+  const timeProblem = endProblem(values.startMin, values.endMin);
 
   return (
     <section className="flex flex-col gap-1.5">
@@ -73,17 +87,52 @@ export function WhenSection({ event, values, onChange, todayKey, children }: Pro
       ) : (
         <>
           <DateField label="Date" value={values.date} todayKey={todayKey} onChange={(date) => onChange({ date })} />
-          {/* The end is wider: it also shows the length ("10:30am · 1h 30m"). */}
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)] gap-2">
-            <TimeSelect label="Start time" value={values.startMin} onChange={setStart} from={0} to={DAY - MIN_DURATION} />
-            <TimeSelect
-              label="End time"
-              value={values.endMin}
-              onChange={(endMin) => onChange({ endMin })}
-              from={values.startMin + MIN_DURATION}
-              to={values.startMin + DAY}
-              durationFrom={values.startMin}
-            />
+          <div
+            className="flex flex-col gap-3"
+            onKeyDown={(e) => {
+              // Esc first folds the wheel; the next Esc closes the card.
+              if (wheel && e.key === "Escape" && !e.defaultPrevented) {
+                e.preventDefault();
+                e.stopPropagation();
+                setWheel(null);
+              }
+            }}
+          >
+            <div className="flex items-start gap-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <span className="text-xs text-ink-2">Start</span>
+                <TimeField label="Start time" value={values.startMin} onChange={setStart} open={wheel === "start"} onOpen={() => setWheel("start")} />
+              </div>
+              <span aria-hidden className="mt-7 text-sm text-ink-3">
+                –
+              </span>
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <span className="text-xs text-ink-2 tabular">
+                  End
+                  {length > 0 && ` · ${fmtMinutes(length)}`}
+                  {values.endMin >= DAY && " · next day"}
+                </span>
+                <TimeField label="End time" value={values.endMin % DAY} onChange={setEnd} open={wheel === "end"} onOpen={() => setWheel("end")} />
+              </div>
+            </div>
+
+            {wheel && (
+              <TimeWheel label={wheel === "start" ? "Start" : "End"} value={wheel === "start" ? values.startMin : values.endMin % DAY} onChange={wheel === "start" ? setStart : setEnd} />
+            )}
+
+            {timeProblem && (
+              <p role="alert" className="text-xs text-danger">
+                {timeProblem}
+              </p>
+            )}
+
+            <div role="group" aria-label="Duration" className="flex flex-wrap gap-1.5">
+              {DURATIONS.map((d) => (
+                <ToggleChip key={d.min} pressed={length === d.min} onClick={() => onChange({ endMin: values.startMin + d.min })} className="tabular">
+                  {d.label}
+                </ToggleChip>
+              ))}
+            </div>
           </div>
         </>
       )}

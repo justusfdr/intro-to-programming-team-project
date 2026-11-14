@@ -65,28 +65,35 @@ describe("event editor look", () => {
     expect(html).toMatch(/bg-raised text-ink-3[^"]*"><svg[^>]*lucide-briefcase/);
   });
 
-  it("shows start and end in 12-hour time by default, with the length next to the end", () => {
+  it("shows start and end as HH:MM fields, as in the New event card, with the length next to the end", () => {
     const html = render(EVENT);
-    expect(html).toMatch(/<option value="540" selected="">9am<\/option>/);
-    expect(html).toMatch(/<option value="660" selected="">11am · 2h<\/option>/);
-    expect(html).toMatch(/<option value="630">10:30am · 1h 30m<\/option>/);
+    expect(html).toMatch(/<input type="text" inputMode="numeric"[^>]*aria-label="Start time"[^>]*value="09:00"/);
+    expect(html).toMatch(/<input type="text" inputMode="numeric"[^>]*aria-label="End time"[^>]*value="11:00"/);
+    expect(html).toContain("End · 2h");
+    // No long dropdown lists any more, and the wheel shows only once a field is clicked.
+    expect(html).not.toContain("<select aria-label=\"Start time\"");
+    expect(html).not.toContain("<select aria-label=\"End time\"");
+    expect(html).not.toMatch(/role="group" aria-label="Start time"/);
   });
 
-  it("shows 24-hour times when the setting says so", () => {
+  it("shows the times as HH:MM also when the setting says 12-hour or 24-hour", () => {
     const html = renderToStaticMarkup(<DisplayProvider value={{ ...DEFAULT_DISPLAY, timeFormat: "24h" }}>{card(EVENT)}</DisplayProvider>);
-    expect(html).toMatch(/<option value="540" selected="">9:00<\/option>/);
-    expect(html).toMatch(/<option value="660" selected="">11:00 · 2h<\/option>/);
+    expect(html).toMatch(/aria-label="Start time"[^>]*value="09:00"/);
+    expect(html).toMatch(/aria-label="End time"[^>]*value="11:00"/);
   });
 
   it("says 'next day' for an end after midnight", () => {
     const night = { ...EVENT, startLocal: "2026-11-19T22:00", endLocal: "2026-11-20T02:00" };
-    expect(render(night)).toMatch(/<option value="1560" selected="">2am \(next day\) · 4h<\/option>/);
+    const html = render(night);
+    expect(html).toMatch(/aria-label="End time"[^>]*value="02:00"/);
+    expect(html).toContain("End · 4h · next day");
   });
 
-  it("names the start and end lists (not by their value)", () => {
+  it("offers the length chips of the New event card, with the event's length chosen", () => {
     const html = render(EVENT);
-    expect(html).toMatch(/<select aria-label="Start time"/);
-    expect(html).toMatch(/<select aria-label="End time"/);
+    expect(html).toMatch(/role="group" aria-label="Duration"/);
+    for (const label of ["30m", "1h", "1.5h", "2h"]) expect(html).toMatch(new RegExp(`aria-pressed="(true|false)"[^>]*>${label.replace(".", "\\.")}</button>`));
+    expect(html).toMatch(/aria-pressed="true"[^>]*>2h<\/button>/);
   });
 
   it("names the done toggle 'Reopen' for a done event and 'Mark done' otherwise", () => {
