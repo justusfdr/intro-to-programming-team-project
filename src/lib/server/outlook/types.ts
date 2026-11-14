@@ -28,6 +28,12 @@ export type OutlookEvent = {
   location: string | null;
   /** The transactionId we gave an event we created (our event id), if any. */
   transactionId: string | null;
+  /**
+   * Spec 24: the attendees' plain addresses (lower-case, each once, without the organizer, at most 100)
+   * and the organizer's address. Left out when Outlook names none.
+   */
+  attendees?: string[];
+  organizer?: string;
 };
 
 /** What we send for an app event. */
@@ -40,6 +46,11 @@ export type OutgoingEvent = {
   lastDay: string | null;
   /** Where it takes place; null clears it in Outlook. Left out: Outlook's location is not touched. */
   location?: string | null;
+  /**
+   * Spec 24: the guests, sent as required attendees (Outlook invites them; an empty list removes them).
+   * Left out for an event that never had guests: Outlook's attendees are not touched.
+   */
+  attendees?: string[];
   /** Our event id: Outlook creates an event only once per transactionId. */
   transactionId: string;
 };

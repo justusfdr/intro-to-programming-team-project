@@ -44,6 +44,11 @@ export const EventFields = z.object({
    * on every event. Checked by the action (checkTodoList).
    */
   todos: TodoListField.optional(),
+  /**
+   * Spec 24: the guests' e-mail addresses (Outlook invites them). Left out: unchanged (edit) or none
+   * (create). Checked by the action (checkGuests).
+   */
+  guests: z.array(z.string().max(1000)).max(100).optional(),
 });
 
 type Fields = z.infer<typeof EventFields>;

@@ -10,7 +10,7 @@ import type { TravelMode } from "@/lib/settings/types";
  * statement, so the calendar gets them without one more round trip.
  */
 export const EVENT_COLUMNS =
-  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, travel_mode, outlook_id is not null as in_outlook, demo, updated_at, " +
+  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, travel_mode, outlook_id is not null as in_outlook, demo, updated_at, guests, organizer, " +
   "(select count(*)::int from app.event_todos t where t.event_id = events.id) as todo_count, " +
   "(select count(*)::int from app.event_todos t where t.event_id = events.id and t.done) as todos_done";
 
@@ -39,6 +39,12 @@ export type EventRow = {
   /** How many to-dos the event has, and how many of them are done (spec 21). */
   todo_count: number;
   todos_done: number;
+  /**
+   * Spec 24: the guests' addresses (null: never had any; for an Outlook event its attendees) and, for an
+   * Outlook event, the organizer. Left out by queries that do not use EVENT_COLUMNS.
+   */
+  guests?: string[] | null;
+  organizer?: string | null;
 };
 
 const iso = (value: Date | null) => (value ? new Date(value).toISOString() : null);
@@ -63,5 +69,9 @@ export function toEventDto(row: EventRow): EventDto {
     updatedAt: new Date(row.updated_at).toISOString(),
     todoCount: row.todo_count ?? 0,
     todosDone: row.todos_done ?? 0,
+    // Spec 24: only when there are any, so an event without guests looks as before. Only the owner gets them (R3).
+    ...(row.guests && row.guests.length > 0 ? { guests: [...row.guests] } : {}),
+    ...(row.organizer ? { organizer: row.organizer } : {}),
+    ...(row.demo ? { demo: true } : {}),
   };
 }

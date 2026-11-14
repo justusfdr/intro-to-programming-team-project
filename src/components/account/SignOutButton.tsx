@@ -9,7 +9,7 @@ import { LogOut } from "lucide-react";
 import { postJson } from "@/lib/client/post-json";
 
 /** The account row at the bottom of the sidebar. On phones, Settings has the same action. */
-export function SignOutButton() {
+export function SignOutButton({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,12 +34,14 @@ export function SignOutButton() {
         type="button"
         onClick={onClick}
         disabled={busy}
-        className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 transition-colors hover:bg-raised/60 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 disabled:opacity-50"
+        aria-label={compact ? "Sign out" : undefined}
+        title={compact ? "Sign out" : undefined}
+        className="flex h-9 w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg px-[9px] text-sm text-ink-2 transition-colors hover:bg-raised/60 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 disabled:opacity-50"
       >
-        <LogOut className="size-[18px] text-ink-3" strokeWidth={1.8} />
-        {busy ? "Signing out…" : "Sign out"}
+        <LogOut className="size-[18px] shrink-0 text-ink-3" strokeWidth={1.8} />
+        {!compact && (busy ? "Signing out…" : "Sign out")}
       </button>
-      {error && <FormMessage tone="error" text={error} />}
+      {error && !compact && <FormMessage tone="error" text={error} />}
     </div>
   );
 }

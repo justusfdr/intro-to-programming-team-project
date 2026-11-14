@@ -30,6 +30,11 @@ export type EventValues = {
   mayOverlap: boolean;
   /** "" is none. */
   location: string;
+  /**
+   * Spec 24: the guests' addresses, sent with Save (Outlook invites them). Left out (or empty) when the
+   * event has none.
+   */
+  guests?: string[];
   /** How to get there; null is the standard from the settings (R27). */
   travelMode: TravelMode | null;
 };
@@ -42,7 +47,15 @@ function endMinuteOf(start: string, end: string): number {
 
 /** The values of an existing event. Timed and all-day fields both get values, so the switch can flip. */
 export function valuesOf(event: CalendarEvent): EventValues {
-  const common = { title: event.title, goalId: event.goalId, mayOverlap: event.mayOverlap, location: event.location ?? "", travelMode: event.travelMode ?? null };
+  const common = {
+    title: event.title,
+    goalId: event.goalId,
+    mayOverlap: event.mayOverlap,
+    location: event.location ?? "",
+    travelMode: event.travelMode ?? null,
+    // Always named (also when undefined), so Discard and an answer put the saved guests back.
+    guests: event.guests && event.guests.length > 0 ? [...event.guests] : undefined,
+  };
   if (event.allDay) {
     return { ...common, allDay: true, date: event.firstDay, startMin: 9 * 60, endMin: 10 * 60, firstDay: event.firstDay, lastDay: event.lastDay, goalId: null };
   }
@@ -103,10 +116,15 @@ function fieldsOf(values: EventValues) {
   };
 }
 
-/** The body of edit_event for these values. An Outlook event sends only its goal (R11). */
+/**
+ * The body of edit_event for these values. An Outlook event sends only its goal (R11). The guests go
+ * along when the event has some or the editor added some (an empty list removes them, spec 24).
+ */
 export function editBody(event: CalendarEvent, values: EventValues, updatedAt: string, scope?: Scope): Record<string, unknown> {
   if (event.source === "outlook") return { goalId: values.goalId, updatedAt };
-  return { ...fieldsOf(values), updatedAt, ...(scope ? { scope } : {}) };
+  const guests = values.guests ?? [];
+  const withGuests = guests.length > 0 || (event.guests?.length ?? 0) > 0 ? { guests } : {};
+  return { ...fieldsOf(values), ...withGuests, updatedAt, ...(scope ? { scope } : {}) };
 }
 
 /** Whether these values would change the saved event (the Save button shows only then). */
@@ -126,6 +144,8 @@ export function createBody(values: EventValues, repeat: Repeat | null, todos: re
     ...fieldsOf(values),
     ...(repeat && !values.allDay ? { repeat } : {}),
     ...(todos.length > 0 ? { todos: todos.map((t) => ({ title: t.title, done: t.done })) } : {}),
+    // Spec 24: the guests of a single event (a series takes none; the editor does not offer it).
+    ...(values.guests && values.guests.length > 0 && !(repeat && !values.allDay) ? { guests: [...values.guests] } : {}),
   };
 }
 
@@ -151,6 +171,10 @@ export function editedChange(event: CalendarEvent, values: EventValues, timeZone
     // A change of the event keeps its to-dos (spec 21).
     todoCount: event.todoCount,
     todosDone: event.todosDone,
+    // Spec 24: an Outlook event keeps Outlook's people; our own event shows the guests being saved.
+    guests: event.source === "outlook" ? event.guests : values.guests && values.guests.length > 0 ? [...values.guests] : undefined,
+    organizer: event.organizer,
+    demo: event.demo,
   };
   if (event.source === "outlook") {
     const dto: EventDto = event.allDay

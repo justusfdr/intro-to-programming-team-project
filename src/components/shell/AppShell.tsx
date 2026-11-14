@@ -1,10 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CalendarDays, ChartColumn, CreditCard, MessageCircle, Settings, Timer, type LucideIcon } from "lucide-react";
-import { SignOutButton } from "@/components/account/SignOutButton";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
 import { DEFAULT_DISPLAY, type Display } from "@/lib/time/display";
-import { Logo } from "./Logo";
+import { NAV, PRICING, SETTINGS } from "./nav";
+import { Sidebar } from "./Sidebar";
 
 // The frame of every signed-in page, copied from the prototype's shell: the sidebar on wider screens
 // (mark and name, navigation, Pricing and Settings at the bottom, then the account row) and the floating tab bar
@@ -12,19 +11,7 @@ import { Logo } from "./Logo";
 // Focus in a later step. The coach (the AI chat, spec 19) is a page of its own, second in the list.
 // Search and quick capture come with their features. Side panels go in as in the prototype: the goals
 // panel to the left of the page (`panelsLeft`), others to the right (`panelsRight`); each collapses on its own.
-
-type NavItem = { href: string; label: string; icon: LucideIcon };
-
-const NAV: NavItem[] = [
-  { href: "/", label: "Calendar", icon: CalendarDays },
-  { href: "/coach", label: "Coach", icon: MessageCircle },
-  { href: "/focus", label: "Focus", icon: Timer },
-  { href: "/analytics", label: "Analytics", icon: ChartColumn },
-];
-
-const SETTINGS: NavItem = { href: "/settings", label: "Settings", icon: Settings };
-/** The plans and payment (spec 24), at the bottom above Settings. */
-const PRICING: NavItem = { href: "/pricing", label: "Pricing", icon: CreditCard };
+// The sidebar itself folds to a strip of icons (./Sidebar.tsx, spec 25).
 
 type Props = {
   /** The address of the current page, to mark it in the navigation. */
@@ -37,44 +24,6 @@ type Props = {
   /** Side panels to the right of the page. */
   panelsRight?: ReactNode;
 };
-
-function SidebarLink({ item, on }: { item: NavItem; on: boolean }) {
-  const Icon = item.icon;
-  return (
-    <Link
-      href={item.href}
-      aria-current={on ? "page" : undefined}
-      className={`flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
-        on ? "bg-raised font-medium text-ink" : "text-ink-2 hover:bg-raised/60 hover:text-ink"
-      }`}
-    >
-      <Icon className={`size-[18px] ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
-      {item.label}
-    </Link>
-  );
-}
-
-function Sidebar({ current }: { current: string }) {
-  return (
-    <aside className="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col border-r border-line-subtle bg-canvas px-3 py-4 md:flex">
-      <Link href="/" className="rounded-lg px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20">
-        <Logo />
-      </Link>
-      <nav aria-label="Main navigation" className="mt-5 flex flex-col gap-0.5">
-        {NAV.map((item) => (
-          <SidebarLink key={item.href} item={item} on={current === item.href} />
-        ))}
-      </nav>
-      <div className="mt-auto flex flex-col gap-2">
-        <div className="flex flex-col gap-0.5">
-          <SidebarLink item={PRICING} on={current === PRICING.href} />
-          <SidebarLink item={SETTINGS} on={current === SETTINGS.href} />
-        </div>
-        <SignOutButton />
-      </div>
-    </aside>
-  );
-}
 
 /** Phones: the floating round tab bar at the bottom, one icon per page. */
 function TabBar({ current }: { current: string }) {

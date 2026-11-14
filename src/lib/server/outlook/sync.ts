@@ -68,6 +68,8 @@ type PendingRow = {
   first_day: string | null;
   last_day: string | null;
   location: string | null;
+  /** Spec 24: null when the event never had guests (then no attendees are sent). */
+  guests: string[] | null;
   outlook_id: string | null;
   updated_at: Date;
 };
@@ -87,7 +89,7 @@ async function sendPending(deps: Deps, userId: string, service: OutlookService, 
       [MAX_SENT_PER_RUN],
     );
     const events = await q<PendingRow>(
-      `select id, title, all_day, start_at, end_at, first_day::text as first_day, last_day::text as last_day, location, outlook_id, updated_at
+      `select id, title, all_day, start_at, end_at, first_day::text as first_day, last_day::text as last_day, location, guests, outlook_id, updated_at
          from app.events
         where source <> 'outlook'
           and not demo
@@ -112,6 +114,9 @@ async function sendPending(deps: Deps, userId: string, service: OutlookService, 
         firstDay: e.first_day,
         lastDay: e.last_day,
         location: e.location,
+        // Spec 24: an event with guests goes with them as attendees, and an empty list once they were all
+        // removed; an event that never had any is sent exactly as before (Outlook's attendees untouched).
+        ...(e.guests !== null ? { attendees: [...e.guests] } : {}),
         transactionId: e.id,
       };
       return e.outlook_id ? { kind: "update", ref: e.id, outlookId: e.outlook_id, event } : { kind: "create", ref: e.id, event };
@@ -173,9 +178,12 @@ export async function syncOutlook(deps: Deps, outlook: OutlookDeps, userId: stri
       last_day: e.lastDay,
       location: e.location,
       transaction_id: e.transactionId,
+      // Spec 24: who the event has (shown read-only, R11). Never logged.
+      attendees: e.attendees ?? [],
+      organizer: e.organizer ?? null,
     }));
     await deps.withUser(userId, async (q) => {
-      await q("select app.outlook_import($1::timestamptz, $2::timestamptz, $3::text::jsonb)", [from, to, JSON.stringify(rows)]);
+      await q("select app.outlook_import($1::timestamptz, $2::timestamptz, $3::text::jsonb)", [from.toISOString(), to.toISOString(), JSON.stringify(rows)]);
       await q("select app.outlook_finish_sync()");
     });
     return { ran: true, ok: true };

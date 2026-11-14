@@ -8,10 +8,14 @@ import "server-only";
 // all its events or none (R28).
 // Spec 21: the new event may come with its to-dos (the editor's list of a new event, the calendar's
 // undo of a delete, R38); they are written in the same transaction, on every event of a series.
+// Spec 24: and with its guests (Outlook invites them when the event is sent): only while Outlook is
+// connected, never for a series. An event without guests is saved without a list (null), so it goes
+// to Outlook exactly as before.
 import { randomUUID } from "node:crypto";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
 import { handleAction } from "@/lib/server/errors";
+import { asGuestError, assertMayInvite, assertNotEnded, checkGuests } from "@/lib/server/events/guests";
 import { checkEventFields, checkRepeat, EventFields } from "@/lib/server/events/input";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
 import { templateOf, timesOn } from "@/lib/server/events/series";
@@ -23,7 +27,7 @@ import { requireUser } from "@/lib/server/session";
 import { readTimeZone } from "@/lib/server/settings";
 import { localDateOf } from "@/lib/time/zoned";
 
-export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUser">): Promise<Response> {
+export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now">): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -34,13 +38,20 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
     if (!body.ok) return body.response;
 
     // The database's refusal of a to-do (two requests at the same moment) becomes the ontology's answer.
-    const asAnswer = (error: unknown) => Promise.reject(asTodoError(error));
+    const asAnswer = (error: unknown) => Promise.reject(asGuestError(asTodoError(error)));
     return deps.withUser(userId, async (query) => {
       // The form sends local times or days; the user's time zone turns times into instants (stored in UTC).
       const timeZone = await readTimeZone(query);
       const event = checkEventFields(body.data, timeZone);
       // Spec 21: the to-dos come after the event's own checks, in the ontology's order.
       const todos = checkTodoList(body.data.todos);
+      // Spec 24: the guests last; none is saved as no list at all.
+      const guestList = checkGuests(body.data.guests) ?? [];
+      const guests = guestList.length > 0 ? guestList : null;
+      if (guests) {
+        await assertMayInvite(query, { seriesId: Boolean(body.data.repeat) && !event.allDay, demo: false });
+        assertNotEnded(event, deps.now(), timeZone);
+      }
       /** The event as saved, with its to-dos (written after it, so counted here). */
       const savedDto = async (row: EventRow) => {
         await insertTodos(query, [row.id], todos);
@@ -50,8 +61,9 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
       if (event.allDay) {
         checkRepeat(body.data, event.firstDay); // R29: an all-day event never repeats
         const [row] = await query<EventRow>(
-          `insert into app.events (title, all_day, first_day, last_day, location) values ($1, true, $2, $3, $4) returning ${EVENT_COLUMNS}`,
-          [event.title, event.firstDay, event.lastDay, event.location ?? null],
+          `insert into app.events (title, all_day, first_day, last_day, location, guests)
+           values ($1, true, $2, $3, $4, $5::text[]) returning ${EVENT_COLUMNS}`,
+          [event.title, event.firstDay, event.lastDay, event.location ?? null, guests],
         );
         return jsonOk({ message: MESSAGES.eventSaved, event: await savedDto(row) }, 201);
       }
@@ -67,10 +79,10 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
       if (!dates) {
         // user_id, status ("planned"), source ("app") and updated_at are filled in by the database.
         const [row] = await query<EventRow>(
-          `insert into app.events (title, start_at, end_at, may_overlap, goal_id, location, travel_mode)
-           values ($1, $2, $3, $4, $5, $6, $7)
+          `insert into app.events (title, start_at, end_at, may_overlap, goal_id, location, travel_mode, guests)
+           values ($1, $2, $3, $4, $5, $6, $7, $8::text[])
            returning ${EVENT_COLUMNS}`,
-          [event.title, event.startAt, event.endAt, mayOverlap, goalId, location, travelMode],
+          [event.title, event.startAt, event.endAt, mayOverlap, goalId, location, travelMode, guests],
         );
         return jsonOk({ message: MESSAGES.eventSaved, event: await savedDto(row) }, 201);
       }

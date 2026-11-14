@@ -14,10 +14,17 @@ import "server-only";
 // Scope (R28): "this" changes the one event. "this_and_following" changes this event and the later
 // ones of its series in one transaction; every event keeps its own date and gets the new times.
 // The two-device check is on the event the user opened; the whole change is one step (R4).
+//
+// Spec 24: the guests, when the body names them, are saved like the location: left out, they stay. A
+// changed list needs a connected Outlook (it sends the invitations) and is refused on an event of a
+// series, a demo event and an Outlook event (its attendees are Outlook's, R11). A list equal to the
+// saved one changes nothing.
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
+import { sameGuests } from "@/lib/events/guests";
+import { asGuestError, assertMayInvite, assertNotEnded, checkGuests } from "@/lib/server/events/guests";
 import { checkEventFields, EventFields } from "@/lib/server/events/input";
 import { assertUnchangedSince, findOwnEvent } from "@/lib/server/events/own-event";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
@@ -38,11 +45,11 @@ const EditBody = EventFields.partial({ title: true }).extend({
 });
 
 /** Fields that Outlook owns for an imported event (R11). */
-const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "travelMode", "repeat"] as const;
+const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "travelMode", "repeat", "guests"] as const;
 
 const badRequest = () => new ActionError(400, "bad_request", MESSAGES.badRequest);
 
-export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser">, id: string): Promise<Response> {
+export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now">, id: string): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -52,6 +59,8 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
     const body = await readJson(request, EditBody);
     if (!body.ok) return body.response;
 
+    // The database's refusal of guests (Outlook disconnected at the same moment) becomes the ontology's answer.
+    const asAnswer = (error: unknown) => Promise.reject(asGuestError(error));
     return deps.withUser(userId, async (query) => {
       // Locks the row until the transaction ends, so a second device waits instead of racing.
       // The time zone is read in the same round (first: it has no parameter); an Outlook event does not need it.
@@ -90,6 +99,17 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
       const setTravelMode = async (eventId: string) => {
         if (!event.allDay && event.travelMode !== undefined) await query("select app.set_event_travel_mode($1, $2)", [eventId, event.travelMode]);
       };
+
+      // Spec 24: the guests, only when the body names a list that differs from the saved one.
+      const guests = checkGuests(body.data.guests);
+      const guestsChange = guests !== undefined && !sameGuests(guests, row.guests ?? []);
+      if (guestsChange) {
+        await assertMayInvite(query, { seriesId: row.series_id, demo: row.demo });
+        // Somebody new on the list needs an invitation, and only an event that has not ended sends one.
+        // Taking guests off a past event stays possible.
+        if (guests.some((address) => !(row.guests ?? []).includes(address))) assertNotEnded(event, deps.now(), timeZone);
+        await query("update app.events set guests = $2::text[] where id = $1::uuid", [id, guests]);
+      }
 
       if (event.allDay) {
         // A series is timed (R29: all-day events never repeat); the form does not offer this.
@@ -149,6 +169,6 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
         [id, event.title, event.startAt, event.endAt, event.mayOverlap ?? null, ...goal],
       );
       return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(updated) });
-    });
+    }).catch(asAnswer);
   });
 }

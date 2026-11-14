@@ -16,12 +16,16 @@
 // editor then edits the saved event.
 //
 // The sections, in the prototype's order: header (goal tile, title, close), chips, WHEN, TO-DOS (spec
-// 21), GOAL, LOCATION, then ours: OVERLAP. Each is its own component in ./editor, so a later section
+// 21), GOAL, LOCATION, GUESTS (spec 24), then ours: OVERLAP. Each is its own component in ./editor, so a later section
 // (notes, the rating, the travel line) is one more entry in the list.
 // To-dos are saved at once, each change on its own (not with the Save button); a new event keeps its
 // list until "Add event" sends it with the event. Outlook events have none (R11).
+// Guests (spec 24) wait for Save like the location; Outlook sends the invitations. An Outlook event shows
+// its people read-only; events of a series and demo events show the section with the reason why not. The bin asks once,
+// in place, before it deletes an event with guests (Outlook tells them).
 import { useRouter } from "next/navigation";
-import { useRef, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { guestCountText } from "@/lib/events/guests";
 import { Play, Trash2 } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useLive } from "@/components/live/Live";
@@ -38,6 +42,7 @@ import { EditorChips } from "./editor/EditorChips";
 import { EditorHeader } from "./editor/EditorHeader";
 import { EventTodos } from "./editor/EventTodos";
 import { GoalSection } from "./editor/GoalSection";
+import { GuestsSection } from "./editor/GuestsSection";
 import { LocationSection } from "./editor/LocationSection";
 import { TravelLine } from "./editor/TravelLine";
 import { TravelSection } from "./editor/TravelSection";
@@ -177,7 +182,16 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
   const save = useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose });
   const { event, values } = save;
   const fromOutlook = event.source === "outlook";
+  // Whole days only (the editor knows today's date, not the time): an event that ended earlier today
+  // still shows the field, and the server refuses with the same sentence.
+  const endedBeforeToday = (event.allDay ? event.lastDay : event.endLocal.slice(0, 10)) < today;
   const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);
+  // The question before deleting an event with guests (spec 24), in the footer like the series question.
+  const [askDelete, setAskDelete] = useState(false);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (askDelete) confirmButton.current?.focus();
+  }, [askDelete]);
 
   const sections = [
     <EditorHeader
@@ -191,6 +205,22 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
     />,
     <EditorChips key="chips" event={event} />,
     <WhenSection key="when" event={event} values={values} onChange={(patch) => save.change(patch)} todayKey={today} />,
+    // Spec 24: right under the time. An Outlook event shows its people read-only (R11); a demo event
+    // and an event of a series cannot have guests and say so.
+    fromOutlook ? (
+      <GuestsSection key="guests" mode="outlook" guests={event.guests ?? []} organizer={event.organizer ?? null} />
+    ) : event.demo ? (
+      <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotDemo}. Create your own event to invite someone.`} />
+    ) : event.seriesId ? (
+      <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotInSeries}.`} />
+    ) : endedBeforeToday ? (
+      // Outlook gets no past events (R26), so nobody could be invited; the server refuses it too.
+      <GuestsSection key="guests" mode="unavailable" guests={values.guests ?? []} reason={`This event has ended. ${MESSAGES.guestsNotEnded}.`} />
+    ) : outlookConnected ? (
+      <GuestsSection key="guests" mode="edit" guests={values.guests ?? []} onChange={(guests) => save.change({ guests })} />
+    ) : (
+      <GuestsSection key="guests" mode="connect" guests={values.guests ?? []} />
+    ),
     // Right under the time, as in the prototype; saved at once. Outlook events have none (R11).
     !fromOutlook && <EventTodos key="todos" eventId={event.id} />,
     // All-day events have no goal (R29).
@@ -226,8 +256,20 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
 
   // All-day events cannot be done and do not suggest a focus session (R29); Outlook events are deleted in Outlook (R11).
   const timed = !event.allDay;
+  // Spec 24: deleting an event with guests tells them (Outlook sends a cancellation), so the bin asks once.
+  const guestCount = fromOutlook ? 0 : (event.guests?.length ?? 0);
   const footer = save.ask ? (
     <SeriesQuestion kind={save.ask.kind} title={event.title} busy={save.busy} onAnswer={save.answer} onCancel={save.cancelAsk} />
+  ) : askDelete && guestCount > 0 ? (
+    <>
+      <p className="w-full text-sm font-medium">{guestCount === 1 ? "Delete and tell the guest?" : `Delete and tell the ${guestCount} guests?`}</p>
+      <Button ref={confirmButton} variant="danger" size="sm" disabled={save.busy} onClick={save.remove}>
+        Delete
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => setAskDelete(false)}>
+        Cancel
+      </Button>
+    </>
   ) : save.changed ? (
     // Unsaved changes: Save or Discard first. Start focus and Mark done come back once they are saved.
     <>
@@ -252,7 +294,15 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
         </Button>
       )}
       {!fromOutlook && (
-        <Button size="icon" variant="ghost" className="ml-auto" aria-label="Delete event" title="Delete" disabled={save.busy} onClick={save.remove}>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="ml-auto"
+          aria-label={guestCount > 0 ? `Delete event and tell ${guestCountText(guestCount)}` : "Delete event"}
+          title="Delete"
+          disabled={save.busy}
+          onClick={guestCount > 0 ? () => setAskDelete(true) : save.remove}
+        >
           <Trash2 className="size-4" strokeWidth={1.8} />
         </Button>
       )}
@@ -329,6 +379,14 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
         />
       )}
     </WhenSection>,
+    // Spec 24: right under the time. A new series takes no guests (one invitation per date would flood them).
+    !values.allDay && frequency !== "none" ? (
+      <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotInSeries}.`} />
+    ) : outlookConnected ? (
+      <GuestsSection key="guests" mode="edit" guests={values.guests ?? []} onChange={(guests) => change({ guests })} />
+    ) : (
+      <GuestsSection key="guests" mode="connect" guests={[]} />
+    ),
     <TodoList
       key="todos"
       todos={todos}

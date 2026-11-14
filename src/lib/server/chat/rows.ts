@@ -281,6 +281,8 @@ type CalendarRow = {
   updated_at: Date;
   /** Spec 23: how many to-dos the event has (the count only). */
   todo_count: number;
+  /** Spec 24: whether it has guests (never the addresses). */
+  has_guests: boolean;
 };
 
 /**
@@ -296,15 +298,21 @@ export type CalendarEntry = CalendarInput & {
   seriesId: string | null;
   /** Spec 23: how many to-dos the event has now (the count only; the titles are never read here). */
   todoCount: number;
+  /** Spec 24: whether the event has guests (the coach may not move or delete it). Never sent to Claude. */
+  hasGuests?: boolean;
 };
 
-/** The user's events in the window, each with the number of its to-dos (spec 23). No location is read. */
+/**
+ * The user's events in the window, each with the number of its to-dos (spec 23). No location is read,
+ * and of the guests only whether there are any (spec 24).
+ */
 export async function readCalendar(query: Query, now: Date, timeZone: string): Promise<CalendarEntry[]> {
   const w = calendarWindow(now, timeZone);
   const rows = await query<CalendarRow>(
     `select e.id, e.title, e.all_day, e.start_at, e.end_at, e.first_day::text as first_day, e.last_day::text as last_day,
             e.may_overlap, e.goal_id, e.series_id, e.source, e.updated_at,
-            (select count(*) from app.event_todos t where t.event_id = e.id)::integer as todo_count
+            (select count(*) from app.event_todos t where t.event_id = e.id)::integer as todo_count,
+            coalesce(cardinality(e.guests), 0) > 0 as has_guests
        from app.events e
       where (not e.all_day and e.end_at > $1::timestamptz and e.start_at < $2::timestamptz)
          or (e.all_day and e.last_day >= $3::date and e.first_day <= $4::date)
@@ -319,6 +327,7 @@ export async function readCalendar(query: Query, now: Date, timeZone: string): P
       source: r.source,
       seriesId: r.series_id,
       todoCount: Number(r.todo_count ?? 0),
+      hasGuests: r.has_guests === true,
     };
     return r.all_day
       ? { ...own, allDay: true as const, title: r.title, firstDay: r.first_day!, lastDay: r.last_day!, mayOverlap: r.may_overlap }
@@ -344,7 +353,10 @@ export function withReferences(calendar: readonly CalendarEntry[], now: Date, ti
   return calendar.map((e, i) => ({
     ...e,
     ref: `e${i + 1}`,
-    changeable: isChangeable({ allDay: e.allDay, source: e.source, seriesId: e.seriesId, startAt: e.allDay ? null : e.startAt }, now),
+    changeable: isChangeable(
+      { allDay: e.allDay, source: e.source, seriesId: e.seriesId, startAt: e.allDay ? null : e.startAt, hasGuests: e.hasGuests },
+      now,
+    ),
     canAddTodos: takesTodos(e, now, timeZone),
   }));
 }
@@ -403,7 +415,10 @@ export function currentChanges(stored: StoredChange[] | string | null | undefine
   for (const c of storedChangesOf(stored)) {
     const event = calendar.find((e) => e.id === c.event_id);
     if (!event || event.allDay || event.updatedAt !== new Date(c.updated_at).toISOString()) return null;
-    const changeable = isChangeable({ allDay: false, source: event.source, seriesId: event.seriesId, startAt: event.startAt }, now);
+    const changeable = isChangeable(
+      { allDay: false, source: event.source, seriesId: event.seriesId, startAt: event.startAt, hasGuests: event.hasGuests },
+      now,
+    );
     const target = changeable ? targetOf(event) : null;
     if (!target) return null;
     if (c.kind === "delete") changes.push({ kind: "delete", target });

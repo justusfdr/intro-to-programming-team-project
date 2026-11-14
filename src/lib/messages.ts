@@ -26,6 +26,13 @@ export const MESSAGES = {
   untilBeforeFirst: "The end date cannot be before the first date",
   allDayNotDone: "All-day events cannot be marked done",
   locationLength: "Location can be at most 200 characters",
+  // ontology, section 5 (guests of an event, spec 24)
+  guestInvalid: "This is not an e-mail address",
+  tooManyGuests: "An event can have at most 20 guests",
+  guestsNeedOutlook: "Connect Outlook to invite guests",
+  guestsNotInSeries: "Events of a series cannot have guests",
+  guestsNotDemo: "Demo events cannot have guests",
+  guestsNotEnded: "Guests can only be invited to events that have not ended",
   // ontology, section 5 (goals and rules)
   goalTitleLength: "Title must be 1 to 80 characters",
   addRule: "Add at least one rule",

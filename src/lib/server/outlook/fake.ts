@@ -9,6 +9,7 @@ import {
   type OutgoingEvent,
   type OutlookEvent,
   type OutlookService,
+  type SendOp,
   type SendResult,
   type TokenAnswer,
 } from "./types";
@@ -26,6 +27,8 @@ export class FakeOutlook implements OutlookService {
   throttled: Set<string> | "all" = new Set();
   /** Every call, in order, without tokens. */
   readonly calls: string[] = [];
+  /** Every change sent, in order, as the app sent it (spec 24: to see whether attendees went along). */
+  readonly sentOps: SendOp[] = [];
 
   private accounts = new Map<string, Account>(); // by the code its sign-in returns
   private byRefresh = new Map<string, Account>();
@@ -51,6 +54,7 @@ export class FakeOutlook implements OutlookService {
     this.down = false;
     this.throttled = new Set();
     this.calls.length = 0;
+    this.sentOps.length = 0;
     this.accounts.clear();
     this.byRefresh.clear();
     this.byAccess.clear();
@@ -117,6 +121,7 @@ export class FakeOutlook implements OutlookService {
       const batch = ops.slice(i, i + 20);
       this.calls.push(`batch ${batch.length}`);
       for (const op of batch) {
+        this.sentOps.push(op);
         if (this.throttled === "all" || this.throttled.has(op.ref)) {
           results.push({ ref: op.ref, kind: "later" });
           continue;
@@ -125,12 +130,12 @@ export class FakeOutlook implements OutlookService {
           // Like Outlook: one event per transactionId.
           const existing = [...account.events.values()].find((e) => e.transactionId === op.event.transactionId);
           const outlookId = existing?.outlookId ?? `AAMk-${++this.counter}`;
-          account.events.set(outlookId, toOutlook(outlookId, op.event));
+          account.events.set(outlookId, toOutlook(outlookId, op.event, existing));
           results.push({ ref: op.ref, kind: "done", outlookId });
         } else if (!account.events.has(op.outlookId)) {
           results.push({ ref: op.ref, kind: "gone" });
         } else if (op.kind === "update") {
-          account.events.set(op.outlookId, toOutlook(op.outlookId, op.event));
+          account.events.set(op.outlookId, toOutlook(op.outlookId, op.event, account.events.get(op.outlookId)));
           results.push({ ref: op.ref, kind: "done", outlookId: op.outlookId });
         } else {
           account.events.delete(op.outlookId);
@@ -142,7 +147,12 @@ export class FakeOutlook implements OutlookService {
   }
 }
 
-function toOutlook(outlookId: string, event: OutgoingEvent): OutlookEvent {
+/**
+ * The event as Outlook keeps it. Spec 24: attendees left out of an update stay as they were, as in
+ * Outlook; an empty list removes them.
+ */
+function toOutlook(outlookId: string, event: OutgoingEvent, before?: OutlookEvent): OutlookEvent {
+  const attendees = event.attendees !== undefined ? event.attendees : before?.attendees;
   return {
     outlookId,
     title: event.title,
@@ -153,5 +163,6 @@ function toOutlook(outlookId: string, event: OutgoingEvent): OutlookEvent {
     lastDay: event.lastDay,
     location: event.location ?? null,
     transactionId: event.transactionId,
+    ...(attendees && attendees.length > 0 ? { attendees: [...attendees] } : {}),
   };
 }
