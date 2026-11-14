@@ -72,6 +72,7 @@ export const MESSAGES = {
   alreadyPro: "You already have Pro",
   notPro: "You do not have Pro",
   paymentUnavailable: "Payment is not available right now.",
+  checkoutAlreadyOpen: "You already have Pro, or a payment is still open. Reload this page in a minute.",
   // ontology, section 5 (AI chat, spec 19)
   chatProOnly: "The AI chat is part of Pro",
   chatLimit: "Today's 20 messages are used",

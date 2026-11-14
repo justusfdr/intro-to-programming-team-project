@@ -6,8 +6,11 @@ import "server-only";
 // upgrade_to_pro: same origin, signed in, plan free ("You already have Pro"), Stripe set up ("Payment
 //   is not available right now."); answers the address of Stripe's checkout page. Nothing is saved:
 //   the plan changes only when Stripe's signed message arrives (update_plan), never from the browser.
-// cancel_pro: same origin, signed in, plan pro ("You do not have Pro"), Stripe set up; the subscription
-//   ends after the paid period. The plan stays pro until Stripe says the subscription ended.
+//   While the user already has a subscription or an open checkout at Stripe, no second checkout opens
+//   (Issue #42: two tabs gave two subscriptions).
+// cancel_pro: same origin, signed in, plan pro ("You do not have Pro"), Stripe set up; every
+//   subscription of the user ends after its paid period. The plan stays pro until Stripe says it ended.
+// The pricing page asks Stripe when Pro ends (proEndsOn), so "Pro ends on ..." survives a reload (Issue #43).
 // update_plan: Stripe's message to our server. No session and no same-origin check (Stripe is not a
 //   browser); the signature with our webhook secret is the check. A wrong signature, a message older
 //   than five minutes or a live-mode message changes nothing (R1, R25).
@@ -51,8 +54,9 @@ export function upgradeToPro(request: Request, deps: Pick<Deps, "auth" | "withUs
     if (account.plan === "pro") throw new ActionError(409, "already_pro", MESSAGES.alreadyPro);
     if (!deps.stripe) throw unavailable();
 
-    const checkout = await deps.stripe.api.createCheckout({ userId, customerId: account.customerId, ...returnUrls() });
+    const checkout = await deps.stripe.api.startCheckout({ userId, customerId: account.customerId, ...returnUrls() });
     if (!checkout.ok) throw unavailable();
+    if (checkout.value.kind === "already_open") throw new ActionError(409, "checkout_open", MESSAGES.checkoutAlreadyOpen);
     return jsonOk({ url: checkout.value.url });
   });
 }
@@ -73,11 +77,33 @@ export function cancelPro(request: Request, deps: Pick<Deps, "auth" | "withUser"
     // Pro without a Stripe customer cannot be cancelled through Stripe (only set by hand in the database).
     if (!deps.stripe || !account.customerId) throw unavailable();
 
-    const cancelled = await deps.stripe.api.cancelAtPeriodEnd(account.customerId);
+    const cancelled = await deps.stripe.api.cancelAllAtPeriodEnd(account.customerId, userId);
     if (!cancelled.ok || cancelled.value === null) throw unavailable();
     const date = endDateText(cancelled.value.endsAt, account.timeZone);
     return jsonOk({ endsAt: cancelled.value.endsAt.toISOString(), message: `Pro ends on ${date}` });
   });
+}
+
+/** How long the pricing page waits for Stripe before it shows the card without the end date. */
+const PAGE_STRIPE_TIMEOUT_MS = 2000;
+
+/**
+ * "16 December 2026" when the user's Pro is set to end after the paid period, for the pricing page
+ * (Issue #43: the cancelled state lived only in the browser and was gone after a reload). Asked from
+ * Stripe on demand, nothing is saved. Null for Free, without Stripe, or when Stripe does not answer in
+ * time: the page then shows the card as before.
+ */
+export async function proEndsOn(deps: Pick<Deps, "withUser" | "stripe">, userId: string): Promise<string | null> {
+  if (!deps.stripe) return null;
+  try {
+    const account = await readAccount(deps, userId);
+    if (account.plan !== "pro" || !account.customerId) return null;
+    const end = await deps.stripe.api.scheduledEnd(account.customerId, userId, PAGE_STRIPE_TIMEOUT_MS);
+    return end.ok && end.value ? endDateText(end.value.endsAt, account.timeZone) : null;
+  } catch (error) {
+    console.error("Could not read when Pro ends:", error instanceof Error ? error.name : "unknown");
+    return null;
+  }
 }
 
 /** Stripe's messages are small; anything bigger is not one of them. */

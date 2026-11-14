@@ -13,16 +13,32 @@ export type CheckoutRequest = {
   customerId: string | null;
   successUrl: string;
   cancelUrl: string;
+  /** When Stripe closes the checkout page if nobody pays (at least 30 minutes away). */
+  expiresAt?: Date;
 };
 
+/** What starting a checkout gave: Stripe's address, or a refusal because Pro is already bought or being paid for. */
+export type CheckoutStart = { kind: "created"; url: string } | { kind: "already_open" };
+
 export interface StripeApi {
-  /** A Checkout session for the monthly Pro price; its address is where the browser goes to pay. */
-  createCheckout(request: CheckoutRequest): Promise<StripeResult<{ url: string }>>;
   /**
-   * Lets the customer's active subscription end after the paid period. The value is when it ends,
-   * or null when the customer has no active subscription.
+   * A Checkout session for the monthly Pro price, for the user's one Stripe customer (Issue #42). Without
+   * a saved customer, the customer with our user id in its metadata is used, or made. Before anything is
+   * created, Stripe is asked whether this customer already has a live subscription or an open checkout;
+   * then the answer is "already_open" and no session is made.
    */
-  cancelAtPeriodEnd(customerId: string): Promise<StripeResult<{ endsAt: Date } | null>>;
+  startCheckout(request: CheckoutRequest): Promise<StripeResult<CheckoutStart>>;
+  /**
+   * Lets every subscription of the user that has not ended stop after its paid period: the ones of the
+   * saved customer and the ones with our user id in their metadata (Issue #42). The value is the latest
+   * end, or null when there was nothing to cancel.
+   */
+  cancelAllAtPeriodEnd(customerId: string, userId: string): Promise<StripeResult<{ endsAt: Date } | null>>;
+  /**
+   * When Pro ends, if every live subscription of the user is set to end after its paid period; null when
+   * one still renews or there is none (Issue #43). `timeoutMs` keeps a page from waiting long for Stripe.
+   */
+  scheduledEnd(customerId: string, userId: string, timeoutMs?: number): Promise<StripeResult<{ endsAt: Date } | null>>;
 }
 
 /** Stripe as the server sees it: the API and the secret that signs Stripe's messages to us. */
