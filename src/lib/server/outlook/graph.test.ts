@@ -155,6 +155,16 @@ describe("reading events", () => {
     expect(() => safeNextLink("https://evil.example/v1.0/me/calendarView")).toThrow(OutlookUnavailableError);
   });
 
+  it("gives up (nothing imported) when pages are left after the last one it reads, and accepts a calendar that ends exactly there", async () => {
+    const next = "https://graph.microsoft.com/v1.0/me/calendarView?$skiptoken=abc";
+    const more = Array.from({ length: 10 }, () => json(200, { value: [GRAPH_LECTURE], "@odata.nextLink": next }));
+    await expect(createGraphOutlook(CONFIG, stubFetch(more).fetchFn).listEvents("t", new Date(), new Date())).rejects.toThrow(
+      OutlookUnavailableError,
+    );
+    const exact = [...Array.from({ length: 9 }, () => json(200, { value: [GRAPH_LECTURE], "@odata.nextLink": next })), json(200, { value: [GRAPH_LECTURE] })];
+    expect(await createGraphOutlook(CONFIG, stubFetch(exact).fetchFn).listEvents("t", new Date(), new Date())).toHaveLength(10);
+  });
+
   it("turns a refused token into 'sign in again' and throttling into 'not now'", async () => {
     const refused = stubFetch([json(401, { error: { code: "InvalidAuthenticationToken", message: "expired" } })]);
     await expect(createGraphOutlook(CONFIG, refused.fetchFn).listEvents("t", new Date(), new Date())).rejects.toThrow(OutlookRefusedError);
