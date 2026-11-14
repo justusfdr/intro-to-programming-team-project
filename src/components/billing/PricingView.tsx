@@ -75,7 +75,8 @@ export function PricingView({ plan, paymentReady, checkout, defaultConfirming = 
   const [error, setError] = useState("");
   const [cancelled, setCancelled] = useState("");
   const [confirming, setConfirming] = useState(defaultConfirming);
-  const note = checkoutNote(checkout, plan);
+  const [gaveUp, setGaveUp] = useState(false);
+  const note = checkoutNote(checkout, plan, gaveUp);
   const [free, pro] = PLANS;
 
   // Back from paying but still Free: Stripe's message is on its way. Look again a few times.
@@ -86,7 +87,10 @@ export function PricingView({ plan, paymentReady, checkout, defaultConfirming = 
     const id = window.setInterval(() => {
       count += 1;
       router.refresh();
-      if (count >= RECHECKS) window.clearInterval(id);
+      if (count >= RECHECKS) {
+        window.clearInterval(id);
+        setGaveUp(true);
+      }
     }, RECHECK_MS);
     return () => window.clearInterval(id);
   }, [waiting, router]);
