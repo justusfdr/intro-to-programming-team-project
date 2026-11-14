@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
 import { DEFAULT_DISPLAY, type Display } from "@/lib/time/display";
 import { NAV, PRICING, SETTINGS } from "./nav";
+import { ShortcutHelp } from "./ShortcutHelp";
 import { Sidebar } from "./Sidebar";
 
 // The frame of every signed-in page, copied from the prototype's shell: the sidebar on wider screens
@@ -11,7 +12,8 @@ import { Sidebar } from "./Sidebar";
 // Focus in a later step. The coach (the AI chat, spec 19) is a page of its own, second in the list.
 // Search and quick capture come with their features. Side panels go in as in the prototype: the goals
 // panel to the left of the page (`panelsLeft`), others to the right (`panelsRight`); each collapses on its own.
-// The sidebar itself folds to a strip of icons (./Sidebar.tsx, spec 25).
+// The sidebar itself folds to a strip of icons (./Sidebar.tsx, spec 25). "?" opens the list of keyboard
+// shortcuts on every signed-in page (./ShortcutHelp.tsx, spec 26).
 
 type Props = {
   /** The address of the current page, to mark it in the navigation. */
@@ -65,6 +67,7 @@ export function AppShell({ current, children, display = DEFAULT_DISPLAY, panelsL
           {panelsRight}
         </div>
         <TabBar current={current} />
+        <ShortcutHelp />
       </div>
     </DisplayProvider>
   );
