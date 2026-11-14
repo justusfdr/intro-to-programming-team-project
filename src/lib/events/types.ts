@@ -44,6 +44,8 @@ export type EventDto = {
   guests?: string[];
   /** Spec 24: an Outlook event's organizer. */
   organizer?: string;
+  /** Issue #5: the user's notes (up to 2,000 characters; never sent to Outlook or to Claude). Left out when there are none. */
+  notes?: string;
   /** Part of the demo week (spec 13; never sent to Outlook, so it takes no guests). Left out when not. */
   demo?: boolean;
 };

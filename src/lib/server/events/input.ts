@@ -1,10 +1,11 @@
 import "server-only";
 
 // The checks shared by create_event and edit_event (ontology section 5, R28, R29), in the
-// ontology's order: title; location up to 200 characters; for a timed event end after start and at most 24 hours; for an all-day
+// ontology's order: title; location up to 200 characters; notes up to 2,000 characters (issue #5); for a timed event end after start and at most 24 hours; for an all-day
 // event last day not before first, at most 31 days, no goal; for a series the end date and at most
 // 100 dates. Each throws the ontology's message.
 import { z } from "zod";
+import { cleanNotes, notesTooLong } from "@/lib/events/notes";
 import { repeatDates, type RepeatRule, type Weekday } from "@/lib/events/repeat";
 import type { TravelMode } from "@/lib/settings/types";
 import { MESSAGES } from "@/lib/messages";
@@ -29,6 +30,11 @@ export const EventFields = z.object({
   goalId: z.string().max(40).nullable().optional(),
   /** Where it takes place; empty or null means none. Left out: unchanged (edit) or none (create). */
   location: z.string().max(1000).nullable().optional(),
+  /**
+   * Issue #5: the user's notes, up to 2,000 characters; empty or null means none. Left out: unchanged
+   * (edit) or none (create). Never sent to Outlook or to Claude.
+   */
+  notes: z.string().max(20000).nullable().optional(),
   /** How the user gets there; null means the standard from the settings. Left out: unchanged (edit) or standard (create). */
   travelMode: z.enum(["driving", "cycling", "walking", "transit"]).nullable().optional(),
   repeat: z
@@ -65,11 +71,19 @@ export type CheckedTimed = {
   mayOverlap: boolean | undefined;
   goalId: string | null | undefined;
   location: string | null | undefined;
+  notes: string | null | undefined;
   travelMode: TravelMode | null | undefined;
 };
 
 /** A checked all-day event: days only, no times, no goal (R29). */
-export type CheckedAllDay = { allDay: true; title: string; firstDay: LocalDate; lastDay: LocalDate; location: string | null | undefined };
+export type CheckedAllDay = {
+  allDay: true;
+  title: string;
+  firstDay: LocalDate;
+  lastDay: LocalDate;
+  location: string | null | undefined;
+  notes: string | null | undefined;
+};
 
 export type CheckedEvent = CheckedTimed | CheckedAllDay;
 
@@ -93,10 +107,18 @@ function checkLocation(fields: Fields): string | null | undefined {
   return location === "" ? null : location;
 }
 
+/** The notes trimmed at the end, null for none, undefined when the body leaves them out; at most 2,000 characters. */
+function checkNotes(fields: Fields): string | null | undefined {
+  if (fields.notes === undefined) return undefined;
+  if (notesTooLong(fields.notes)) throw new ActionError(400, "notes_length", MESSAGES.notesLength);
+  return cleanNotes(fields.notes);
+}
+
 /** Checks one event's fields and turns local times into instants in `timeZone`. */
 export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent {
   const title = checkTitle(fields);
   const location = checkLocation(fields);
+  const notes = checkNotes(fields);
 
   if (fields.allDay) {
     if (!fields.firstDay || !fields.lastDay || !isLocalDate(fields.firstDay) || !isLocalDate(fields.lastDay)) throw badRequest();
@@ -106,7 +128,7 @@ export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent
     if (fields.goalId) throw new ActionError(400, "all_day_goal", MESSAGES.allDayNoGoal);
     // R29: an all-day event has no travel time, so no way of getting there.
     if (fields.travelMode) throw badRequest();
-    return { allDay: true, title, firstDay: fields.firstDay, lastDay: fields.lastDay, location };
+    return { allDay: true, title, firstDay: fields.firstDay, lastDay: fields.lastDay, location, notes };
   }
 
   const startAt = fields.start ? parseLocalDateTime(fields.start, timeZone) : null;
@@ -114,7 +136,7 @@ export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent
   if (!startAt || !endAt) throw badRequest();
   if (endAt <= startAt) throw new ActionError(400, "end_before_start", MESSAGES.endAfterStart);
   if (endAt.getTime() - startAt.getTime() > MAX_LENGTH_MS) throw new ActionError(400, "too_long", MESSAGES.atMost24Hours);
-  return { allDay: false, title, startAt, endAt, mayOverlap: fields.mayOverlap, goalId: fields.goalId, location, travelMode: fields.travelMode };
+  return { allDay: false, title, startAt, endAt, mayOverlap: fields.mayOverlap, goalId: fields.goalId, location, notes, travelMode: fields.travelMode };
 }
 
 /**

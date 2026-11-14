@@ -10,7 +10,7 @@ import type { TravelMode } from "@/lib/settings/types";
  * statement, so the calendar gets them without one more round trip.
  */
 export const EVENT_COLUMNS =
-  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, travel_mode, outlook_id is not null as in_outlook, demo, updated_at, guests, organizer, " +
+  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, notes, travel_mode, outlook_id is not null as in_outlook, demo, updated_at, guests, organizer, " +
   "(select count(*)::int from app.event_todos t where t.event_id = events.id) as todo_count, " +
   "(select count(*)::int from app.event_todos t where t.event_id = events.id and t.done) as todos_done";
 
@@ -30,6 +30,8 @@ export type EventRow = {
   series_id: string | null;
   source: EventSource;
   location: string | null;
+  /** Issue #5: the user's notes, or null. Left out by queries that do not use EVENT_COLUMNS. */
+  notes?: string | null;
   travel_mode: TravelMode | null;
   /** Outlook has a copy (app events) or it came from there (Outlook events). */
   in_outlook: boolean;
@@ -72,6 +74,8 @@ export function toEventDto(row: EventRow): EventDto {
     // Spec 24: only when there are any, so an event without guests looks as before. Only the owner gets them (R3).
     ...(row.guests && row.guests.length > 0 ? { guests: [...row.guests] } : {}),
     ...(row.organizer ? { organizer: row.organizer } : {}),
+    // Issue #5: only when there are any, so an event without notes looks as before. Only the owner gets them (R3).
+    ...(row.notes ? { notes: row.notes } : {}),
     ...(row.demo ? { demo: true } : {}),
   };
 }
