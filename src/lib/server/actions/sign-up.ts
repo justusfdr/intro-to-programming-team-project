@@ -6,6 +6,7 @@ import "server-only";
 // A rejected action returns before anything is written (R1).
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
+import { checkAccountAttempt } from "@/lib/server/actions/account-limits";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
@@ -18,7 +19,7 @@ const SignUpBody = z.object({
   timeZone: z.string().optional(),
 });
 
-export function signUp(request: Request, deps: Pick<Deps, "auth">): Promise<Response> {
+export function signUp(request: Request, deps: Pick<Deps, "auth" | "now">): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -29,6 +30,7 @@ export function signUp(request: Request, deps: Pick<Deps, "auth">): Promise<Resp
     const email = normalizeEmail(body.data.email);
     checkNewPassword(body.data.password);
     const timeZone = resolveTimeZone(body.data.timeZone);
+    checkAccountAttempt(request, "sign_up", email, deps.now());
 
     const result = await deps.auth.signUp({ email, password: body.data.password, timeZone });
     switch (result.kind) {

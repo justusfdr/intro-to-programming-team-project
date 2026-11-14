@@ -9,6 +9,7 @@ export const MESSAGES = {
   linkExpired: "This link has expired. Ask for a new one",
   resendSent: "If this email needs confirming, we sent a link",
   resendTooSoon: "Please wait a minute before asking again",
+  tooManyAttempts: "Too many attempts. Try again in a few minutes.",
   wrongCredentials: "Email or password is wrong",
   unconfirmed: "Confirm your email first. We sent you a link",
   resetRequested: "If this email is registered, we sent a link",
