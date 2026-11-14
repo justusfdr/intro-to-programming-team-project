@@ -2,7 +2,7 @@
 import type { View } from "@/lib/events/views";
 import type { TimeFormat } from "@/lib/time/display";
 
-export type TravelMode = "driving" | "cycling" | "walking";
+export type TravelMode = "driving" | "cycling" | "walking" | "transit";
 
 export type SettingsData = {
   timeZone: string;

@@ -44,6 +44,8 @@ import { EventTodos } from "./editor/EventTodos";
 import { GoalSection } from "./editor/GoalSection";
 import { GuestsSection } from "./editor/GuestsSection";
 import { LocationSection } from "./editor/LocationSection";
+import { TravelLine } from "./editor/TravelLine";
+import { TravelSection } from "./editor/TravelSection";
 import { OverlapSection } from "./editor/OverlapSection";
 import { TodoList } from "./editor/TodoList";
 import { useEventSave } from "./editor/useEventSave";
@@ -230,6 +232,17 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
       onType={(location) => save.change({ location })}
       onDone={() => {}}
     />,
+    // R27: when to leave, for the event as saved (all-day events have no travel time, R29).
+    !event.allDay && (
+      <TravelLine
+        key="travel-line"
+        eventId={event.id}
+        savedAt={event.updatedAt}
+        timeZone={timeZone}
+        unsaved={!fromOutlook && (values.location.trim() !== (event.location ?? "") || values.travelMode !== (event.travelMode ?? null))}
+      />
+    ),
+    !values.allDay && !fromOutlook && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => save.change({ travelMode })} />,
     !values.allDay && !fromOutlook && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => save.change({ mayOverlap })} />,
     <Refusal
       key="refusal"
@@ -395,6 +408,7 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
     />,
     !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => change({ goalId })} />,
     <LocationSection key="location" value={values.location} editable onType={(location) => change({ location })} onDone={() => {}} />,
+    !values.allDay && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => change({ travelMode })} />,
     !values.allDay && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => change({ mayOverlap })} />,
     <Refusal key="refusal" result={result} onReload={onClose} />,
   ];

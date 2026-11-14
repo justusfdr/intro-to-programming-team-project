@@ -106,3 +106,19 @@ dialog.welcome::backdrop {
     transform: translateY(8px);
   }
 }
+
+/* The home address field shakes when the address was not found. */
+@media (prefers-reduced-motion: no-preference) {
+  .address-shake {
+    animation: address-shake 400ms ease-in-out;
+  }
+}
+
+@keyframes address-shake {
+  20%, 60% {
+    transform: translateX(-6px);
+  }
+  40%, 80% {
+    transform: translateX(6px);
+  }
+}

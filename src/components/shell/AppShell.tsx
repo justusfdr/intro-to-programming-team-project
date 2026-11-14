@@ -2,11 +2,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
 import { DEFAULT_DISPLAY, type Display } from "@/lib/time/display";
-import { NAV, SETTINGS } from "./nav";
+import { NAV, PRICING, SETTINGS } from "./nav";
 import { Sidebar } from "./Sidebar";
 
 // The frame of every signed-in page, copied from the prototype's shell: the sidebar on wider screens
-// (mark and name, navigation, Settings at the bottom, then the account row) and the floating tab bar
+// (mark and name, navigation, Pricing and Settings at the bottom, then the account row) and the floating tab bar
 // on phones. Navigation shows only what exists; the Goals page takes its place between Calendar and
 // Focus in a later step. The coach (the AI chat, spec 19) is a page of its own, second in the list.
 // Search and quick capture come with their features. Side panels go in as in the prototype: the goals
@@ -33,7 +33,7 @@ function TabBar({ current }: { current: string }) {
         aria-label="Tab bar"
         className="pointer-events-auto flex h-14 items-center gap-1 rounded-full border border-line-subtle bg-surface/90 px-2 shadow-float backdrop-blur-xl"
       >
-        {[...NAV, SETTINGS].map(({ href, label, icon: Icon }) => {
+        {[...NAV, PRICING, SETTINGS].map(({ href, label, icon: Icon }) => {
           const on = current === href;
           return (
             <Link

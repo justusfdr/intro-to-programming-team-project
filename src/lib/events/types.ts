@@ -1,4 +1,5 @@
 // The shape of an event as the server sends it to the page. Times are ISO strings in UTC.
+import type { TravelMode } from "@/lib/settings/types";
 import type { View } from "./views";
 
 export type EventStatus = "planned" | "done";
@@ -24,6 +25,8 @@ export type EventDto = {
   source: EventSource;
   /** Where it takes place; from Outlook for now. */
   location: string | null;
+  /** How the user gets there; null or left out means the standard from the settings (R27). */
+  travelMode?: TravelMode | null;
   /** R26: connected to Outlook, an app event that has not ended, and Outlook does not have it yet. */
   notSent: boolean;
   /** Sent back with every edit and delete, so the server can see whether the row changed since (R4). */

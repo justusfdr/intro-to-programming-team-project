@@ -9,7 +9,7 @@ import { Fragment, useState, useSyncExternalStore, type FocusEvent } from "react
 import { ChevronsLeft, Pin, Target } from "lucide-react";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import { Logo, LogoMark } from "./Logo";
-import { NAV, SETTINGS, type NavItem } from "./nav";
+import { NAV, PRICING, SETTINGS, type NavItem } from "./nav";
 import { openAllPanels, usePanels, usePanelsAvailable } from "./PanelState";
 
 export const SIDEBAR_KEY = "lockedin:sidebar-folded:v1";
@@ -173,7 +173,10 @@ export function Sidebar({ current }: { current: string }) {
           ))}
         </nav>
         <div className="mt-auto flex flex-col gap-2">
-          <SidebarLink item={SETTINGS} on={current === SETTINGS.href} wide={wide} />
+          <div className="flex flex-col gap-0.5">
+            <SidebarLink item={PRICING} on={current === PRICING.href} wide={wide} />
+            <SidebarLink item={SETTINGS} on={current === SETTINGS.href} wide={wide} />
+          </div>
           <div className={wide ? "w-full" : "w-9"}>
             <SignOutButton compact={!wide} />
           </div>

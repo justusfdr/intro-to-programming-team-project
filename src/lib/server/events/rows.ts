@@ -2,6 +2,7 @@ import "server-only";
 
 // Reading event rows: the columns every query returns, and how a row becomes what the page gets.
 import type { EventDto, EventSource, EventStatus } from "@/lib/events/types";
+import type { TravelMode } from "@/lib/settings/types";
 
 /**
  * The columns to select (or return) for an event. Use it in every query that hands an event out, on
@@ -9,7 +10,7 @@ import type { EventDto, EventSource, EventStatus } from "@/lib/events/types";
  * statement, so the calendar gets them without one more round trip.
  */
 export const EVENT_COLUMNS =
-  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, outlook_id is not null as in_outlook, demo, updated_at, guests, organizer, " +
+  "id, title, start_at, end_at, all_day, first_day::text as first_day, last_day::text as last_day, may_overlap, status, goal_id, series_id, source, location, travel_mode, outlook_id is not null as in_outlook, demo, updated_at, guests, organizer, " +
   "(select count(*)::int from app.event_todos t where t.event_id = events.id) as todo_count, " +
   "(select count(*)::int from app.event_todos t where t.event_id = events.id and t.done) as todos_done";
 
@@ -29,6 +30,7 @@ export type EventRow = {
   series_id: string | null;
   source: EventSource;
   location: string | null;
+  travel_mode: TravelMode | null;
   /** Outlook has a copy (app events) or it came from there (Outlook events). */
   in_outlook: boolean;
   /** Part of the demo week (spec 13): never sent to Outlook. */
@@ -62,6 +64,7 @@ export function toEventDto(row: EventRow): EventDto {
     seriesId: row.series_id,
     source: row.source,
     location: row.location,
+    travelMode: row.travel_mode,
     notSent: false,
     updatedAt: new Date(row.updated_at).toISOString(),
     todoCount: row.todo_count ?? 0,

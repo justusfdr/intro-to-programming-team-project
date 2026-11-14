@@ -72,6 +72,7 @@ describe("values of an event", () => {
       goalId: "g1",
       mayOverlap: false,
       location: "Cafeteria",
+      travelMode: null,
     });
     expect(valuesOf({ ...EVENT, startLocal: "2026-11-17T22:00", endLocal: "2026-11-18T01:00" })).toMatchObject({ startMin: 1320, endMin: 1500 });
   });
@@ -108,8 +109,12 @@ describe("what is sent", () => {
       mayOverlap: false,
       goalId: "g1",
       location: null,
+      travelMode: null,
       updatedAt: "2026-11-15T10:00:00.000Z",
     });
+    // A way of getting there chosen for this event is sent with it; null means the standard from the settings.
+    expect(editBody(EVENT, { ...valuesOf(EVENT), travelMode: "transit" }, "u")).toMatchObject({ travelMode: "transit" });
+    expect(editBody(EVENT, { ...valuesOf(EVENT), travelMode: null }, "u")).toMatchObject({ travelMode: null });
     expect(editBody(EVENT, { ...valuesOf(EVENT), endMin: 1500 }, "u", "this_and_following")).toMatchObject({ end: "2026-11-18T01:00", scope: "this_and_following" });
   });
 
@@ -193,6 +198,7 @@ describe("whether something changed", () => {
     expect(isChanged(EVENT, { ...values, goalId: null })).toBe(true);
     expect(isChanged(EVENT, { ...values, location: "" })).toBe(true);
     expect(isChanged(EVENT, { ...values, mayOverlap: true })).toBe(true);
+    expect(isChanged(EVENT, { ...values, travelMode: "walking" })).toBe(true);
     expect(isChanged(TRIP, { ...valuesOf(TRIP), lastDay: "2026-11-23" })).toBe(true);
   });
 
@@ -201,6 +207,13 @@ describe("whether something changed", () => {
     expect(isChanged(EVENT, { ...values, title: "Lunch" })).toBe(false);
     expect(isChanged(EVENT, { ...values, title: " Lunch " })).toBe(false);
     expect(isChanged(EVENT, { ...values, location: "Cafeteria " })).toBe(false);
+  });
+
+  it("a way of getting there taken back is no change", () => {
+    const values = valuesOf(EVENT);
+    expect(isChanged(EVENT, { ...values, travelMode: "walking" })).toBe(true);
+    expect(isChanged({ ...EVENT, travelMode: "walking" }, { ...values, travelMode: "walking" })).toBe(false);
+    expect(valuesOf({ ...EVENT, travelMode: "cycling" }).travelMode).toBe("cycling");
   });
 
   it("an Outlook event counts only its goal (R11)", () => {

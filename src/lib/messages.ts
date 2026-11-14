@@ -67,6 +67,10 @@ export const MESSAGES = {
   // ontology, section 5 (settings and account)
   bufferRange: "Buffer must be 0 to 120 minutes",
   cancelPro: "Cancel Pro before deleting your account",
+  // ontology, section 5 (upgrade_to_pro, cancel_pro) and section 7 (Stripe down), spec 24
+  alreadyPro: "You already have Pro",
+  notPro: "You do not have Pro",
+  paymentUnavailable: "Payment is not available right now.",
   // ontology, section 5 (AI chat, spec 19)
   chatProOnly: "The AI chat is part of Pro",
   chatLimit: "Today's 20 messages are used",
@@ -136,6 +140,10 @@ export const MESSAGES = {
   welcomeAnswered: "Your calendar is ready.",
   unknownTimeZone: "Choose a time zone from the list",
   addressTooLong: "Home address can be at most 200 characters",
+  addressNotFound: "Address not found",
+  placesUnavailable: "Address search is not available right now",
+  addHomeAddress: "Add your home address in settings",
+  travelUnavailable: "Travel time not available",
   visibleHours: "Visible hours must be whole hours, from 0 to 24, ending after they start",
   typeDelete: "Type DELETE to confirm",
   accountDeleted: "Your account and all its data are deleted.",

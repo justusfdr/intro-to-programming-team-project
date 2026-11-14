@@ -92,8 +92,8 @@ export function assertSameOrigin(request: Request): Response | null {
 
 type BodyRead = { kind: "ok"; text: string } | { kind: "too_large" } | { kind: "error" };
 
-/** Reads the body, but stops as soon as it grows beyond `limit` bytes. */
-async function readLimitedText(request: Request, limit: number): Promise<BodyRead> {
+/** Reads the body, but stops as soon as it grows beyond `limit` bytes. Also used for Stripe's raw messages. */
+export async function readLimitedText(request: Request, limit: number): Promise<BodyRead> {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > limit) return { kind: "too_large" };
   if (!request.body) return { kind: "ok", text: "" };

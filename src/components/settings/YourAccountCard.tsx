@@ -4,12 +4,13 @@
 // while demo rows are left (remove_demo, spec 13), and delete the account after typing DELETE
 // (delete_account). Each question opens under the buttons, as the prototype's confirmations do;
 // Escape or Cancel closes it. The server checks the typed word and the plan again.
+// Spec 24: the plan (Free or Pro) with the way to the pricing page, where the user upgrades or cancels.
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
-import { CircleUserRound, Eraser, LogOut, Trash2 } from "lucide-react";
+import { CircleUserRound, Eraser, LogOut, Sparkles, Trash2 } from "lucide-react";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { FormMessage } from "@/components/account/FormMessage";
-import { Button } from "@/components/ui/Button";
+import { Button, LinkButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { SettingsCardHeader, INPUT_CLASS } from "./fields";
@@ -18,12 +19,15 @@ export function YourAccountCard({
   defaultAsking = false,
   hasDemo = false,
   defaultAskingDemo = false,
+  plan,
 }: {
   defaultAsking?: boolean;
   /** Demo rows are left: show "Remove the demo data". */
   hasDemo?: boolean;
   /** Opens the demo question at once (previews only). */
   defaultAskingDemo?: boolean;
+  /** The user's plan (spec 24); the row is left out when it is not given. */
+  plan?: "free" | "pro";
 }) {
   const router = useRouter();
   const announce = useAnnounce();
@@ -81,6 +85,26 @@ export function YourAccountCard({
         titleId={`${uid}-title`}
         description="Your goals, events, tasks, sessions and settings are stored with your account on our server."
       />
+
+      {plan && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-raised px-3 py-2.5">
+          <p className="flex items-center gap-2 text-sm text-ink">
+            <Sparkles className="size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+            {plan === "pro" ? (
+              <span>
+                <strong className="font-semibold">Pro</strong>: the AI coach is yours.
+              </span>
+            ) : (
+              <span>
+                <strong className="font-semibold">Free</strong>: Pro adds the AI coach for €4.99 per month.
+              </span>
+            )}
+          </p>
+          <LinkButton href="/pricing" size="sm" variant={plan === "pro" ? "secondary" : "primary"}>
+            {plan === "pro" ? "Manage plan" : "See plans"}
+          </LinkButton>
+        </div>
+      )}
 
       <div className="mt-5">
         <div className="flex flex-wrap gap-2">

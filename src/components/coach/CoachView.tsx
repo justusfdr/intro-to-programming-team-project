@@ -5,6 +5,7 @@
 // today and "Clear chat". The server is the judge: this screen only sends the text and shows what the
 // server saved. A refused message disappears again (nothing was saved, R1), its text goes back into
 // the field, and the server's sentence shows above the field. The assistant's text is plain text.
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
@@ -299,7 +300,18 @@ export function CoachView({ data, defaultText = "", defaultConfirmingClear = fal
             </p>
           )}
           {notice && (
-            <p className="mb-2 rounded-xl border border-line-subtle bg-raised px-3 py-2 text-sm text-ink-2">{notice}</p>
+            <p className="mb-2 rounded-xl border border-line-subtle bg-raised px-3 py-2 text-sm text-ink-2">
+              {notice}
+              {/* Spec 24: a Free user sees where to get Pro. */}
+              {!data.chatAllowed && (
+                <>
+                  {" "}
+                  <Link href="/pricing" className="font-semibold text-ink underline underline-offset-2">
+                    See plans
+                  </Link>
+                </>
+              )}
+            </p>
           )}
           <Composer
             value={text}
