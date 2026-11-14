@@ -25,6 +25,15 @@ describe("app shell", () => {
     expect(html.indexOf("Sign out")).toBeGreaterThan(html.indexOf('href="/settings"'));
   });
 
+  it("the sidebar starts open, with the button that folds it to a strip of icons (spec 25)", () => {
+    const html = render("/");
+    expect(html).toMatch(/<button type="button" aria-label="Collapse sidebar" title="Collapse sidebar"[^>]*><svg[^>]*lucide-chevrons-left/);
+    expect(html).not.toContain("Keep sidebar open");
+    // Open: the links carry their words, and the sidebar takes its full width in the page.
+    expect(html).toMatch(/style="width:232px"/);
+    expect(html).toMatch(/<a[^>]*href="\/coach"[^>]*>.*Coach<\/a>/s);
+  });
+
   it("has a tab bar for phones with Calendar, Coach, Focus, Analytics and Settings, each named", () => {
     const html = render("/focus");
     const bar = html.slice(html.indexOf('aria-label="Tab bar"'));
