@@ -15,7 +15,7 @@ import { withEventChange, withEventStatus } from "@/lib/events/week-view";
 import { useAnnounce } from "../Announcer";
 import { deletedTodos, savedEventChange, type Scope } from "../event-changes";
 import type { NewTodo } from "@/lib/todos/types";
-import { editBody, editedChange, eventFromAnswer, isChanged, newer, valuesOf, type EventValues } from "./values";
+import { editBody, editedChange, eventFromAnswer, isChanged, newer, untouchedPatch, valuesOf, type EventValues } from "./values";
 
 /** What the footer asks before a change or a delete of an event of a series. */
 export type SeriesAsk = { kind: "save" } | { kind: "delete" } | null;
@@ -75,15 +75,17 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
   }, []);
 
   const afterSave = useCallback(
-    (answer: PostResult, before: CalendarEvent) => {
+    (answer: PostResult, before: CalendarEvent, sent: EventValues) => {
       const next = eventFromAnswer(answer, timeZone, before);
       if (next) {
         saved.current = next;
         setEvent(next);
-        // The saved event is what the fields show now (the server trims the title and the location).
-        show(valuesOf(next));
+        // The saved event is what the fields show now (the server trims the title and the location),
+        // except for fields the user changed while the save was on its way: those keep their typing.
+        show(untouchedPatch(sent, valuesRef.current, valuesOf(next)));
       }
-      setAccepted(JSON.stringify(valuesRef.current));
+      // What counts as saved is what was sent (as the server kept it), so a later typing still shows Save.
+      setAccepted(JSON.stringify(next ? valuesOf(next) : sent));
       setResult(null);
       if (answer.message) announce(answer.message);
       // The change goes to Outlook now, not at the next sync; the week re-reads once it is there (R26).
@@ -118,7 +120,7 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
           setResult(answer);
           return;
         }
-        afterSave(answer, base);
+        afterSave(answer, base, next);
       }),
     [enqueue, latest, live, timeZone, afterSave, onRefused],
   );

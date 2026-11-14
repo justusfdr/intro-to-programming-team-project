@@ -3,7 +3,7 @@
 // shown at once in the calendar.
 import { describe, expect, it } from "vitest";
 import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
-import { createBody, editBody, editedChange, eventFromAnswer, isChanged, moveFirstDay, newValues, newer, switchAllDay, valuesOf } from "./values";
+import { createBody, editBody, editedChange, eventFromAnswer, isChanged, moveFirstDay, newValues, newer, switchAllDay, untouchedPatch, valuesOf } from "./values";
 
 const EVENT: WeekEvent = {
   id: "e1",
@@ -220,5 +220,20 @@ describe("whether something changed", () => {
     const outlook: WeekEvent = { ...EVENT, source: "outlook" };
     expect(isChanged(outlook, { ...valuesOf(outlook), title: "Other" })).toBe(false);
     expect(isChanged(outlook, { ...valuesOf(outlook), goalId: null })).toBe(true);
+  });
+});
+
+describe("after a save, typing done meanwhile is kept", () => {
+  const sent = { ...valuesOf(EVENT), title: " Lunch with Ana " };
+  const saved = { ...valuesOf(EVENT), title: "Lunch with Ana", location: "Cafeteria" };
+
+  it("takes the saved values when nothing was typed meanwhile", () => {
+    expect(untouchedPatch(sent, sent, saved)).toEqual(saved);
+  });
+
+  it("leaves out only the field that was changed meanwhile", () => {
+    const patch = untouchedPatch(sent, { ...sent, location: "Library" }, saved);
+    expect(patch).not.toHaveProperty("location");
+    expect(patch.title).toBe("Lunch with Ana");
   });
 });
