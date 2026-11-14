@@ -115,6 +115,8 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
         // A series is timed (R29: all-day events never repeat); the form does not offer this.
         if (row.series_id) throw badRequest();
         await setLocation(id);
+        // An all-day event has no travel time (R29): a way of getting there kept from its timed days goes.
+        if (row.travel_mode !== null) await query("select app.set_event_travel_mode($1, null)", [id]);
         const [updated] = await query<EventRow>(
           `update app.events
               set title = $2, all_day = true, start_at = null, end_at = null, first_day = $3, last_day = $4,
