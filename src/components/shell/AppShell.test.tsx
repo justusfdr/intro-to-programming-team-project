@@ -3,6 +3,7 @@
 // Settings, each with its name for screen readers and the current page marked.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { SHORTCUTS } from "@/lib/shortcuts/list";
 import { AppShell } from "./AppShell";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -54,5 +55,20 @@ describe("app shell", () => {
 
   it("has no controls for features that do not exist yet (search, quick capture)", () => {
     expect(render("/")).not.toMatch(/Search|Brain|⌘K/);
+  });
+  // Spec 26: "?" opens the list of shortcuts on every signed-in page; it starts closed.
+  it("has the keyboard shortcut help, closed, listing every shortcut of the list and a close button", () => {
+    for (const page of ["/", "/coach", "/settings"]) {
+      const html = render(page);
+      const help = html.slice(html.indexOf('<dialog aria-labelledby="shortcut-help-title"'));
+      expect(help).toMatch(/^<dialog aria-labelledby="shortcut-help-title"(?![^>]*\sopen)/);
+      expect(help).toContain(">Keyboard shortcuts</h2>");
+      expect(help).toMatch(/<button type="button"[^>]*aria-label="Close"/);
+      for (const group of SHORTCUTS) {
+        expect(help).toContain(`aria-label="${group.where}"`);
+        for (const s of group.shortcuts) expect(help).toContain(s.does.replaceAll("'", "&#x27;"));
+      }
+      expect(help).toMatch(/<kbd[^>]*>\?<\/kbd>/);
+    }
   });
 });

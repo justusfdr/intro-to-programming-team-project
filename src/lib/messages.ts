@@ -9,6 +9,7 @@ export const MESSAGES = {
   linkExpired: "This link has expired. Ask for a new one",
   resendSent: "If this email needs confirming, we sent a link",
   resendTooSoon: "Please wait a minute before asking again",
+  tooManyAttempts: "Too many attempts. Try again in a few minutes.",
   wrongCredentials: "Email or password is wrong",
   unconfirmed: "Confirm your email first. We sent you a link",
   resetRequested: "If this email is registered, we sent a link",
@@ -26,6 +27,7 @@ export const MESSAGES = {
   untilBeforeFirst: "The end date cannot be before the first date",
   allDayNotDone: "All-day events cannot be marked done",
   locationLength: "Location can be at most 200 characters",
+  notesLength: "Notes can be at most 2,000 characters",
   // ontology, section 5 (guests of an event, spec 24)
   guestInvalid: "This is not an e-mail address",
   tooManyGuests: "An event can have at most 20 guests",
@@ -71,6 +73,7 @@ export const MESSAGES = {
   alreadyPro: "You already have Pro",
   notPro: "You do not have Pro",
   paymentUnavailable: "Payment is not available right now.",
+  checkoutAlreadyOpen: "You already have Pro, or a payment is still open. Reload this page in a minute.",
   // ontology, section 5 (AI chat, spec 19)
   chatProOnly: "The AI chat is part of Pro",
   chatLimit: "Today's 20 messages are used",

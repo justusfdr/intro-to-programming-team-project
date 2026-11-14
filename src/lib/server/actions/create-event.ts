@@ -11,6 +11,8 @@ import "server-only";
 // Spec 24: and with its guests (Outlook invites them when the event is sent): only while Outlook is
 // connected, never for a series. An event without guests is saved without a list (null), so it goes
 // to Outlook exactly as before.
+// Issue #5: and with its notes (a series gets them on every event). Notes stay in the app: the Outlook
+// sync reads its own list of columns, without them.
 import { randomUUID } from "node:crypto";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
@@ -61,9 +63,9 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
       if (event.allDay) {
         checkRepeat(body.data, event.firstDay); // R29: an all-day event never repeats
         const [row] = await query<EventRow>(
-          `insert into app.events (title, all_day, first_day, last_day, location, guests)
-           values ($1, true, $2, $3, $4, $5::text[]) returning ${EVENT_COLUMNS}`,
-          [event.title, event.firstDay, event.lastDay, event.location ?? null, guests],
+          `insert into app.events (title, all_day, first_day, last_day, location, guests, notes)
+           values ($1, true, $2, $3, $4, $5::text[], $6) returning ${EVENT_COLUMNS}`,
+          [event.title, event.firstDay, event.lastDay, event.location ?? null, guests, event.notes ?? null],
         );
         return jsonOk({ message: MESSAGES.eventSaved, event: await savedDto(row) }, 201);
       }
@@ -74,30 +76,31 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
       const mayOverlap = event.mayOverlap ?? false;
       const location = event.location ?? null;
       const travelMode = event.travelMode ?? null;
+      const notes = event.notes ?? null;
 
       const dates = checkRepeat(body.data, localDateOf(event.startAt, timeZone));
       if (!dates) {
         // user_id, status ("planned"), source ("app") and updated_at are filled in by the database.
         const [row] = await query<EventRow>(
-          `insert into app.events (title, start_at, end_at, may_overlap, goal_id, location, travel_mode, guests)
-           values ($1, $2, $3, $4, $5, $6, $7, $8::text[])
+          `insert into app.events (title, start_at, end_at, may_overlap, goal_id, location, travel_mode, guests, notes)
+           values ($1, $2, $3, $4, $5, $6, $7, $8::text[], $9)
            returning ${EVENT_COLUMNS}`,
-          [event.title, event.startAt, event.endAt, mayOverlap, goalId, location, travelMode, guests],
+          [event.title, event.startAt, event.endAt, mayOverlap, goalId, location, travelMode, guests, notes],
         );
         return jsonOk({ message: MESSAGES.eventSaved, event: await savedDto(row) }, 201);
       }
 
-      // A series (R28): the same title, time, length, goal, location and may_overlap on every date, one series_id.
+      // A series (R28): the same title, time, length, goal, location, notes and may_overlap on every date, one series_id.
       const template = templateOf(event.startAt, event.endAt, timeZone);
       const seriesId = randomUUID();
-      const params: unknown[] = [event.title, mayOverlap, goalId, seriesId, location, travelMode];
+      const params: unknown[] = [event.title, mayOverlap, goalId, seriesId, location, travelMode, notes];
       const values = dates.map((date) => {
         const { startAt, endAt } = timesOn(date, template, timeZone);
         params.push(startAt, endAt);
-        return `($1, $${params.length - 1}, $${params.length}, $2, $3, $4, $5, $6)`;
+        return `($1, $${params.length - 1}, $${params.length}, $2, $3, $4, $5, $6, $7)`;
       });
       const rows = await query<EventRow>(
-        `insert into app.events (title, start_at, end_at, may_overlap, goal_id, series_id, location, travel_mode)
+        `insert into app.events (title, start_at, end_at, may_overlap, goal_id, series_id, location, travel_mode, notes)
          values ${values.join(", ")}
          returning ${EVENT_COLUMNS}`,
         params,

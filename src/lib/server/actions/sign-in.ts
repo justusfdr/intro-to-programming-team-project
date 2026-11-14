@@ -6,6 +6,7 @@ import "server-only";
 // "Email or password is wrong".
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
+import { checkAccountAttempt } from "@/lib/server/actions/account-limits";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
@@ -16,7 +17,7 @@ const SignInBody = z.object({
   password: z.string().min(1).max(1000),
 });
 
-export function signIn(request: Request, deps: Pick<Deps, "auth">): Promise<Response> {
+export function signIn(request: Request, deps: Pick<Deps, "auth" | "now">): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -25,6 +26,7 @@ export function signIn(request: Request, deps: Pick<Deps, "auth">): Promise<Resp
     if (!body.ok) return body.response;
 
     const email = normalizeEmail(body.data.email);
+    checkAccountAttempt(request, "sign_in", email, deps.now());
     const result = await deps.auth.signIn({ email, password: body.data.password });
     switch (result.kind) {
       case "signed_in":

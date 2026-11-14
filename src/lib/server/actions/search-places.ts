@@ -12,6 +12,7 @@ import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertSameOrigin, jsonOk } from "@/lib/server/http";
 import { inNominatimQueue } from "@/lib/server/routing/osm";
+import { createLimiter, takeAll } from "@/lib/server/rate-limit";
 import { requireUser } from "@/lib/server/session";
 
 const PHOTON = "https://photon.komoot.io/api/";
@@ -19,29 +20,12 @@ const NOMINATIM = "https://nominatim.openstreetmap.org/search";
 const MIN_CHARS = 3;
 const MAX_CHARS = 200;
 
-const LIMIT = 30;
-const WINDOW_MS = 60_000;
-const MAX_USERS = 10_000;
-
-/** When each user searched in the last minute, kept in this server's memory only. Least recently active first. */
-const recent = new Map<string, number[]>();
+/** At most 30 searches per user per minute, in this server's memory only (see rate-limit.ts). */
+const searches = createLimiter({ limit: 30, windowMs: 60_000 });
 
 /** Counts one search for the user, or refuses it when they already searched 30 times in the last minute. */
 function countSearch(userId: string, now: number): void {
-  const times = (recent.get(userId) ?? []).filter((at) => now - at < WINDOW_MS);
-  if (times.length >= LIMIT) {
-    recent.set(userId, times);
-    throw new ActionError(429, "too_many_searches", MESSAGES.placesTooMany);
-  }
-  times.push(now);
-  // Delete and set again, so the map stays in order of last activity.
-  recent.delete(userId);
-  recent.set(userId, times);
-  if (recent.size > MAX_USERS) {
-    for (const [id, list] of recent) if (list.every((at) => now - at >= WINDOW_MS)) recent.delete(id);
-    // Still too many active users: forget the least recently active ones.
-    while (recent.size > MAX_USERS) recent.delete(recent.keys().next().value!);
-  }
+  if (!takeAll([[searches, userId]], now)) throw new ActionError(429, "too_many_searches", MESSAGES.placesTooMany);
 }
 
 export function searchPlaces(request: Request, deps: Pick<Deps, "auth" | "now">, fetchImpl: typeof fetch = fetch): Promise<Response> {

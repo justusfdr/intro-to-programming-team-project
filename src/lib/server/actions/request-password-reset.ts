@@ -5,6 +5,7 @@ import "server-only";
 // The answer is neutral: it never tells whether an address has an account (R30, A14).
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
+import { checkAccountAttempt } from "@/lib/server/actions/account-limits";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
@@ -14,7 +15,7 @@ const RequestResetBody = z.object({
   email: z.string(),
 });
 
-export function requestPasswordReset(request: Request, deps: Pick<Deps, "auth">): Promise<Response> {
+export function requestPasswordReset(request: Request, deps: Pick<Deps, "auth" | "now">): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -33,6 +34,7 @@ export function requestPasswordReset(request: Request, deps: Pick<Deps, "auth">)
       throw error;
     }
 
+    checkAccountAttempt(request, "request_password_reset", email, deps.now());
     const result = await deps.auth.requestPasswordReset(email);
     switch (result.kind) {
       case "sent":

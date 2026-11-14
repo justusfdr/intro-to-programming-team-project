@@ -16,13 +16,15 @@
 // editor then edits the saved event.
 //
 // The sections, in the prototype's order: header (goal tile, title, close), chips, WHEN, TO-DOS (spec
-// 21), GOAL, LOCATION, GUESTS (spec 24), then ours: OVERLAP. Each is its own component in ./editor, so a later section
-// (notes, the rating, the travel line) is one more entry in the list.
+// 21), GOAL, LOCATION, GUESTS (spec 24), then ours: NOTES (issue #5) and OVERLAP. Each is its own component in
+// ./editor, so a later section (the rating) is one more entry in the list.
 // To-dos are saved at once, each change on its own (not with the Save button); a new event keeps its
 // list until "Add event" sends it with the event. Outlook events have none (R11).
 // Guests (spec 24) wait for Save like the location; Outlook sends the invitations. An Outlook event shows
 // its people read-only; events of a series and demo events show the section with the reason why not. The bin asks once,
 // in place, before it deletes an event with guests (Outlook tells them).
+// Notes (issue #5) wait for Save like the location; they stay in the app. Outlook events have none (R11),
+// so the section is left out for them. Notes over 2,000 characters keep Save disabled (the server refuses them too).
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { guestCountText } from "@/lib/events/guests";
@@ -31,6 +33,7 @@ import { FormMessage } from "@/components/account/FormMessage";
 import { useLive } from "@/components/live/Live";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { postJson, type PostResult } from "@/lib/client/post-json";
+import { notesTooLong } from "@/lib/events/notes";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent } from "@/lib/events/types";
 import { MESSAGES } from "@/lib/messages";
@@ -44,6 +47,7 @@ import { EventTodos } from "./editor/EventTodos";
 import { GoalSection } from "./editor/GoalSection";
 import { GuestsSection } from "./editor/GuestsSection";
 import { LocationSection } from "./editor/LocationSection";
+import { NotesSection } from "./editor/NotesSection";
 import { TravelLine } from "./editor/TravelLine";
 import { TravelSection } from "./editor/TravelSection";
 import { OverlapSection } from "./editor/OverlapSection";
@@ -243,6 +247,8 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
       />
     ),
     !values.allDay && !fromOutlook && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => save.change({ travelMode })} />,
+    // Issue #5: Outlook events have no notes (R11).
+    !fromOutlook && <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => save.change({ notes })} />,
     !values.allDay && !fromOutlook && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => save.change({ mayOverlap })} />,
     <Refusal
       key="refusal"
@@ -273,7 +279,7 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
   ) : save.changed ? (
     // Unsaved changes: Save or Discard first. Start focus and Mark done come back once they are saved.
     <>
-      <Button size="sm" disabled={save.saving || values.title.trim() === ""} onClick={save.saveNow}>
+      <Button size="sm" disabled={save.saving || values.title.trim() === "" || notesTooLong(values.notes)} onClick={save.saveNow}>
         {save.saving ? "Saving…" : "Save"}
       </Button>
       <Button size="sm" variant="ghost" disabled={save.saving} onClick={save.discard}>
@@ -409,12 +415,13 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
     !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => change({ goalId })} />,
     <LocationSection key="location" value={values.location} editable onType={(location) => change({ location })} onDone={() => {}} />,
     !values.allDay && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => change({ travelMode })} />,
+    <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => change({ notes })} />,
     !values.allDay && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => change({ mayOverlap })} />,
     <Refusal key="refusal" result={result} onReload={onClose} />,
   ];
 
   const footer = (
-    <Button size="sm" disabled={busy || values.title.trim() === ""} onClick={() => void add()}>
+    <Button size="sm" disabled={busy || values.title.trim() === "" || notesTooLong(values.notes)} onClick={() => void add()}>
       {busy ? "Adding…" : "Add event"}
     </Button>
   );

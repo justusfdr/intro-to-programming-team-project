@@ -8,6 +8,7 @@ import type { TravelMode } from "@/lib/settings/types";
 import type { Changes } from "@/components/live/Live";
 import type { PostResult } from "@/lib/client/post-json";
 import { localAt } from "@/lib/events/drag";
+import { cleanNotes } from "@/lib/events/notes";
 import { minuteOfLocal } from "@/lib/events/grid";
 import type { CalendarEvent, EventDto } from "@/lib/events/types";
 import { toAllDayEvent, toWeekEvents, withEventChange, type TimedEventDto } from "@/lib/events/week-view";
@@ -37,6 +38,11 @@ export type EventValues = {
   guests?: string[];
   /** How to get there; null is the standard from the settings (R27). */
   travelMode: TravelMode | null;
+  /**
+   * Issue #5: the notes as typed (saved with whitespace at the end trimmed; empty is none). Left out (or
+   * empty) when the event has none. Never for an Outlook event (R11).
+   */
+  notes?: string;
 };
 
 /** The end in minutes from midnight of the start's day; past midnight it is more than 24 hours. */
@@ -67,6 +73,8 @@ export function valuesOf(event: CalendarEvent): EventValues {
     travelMode: event.travelMode ?? null,
     // Always named (also when undefined), so Discard and an answer put the saved guests back.
     guests: event.guests && event.guests.length > 0 ? [...event.guests] : undefined,
+    // Issue #5: also always named, so Discard and an answer put the saved notes back.
+    notes: event.notes || undefined,
   };
   if (event.allDay) {
     return { ...common, allDay: true, date: event.firstDay, startMin: 9 * 60, endMin: 10 * 60, firstDay: event.firstDay, lastDay: event.lastDay, goalId: null };
@@ -130,13 +138,16 @@ function fieldsOf(values: EventValues) {
 
 /**
  * The body of edit_event for these values. An Outlook event sends only its goal (R11). The guests go
- * along when the event has some or the editor added some (an empty list removes them, spec 24).
+ * along when the event has some or the editor added some (an empty list removes them, spec 24); the
+ * notes likewise (null removes them, issue #5).
  */
 export function editBody(event: CalendarEvent, values: EventValues, updatedAt: string, scope?: Scope): Record<string, unknown> {
   if (event.source === "outlook") return { goalId: values.goalId, updatedAt };
   const guests = values.guests ?? [];
   const withGuests = guests.length > 0 || (event.guests?.length ?? 0) > 0 ? { guests } : {};
-  return { ...fieldsOf(values), ...withGuests, updatedAt, ...(scope ? { scope } : {}) };
+  const notes = cleanNotes(values.notes);
+  const withNotes = notes !== null || event.notes ? { notes } : {};
+  return { ...fieldsOf(values), ...withGuests, ...withNotes, updatedAt, ...(scope ? { scope } : {}) };
 }
 
 /** Whether these values would change the saved event (the Save button shows only then). */
@@ -158,6 +169,8 @@ export function createBody(values: EventValues, repeat: Repeat | null, todos: re
     ...(todos.length > 0 ? { todos: todos.map((t) => ({ title: t.title, done: t.done })) } : {}),
     // Spec 24: the guests of a single event (a series takes none; the editor does not offer it).
     ...(values.guests && values.guests.length > 0 && !(repeat && !values.allDay) ? { guests: [...values.guests] } : {}),
+    // Issue #5: the notes (a series gets them on every event).
+    ...(cleanNotes(values.notes) !== null ? { notes: cleanNotes(values.notes) } : {}),
   };
 }
 
@@ -186,6 +199,8 @@ export function editedChange(event: CalendarEvent, values: EventValues, timeZone
     // Spec 24: an Outlook event keeps Outlook's people; our own event shows the guests being saved.
     guests: event.source === "outlook" ? event.guests : values.guests && values.guests.length > 0 ? [...values.guests] : undefined,
     organizer: event.organizer,
+    // Issue #5: the notes being saved (an Outlook event has none).
+    notes: event.source === "outlook" ? event.notes : (cleanNotes(values.notes) ?? undefined),
     demo: event.demo,
   };
   if (event.source === "outlook") {

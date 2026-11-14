@@ -68,6 +68,8 @@ export function movedChange(event: WeekEvent, start: string, end: string, timeZo
     // Spec 24: a move keeps the guests (Outlook sends them the new time) and an Outlook event's organizer.
     guests: event.guests,
     organizer: event.organizer,
+    // Issue #5: and its notes.
+    notes: event.notes,
     demo: event.demo,
   };
   return { week: (week) => withEventChange(week, { event: moved }) };
@@ -75,7 +77,7 @@ export function movedChange(event: WeekEvent, start: string, end: string, timeZo
 
 /**
  * The body of create_event that brings a deleted event back (it gets a new id), with its to-dos (spec
- * 21), its location and its guests (spec 24: Outlook invites them again). The server refuses guests on
+ * 21), its location, its notes (issue #5) and its guests (spec 24: Outlook invites them again). The server refuses guests on
  * an event that has ended, so they go along only while it has not: `nowLocal` is the current local
  * time, "2026-11-16T09:12". Without it the guests are sent.
  */
@@ -85,6 +87,8 @@ export function recreateBody(event: CalendarEvent, todos: readonly NewTodo[] = [
     ...(todos.length > 0 ? { todos: todos.map((t) => ({ title: t.title, done: t.done })) } : {}),
     ...(notEnded && event.guests && event.guests.length > 0 ? { guests: [...event.guests] } : {}),
     ...(event.location ? { location: event.location } : {}),
+    // Issue #5: the notes come back with the event.
+    ...(event.notes ? { notes: event.notes } : {}),
   };
   if (event.allDay) return { title: event.title, allDay: true, firstDay: event.firstDay, lastDay: event.lastDay, ...list };
   return {

@@ -19,6 +19,9 @@ import "server-only";
 // changed list needs a connected Outlook (it sends the invitations) and is refused on an event of a
 // series, a demo event and an Outlook event (its attendees are Outlook's, R11). A list equal to the
 // saved one changes nothing.
+//
+// Issue #5: the notes, when the body names them, are saved like the title (left out, they stay; with
+// "this and following" every later event of the series gets them). An Outlook event takes none (R11).
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
@@ -45,7 +48,7 @@ const EditBody = EventFields.partial({ title: true }).extend({
 });
 
 /** Fields that Outlook owns for an imported event (R11). */
-const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "travelMode", "repeat", "guests"] as const;
+const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "travelMode", "repeat", "guests", "notes"] as const;
 
 const badRequest = () => new ActionError(400, "bad_request", MESSAGES.badRequest);
 
@@ -111,6 +114,9 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
         await query("update app.events set guests = $2::text[] where id = $1::uuid", [id, guests]);
       }
 
+      // Issue #5: the notes and whether the body names them (left out: they stay).
+      const notes = [event.notes ?? null, event.notes !== undefined];
+
       if (event.allDay) {
         // A series is timed (R29: all-day events never repeat); the form does not offer this.
         if (row.series_id) throw badRequest();
@@ -120,10 +126,11 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
         const [updated] = await query<EventRow>(
           `update app.events
               set title = $2, all_day = true, start_at = null, end_at = null, first_day = $3, last_day = $4,
-                  goal_id = null, status = 'planned'
+                  goal_id = null, status = 'planned',
+                  notes = case when $6 then $5 else notes end
             where id = $1
             returning ${EVENT_COLUMNS}`,
-          [id, event.title, event.firstDay, event.lastDay],
+          [id, event.title, event.firstDay, event.lastDay, ...notes],
         );
         return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(updated) });
       }
@@ -147,10 +154,11 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
           const [updated] = await query<EventRow>(
             `update app.events
                 set title = $2, start_at = $3, end_at = $4, may_overlap = coalesce($5, may_overlap),
-                    goal_id = case when $7 then $6 else goal_id end
+                    goal_id = case when $7 then $6 else goal_id end,
+                    notes = case when $9 then $8 else notes end
               where id = $1
               returning ${EVENT_COLUMNS}`,
-            [other.id, event.title, startAt, endAt, event.mayOverlap ?? null, ...goal],
+            [other.id, event.title, startAt, endAt, event.mayOverlap ?? null, ...goal, ...notes],
           );
           if (other.id === id) opened = updated;
         }
@@ -165,10 +173,11 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
         `update app.events
             set title = $2, all_day = false, start_at = $3, end_at = $4, first_day = null, last_day = null,
                 may_overlap = coalesce($5, may_overlap),
-                goal_id = case when $7 then $6 else goal_id end
+                goal_id = case when $7 then $6 else goal_id end,
+                notes = case when $9 then $8 else notes end
           where id = $1
           returning ${EVENT_COLUMNS}`,
-        [id, event.title, event.startAt, event.endAt, event.mayOverlap ?? null, ...goal],
+        [id, event.title, event.startAt, event.endAt, event.mayOverlap ?? null, ...goal, ...notes],
       );
       return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(updated) });
     }).catch(asAnswer);

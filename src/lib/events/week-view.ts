@@ -50,6 +50,8 @@ export function toAllDayEvent(e: EventDto): AllDayEvent {
     // Spec 24: only when there are any, as the server sends them.
     ...(e.guests ? { guests: e.guests } : {}),
     ...(e.organizer ? { organizer: e.organizer } : {}),
+    // Issue #5: the notes stay with the event (a drag or a change shown at once must not drop them).
+    ...(e.notes ? { notes: e.notes } : {}),
     ...(e.demo ? { demo: true } : {}),
   };
 }
@@ -100,6 +102,7 @@ function timedDtoOf(e: WeekEvent): TimedEventDto {
     todosDone: e.todosDone,
     guests: e.guests,
     organizer: e.organizer,
+    notes: e.notes,
     demo: e.demo,
   };
 }

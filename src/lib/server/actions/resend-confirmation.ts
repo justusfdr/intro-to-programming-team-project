@@ -5,6 +5,7 @@ import "server-only";
 // The answer for "sent" is the same for unconfirmed, confirmed and unknown addresses (R30).
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
+import { checkAccountAttempt } from "@/lib/server/actions/account-limits";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
@@ -14,7 +15,7 @@ const ResendBody = z.object({
   email: z.string(),
 });
 
-export function resendConfirmation(request: Request, deps: Pick<Deps, "auth">): Promise<Response> {
+export function resendConfirmation(request: Request, deps: Pick<Deps, "auth" | "now">): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -23,6 +24,7 @@ export function resendConfirmation(request: Request, deps: Pick<Deps, "auth">): 
     if (!body.ok) return body.response;
 
     const email = normalizeEmail(body.data.email);
+    checkAccountAttempt(request, "resend_confirmation", email, deps.now());
     const result = await deps.auth.resendConfirmation(email);
     switch (result.kind) {
       case "sent":
