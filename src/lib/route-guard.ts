@@ -51,3 +51,8 @@ export function guard(pathname: string, signedIn: boolean, options: { developmen
   if (matches(pathname, "/api")) return { kind: "unauthorized" };
   return { kind: "redirect", to: SIGN_IN_PAGE };
 }
+
+/** Sign-in and sign-up are for visitors: a signed-in user goes to the calendar instead. */
+export function signedInRedirect(userId: string | null): string | null {
+  return userId ? "/" : null;
+}
