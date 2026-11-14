@@ -655,9 +655,9 @@ export function TimeGrid({
                     <div key={m} className="pointer-events-none absolute inset-x-0 border-t border-line-subtle" style={{ top: minuteToPx(m, range) }} />
                   ))}
                 </div>
-                {/* Under the blocks: over a title the line would look like strike-through. */}
+                {/* Over the blocks, so the time is readable inside an event too; under a block being dragged. */}
                 {day.isToday && showNow && (
-                  <div aria-hidden className="pointer-events-none absolute inset-x-0 z-[1] h-px bg-today" style={{ top: minuteToPx(nowMin ?? 0, range) }}>
+                  <div aria-hidden className="pointer-events-none absolute inset-x-0 z-[3] h-px bg-today" style={{ top: minuteToPx(nowMin ?? 0, range) }}>
                     <span className="absolute -left-[3px] -top-[3px] size-[7px] rounded-full bg-today" />
                   </div>
                 )}
