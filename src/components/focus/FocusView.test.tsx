@@ -4,7 +4,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { FocusData, SessionDto } from "@/lib/focus/types";
-import { afterRejection, FocusView } from "./FocusView";
+import { afterRejection, FocusView, waitingForEnd } from "./FocusView";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 vi.mock("next/link", () => ({
@@ -144,9 +144,17 @@ describe("Focus page", () => {
     const answer = (status: number, error: string, message: string) => ({ ok: false, status, message, data: { error, message } });
     expect(afterRejection(answer(409, "session_ended", "This session has already ended"))).toEqual({ reload: true });
     expect(afterRejection(answer(404, "not_found", "Not found"))).toEqual({ reload: true });
-    expect(afterRejection(answer(409, "not_possible", "Not possible in this state"))).toEqual({ reload: false });
+    // Another tab already started, paused or ended the session: the page must show the real state.
+    expect(afterRejection(answer(409, "not_possible", "Not possible in this state"))).toEqual({ reload: true });
+    expect(afterRejection(answer(409, "session_running", "A session is already running"))).toEqual({ reload: true });
     expect(afterRejection(answer(400, "rating_range", "Rating must be a whole number from 0 to 5"))).toEqual({ reload: false });
     expect(afterRejection({ ok: false, status: 0, message: "We could not reach the server." })).toEqual({ reload: false });
+  });
+
+  it("keeps asking the server only while a running session has nothing left", () => {
+    expect(waitingForEnd(0, false)).toBe(true);
+    expect(waitingForEnd(0, true)).toBe(false);
+    expect(waitingForEnd(30, false)).toBe(false);
   });
 
   it("keeps Start focus off and shows the rule when the wheel stands on 0 hours 0 min (R12, A10)", () => {

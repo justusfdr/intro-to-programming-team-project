@@ -150,7 +150,7 @@ describe("a calendar block", () => {
     return renderToStaticMarkup(
       <DisplayProvider value={DEFAULT_DISPLAY}>
         <Announcer>
-          <CalendarView week={data} nowLocal="2026-11-17T08:10" suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }} goals={[]} />
+          <CalendarView week={data} nowLocal="2026-11-17T08:10" goals={[]} />
         </Announcer>
       </DisplayProvider>,
     );

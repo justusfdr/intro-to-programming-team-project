@@ -6,12 +6,12 @@
 // The home address is checked before it is saved: suggestions appear while typing, and "Confirm" looks the
 // address up. Found → it is saved and the field flashes green; not found → nothing is saved, the field
 // flashes red and shakes.
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Car } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useLiveSettings } from "@/components/live/Live";
 import { Card } from "@/components/ui/Card";
-import { PlaceList, checkClass, lookUp, nextRow, usePlaceSuggestions } from "@/components/places/places";
+import { PlaceList, checkClass, lookUpCurrent, nextRow, usePlaceSuggestions } from "@/components/places/places";
 import type { PlaceSuggestion } from "@/lib/places/places";
 import type { SettingsData, TravelMode } from "@/lib/settings/types";
 import { Button } from "@/components/ui/Button";
@@ -47,6 +47,12 @@ export function TravelCard({ settings: serverSettings }: { settings: SettingsDat
   const [draft, setDraft] = useState({ base: settings.homeAddress, text: settings.homeAddress });
   if (draft.base !== settings.homeAddress) setDraft({ base: settings.homeAddress, text: settings.homeAddress });
 
+  // What the field holds now, to drop the answer of a look-up for text that was changed meanwhile.
+  const latest = useRef(draft.text);
+  useEffect(() => {
+    latest.current = draft.text;
+  }, [draft.text]);
+
   const [active, setActive] = useState(-1);
   // The list shows only while the field has focus.
   const [open, setOpen] = useState(false);
@@ -69,7 +75,8 @@ export function TravelCard({ settings: serverSettings }: { settings: SettingsDat
     setCheck((c) => ({ state: "checking", round: c.round }));
     let address = text;
     if (text !== "" && text !== picked) {
-      const exact = await lookUp(text, undefined, true);
+      const exact = await lookUpCurrent(text, () => latest.current);
+      if (exact === "stale") return setCheck((c) => ({ state: "idle", round: c.round }));
       if (exact === null) return setCheck((c) => ({ state: "missing", message: "Address search is not available right now", round: c.round + 1 }));
       if (exact.length === 0) return setCheck((c) => ({ state: "missing", message: "Address not found", round: c.round + 1 }));
       address = exact[0].label;

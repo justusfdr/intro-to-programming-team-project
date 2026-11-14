@@ -2,9 +2,9 @@
 // moving through the list with the arrow keys, the field's colours, the list itself, and the Location field
 // as first drawn.
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LocationSection } from "@/components/calendar/editor/LocationSection";
-import { PlaceList, checkClass, nextRow } from "./places";
+import { PlaceList, checkClass, lookUpCurrent, nextRow } from "./places";
 
 const PLACE = { label: "Rua das Madres 66, 1200-863 Lisboa, Portugal", lat: 38.7, lon: -9.15 };
 
@@ -67,5 +67,21 @@ describe("the Location field of an event", () => {
     const html = renderToStaticMarkup(<LocationSection value="Nova SBE" editable={false} onType={() => {}} onDone={() => {}} />);
     expect(html).toContain("Nova SBE");
     expect(html).not.toContain("<input");
+  });
+});
+
+describe("lookUpCurrent", () => {
+  const answer = (places: unknown[]) => vi.fn().mockResolvedValue({ ok: true, json: async () => ({ places }) });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("gives the answer while the field still holds the text that was sent", async () => {
+    vi.stubGlobal("fetch", answer([PLACE]));
+    expect(await lookUpCurrent("rua das madres 66", () => " rua das madres 66 ")).toEqual([PLACE]);
+  });
+
+  it("drops the answer when the field was changed meanwhile", async () => {
+    vi.stubGlobal("fetch", answer([PLACE]));
+    expect(await lookUpCurrent("rua das madres 66", () => "rua das madres 66, lisboa")).toBe("stale");
   });
 });

@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { CalendarDays, RefreshCw } from "lucide-react";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { postJson } from "@/lib/client/post-json";
-import { signInResultMessage, syncedText } from "@/lib/events/outlook-view";
+import { signInResultMessage, syncedText, syncNote } from "@/lib/events/outlook-view";
 import type { OutlookView } from "@/lib/events/types";
 import { useAnnounce } from "./Announcer";
 
@@ -31,6 +31,7 @@ export function OutlookChip({ outlook, available, timeZone, today }: Props) {
   const announce = useAnnounce();
   const { timeFormat } = useDisplay();
   const [syncing, setSyncing] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const synced = useRef(false);
 
   // Once per page load: say how the sign-in went, then remove ?outlook=… from the address.
@@ -56,6 +57,9 @@ export function OutlookChip({ outlook, available, timeZone, today }: Props) {
     setSyncing(true);
     const answer = await postJson("/api/outlook/sync", {});
     setSyncing(false);
+    const quiet = syncNote(answer);
+    setNote(quiet);
+    if (quiet) announce(quiet);
     if (answer.ok) router.refresh();
   }
 
@@ -80,7 +84,7 @@ export function OutlookChip({ outlook, available, timeZone, today }: Props) {
   return (
     <div className="inline-flex h-9 items-center gap-1 rounded-full border border-line bg-surface pl-3 pr-1 text-xs text-ink-2">
       <Link href="/settings#outlook" className="min-w-0 truncate rounded-full hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20">
-        {syncing ? "Outlook · syncing…" : `Outlook · ${syncedText(outlook.lastSyncedAt, timeZone, today, timeFormat)}`}
+        {syncing ? "Outlook · syncing…" : note ? `Outlook · ${note}` : `Outlook · ${syncedText(outlook.lastSyncedAt, timeZone, today, timeFormat)}`}
       </Link>
       <button
         type="button"

@@ -50,11 +50,13 @@ describe("pricing page", () => {
   });
 
   it("only notes the return from Stripe: the plan changes on Stripe's message, not here (R25)", () => {
-    expect(checkoutNote("success", "free")?.text).toContain("as soon as Stripe confirms it");
+    expect(checkoutNote("success", "free")?.text).toBe("If you just paid, Pro turns on within a few seconds.");
+    expect(checkoutNote("success", "free", true)?.text).toBe("Still waiting for the payment confirmation. Reload this page in a minute.");
+    expect(checkoutNote("success", "pro", true)?.text).toBe("Welcome to Pro. The coach is ready for you.");
     expect(checkoutNote("success", "pro")?.text).toBe("Welcome to Pro. The coach is ready for you.");
     expect(checkoutNote("cancelled", "free")?.text).toBe("Payment cancelled. Nothing was charged.");
     expect(checkoutNote(undefined, "free")).toBeNull();
     expect(checkoutNote("anything", "free")).toBeNull();
-    expect(render({ checkout: "success" })).toContain("as soon as Stripe confirms it");
+    expect(render({ checkout: "success" })).toContain("If you just paid, Pro turns on within a few seconds.");
   });
 });

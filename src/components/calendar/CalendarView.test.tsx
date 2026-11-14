@@ -114,7 +114,6 @@ function render(data: WeekData, options: { display?: Display; outlookAvailable?:
       <CalendarView
         week={data}
         nowLocal="2026-11-17T12:10"
-        suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }}
         goals={[{ id: "g1", title: "Run a half marathon", look: { color: "teal", icon: "footprints" } }]}
         outlookAvailable={options.outlookAvailable}
       />

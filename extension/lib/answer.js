@@ -63,3 +63,24 @@ export function buildRules(sites, nonce) {
     condition: { requestDomains: [site], resourceTypes: ["main_frame"] },
   }));
 }
+
+/** The least time between two extra polls started by a tab that opens a listed site. */
+export const TAB_POLL_GAP_MS = 5000;
+
+/**
+ * Whether a tab that starts loading `url` should trigger one extra poll: blocking is off now (nothing
+ * to block), the host is on the kept block list (a focus session may have just started), and the last
+ * extra poll was at least TAB_POLL_GAP_MS ago. `lastPollAt` is null before the first.
+ */
+export function shouldPollForTab(kept, url, now, lastPollAt) {
+  if (!kept || sitesToBlock(kept, now).length > 0) return false;
+  if (lastPollAt !== null && now - lastPollAt < TAB_POLL_GAP_MS) return false;
+  let host = "";
+  try {
+    const parsed = new URL(String(url));
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") host = parsed.hostname;
+  } catch {
+    return false;
+  }
+  return host !== "" && isBlockedHost(host, kept.sites);
+}

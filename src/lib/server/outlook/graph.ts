@@ -313,6 +313,9 @@ export function createGraphOutlook(config: GraphConfig, fetchFn: Fetch = fetch):
         }
         url = safeNextLink(body["@odata.nextLink"]);
       }
+      // A next page is still there: the list is incomplete, and the import would treat the missing
+      // events as deleted. Better to import nothing.
+      if (url) throw new OutlookUnavailableError();
       return events;
     },
 

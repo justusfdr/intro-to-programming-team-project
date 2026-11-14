@@ -32,12 +32,16 @@ async function getJson(url: string): Promise<unknown> {
   return response.json();
 }
 
-// Nominatim allows one question per second: each one waits for the one before.
+// Nominatim allows one question per second: each one waits for the one before. Every question to
+// Nominatim from this server goes through this one queue (also the address search, search-places.ts).
 let nominatimTurn: Promise<unknown> = Promise.resolve();
-function nominatim(url: string): Promise<unknown> {
-  const answer = nominatimTurn.then(() => getJson(url));
+export function inNominatimQueue<T>(ask: () => Promise<T>): Promise<T> {
+  const answer = nominatimTurn.then(ask);
   nominatimTurn = answer.catch(() => undefined).then(() => new Promise((r) => setTimeout(r, 1100)));
   return answer;
+}
+function nominatim(url: string): Promise<unknown> {
+  return inNominatimQueue(() => getJson(url));
 }
 
 /** The first result's position in a Nominatim answer, or null. Exported for the tests. */

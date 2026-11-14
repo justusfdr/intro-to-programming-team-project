@@ -20,7 +20,7 @@ The extension's id is always `dghmihlicabdooieaknglfjlidpjjfki`: it follows from
 replaced, set `EXTENSION_ID` on the server to the new id.
 
 ## How it works
-- Every minute (`alarms`) it asks the app: `POST /api/extension/state`. The request carries the
+- Every 30 seconds (`alarms`) it asks the app: `POST /api/extension/state`. The request carries the
   app's own sign-in cookie of this Chrome profile; the extension holds no keys. The answer has only
   the block list, whether blocking is on, and until when.
 - While blocking is on, a redirect rule per site (`declarativeNetRequest`) sends page loads of the
@@ -39,7 +39,7 @@ the project: `npm test`). `background.js` only connects them to Chrome.
 |---|---|
 | `declarativeNetRequest` | Redirect page loads of listed sites to the block page. |
 | host access `http://*/*`, `https://*/*` | Redirect rules need access to the sites you choose to block, which can be any site. It also lets the extension reach the app with its sign-in cookie, and read the address of open tabs to move those on a listed site. |
-| `alarms` | Ask the app once a minute, and remove the rules exactly when blocking ends. |
+| `alarms` | Ask the app every 30 seconds, and remove the rules exactly when blocking ends. |
 | `storage` | Keep the last answer and the attempts not yet sent, on this computer only. |
 | `blocked.html` as a web-accessible page | Chrome needs it to show the block page in place of the site. |
 
@@ -55,7 +55,7 @@ value, or simply open the listed site itself. A reload of the block page within 
 
 ## Limits (R18 and two more)
 - Only page loads in Chrome on this computer are blocked: not other browsers, phone apps or other
-  programs, and there is no screen time measurement. Blocking can start up to a minute late.
+  programs, and there is no screen time measurement. Blocking can start up to 30 seconds late (a tab that opens a listed site asks the app at once).
 - The blocker is a help, not a lock: you can end a session, switch off auto-block, edit the list, or
   remove the extension at any time.
 - **Third-party cookies:** if Chrome is set to block third-party cookies, Chrome does not send the

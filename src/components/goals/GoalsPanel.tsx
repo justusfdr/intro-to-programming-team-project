@@ -15,6 +15,7 @@ import type { GoalView } from "@/lib/goals/types";
 import { useLiveTasks } from "@/components/live/Live";
 import { openCount, sortTasks } from "@/lib/tasks/order";
 import type { TaskDto } from "@/lib/tasks/types";
+import { XL_QUERY, closeWhenWide } from "./close-when-wide";
 import { GoalCard, OpenTaskCount } from "./GoalCard";
 import { GoalEditor, type GoalEditorState } from "./GoalEditor";
 import { GoalTile } from "./GoalTile";
@@ -200,6 +201,13 @@ export function GoalsPanel({ goals, tasks: serverTasks, today }: Props) {
     if (sheetOpen && !element.open) element.showModal();
     if (!sheetOpen && element.open) element.close();
   }, [sheetOpen]);
+
+  // A window widened past the sheet's breakpoint hides the sheet, so it must not stay open (modal) behind it.
+  const { openSheet } = panels;
+  useEffect(() => {
+    if (!sheetOpen) return;
+    return closeWhenWide(window.matchMedia(XL_QUERY), () => openSheet(null));
+  }, [sheetOpen, openSheet]);
 
   const newGoal = () => {
     panels.openSheet(null);

@@ -6,7 +6,7 @@
 // sessions. It only sends the user's choices and shows the server's answers; the server decides
 // every state change (spec 04), including the end of a session at its planned length (R13).
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
@@ -49,13 +49,21 @@ function timesOf(session: SessionDto): SessionTimes {
 
 /**
  * What the page does after a session action was rejected. Most rejections leave the page as it is
- * and show the message under the buttons. When the session is already over or gone (it finished by
- * itself, or another device ended it), the page reloads to show the real state; the card with the
+ * and show the message under the buttons. When the session is already over, gone or in another state
+ * (it finished by itself, or another tab or device started, paused or ended it), the page reloads to show the real state; the card with the
  * message disappears then, so the message is announced through the page's status region instead.
  */
 export function afterRejection(answer: PostResult): { reload: boolean } {
   const error = (answer.data as { error?: unknown } | undefined)?.error;
-  return { reload: error === "session_ended" || error === "not_found" };
+  // "session_running" and "not_possible" mean another tab or device already changed the session.
+  return { reload: RELOAD_ERRORS.includes(error as string) };
+}
+
+const RELOAD_ERRORS = ["session_ended", "not_found", "session_running", "not_possible"];
+
+/** True while a session shows as running with nothing left, so the page must keep asking the server. */
+export function waitingForEnd(left: number, paused: boolean): boolean {
+  return left === 0 && !paused;
 }
 
 /** Sends one session action; announces the message and reloads the page's data on success. */
@@ -221,8 +229,13 @@ function RunningCard({ session, serverNow, goal }: { session: SessionDto; server
   const router = useRouter();
   const times = timesOf(session);
   const [now, setNow] = useState(() => new Date(serverNow));
+  // A fresh server time (after Resume, say) replaces the running count at once, not a second later.
+  const [seenServerNow, setSeenServerNow] = useState(serverNow);
+  if (seenServerNow !== serverNow) {
+    setSeenServerNow(serverNow);
+    setNow(new Date(serverNow));
+  }
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const refreshed = useRef(false);
   const { run, busy, failure } = useSessionAction();
   const paused = session.status === "paused";
 
@@ -236,13 +249,26 @@ function RunningCard({ session, serverNow, goal }: { session: SessionDto; server
   }, [paused, serverNow]);
 
   const left = secondsLeft(times, now);
-  // At the planned length the server finishes the session (R13); reload once to show the end.
+  // At the planned length the server finishes the session (R13); reload to show the end. If that
+  // failed (the network was down after the laptop slept), try again every 5 seconds and when the
+  // page becomes visible or the network returns, for as long as the session still shows as running.
+  const stuck = waitingForEnd(left, paused);
   useEffect(() => {
-    if (left === 0 && !paused && !refreshed.current) {
-      refreshed.current = true;
-      router.refresh();
-    }
-  }, [left, paused, router]);
+    if (!stuck) return;
+    const refresh = () => router.refresh();
+    refresh();
+    const id = window.setInterval(refresh, 5000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", refresh);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", refresh);
+    };
+  }, [stuck, router]);
 
   const base = `/api/sessions/${session.id}`;
   return (

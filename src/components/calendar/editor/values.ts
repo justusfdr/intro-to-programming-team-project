@@ -45,6 +45,18 @@ function endMinuteOf(start: string, end: string): number {
   return minuteOfLocal(start) + (Number.isFinite(length) ? length : 60);
 }
 
+/**
+ * After a save: the saved values for the fields the user did not change while it was on its way. A
+ * field typed in meanwhile (its value differs from what was sent) is left out, so the typing is kept.
+ */
+export function untouchedPatch(sent: EventValues, current: EventValues, saved: EventValues): Partial<EventValues> {
+  const patch: Record<string, unknown> = {};
+  for (const key of Object.keys(saved) as (keyof EventValues)[]) {
+    if (JSON.stringify(current[key]) === JSON.stringify(sent[key])) patch[key] = saved[key];
+  }
+  return patch as Partial<EventValues>;
+}
+
 /** The values of an existing event. Timed and all-day fields both get values, so the switch can flip. */
 export function valuesOf(event: CalendarEvent): EventValues {
   const common = {

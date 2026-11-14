@@ -142,6 +142,7 @@ export const MESSAGES = {
   addressTooLong: "Home address can be at most 200 characters",
   addressNotFound: "Address not found",
   placesUnavailable: "Address search is not available right now",
+  placesTooMany: "Too many searches. Try again in a minute.",
   addHomeAddress: "Add your home address in settings",
   travelUnavailable: "Travel time not available",
   visibleHours: "Visible hours must be whole hours, from 0 to 24, ending after they start",

@@ -17,3 +17,16 @@ export function newEventSlot(input: {
   const startMin = Math.max(input.dayStartHour * 60, 9 * 60);
   return { date: input.date, span: { startMin, endMin: Math.min(24 * 60, startMin + 60) } };
 }
+
+/**
+ * The next full hour on the wall clock, one hour long: "2026-11-16T10:10" gives 11:00 to 12:00. A time
+ * that is already on the hour stays. At night it may be on the next day (23:30 gives 00:00 of the next day).
+ */
+export function nextFullHour(nowLocal: string): NewEventSlot {
+  const [day, time] = nowLocal.split("T");
+  const [hour, minute] = time.split(":").map(Number);
+  const start = Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)), hour + (minute > 0 ? 1 : 0));
+  const startDate = new Date(start);
+  const startMin = startDate.getUTCHours() * 60;
+  return { date: startDate.toISOString().slice(0, 10), span: { startMin, endMin: startMin + 60 } };
+}

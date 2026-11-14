@@ -98,6 +98,9 @@ function timedDtoOf(e: WeekEvent): TimedEventDto {
     updatedAt: e.updatedAt,
     todoCount: e.todoCount,
     todosDone: e.todosDone,
+    guests: e.guests,
+    organizer: e.organizer,
+    demo: e.demo,
   };
 }
 

@@ -5,9 +5,10 @@
 // and folds when the mouse leaves; opened like that it lies over the page, so nothing on the page
 // jumps. The same button then keeps it open for good. The choice is remembered in this browser only.
 import Link from "next/link";
-import { Fragment, useState, useSyncExternalStore, type FocusEvent } from "react";
+import { Fragment, useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
 import { ChevronsLeft, Pin, Target } from "lucide-react";
 import { SignOutButton } from "@/components/account/SignOutButton";
+import { keepFocusAfterCollapse } from "./collapse-focus";
 import { Logo, LogoMark } from "./Logo";
 import { NAV, PRICING, SETTINGS, type NavItem } from "./nav";
 import { openAllPanels, usePanels, usePanelsAvailable } from "./PanelState";
@@ -114,6 +115,7 @@ export function Sidebar({ current }: { current: string }) {
   const folded = useSyncExternalStore(subscribe, readFolded, () => false);
   const [peek, setPeek] = useState(false);
   const wide = !folded || peek;
+  const logoLink = useRef<HTMLAnchorElement>(null);
 
   function setFolded(next: boolean) {
     try {
@@ -146,6 +148,7 @@ export function Sidebar({ current }: { current: string }) {
       >
         <div className="flex h-9 items-center justify-between gap-2">
           <Link
+            ref={logoLink}
             href="/"
             aria-label={wide ? undefined : "Calendar"}
             className="overflow-hidden whitespace-nowrap rounded-lg px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
@@ -155,7 +158,11 @@ export function Sidebar({ current }: { current: string }) {
           {wide && (
             <button
               type="button"
-              onClick={() => setFolded(!folded)}
+              onClick={(event) => {
+                setFolded(!folded);
+                // Folding removes this button: by keyboard the focus moves to the logo link, which stays.
+                if (!folded) keepFocusAfterCollapse(event.detail, logoLink.current);
+              }}
               aria-label={folded ? "Keep sidebar open" : "Collapse sidebar"}
               title={folded ? "Keep sidebar open" : "Collapse sidebar"}
               className="grid size-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
