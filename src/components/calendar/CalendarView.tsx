@@ -47,7 +47,7 @@ import { useLive, useLiveWeek } from "@/components/live/Live";
 import { GoalsToggle } from "@/components/goals/GoalsPanel";
 import { DateJumpTitle } from "./DateJump";
 import { EventEditor, SeriesQuestion, type EditorState } from "./EventEditor";
-import { dropText, movedChange, recreateBody, savedEvent, savedEventChange, timesBody, type Scope } from "./event-changes";
+import { dropText, isGuestsError, movedChange, recreateBody, savedEvent, savedEventChange, timesBody, withoutGuests, type Scope } from "./event-changes";
 import { anchorOf, FloatingPanel, type Anchor } from "./FloatingPanel";
 import { MonthView } from "./MonthView";
 import { NewEventPopover } from "./NewEventPopover";
@@ -199,7 +199,10 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
   /** Undo of a delete: the same event again (create_event; it gets a new id) with its to-dos, done again if it was. */
   const recreate = useCallback(
     async (event: CalendarEvent, todos: NewTodo[]) => {
-      const answer = await live.run({ send: () => postJson("/api/events", recreateBody(event, todos)), fromAnswer: savedEventChange });
+      const body = recreateBody(event, todos, now);
+      let answer = await live.run({ send: () => postJson("/api/events", body), fromAnswer: savedEventChange });
+      // The server may still refuse the guests (Outlook was disconnected meanwhile): bring the event back without them.
+      if (isGuestsError(answer)) answer = await live.run({ send: () => postJson("/api/events", withoutGuests(body)), fromAnswer: savedEventChange });
       if (!answer.ok) return showToast(answer.message);
       const saved = savedEvent(answer);
       if (saved && event.status === "done" && !event.allDay) {
@@ -208,7 +211,7 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
       }
       sendToOutlook();
     },
-    [live, showToast, sendToOutlook],
+    [live, showToast, sendToOutlook, now],
   );
 
   const onDeleted = useCallback(

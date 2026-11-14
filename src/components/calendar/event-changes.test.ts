@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
-import { dropText, movedChange, recreateBody, savedEventChange, timesBody } from "./event-changes";
+import { dropText, isGuestsError, movedChange, recreateBody, savedEventChange, timesBody, withoutGuests } from "./event-changes";
 
 // What a drop, an undo and a re-created event send, and what the screen shows at once (spec 15).
 const EVENT: WeekEvent = {
@@ -110,6 +110,29 @@ describe("undo of a delete is create_event with the same fields", () => {
 
   it("an all-day event: title and days (R29: no goal)", () => {
     expect(recreateBody(EXAM)).toEqual({ title: "Exam week", allDay: true, firstDay: "2026-11-16", lastDay: "2026-11-20" });
+  });
+
+  it("keeps the location of a timed and of an all-day event", () => {
+    expect(recreateBody({ ...EVENT, location: "Library" }).location).toBe("Library");
+    expect(recreateBody({ ...EXAM, location: "Campus" }).location).toBe("Campus");
+    expect(recreateBody(EVENT)).not.toHaveProperty("location");
+  });
+
+  it("sends the guests only while the event has not ended", () => {
+    const guests = ["ana@example.com"];
+    expect(recreateBody({ ...EVENT, guests }, [], "2026-11-17T09:30").guests).toEqual(guests);
+    expect(recreateBody({ ...EVENT, guests }, [], "2026-11-17T10:00")).not.toHaveProperty("guests");
+    expect(recreateBody({ ...EVENT, guests }, [], "2026-11-18T08:00")).not.toHaveProperty("guests");
+    expect(recreateBody({ ...EXAM, guests }, [], "2026-11-20T23:00").guests).toEqual(guests);
+    expect(recreateBody({ ...EXAM, guests }, [], "2026-11-21T00:00")).not.toHaveProperty("guests");
+  });
+
+  it("recognises a guests refusal and can drop the guests", () => {
+    const refused = { ok: false, status: 400, message: "x", data: { error: "guests_ended" } };
+    expect(isGuestsError(refused)).toBe(true);
+    expect(isGuestsError({ ...refused, data: { error: "end_before_start" } })).toBe(false);
+    expect(isGuestsError({ ...refused, ok: true })).toBe(false);
+    expect(withoutGuests({ title: "a", guests: ["b@example.com"] })).toEqual({ title: "a" });
   });
 });
 

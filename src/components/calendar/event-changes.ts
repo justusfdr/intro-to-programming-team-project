@@ -75,12 +75,16 @@ export function movedChange(event: WeekEvent, start: string, end: string, timeZo
 
 /**
  * The body of create_event that brings a deleted event back (it gets a new id), with its to-dos (spec
- * 21) and its guests (spec 24: Outlook invites them again).
+ * 21), its location and its guests (spec 24: Outlook invites them again). The server refuses guests on
+ * an event that has ended, so they go along only while it has not: `nowLocal` is the current local
+ * time, "2026-11-16T09:12". Without it the guests are sent.
  */
-export function recreateBody(event: CalendarEvent, todos: readonly NewTodo[] = []) {
+export function recreateBody(event: CalendarEvent, todos: readonly NewTodo[] = [], nowLocal?: string) {
+  const notEnded = nowLocal === undefined || (event.allDay ? event.lastDay >= nowLocal.slice(0, 10) : event.endLocal > nowLocal);
   const list = {
     ...(todos.length > 0 ? { todos: todos.map((t) => ({ title: t.title, done: t.done })) } : {}),
-    ...(event.guests && event.guests.length > 0 ? { guests: [...event.guests] } : {}),
+    ...(notEnded && event.guests && event.guests.length > 0 ? { guests: [...event.guests] } : {}),
+    ...(event.location ? { location: event.location } : {}),
   };
   if (event.allDay) return { title: event.title, allDay: true, firstDay: event.firstDay, lastDay: event.lastDay, ...list };
   return {
@@ -92,6 +96,18 @@ export function recreateBody(event: CalendarEvent, todos: readonly NewTodo[] = [
     ...(event.travelMode ? { travelMode: event.travelMode } : {}),
     ...list,
   };
+}
+
+/** Whether the server refused a create_event because of its guests (a code like guests_ended or guests_need_outlook). */
+export function isGuestsError(answer: PostResult): boolean {
+  const code = (answer.data as { error?: unknown } | undefined)?.error;
+  return !answer.ok && typeof code === "string" && /^guests?_/.test(code);
+}
+
+/** The same body without its guests, to bring the event back when the server refuses them. */
+export function withoutGuests<T extends { guests?: unknown }>(body: T): Omit<T, "guests"> {
+  const { guests: _guests, ...rest } = body;
+  return rest;
 }
 
 /** The to-dos a delete's answer names (spec 21), to bring them back with Undo. */
