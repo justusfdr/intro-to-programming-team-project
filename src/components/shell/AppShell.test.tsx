@@ -17,10 +17,13 @@ vi.mock("next/link", () => ({
 const render = (current: string) => renderToStaticMarkup(<AppShell current={current}>page</AppShell>);
 
 describe("app shell", () => {
-  it("lists Calendar, Coach, Focus and Analytics in the main navigation, then Settings and Sign out at the bottom", () => {
+  // Rewritten for spec 25: "Goals" is second in the list (it moved here from the calendar's toolbar).
+  it("lists Calendar, Goals, Coach, Focus and Analytics in the main navigation, then Settings and Sign out at the bottom", () => {
     const html = render("/");
     const nav = html.slice(html.indexOf('aria-label="Main navigation"'), html.indexOf("</nav>"));
-    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/coach", "/focus", "/analytics"]);
+    expect([...nav.matchAll(/<\/svg>([A-Za-z ]+)<\/a>/g)].map((m) => m[1])).toEqual(["Calendar", "Goals", "Coach", "Focus", "Analytics"]);
+    // Outside the calendar page "Goals" goes to the calendar.
+    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/", "/coach", "/focus", "/analytics"]);
     expect(html.indexOf('href="/settings"')).toBeGreaterThan(html.indexOf("</nav>"));
     expect(html.indexOf("Sign out")).toBeGreaterThan(html.indexOf('href="/settings"'));
   });

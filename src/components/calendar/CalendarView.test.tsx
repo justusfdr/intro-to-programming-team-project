@@ -290,10 +290,11 @@ describe("calendar markup", () => {
     expect(html).toMatch(/aria-label="Dentist, Monday, November 16, 10am to 11am"[^>]*class="[^"]*bg-raised/);
   });
 
-  it("has the prototype's round goals toggle with the target icon in the toolbar", () => {
+  // Rewritten for spec 25: on wider screens "Goals" moved into the sidebar; the toolbar keeps it for phones only.
+  it("keeps the round goals button with the target icon in the toolbar for phones only", () => {
     const html = render(week({}));
-    expect(html).toMatch(/<button type="button" aria-label="Goals" title="Hide goals" aria-pressed="true"[^>]*><svg[^>]*lucide-target/);
-    expect(html).toMatch(/<button type="button" aria-label="Goals" title="Open goals" aria-haspopup="dialog" aria-expanded="false"/);
+    expect(html).toMatch(/<div class="md:hidden"><button type="button" aria-label="Goals" title="Open goals" aria-haspopup="dialog" aria-expanded="false"[^>]*><svg[^>]*lucide-target/);
+    expect(html).not.toContain('title="Hide goals"');
     expect(html).not.toMatch(/>Goals<\/button>/);
   });
 

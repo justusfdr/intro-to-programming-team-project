@@ -11,6 +11,9 @@ The sidebar with Calendar, Coach, Focus and Analytics takes 232 px that the cale
 - [x] The choice is remembered in this browser only (`localStorage`); a new browser starts with the sidebar open. Phones keep the tab bar.
 - [x] The empty area: the goals column was as tall as the window but let its content run out of it, which made the whole page longer than the window. The column now scrolls inside itself.
 
+- [x] "Goals" moved from the calendar's toolbar into the sidebar, second in the list: Calendar, Goals, Coach, Focus, Analytics, then Settings and Sign out. On the calendar it shows or hides the goals column (a sheet on narrower windows); on other pages it goes to the calendar with the column open. Phones, which have no sidebar, keep the button in the toolbar.
+- [x] Folded, "Sign out" is its icon alone (it used to show the cut-off word).
+
 ## Out of scope
 A keyboard shortcut for folding; remembering the choice in the account; folding on phones.
 

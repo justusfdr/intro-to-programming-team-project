@@ -19,6 +19,8 @@ type PanelControls = {
 const STORAGE_KEY = "lockedin.collapsed-panels";
 const CHANGED = "lockedin:panels-changed";
 
+const PanelAvailable = createContext(false);
+
 const PanelContext = createContext<PanelControls>({
   isOpen: () => true,
   toggle: () => {},
@@ -69,10 +71,24 @@ export function PanelState({ children }: { children: ReactNode }) {
   }
 
   return (
-    <PanelContext value={{ isOpen: (panel) => !collapsed.includes(panel), toggle, sheet, openSheet }}>
-      {children}
-    </PanelContext>
+    <PanelAvailable value={true}>
+      <PanelContext value={{ isOpen: (panel) => !collapsed.includes(panel), toggle, sheet, openSheet }}>{children}</PanelContext>
+    </PanelAvailable>
   );
+}
+
+/** Marks every panel as open in this browser (the sidebar's "Goals" on another page, before it goes to the calendar). */
+export function openAllPanels(): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, "[]");
+  } catch {
+    // Without storage the panels start open anyway.
+  }
+}
+
+/** True inside the calendar page, where the panels exist. */
+export function usePanelsAvailable(): boolean {
+  return useContext(PanelAvailable);
 }
 
 export function usePanels(): PanelControls {
