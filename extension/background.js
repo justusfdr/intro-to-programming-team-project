@@ -1,12 +1,12 @@
 /* global chrome */
-// The extension's service worker. Once a minute it asks the LockedIn app what to block (R16), keeps
+// The extension's service worker. Every 30 seconds it asks the LockedIn app what to block (R16), keeps
 // Chrome's redirect rules in line with the answer, moves tabs already open on a blocked site to the
 // block page (R15), and sends the attempts the block page reports. All decisions are in lib/.
 //
 // It holds no keys: the request carries the app's own sign-in cookie of this Chrome profile.
 // Fail closed: without a valid answer, nothing is blocked.
 import { APP_URL, POLL_MINUTES } from "./config.js";
-import { buildRules, isBlockedHost, nextKept, sitesToBlock } from "./lib/answer.js";
+import { buildRules, isBlockedHost, nextKept, shouldPollForTab, sitesToBlock } from "./lib/answer.js";
 import { addAttempt, BATCH, dropOld, isRealAttempt } from "./lib/attempts.js";
 
 const POLL = "poll";
@@ -119,6 +119,17 @@ chrome.runtime.onStartup.addListener(() => chrome.alarms.create(POLL, { periodIn
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === POLL) poll();
   if (alarm.name === UNTIL) getKept().then(apply);
+});
+
+// A focus session may have started since the last poll: when a tab starts loading a listed site while
+// blocking is off, ask the app once more (at most every 5 seconds) instead of waiting for the alarm.
+let lastTabPoll = null;
+chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
+  if (changeInfo.status !== "loading") return;
+  const now = Date.now();
+  if (!shouldPollForTab(await getKept(), changeInfo.url ?? tab.url, now, lastTabPoll)) return;
+  lastTabPoll = now;
+  poll();
 });
 
 // Only the extension's own pages can send messages here (no "externally_connectable").
