@@ -110,4 +110,11 @@ describe("deleting in the editor", () => {
     expect(html).toMatch(/<input aria-label="Title"[^>]*value="Read chapter 4"/);
     expect(html).toMatch(/aria-pressed="true"[^>]*>.*Run a half marathon/s);
   });
+
+  it("shows the suggested day in a date field that can be changed (the day is a suggestion)", () => {
+    const html = renderToStaticMarkup(
+      <NewEventForm date="2026-11-17" today="2026-11-16" startMin={540} endMin={600} goals={GOALS} onClose={() => {}} onOpenEditor={() => {}} />,
+    );
+    expect(html).toMatch(/<button type="button" aria-expanded="false" aria-label="Date: Tue, Nov 17"/);
+  });
 });

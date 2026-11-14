@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button, LinkButton } from "@/components/ui/Button";
+import { newEventSlot } from "@/lib/events/new-event-day";
 import { gridRange, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
 import { localAt, type Span } from "@/lib/events/drag";
 import type { CalendarEvent, WeekData, WeekEvent } from "@/lib/events/types";
@@ -275,14 +276,11 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
   }, [router, view, date, previous, next, isPhone]);
 
   // "New event" without a click in the grid (also by keyboard), as in the prototype: the small card at
-  // the button, for the next full hour today, else 9am on the shown day.
+  // the button, on the day the calendar is on (the day in the address): the next full hour when that
+  // day is today, else 9am. In a week or month it is the chosen day, not simply today.
   const addEvent = (anchor: Anchor) => {
-    if (todayShown || view === "month") {
-      setPop({ kind: "new", date: suggestion.start.slice(0, 10), span: spanOf(suggestion.start, suggestion.end), anchor });
-      return;
-    }
-    const startMin = Math.max(dayStartHour * 60, 9 * 60);
-    setPop({ kind: "new", date, span: { startMin, endMin: Math.min(24 * 60, startMin + 60) }, anchor });
+    const nextHour = { date: suggestion.start.slice(0, 10), span: spanOf(suggestion.start, suggestion.end) };
+    setPop({ kind: "new", ...newEventSlot({ date, today, nextHour, dayStartHour }), anchor });
   };
 
   const title = viewTitle(view, date);
@@ -388,6 +386,7 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
         <NewEventPopover
           key={`${pop.date}-${pop.span.startMin}-${pop.span.endMin}`}
           date={pop.date}
+          today={today}
           startMin={pop.span.startMin}
           endMin={pop.span.endMin}
           anchor={pop.anchor}
