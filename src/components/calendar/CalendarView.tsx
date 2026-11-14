@@ -18,7 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button, LinkButton } from "@/components/ui/Button";
-import { newEventSlot } from "@/lib/events/new-event-day";
+import { newEventSlot, nextFullHour } from "@/lib/events/new-event-day";
 import { gridRange, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
 import { localAt, type Span } from "@/lib/events/drag";
 import type { CalendarEvent, WeekData, WeekEvent } from "@/lib/events/types";
@@ -61,8 +61,6 @@ type Props = {
   week: WeekData;
   /** The current local time from the server, "2026-11-16T09:12", so the first render matches it. */
   nowLocal: string;
-  /** Start and end the "New event" button suggests (the next full hour). */
-  suggestion: { start: string; end: string };
   /** The user's goals, for the colour and name of an event's goal. */
   goals: GoalLabel[];
   /** Outlook is set up on this server. */
@@ -93,13 +91,6 @@ type Pop =
 export type Toast = { id: number; text: string; undo?: () => void };
 const TOAST_MS = 8000;
 
-/** The span of a suggested start and end ("+"): from the start's day, at most to midnight. */
-function spanOf(start: string, end: string): Span {
-  const startMin = minuteOfLocal(start);
-  const endMin = end.slice(0, 10) === start.slice(0, 10) ? minuteOfLocal(end) : 24 * 60;
-  return { startMin, endMin: Math.max(endMin, startMin + 15) };
-}
-
 /** The event with this id as the calendar shows it now (timed or all-day), or null. */
 function findEvent(week: WeekData, id: string): CalendarEvent | null {
   for (const day of week.days) {
@@ -109,7 +100,7 @@ function findEvent(week: WeekData, id: string): CalendarEvent | null {
   return week.lead.find((e) => e.id === id) ?? null;
 }
 
-export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, outlookAvailable = false }: Props) {
+export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailable = false }: Props) {
   const week = useLiveWeek(serverWeek);
   const router = useRouter();
   const now = useNowLocal(nowLocal, week.timeZone);
@@ -282,8 +273,8 @@ export function CalendarView({ week: serverWeek, nowLocal, suggestion, goals, ou
   // the button, on the day the calendar is on (the day in the address): the next full hour when that
   // day is today, else 9am. In a week or month it is the chosen day, not simply today.
   const addEvent = (anchor: Anchor) => {
-    const nextHour = { date: suggestion.start.slice(0, 10), span: spanOf(suggestion.start, suggestion.end) };
-    setPop({ kind: "new", ...newEventSlot({ date, today, nextHour, dayStartHour }), anchor });
+    // The next full hour on the user's own clock at the moment of the click, not a value the server worked out earlier.
+    setPop({ kind: "new", ...newEventSlot({ date, today, nextHour: nextFullHour(localDateTimeOf(new Date(), week.timeZone)), dayStartHour }), anchor });
   };
 
   const title = viewTitle(view, date);

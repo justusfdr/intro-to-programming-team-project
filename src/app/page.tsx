@@ -15,8 +15,6 @@ import { localDateTimeOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Calendar" };
 
-const HOUR = 60 * 60 * 1000;
-
 // The calendar (specs 02 and 14). The address names the view and the day (/?view=day&date=2026-11-18;
 // without them the default view from the settings and today). The page reads exactly those days, the
 // goals and the tasks on the server in one transaction (src/lib/server/pages/load.ts). After an action
@@ -35,13 +33,6 @@ export default async function CalendarPage({
   const { display, week, goals, tasks, showWelcome } = await loadCalendarPage(deps, userId, address.date, address.view);
 
   const now = deps.now();
-  // "New event" suggests the next full hour, one hour long.
-  const nextHour = new Date(Math.ceil(now.getTime() / HOUR) * HOUR);
-  const suggestion = {
-    start: localDateTimeOf(nextHour, week.timeZone),
-    end: localDateTimeOf(new Date(nextHour.getTime() + HOUR), week.timeZone),
-  };
-
   const nowLocal = localDateTimeOf(now, week.timeZone);
   return (
     <Announcer>
@@ -51,7 +42,6 @@ export default async function CalendarPage({
             <CalendarView
               week={week}
               nowLocal={nowLocal}
-              suggestion={suggestion}
               goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
               outlookAvailable={outlookConfigured()}
             />
