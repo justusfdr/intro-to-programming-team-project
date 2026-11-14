@@ -55,7 +55,8 @@ function timesOf(session: SessionDto): SessionTimes {
  */
 export function afterRejection(answer: PostResult): { reload: boolean } {
   const error = (answer.data as { error?: unknown } | undefined)?.error;
-  return { reload: error === "session_ended" || error === "not_found" };
+  // "session_running" and "not_possible" mean another tab or device already changed the session.
+  return { reload: ["session_ended", "not_found", "session_running", "not_possible"].includes(error as string) };
 }
 
 /** Sends one session action; announces the message and reloads the page's data on success. */
