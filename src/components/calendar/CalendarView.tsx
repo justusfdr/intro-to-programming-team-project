@@ -39,6 +39,7 @@ import {
 } from "@/lib/events/views";
 import { leadInto } from "@/lib/events/week-view";
 import { fmtDateLong, fmtWeekday } from "@/lib/time/display";
+import { msToNextMinute } from "@/lib/time/next-minute";
 import { localDateTimeOf } from "@/lib/time/zoned";
 import type { NewTodo } from "@/lib/todos/types";
 import { postJson, type PostResult } from "@/lib/client/post-json";
@@ -71,12 +72,28 @@ type Props = {
 const SCROLL_CONTEXT_MIN = 90;
 const SCROLL_LEAD_MIN = 30;
 
-/** The local time "now", refreshed every minute (for the red line). */
+/**
+ * The local time "now" (for the red line), refreshed right when the minute changes and when the tab
+ * comes back to the front (a hidden tab's timers run late).
+ */
 function useNowLocal(initial: string, timeZone: string): string {
   const [now, setNow] = useState(initial);
   useEffect(() => {
-    const id = window.setInterval(() => setNow(localDateTimeOf(new Date(), timeZone)), 60_000);
-    return () => window.clearInterval(id);
+    let id = 0;
+    const tick = () => {
+      window.clearTimeout(id);
+      setNow(localDateTimeOf(new Date(), timeZone));
+      id = window.setTimeout(tick, msToNextMinute(Date.now()));
+    };
+    const onShow = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    id = window.setTimeout(tick, msToNextMinute(Date.now()));
+    document.addEventListener("visibilitychange", onShow);
+    return () => {
+      window.clearTimeout(id);
+      document.removeEventListener("visibilitychange", onShow);
+    };
   }, [timeZone]);
   return now;
 }
