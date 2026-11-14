@@ -39,3 +39,15 @@ export function signInResultMessage(result: string | null): string | null {
   if (result === "failed") return "Outlook was not connected";
   return null;
 }
+
+/**
+ * The quiet line after "Sync now" when nothing was synced: the 5-minute gap (`ran: false`) or a failed
+ * sync (`ok: false`). Null when the sync ran fine, or when the answer is not a sync answer at all.
+ */
+export function syncNote(answer: { ok: boolean; message: string; data?: unknown }): string | null {
+  const data = answer.data as { ran?: unknown; ok?: unknown } | undefined;
+  if (!answer.ok) return answer.message || "Outlook is not available right now";
+  if (data?.ran === false) return "Already synced a few minutes ago";
+  if (data?.ran === true && data.ok === false) return answer.message || "Outlook is not available right now";
+  return null;
+}

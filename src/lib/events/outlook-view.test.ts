@@ -1,6 +1,6 @@
 // Tests for what the calendar says about the Outlook connection.
 import { describe, expect, it } from "vitest";
-import { lastSyncedText, signInResultMessage, statusText } from "./outlook-view";
+import { lastSyncedText, signInResultMessage, statusText, syncNote } from "./outlook-view";
 
 describe("lastSyncedText", () => {
   it("says the local time today, the date before, and 'Not synced yet' before the first sync", () => {
@@ -19,5 +19,18 @@ describe("statusText and signInResultMessage", () => {
     expect(signInResultMessage("connected")).toBe("Outlook connected.");
     expect(signInResultMessage("failed")).toBe("Outlook was not connected");
     expect(signInResultMessage("https://evil.example")).toBeNull();
+  });
+});
+
+describe("syncNote", () => {
+  it("explains a sync that did not run or failed, and stays quiet when it ran", () => {
+    const ok = (data: unknown) => ({ ok: true, message: "", data });
+    expect(syncNote(ok({ ran: false, ok: null }))).toBe("Already synced a few minutes ago");
+    expect(syncNote(ok({ ran: true, ok: false }))).toBe("Outlook is not available right now");
+    expect(syncNote({ ok: true, message: "Outlook needs you to sign in again.", data: { ran: true, ok: false } })).toBe(
+      "Outlook needs you to sign in again.",
+    );
+    expect(syncNote({ ok: false, status: 0, message: "We could not reach the server." } as never)).toBe("We could not reach the server.");
+    expect(syncNote(ok({ ran: true, ok: true }))).toBeNull();
   });
 });
