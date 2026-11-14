@@ -24,6 +24,8 @@ const eyebrow = "text-[11px] font-semibold uppercase tracking-[0.08em]";
 type Props = {
   plan: Plan;
   paymentReady: boolean;
+  /** "16 December 2026" when Pro is set to end (read from Stripe when the page loads), else null. */
+  endsOn?: string | null;
   /** "success" or "cancelled" when Stripe sent the browser back. */
   checkout?: string;
   /** Starts at the "Cancel Pro?" question (static previews only). */
@@ -69,7 +71,7 @@ function PlanHead({ info, current, strong }: { info: PlanInfo; current: boolean;
   );
 }
 
-export function PricingView({ plan, paymentReady, checkout, defaultConfirming = false }: Props) {
+export function PricingView({ plan, paymentReady, endsOn = null, checkout, defaultConfirming = false }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<"upgrade" | "cancel" | null>(null);
   const [error, setError] = useState("");
@@ -78,6 +80,8 @@ export function PricingView({ plan, paymentReady, checkout, defaultConfirming = 
   const [gaveUp, setGaveUp] = useState(false);
   const note = checkoutNote(checkout, plan, gaveUp);
   const [free, pro] = PLANS;
+  // Cancelled just now, or earlier (then Stripe told the server when the page loaded).
+  const ends = cancelled || (endsOn ? `Pro ends on ${endsOn}` : "");
 
   // Back from paying but still Free: Stripe's message is on its way. Look again a few times.
   const waiting = checkout === "success" && plan === "free";
@@ -162,12 +166,15 @@ export function PricingView({ plan, paymentReady, checkout, defaultConfirming = 
                 </p>
               </>
             )}
-            {plan === "pro" && !cancelled && !confirming && (
+            {plan === "pro" && ends && (
+              <p className="flex h-11 items-center justify-center rounded-full border border-line text-sm font-medium text-ink-2">{ends}</p>
+            )}
+            {plan === "pro" && !ends && !confirming && (
               <Button variant="secondary" size="lg" className="w-full" onClick={() => setConfirming(true)}>
                 Cancel Pro
               </Button>
             )}
-            {plan === "pro" && confirming && (
+            {plan === "pro" && !ends && confirming && (
               <div role="group" aria-label="Cancel Pro?" className="flex flex-col gap-2">
                 <p className="text-sm text-ink-2">Cancel Pro? You keep the coach until the end of the month you paid for.</p>
                 <div className="flex gap-2">
