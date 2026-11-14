@@ -106,7 +106,8 @@ export function isGuestsError(answer: PostResult): boolean {
 
 /** The same body without its guests, to bring the event back when the server refuses them. */
 export function withoutGuests<T extends { guests?: unknown }>(body: T): Omit<T, "guests"> {
-  const { guests: _guests, ...rest } = body;
+  const rest: T = { ...body };
+  delete rest.guests;
   return rest;
 }
 
