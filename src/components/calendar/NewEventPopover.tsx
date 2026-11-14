@@ -10,11 +10,11 @@ import { Button } from "@/components/ui/Button";
 import { useLive } from "@/components/live/Live";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { localAt, MIN_DURATION } from "@/lib/events/drag";
-import { fmtDateShort, fmtMinutes } from "@/lib/time/display";
+import { fmtMinutes } from "@/lib/time/display";
 import { LAST_MINUTE, endProblem } from "@/lib/time/wheel";
 import { useAnnounce } from "./Announcer";
 import { savedEventChange } from "./event-changes";
-import { Eyebrow, GoalChips, ToggleChip, inputClass } from "./fields";
+import { DateField, Eyebrow, GoalChips, ToggleChip, inputClass } from "./fields";
 import { FloatingPanel, type Anchor } from "./FloatingPanel";
 import { TimeField, TimeWheel } from "./TimeWheel";
 import type { GoalLabel } from "./TimeGrid";
@@ -30,7 +30,10 @@ const DURATIONS = [
 export type NewEventDraft = { title: string; goalId: string | null; start: string; end: string };
 
 type Props = {
+  /** The day the card suggests; it can be changed in the card's date field. */
   date: string;
+  /** Today in the user's time zone (the month calendar marks it). Without it the suggested day. */
+  today?: string;
   startMin: number;
   endMin: number;
   anchor: Anchor;
@@ -51,10 +54,12 @@ export function NewEventPopover({ anchor, ...rest }: Props) {
 }
 
 /** The card's content (also rendered on its own for the previews and tests). */
-export function NewEventForm({ date, startMin, endMin, goals, outlookConnected = false, onClose, onOpenEditor }: Omit<Props, "anchor">) {
+export function NewEventForm({ date: suggestedDate, today, startMin, endMin, goals, outlookConnected = false, onClose, onOpenEditor }: Omit<Props, "anchor">) {
   const live = useLive();
   const announce = useAnnounce();
   const [title, setTitle] = useState("");
+  // The day starts as the calendar's suggestion and can be changed here.
+  const [date, setDate] = useState(suggestedDate);
   const [goalId, setGoalId] = useState<string | null>(null);
   const [start, setStart] = useState(startMin);
   // At least MIN_DURATION long, even if the input does not say so; at the latest 23:59 (the wheel's end).
@@ -103,10 +108,7 @@ export function NewEventForm({ date, startMin, endMin, goals, outlookConnected =
       }}
       className="flex flex-col gap-3 p-4"
     >
-      <div className="flex items-center justify-between gap-2">
-        <Eyebrow>New event</Eyebrow>
-        <span className="text-xs tabular text-ink-3">{fmtDateShort(date)}</span>
-      </div>
+      <Eyebrow>New event</Eyebrow>
 
       <input
         autoFocus
@@ -119,6 +121,11 @@ export function NewEventForm({ date, startMin, endMin, goals, outlookConnected =
       />
 
       <GoalChips goals={goals} value={goalId} onChange={setGoalId} />
+
+      <div className="flex flex-col gap-1.5">
+        <Eyebrow>Date</Eyebrow>
+        <DateField label="Date" value={date} onChange={setDate} todayKey={today ?? suggestedDate} />
+      </div>
 
       <div className="flex items-start gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
