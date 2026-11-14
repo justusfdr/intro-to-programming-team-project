@@ -192,7 +192,6 @@ it("writes the preview files", async () => {
             <CalendarView
               week={shown}
               nowLocal="2026-11-17T12:10"
-              suggestion={{ start: "2026-11-17T13:00", end: "2026-11-17T14:00" }}
               goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
               outlookAvailable
             />
@@ -425,7 +424,6 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
             <CalendarView
               week={w}
               nowLocal="2026-11-18T13:00"
-              suggestion={{ start: "2026-11-18T14:00", end: "2026-11-18T15:00" }}
               goals={g.map(({ id, title, look }) => ({ id, title, look }))}
               outlookAvailable
             />
