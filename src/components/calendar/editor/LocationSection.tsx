@@ -7,9 +7,9 @@
 // the field shows the full address and flashes green; not found → it flashes red and shakes, and the text
 // stays as typed (a location may also be a room or a name, so it can still be saved).
 // The travel line ("Leave at …", R27) is drawn below it by the editor (TravelLine).
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
-import { PlaceList, checkClass, lookUp, nextRow, usePlaceSuggestions } from "@/components/places/places";
+import { PlaceList, checkClass, lookUpCurrent, nextRow, usePlaceSuggestions } from "@/components/places/places";
 import type { PlaceSuggestion } from "@/lib/places/places";
 import { Eyebrow, inputClass } from "../fields";
 
@@ -50,6 +50,12 @@ function LocationField({ value, onType, onDone }: Omit<Props, "editable">) {
   const [active, setActive] = useState(-1);
   const [check, setCheck] = useState<Check>({ state: "idle", round: 0 });
 
+  // What the field holds now, to drop the answer of a look-up for text that was changed meanwhile.
+  const latest = useRef(value);
+  useEffect(() => {
+    latest.current = value;
+  }, [value]);
+
   const typed = value.trim();
   const settled = typed === first.trim() || typed === picked;
   const suggestions = usePlaceSuggestions(typed, settled);
@@ -67,7 +73,8 @@ function LocationField({ value, onType, onDone }: Omit<Props, "editable">) {
     const text = value.trim();
     if (text === "") return;
     setCheck((c) => ({ state: "checking", round: c.round }));
-    const exact = await lookUp(text, undefined, true);
+    const exact = await lookUpCurrent(text, () => latest.current);
+    if (exact === "stale") return setCheck((c) => ({ state: "idle", round: c.round }));
     if (exact === null) return setCheck((c) => ({ state: "missing", message: "Address search is not available right now", round: c.round + 1 }));
     if (exact.length === 0) {
       return setCheck((c) => ({ state: "missing", message: "Address not found. You can still keep it as text.", round: c.round + 1 }));

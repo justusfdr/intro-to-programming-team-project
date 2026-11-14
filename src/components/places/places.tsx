@@ -21,6 +21,15 @@ export async function lookUp(query: string, signal?: AbortSignal, exact = false)
 }
 
 /**
+ * The exact look-up of `text`, or "stale" when the field no longer holds that text once the answer is
+ * there (`current` reads the field now): the answer is then dropped, so it never overwrites what was typed since.
+ */
+export async function lookUpCurrent(text: string, current: () => string): Promise<PlaceSuggestion[] | null | "stale"> {
+  const answer = await lookUp(text, undefined, true);
+  return current().trim() === text ? answer : "stale";
+}
+
+/**
  * The suggestions for `typed`, asked a moment after the last key. Nothing is asked for fewer than three
  * characters or while `skip` is true (for example the text is a saved or chosen address). Suggestions for
  * older text are never shown.
