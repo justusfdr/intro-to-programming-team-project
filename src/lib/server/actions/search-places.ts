@@ -1,11 +1,13 @@
 import "server-only";
 
-// Action search_places: address suggestions for the home address in settings. The browser asks us, we ask
+// Action search_places: address suggestions for the home address in settings (and with kind=city, cities
+// for the time zone). The browser asks us, we ask
 // the OpenStreetMap-based Photon service (so the service never sees the user's browser, and we set a
 // clear name for our app). Nothing is saved. Signed in only, to keep strangers from using it.
 // Each user may search at most 30 times a minute, so nobody can flood the free services through us.
 import { MESSAGES } from "@/lib/messages";
-import { confirmedFrom, fitsTyped, suggestionsFrom } from "@/lib/places/places";
+import { citiesFrom, confirmedFrom, fitsTyped, suggestionsFrom } from "@/lib/places/places";
+import { timeZoneAt } from "@/lib/server/places/time-zone";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertSameOrigin, jsonOk } from "@/lib/server/http";
@@ -62,6 +64,19 @@ export function searchPlaces(request: Request, deps: Pick<Deps, "auth" | "now">,
         throw new ActionError(502, "places_unavailable", MESSAGES.placesUnavailable);
       }
     };
+
+    // kind=city: cities for the time zone in the settings, each with the time zone at its position (a city
+    // whose time zone is not known is left out). Unlike for addresses, the results are not filtered by
+    // fitsTyped: the service also knows a city by its name in other languages ("Tokio", "Lissabon",
+    // "München"), and answers in English ("Tokyo, Japan"), so the typed word is often not in the label.
+    if (new URL(request.url).searchParams.get("kind") === "city") {
+      const answer = await ask(`${PHOTON}?${new URLSearchParams({ q: query, limit: "8", lang: "en", layer: "city" })}`);
+      const places = citiesFrom(answer).flatMap((place) => {
+        const timeZone = timeZoneAt(place.lat, place.lon);
+        return timeZone ? [{ ...place, timeZone }] : [];
+      });
+      return jsonOk({ places });
+    }
 
     // "Confirm": one exact look-up. Nominatim first; Photon if it finds nothing or does not answer (down,
     // or too many questions). Nominatim allows one question per second, so this waits its turn in the

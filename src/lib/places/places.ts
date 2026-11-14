@@ -40,6 +40,36 @@ export function suggestionsFrom(answer: unknown, limit = 5): PlaceSuggestion[] {
   return found;
 }
 
+/** A city for the time zone in the settings: where it is, and the time zone the server found there. */
+export type CitySuggestion = PlaceSuggestion & { timeZone: string };
+
+/** "Lisbon, Portugal" or "Paris, Texas, United States": the city, its region when that has another name, the country. */
+export function cityLabelOf(p: Record<string, unknown>): string {
+  const name = text(p.name);
+  const region = text(p.state) || text(p.county);
+  const country = text(p.country);
+  if (!name || !country) return "";
+  return [name, region !== name && region !== country ? region : "", country].filter(Boolean).join(", ");
+}
+
+/** The cities in a Photon answer (asked with layer=city): only results with a name, a country and a position, no repeats. */
+export function citiesFrom(answer: unknown, limit = 5): PlaceSuggestion[] {
+  const features = (answer as { features?: unknown })?.features;
+  if (!Array.isArray(features)) return [];
+  const seen = new Set<string>();
+  const found: PlaceSuggestion[] = [];
+  for (const feature of features as PhotonFeature[]) {
+    const [lon, lat] = Array.isArray(feature?.geometry?.coordinates) ? (feature.geometry.coordinates as unknown[]) : [];
+    const label = feature?.properties ? cityLabelOf(feature.properties) : "";
+    if (!label || typeof lon !== "number" || typeof lat !== "number" || !Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    if (seen.has(label)) continue;
+    seen.add(label);
+    found.push({ label, lat, lon });
+    if (found.length === limit) break;
+  }
+  return found;
+}
+
 /** The house number someone typed ("rua das madres 66" → "66"), or "". A postcode like 1200-861 is not one. */
 export function houseNumberIn(typed: string): string {
   return /(?:^|[\s,])(\d{1,4}[A-Za-z]?)(?=$|[\s,])/.exec(typed)?.[1] ?? "";

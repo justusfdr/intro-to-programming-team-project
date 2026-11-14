@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { labelOf, suggestionsFrom } from "./places";
+import { citiesFrom, cityLabelOf, labelOf, suggestionsFrom } from "./places";
 
 const house = { street: "Rua Augusta", housenumber: "100", postcode: "1100-050", city: "Lisboa", country: "Portugal" };
 const feature = (properties: Record<string, unknown>, coordinates: unknown = [-9.13, 38.71]) => ({ geometry: { coordinates }, properties });
@@ -89,5 +89,44 @@ describe("fitsTyped", () => {
   });
   it("keeps everything when only numbers were typed", () => {
     expect(fitsTyped("Rua Augusta 100, Lisboa, Portugal", "100")).toBe(true);
+  });
+});
+
+// Cities for the time zone in the settings (Photon answers with layer=city; shapes copied from real answers).
+describe("cityLabelOf", () => {
+  it("writes the city, its region when that has another name, and the country", () => {
+    expect(cityLabelOf({ name: "Paris", state: "Texas", county: "Lamar", country: "United States" })).toBe("Paris, Texas, United States");
+    expect(cityLabelOf({ name: "Kyiv", country: "Ukraine" })).toBe("Kyiv, Ukraine");
+  });
+  it("leaves out a region with the city's or the country's name", () => {
+    expect(cityLabelOf({ name: "Lisbon", county: "Lisbon", country: "Portugal" })).toBe("Lisbon, Portugal");
+    expect(cityLabelOf({ name: "Singapore", state: "Singapore", country: "Singapore" })).toBe("Singapore, Singapore");
+  });
+  it("is empty without a name or a country", () => {
+    expect(cityLabelOf({ name: "Lisbon" })).toBe("");
+    expect(cityLabelOf({ country: "Portugal" })).toBe("");
+    expect(cityLabelOf({ name: 3, country: "Portugal" })).toBe("");
+  });
+});
+
+describe("citiesFrom", () => {
+  it("keeps cities with a label and a position, without repeats, up to the limit", () => {
+    const answer = {
+      features: [
+        feature({ name: "Lisbon", county: "Lisbon", country: "Portugal" }, [-9.1365919, 38.7077507]),
+        feature({ name: "Lisbon", county: "Lisbon", country: "Portugal" }, [-9.1, 38.7]),
+        feature({ name: "Lisbon", state: "Iowa", country: "United States" }, [-91.3854913, 41.9211165]),
+        feature({ name: "Nowhere" }, [1, 2]),
+        feature({ name: "Broken", country: "Portugal" }, ["x", 2]),
+      ],
+    };
+    expect(citiesFrom(answer)).toEqual([
+      { label: "Lisbon, Portugal", lat: 38.7077507, lon: -9.1365919 },
+      { label: "Lisbon, Iowa, United States", lat: 41.9211165, lon: -91.3854913 },
+    ]);
+    expect(citiesFrom(answer, 1)).toHaveLength(1);
+  });
+  it("is empty for an answer of the wrong shape", () => {
+    for (const bad of [null, {}, { features: "x" }, "x"]) expect(citiesFrom(bad)).toEqual([]);
   });
 });

@@ -30,7 +30,7 @@ const DATA: SettingsPageData = {
 const BLOCKER: BlockerData = { sites: [{ id: "1", domain: "youtube.com" }], connected: false, blockingOn: false, blockingUntil: null, timeZone: "Europe/Lisbon" };
 
 const render = (data: SettingsPageData = DATA) =>
-  renderToStaticMarkup(<SettingsView data={data} blocker={BLOCKER} timeZones={["America/New_York", "Europe/Lisbon"]} />);
+  renderToStaticMarkup(<SettingsView data={data} blocker={BLOCKER} />);
 
 /** Every <input>/<select> id must have a <label for>, or the control sits in a labelled radio group. */
 function unlabelled(html: string): string[] {
@@ -63,7 +63,7 @@ describe("settings page", () => {
     expect(html).toContain('<option value="7" selected="">7am</option>');
     expect(html).toContain('<option value="21" selected="">9pm</option>');
     expect(html).toContain('<option value="24">Midnight</option>');
-    expect(html).toContain('<option value="Europe/Lisbon" selected="">Europe/Lisbon</option>');
+    expect(html).toContain('Now: <span class="font-medium text-ink">Europe/Lisbon</span>');
     expect(html).toContain('value="Rua Augusta 100, Lisbon"');
     expect(html).toMatch(/<input type="radio"[^>]*checked=""[^>]*value="cycling"/);
     expect(html).toContain('<option value="15" selected="">15 min</option>');
@@ -77,6 +77,18 @@ describe("settings page", () => {
     expect(html).toMatch(/<button[^>]*>Confirm<\/button>/);
     // Suggestions only appear after typing.
     expect(html).not.toContain('role="listbox" aria-label="Address suggestions"');
+  });
+
+  it("chooses the time zone by city: a field to type the city, Confirm, the zone in use, and the device's zone", () => {
+    const html = render({ ...DATA, settings: { ...DATA.settings, timeZone: "America/New_York" } });
+    expect(html).toMatch(/<label[^>]*for="([^"]+)"[^>]*>Time zone<\/label>/);
+    const id = /<label[^>]*for="([^"]+)"[^>]*>Time zone<\/label>/.exec(html)![1];
+    expect(html).toMatch(new RegExp(`<input[^>]*id="${id}"[^>]*role="combobox"[^>]*placeholder="Type your city, e.g. Lisbon"`));
+    expect(html).toContain("Now: <span class=\"font-medium text-ink\">America/New York</span>");
+    expect(html).toContain("Use this device’s time zone");
+    // No long list of time zones any more, and no city suggestions before typing.
+    expect(html).not.toContain('<option value="America/New_York"');
+    expect(html).not.toContain('aria-label="City suggestions"');
   });
 
   it("names the map and timetable data once, as their licence asks (R27)", () => {

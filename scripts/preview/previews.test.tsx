@@ -304,7 +304,7 @@ it("writes the preview files", async () => {
     renderToStaticMarkup(
       <Announcer>
         <AppShell current="/settings">
-          <SettingsView data={data} blocker={settingsBlocker} timeZones={Intl.supportedValuesOf("timeZone")} />
+          <SettingsView data={data} blocker={settingsBlocker} />
         </AppShell>
       </Announcer>,
     );
