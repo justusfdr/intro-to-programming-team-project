@@ -53,6 +53,10 @@ function useVoiceLanguage(): [VoiceLanguage, (language: VoiceLanguage) => void] 
   return [language, choose];
 }
 
+/** Spec 37 (R22, R66): what is sent about a named contact. */
+export const COMMON_TIME_SENT =
+  "If you name a contact who shares their calendar with you: their name and their busy times for the next 14 days (no titles, no places).";
+
 /** What is sent with every message (R22) and what is not, in words. */
 export function WhatIsSent() {
   return (
@@ -68,6 +72,7 @@ export function WhatIsSent() {
         </li>
         <li>Your weekly totals: time spent per goal</li>
         <li>Your time zone, the current date and time, and the hours your calendar shows</li>
+        <li>{COMMON_TIME_SENT}</li>
       </ul>
       <p className="mt-2 font-semibold text-ink">Not sent</p>
       <p>Your e-mail address, your password, the locations of events, your block list, your tasks, the titles of the to-dos of the events in your calendar.</p>

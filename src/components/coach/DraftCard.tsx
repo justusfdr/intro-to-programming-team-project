@@ -22,6 +22,8 @@
 // calendar's own, pale, with a small mark "+2 to-dos" (an all-day event among the all-day chips), its
 // day shown also when the draft has nothing else on it; under the column the list says "To-dos for
 // 'Lernblock'" with the new titles. It is never dragged. The draft is applied with "Apply changes".
+// Spec 37: a proposed event may invite people; under the days, "Invited" lists them per event with
+// their photo or initials and name (DraftPeople), and they can be taken off before applying.
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
@@ -29,6 +31,7 @@ import { GoalRow } from "@/components/goals/GoalRow";
 import { GOAL_ICONS, GoalTile } from "@/components/goals/GoalTile";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { Button, LinkButton } from "@/components/ui/Button";
+import { DraftPeople } from "./DraftPeople";
 import {
   addedTodosText,
   canDragBlock,
@@ -539,6 +542,7 @@ export function DraftCard({ draft: saved, goals, timeZone, calendar, onStatus, o
           </ul>
         </section>
       ))}
+      <DraftPeople draft={draft} timeZone={timeZone} working={working} setWorking={setBusy} onRefusal={setRefusal} onEdited={onEdited} />
       {open && (
         <div className="flex flex-wrap items-center gap-2 border-t border-line-subtle bg-raised/50 p-3">
           <Button size="sm" disabled={working} onClick={() => void act("accept")}>

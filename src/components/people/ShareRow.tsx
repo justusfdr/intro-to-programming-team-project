@@ -6,6 +6,8 @@
 // back with the server's message when refused (R1). The other direction is one line with links.
 // Spec 32: for a demo contact the controls are shown switched off and disabled, with the reason:
 // nothing of the user's is ever shared with a demo contact.
+// Spec 37: while the calendar is shared, a quiet sentence under it says that the contact's coach may
+// use the busy times and that they then go to the AI provider (the consent notice of R66).
 import Link from "next/link";
 import { useId, useState } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
@@ -22,6 +24,14 @@ const LEVELS: FieldOption<CalendarLevel>[] = [
 /** The same look as the editor's "All day" switch. */
 const SWITCH_CLASS =
   "relative h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-line transition-colors checked:bg-ink before:absolute before:top-0.5 before:left-0.5 before:size-4 before:rounded-full before:bg-white before:shadow-sm before:transition-transform checked:before:translate-x-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60";
+
+/**
+ * Spec 37 (R66): under the calendar choice whenever the calendar is shared, what the contact's coach
+ * may do with it.
+ */
+export function coachNoticeText(name: string): string {
+  return `${name} can ask their Coach to find a time with you. The Coach then gets your busy times, without titles or places, and they are sent to the AI provider.`;
+}
 
 /** Why the controls are disabled on a demo contact. */
 export const DEMO_SHARE_NOTE = "Demo contacts cannot see anything of yours";
@@ -106,6 +116,7 @@ export function ShareRow({
         </span>
       </div>
       {demo && <p className="text-xs text-ink-3">{DEMO_SHARE_NOTE}.</p>}
+      {!demo && setting.calendar !== "none" && <p className="text-xs text-ink-3">{coachNoticeText(name)}</p>}
       {showTheirs && <p className="text-xs text-ink-3">
         {theirs ?? `${name} shares nothing with you.`}
         {shared.calendar !== "none" && (
