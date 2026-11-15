@@ -53,3 +53,6 @@ export type ProfileCardData = {
   linkedinUrl: string | null;
   timeZone: string;
 };
+
+/** The signed-in user as the sidebar shows them (spec 31): the shown name and the photo. */
+export type SidebarMe = { name: string; photoUrl: string | null };

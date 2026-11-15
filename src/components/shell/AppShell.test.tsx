@@ -1,5 +1,5 @@
 // The shell (spec 12), copied from the prototype: the sidebar with Calendar, Coach (spec 19), Focus, Analytics, then
-// Settings and the account row at the bottom; on phones the floating tab bar with the same pages and
+// Pricing, Settings and the user's own row at the bottom (spec 31); on phones the floating tab bar with the same pages and
 // Settings, each with its name for screen readers and the current page marked.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -21,15 +21,40 @@ describe("app shell", () => {
   // Rewritten for spec 25: "Goals" is second in the list (it moved here from the calendar's toolbar).
   // Rewritten for spec 28: "People" (contacts and invitations) is last in the list.
   // Rewritten for spec 30: "Lists" (shared to-do lists) follows "Goals".
-  it("lists Calendar, Goals, Lists, Coach, Focus, Analytics and People in the main navigation, then Settings and Sign out at the bottom", () => {
+  // Rewritten for spec 31: the bottom is Pricing, Settings, then the user's own row to /profile; "Sign
+  // out" moved to the profile page.
+  it("lists Calendar, Goals, Lists, Coach, Focus, Analytics and People in the main navigation, then Pricing, Settings and the user's own row", () => {
     const html = render("/");
     const nav = html.slice(html.indexOf('aria-label="Main navigation"'), html.indexOf("</nav>"));
     expect([...nav.matchAll(/<\/svg>([A-Za-z ]+)<\/a>/g)].map((m) => m[1])).toEqual(["Calendar", "Goals", "Lists", "Coach", "Focus", "Analytics", "People"]);
     // Outside the calendar page "Goals" goes to the calendar.
     expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/", "/lists", "/coach", "/focus", "/analytics", "/people"]);
     expect(render("/lists")).toMatch(/href="\/lists" aria-current="page"/);
-    expect(html.indexOf('href="/settings"')).toBeGreaterThan(html.indexOf("</nav>"));
-    expect(html.indexOf("Sign out")).toBeGreaterThan(html.indexOf('href="/settings"'));
+    expect(html.indexOf('href="/pricing"')).toBeGreaterThan(html.indexOf("</nav>"));
+    expect(html.indexOf('href="/settings"')).toBeGreaterThan(html.indexOf('href="/pricing"'));
+    expect(html.indexOf('href="/profile"')).toBeGreaterThan(html.indexOf('href="/settings"'));
+    expect(html).not.toContain("Sign out");
+  });
+
+  // Spec 31: the user's avatar and shown name, to /profile. Before the name is known (a page that did not
+  // read it), an empty circle and the name "Your profile".
+  it("shows the user's avatar and name at the bottom, linking to their profile", () => {
+    const withMe = renderToStaticMarkup(
+      <AppShell current="/profile" me={{ name: "Justus Friederichs", photoUrl: null }}>
+        page
+      </AppShell>,
+    );
+    expect(withMe).toMatch(/<a href="\/profile" aria-current="page" class="[^"]*"><span aria-hidden="true"[^>]*>JF<\/span><span[^>]*>Justus Friederichs<\/span><\/a>/);
+    const withPhoto = renderToStaticMarkup(
+      <AppShell current="/" me={{ name: "Lea", photoUrl: "/api/profiles/u1/photo?v=1" }}>
+        page
+      </AppShell>,
+    );
+    expect(withPhoto).toMatch(/<a href="\/profile" class="[^"]*"><img src="\/api\/profiles\/u1\/photo\?v=1" alt=""[^>]*\/><span[^>]*>Lea<\/span><\/a>/);
+    expect(render("/")).toMatch(/<a href="\/profile" aria-label="Your profile" class="[^"]*"><span aria-hidden="true"[^>]*><\/span><\/a>/);
+    // Phones: no seventh tab; the profile is reached from Settings.
+    const bar = withMe.slice(withMe.indexOf('aria-label="Tab bar"'));
+    expect(bar).not.toContain("/profile");
   });
 
   it("the sidebar starts open, with the button that folds it to a strip of icons (spec 25)", () => {

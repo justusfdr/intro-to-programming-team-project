@@ -7,10 +7,11 @@
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
 import { ChevronsLeft, Pin, Target } from "lucide-react";
-import { SignOutButton } from "@/components/account/SignOutButton";
+import { Avatar } from "@/components/ui/Avatar";
 import { keepFocusAfterCollapse } from "./collapse-focus";
 import { Logo, LogoMark } from "./Logo";
 import { getJson } from "@/lib/client/post-json";
+import type { SidebarMe } from "@/lib/profiles/types";
 import { LISTS, NAV, PEOPLE, PRICING, SETTINGS, type NavItem } from "./nav";
 import { openAllPanels, usePanels, usePanelsAvailable } from "./PanelState";
 
@@ -97,6 +98,48 @@ function PeopleLink({ on, wide, invitations }: { on: boolean; wide: boolean; inv
   );
 }
 
+/**
+ * The user's own row at the bottom (spec 31): their photo or initials and their shown name, to the
+ * profile page (where "Sign out" is). Folded, the avatar alone, with the name as its label. A page that
+ * has read the profile passes it; on every other page it is asked once from the server (until then the
+ * row shows an empty circle and is called "Your profile").
+ */
+function ProfileLink({ on, wide, me }: { on: boolean; wide: boolean; me?: SidebarMe }) {
+  const [asked, setAsked] = useState<SidebarMe | null>(null);
+  useEffect(() => {
+    if (me) return;
+    let current = true;
+    void getJson("/api/profile").then((answer) => {
+      const data = answer.data as { name?: unknown; photoUrl?: unknown } | undefined;
+      if (!current || !answer.ok || typeof data?.name !== "string") return;
+      // Only an address of our own photo route is used as a picture.
+      const photoUrl = typeof data.photoUrl === "string" && data.photoUrl.startsWith("/api/profiles/") ? data.photoUrl : null;
+      setAsked({ name: data.name, photoUrl });
+    });
+    return () => {
+      current = false;
+    };
+  }, [me]);
+  const shown = me ?? asked;
+  const label = shown ? shown.name : "Your profile";
+  return (
+    <Link
+      href="/profile"
+      aria-current={on ? "page" : undefined}
+      aria-label={wide && shown ? undefined : label}
+      title={wide ? undefined : label}
+      className={`${ITEM} px-[6px] ${wide ? "w-full" : "w-9"} ${on ? "bg-raised font-medium text-ink" : QUIET}`}
+    >
+      {shown ? (
+        <Avatar name={shown.name} photoUrl={shown.photoUrl} size={24} />
+      ) : (
+        <span aria-hidden="true" className="size-6 shrink-0 rounded-full bg-muted" />
+      )}
+      {wide && shown && <span className="min-w-0 truncate">{shown.name}</span>}
+    </Link>
+  );
+}
+
 const ITEM = "flex h-9 items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg px-[9px] text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20";
 const QUIET = "text-ink-2 hover:bg-raised/60 hover:text-ink";
 
@@ -153,7 +196,7 @@ function GoalsItem({ wide }: { wide: boolean }) {
   );
 }
 
-export function Sidebar({ current, invitations }: { current: string; invitations?: number }) {
+export function Sidebar({ current, invitations, me }: { current: string; invitations?: number; me?: SidebarMe }) {
   // On the server (and in the first render) the sidebar is open.
   const folded = useSyncExternalStore(subscribe, readFolded, () => false);
   const [peek, setPeek] = useState(false);
@@ -228,14 +271,10 @@ export function Sidebar({ current, invitations }: { current: string; invitations
           ))}
           <PeopleLink on={current === PEOPLE.href} wide={wide} invitations={invitations} />
         </nav>
-        <div className="mt-auto flex flex-col gap-2">
-          <div className="flex flex-col gap-0.5">
-            <SidebarLink item={PRICING} on={current === PRICING.href} wide={wide} />
-            <SidebarLink item={SETTINGS} on={current === SETTINGS.href} wide={wide} />
-          </div>
-          <div className={wide ? "w-full" : "w-9"}>
-            <SignOutButton compact={!wide} />
-          </div>
+        <div className="mt-auto flex flex-col gap-0.5">
+          <SidebarLink item={PRICING} on={current === PRICING.href} wide={wide} />
+          <SidebarLink item={SETTINGS} on={current === SETTINGS.href} wide={wide} />
+          <ProfileLink on={current === "/profile"} wide={wide} me={me} />
         </div>
       </aside>
     </div>

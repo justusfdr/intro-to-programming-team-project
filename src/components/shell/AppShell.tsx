@@ -1,13 +1,15 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
+import type { SidebarMe } from "@/lib/profiles/types";
 import { DEFAULT_DISPLAY, type Display } from "@/lib/time/display";
 import { NAV, PRICING, SETTINGS } from "./nav";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { Sidebar } from "./Sidebar";
 
 // The frame of every signed-in page, copied from the prototype's shell: the sidebar on wider screens
-// (mark and name, navigation, Pricing and Settings at the bottom, then the account row) and the floating tab bar
+// (mark and name, navigation, Pricing and Settings at the bottom, then the user's own row to their profile,
+// spec 31) and the floating tab bar
 // on phones. Navigation shows only what exists; the Goals page takes its place between Calendar and
 // Focus in a later step. The coach (the AI chat, spec 19) is a page of its own, second in the list.
 // Search and quick capture come with their features. Side panels go in as in the prototype: the goals
@@ -27,6 +29,8 @@ type Props = {
   panelsRight?: ReactNode;
   /** Open invitations to the user, for the badge on "People" (spec 28); the sidebar asks the server when left out. */
   invitations?: number;
+  /** The user's shown name and photo for the sidebar's last row (spec 31); the sidebar asks the server when left out. */
+  me?: SidebarMe;
 };
 
 /** Phones: the floating round tab bar at the bottom, one icon per page. */
@@ -58,11 +62,11 @@ function TabBar({ current }: { current: string }) {
   );
 }
 
-export function AppShell({ current, children, display = DEFAULT_DISPLAY, panelsLeft, panelsRight, invitations }: Props) {
+export function AppShell({ current, children, display = DEFAULT_DISPLAY, panelsLeft, panelsRight, invitations, me }: Props) {
   return (
     <DisplayProvider value={display}>
       <div className="flex min-h-dvh">
-        <Sidebar current={current} invitations={invitations} />
+        <Sidebar current={current} invitations={invitations} me={me} />
         <div className="flex min-h-0 min-w-0 flex-1 pb-28 md:pb-0">
           {panelsLeft}
           <main className="min-w-0 flex-1">{children}</main>
