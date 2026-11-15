@@ -6,7 +6,7 @@ The owner asked to "share calendars, with rights" and to "share the charts of th
 
 ## What
 - [x] A share per owner and contact (R47): the calendar `none` (default), `busy` (blocks without any text) or `details` (title, time, place); the focus chart yes or no. Only the owner sets it; it hangs on the contact row and ends with it, in both directions.
-- [x] A shared calendar (R48), for a window of at most 62 days: at `busy` only times, overlapping blocks merged; at `details` also title and place. Never notes, guests, organizer, to-dos, goal, travel mode, status, source, Outlook ids, series, ids, `updated_at`, and no demo events. Computed in the database at each request.
+- [x] A shared calendar (R48), for a window of at most 62 days: at `busy` free/busy shows when the person is busy, with exact start and end; events that overlap or touch are merged; at `details` also title and place. Never notes, guests, organizer, to-dos, goal, travel mode, status, source, Outlook ids, series, ids, `updated_at`, and no demo events. Computed in the database at each request.
 - [x] A shared focus chart (R49): 8 weeks of focused minutes and finished sessions and this week's minutes per day, in the owner's time zone, with R13's definition (the same as `src/lib/focus/session-time.ts`).
 - [x] "Not found" alike for no share, not a contact and no such user.
 - [x] Read only (R50): no route writes anything of the owner's; shared events are their own type on the screen, never dragged, edited, synced or sent to the coach (R22 tested).
@@ -16,7 +16,7 @@ The owner asked to "share calendars, with rights" and to "share the charts of th
 
 ## Decisions
 - Sharing nothing removes the row: no trace of a past share is kept.
-- The busy level merges overlapping and touching blocks, so not even the number of events shows.
+- Free/busy shows when the person is busy, with exact start and end; events that overlap or touch are merged. Separate events stay separate blocks, so their number and exact times are visible (corrected after the security review of sharing).
 - A running session whose planned length has passed counts in a shared chart (it finishes by itself, R13), so the owner's chart and the viewer's agree without the owner opening the app.
 - The focus chart's function takes its clock from the database; an internal variant with a fixed time (not callable by users) makes it testable.
 - Shared blocks take the right part of a day column (38 %) only on days that have some; the user's own blocks keep the left part and all their behaviour.
