@@ -10,7 +10,7 @@ import { Welcome } from "@/components/shell/Welcome";
 import { outlookConfigured } from "@/lib/server/config";
 import { pageDeps } from "@/lib/server/deps";
 import { readAddress } from "@/lib/events/views";
-import { loadCalendarPageWithShares } from "@/lib/server/pages/load";
+import { loadCalendarPageWithInvites } from "@/lib/server/pages/load";
 import { localDateTimeOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -31,7 +31,9 @@ export default async function CalendarPage({
 
   const params = await searchParams;
   const address = readAddress(params);
-  const { display, week, goals, tasks, showWelcome, sharing, guestPeople } = await loadCalendarPageWithShares(deps, userId, address.date, address.view);
+  // Spec 36: also the event invitations (the events the user is invited to, the open ones, the badge's
+  // number and the people of the user's own events), in the same one transaction.
+  const { display, week, goals, tasks, showWelcome, sharing, guestPeople, invites } = await loadCalendarPageWithInvites(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
@@ -39,7 +41,7 @@ export default async function CalendarPage({
     <Announcer>
       <LiveProvider>
         <PanelState>
-          <AppShell current="/" display={display} panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
+          <AppShell current="/" display={display} pendingInvites={invites.pending} panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
             <CalendarView
               week={week}
               nowLocal={nowLocal}
@@ -48,6 +50,7 @@ export default async function CalendarPage({
               sharing={sharing.filter((p) => p.calendar !== "none")}
               showPerson={typeof params.share === "string" ? params.share : undefined}
               guestPeople={guestPeople}
+              invites={invites}
             />
           </AppShell>
           {showWelcome && <Welcome timeFormat={display.timeFormat} />}

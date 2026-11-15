@@ -70,6 +70,10 @@ import { previewDelay, type GuestPerson } from "@/lib/events/preview";
 import { useSharedCalendars } from "./useSharedCalendars";
 import { placeShared, sharedAllDayByDay } from "@/lib/shares/place";
 import type { SharingPerson } from "@/lib/shares/types";
+import type { ShownCalendar } from "@/lib/shares/place";
+import { answeredText, type CalendarInvites, type GivenAnswer, type InviteAnswer, type InvitedEvent } from "@/lib/invites/types";
+import { InvitationsButton } from "./Invites";
+import { storeDemoAnswer, useDemoAnswer } from "./demo-invite-answer";
 import { MEDIA, useMediaQuery } from "./useMedia";
 
 type Props = {
@@ -87,16 +91,46 @@ type Props = {
   showPerson?: string;
   /** Spec 35: the shown events' guests who are the user's contacts, by address (matched on the server). */
   guestPeople?: Readonly<Record<string, GuestPerson>>;
+  /** Spec 36: invitations (the events the user is invited to, the open ones, the people of their own events). */
+  invites?: CalendarInvites;
 };
 
 /** Spec 35: what the preview panel is open for; an own event by id, so it follows the live week. */
-type Preview = { kind: "own"; id: string } | { kind: "shared"; shared: OpenShared };
+type Preview = { kind: "own"; id: string } | { kind: "shared"; shared: OpenShared } | { kind: "invite"; inviteId: string };
 
 /** Beside the preview panel, a week's day columns keep at least this width and the grid scrolls sideways. */
 const PREVIEW_MIN_COLUMN_PX = 64;
 
 const NO_PEOPLE: SharingPerson[] = [];
 const NO_GUEST_PEOPLE: Readonly<Record<string, GuestPerson>> = {};
+const NO_INVITES: CalendarInvites = { invited: [], open: [], pending: 0, own: {}, contacts: [] };
+
+/**
+ * Spec 36: the events the user is invited to, drawn like shared calendars (read only, on the right of a
+ * day column), one per inviter, each event with its invitation's mark. Declined ones are left out of the
+ * grid (R61); they stay in the invitations list.
+ */
+function invitedCalendars(invited: readonly InvitedEvent[], answerOf: (e: InvitedEvent) => InviteAnswer): ShownCalendar[] {
+  const byInviter = new Map<string, ShownCalendar>();
+  for (const event of invited) {
+    const answer = answerOf(event);
+    if (answer === "declined") continue;
+    const { inviter } = event;
+    const calendar = byInviter.get(inviter.userId) ?? {
+      person: { userId: inviter.userId, name: inviter.name, photoUrl: inviter.photoUrl, calendar: "details" as const, focus: false, ...(inviter.demo ? { demo: inviter.demo } : {}) },
+      level: "details" as const,
+      events: [],
+    };
+    const invite = { inviteId: event.inviteId, answer, ...(event.demo ? { demo: true as const } : {}) };
+    calendar.events.push(
+      event.allDay
+        ? { allDay: true, firstDay: event.firstDay, lastDay: event.lastDay, title: event.title, location: event.location, invite }
+        : { allDay: false, startAt: event.startAt, endAt: event.endAt, title: event.title, location: event.location, invite },
+    );
+    byInviter.set(inviter.userId, calendar);
+  }
+  return [...byInviter.values()];
+}
 
 /** Minutes of lead time above "now" when today is shown, and above the earliest event otherwise. */
 const SCROLL_CONTEXT_MIN = 90;
@@ -147,7 +181,16 @@ function findEvent(week: WeekData, id: string): CalendarEvent | null {
   return week.lead.find((e) => e.id === id) ?? null;
 }
 
-export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailable = false, sharing = NO_PEOPLE, showPerson, guestPeople = NO_GUEST_PEOPLE }: Props) {
+export function CalendarView({
+  week: serverWeek,
+  nowLocal,
+  goals,
+  outlookAvailable = false,
+  sharing = NO_PEOPLE,
+  showPerson,
+  guestPeople = NO_GUEST_PEOPLE,
+  invites = NO_INVITES,
+}: Props) {
   const week = useLiveWeek(serverWeek);
   const router = useRouter();
   const now = useNowLocal(nowLocal, week.timeZone);
@@ -272,7 +315,40 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
 
   // Spec 29: the shared calendars chosen for showing, read for the days the server sent.
   const shownDates = useMemo(() => week.days.map((d) => d.date), [week.days]);
-  const { chosen: shownPeople, toggle: togglePerson, calendars: sharedCalendars } = useSharedCalendars(sharing, shownDates, week.timeZone, showPerson);
+  const { chosen: shownPeople, toggle: togglePerson, calendars: chosenCalendars } = useSharedCalendars(sharing, shownDates, week.timeZone, showPerson);
+
+  // Spec 36: the answers given on this screen since the page was read (shown at once, R61), the one in
+  // flight, and the quiet line after answering. The demo invitation's answer lives in this browser only.
+  const [answers, setAnswers] = useState<Readonly<Record<string, InviteAnswer>>>({});
+  const [answering, setAnswering] = useState<string | null>(null);
+  const [answerNote, setAnswerNote] = useState<{ inviteId: string; text: string } | null>(null);
+  const demoAnswer = useDemoAnswer();
+  const answerOf = useCallback(
+    (event: InvitedEvent): InviteAnswer => answers[event.inviteId] ?? (event.demo ? demoAnswer : null) ?? event.answer,
+    [answers, demoAnswer],
+  );
+  const answerInvite = useCallback(
+    async (event: InvitedEvent, answer: GivenAnswer) => {
+      if (event.demo) {
+        storeDemoAnswer(answer);
+        setAnswerNote({ inviteId: event.inviteId, text: `${answeredText(answer)} Demo: kept in this browser only.` });
+        return;
+      }
+      setAnswering(event.inviteId);
+      const result = await postJson(`/api/invites/${encodeURIComponent(event.inviteId)}/answer`, { answer });
+      setAnswering(null);
+      if (!result.ok) return showToast(result.message);
+      setAnswers((current) => ({ ...current, [event.inviteId]: answer }));
+      setAnswerNote({ inviteId: event.inviteId, text: result.message || answeredText(answer) });
+      showToast(result.message || answeredText(answer));
+      live.refresh();
+    },
+    [showToast, live],
+  );
+  const inviteCalendars = useMemo(() => invitedCalendars(invites.invited, answerOf), [invites.invited, answerOf]);
+  const sharedCalendars = useMemo(() => [...chosenCalendars, ...inviteCalendars], [chosenCalendars, inviteCalendars]);
+  const openInvites = useMemo(() => invites.open.filter((e) => answerOf(e) === "pending" || answerOf(e) === "declined"), [invites.open, answerOf]);
+  const findInvite = (inviteId: string) => invites.invited.find((e) => e.inviteId === inviteId) ?? invites.open.find((e) => e.inviteId === inviteId) ?? null;
   // Spec 35: the preview panel. Opened by the keyboard, the focus goes to its heading; closed, it goes
   // back to the event that opened it.
   const [preview, setPreview] = useState<{ open: Preview; byKeyboard: boolean } | null>(null);
@@ -310,11 +386,27 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
       openPreview({ kind: "own", id: event.id });
     }, delay);
   };
-  const onOpenShared = (item: OpenShared) => openPreview({ kind: "shared", shared: item });
+  const onOpenShared = (item: OpenShared) => openPreview(item.invite ? { kind: "invite", inviteId: item.invite.inviteId } : { kind: "shared", shared: item });
   // An own event follows the live week; when it is no longer shown (deleted, or another week) the panel is hidden.
   const previewEvent = preview?.open.kind === "own" ? findEvent(week, preview.open.id) : null;
+  const previewInvite = preview?.open.kind === "invite" ? findInvite(preview.open.inviteId) : null;
   const previewTarget: PreviewTarget | null =
-    preview === null ? null : preview.open.kind === "shared" ? { kind: "shared", shared: preview.open.shared } : previewEvent ? { kind: "own", event: previewEvent } : null;
+    preview === null
+      ? null
+      : preview.open.kind === "shared"
+        ? { kind: "shared", shared: preview.open.shared }
+        : previewInvite
+          ? {
+              kind: "invite",
+              event: previewInvite,
+              answer: answerOf(previewInvite),
+              busy: answering === previewInvite.inviteId,
+              note: answerNote?.inviteId === previewInvite.inviteId ? answerNote.text : null,
+              onAnswer: (answer) => void answerInvite(previewInvite, answer),
+            }
+          : previewEvent
+            ? { kind: "own", event: previewEvent }
+            : null;
   const gridDates = useMemo(() => days.map((d) => d.date), [days]);
   const sharedBlocks = useMemo(() => placeShared(sharedCalendars, gridDates, week.timeZone), [sharedCalendars, gridDates, week.timeZone]);
   const sharedAllDay = useMemo(() => sharedAllDayByDay(sharedCalendars, gridDates), [sharedCalendars, gridDates]);
@@ -435,6 +527,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
             </LinkButton>
             <ViewSwitch views={allowedViews(isPhone)} view={view} date={date} />
             <div className="ml-auto flex items-center gap-2">
+              <InvitationsButton open={openInvites} answerOf={answerOf} busyId={answering} timeZone={week.timeZone} onAnswer={(event, answer) => void answerInvite(event, answer)} />
               <SharedPeopleButton people={sharing} chosen={shownPeople} onToggle={togglePerson} />
               <Button variant="secondary" size="icon" aria-label="New event" title="New event" className="@3xl:w-auto @3xl:px-4" onClick={(e) => addEvent(anchorOf(e.currentTarget))}>
                 <Plus className="size-4" strokeWidth={2} />
@@ -482,6 +575,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               timeZone={week.timeZone}
               onOpenShared={onOpenShared}
               minColumnPx={previewTarget && view === "week" ? PREVIEW_MIN_COLUMN_PX : undefined}
+              invitees={invites.own}
             />
           )}
         </div>
@@ -495,6 +589,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
           focusOnOpen={preview?.byKeyboard ?? false}
           onEdit={(event, anchor) => setEditor({ mode: "edit", event, anchor })}
           onClose={closePreview}
+          invitees={invites.own}
         />
       )}
       </div>
@@ -509,6 +604,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
         onDeleted={onDeleted}
         onRefused={showToast}
         onCreated={(event) => setEditor((current) => (current ? { mode: "edit", event, anchor: current.anchor } : null))}
+        invites={{ contacts: invites.contacts, own: invites.own }}
       />
       {pop?.kind === "new" && (
         <NewEventPopover

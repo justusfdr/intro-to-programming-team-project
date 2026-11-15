@@ -31,6 +31,8 @@ type Props = {
   invitations?: number;
   /** The user's shown name and photo for the sidebar's last row (spec 31); the sidebar asks the server when left out. */
   me?: SidebarMe;
+  /** Spec 36: event invitations not answered yet, for the badge on "Calendar"; the sidebar asks the server when left out. */
+  pendingInvites?: number;
 };
 
 /** Phones: the floating round tab bar at the bottom, one icon per page. */
@@ -62,11 +64,11 @@ function TabBar({ current }: { current: string }) {
   );
 }
 
-export function AppShell({ current, children, display = DEFAULT_DISPLAY, panelsLeft, panelsRight, invitations, me }: Props) {
+export function AppShell({ current, children, display = DEFAULT_DISPLAY, panelsLeft, panelsRight, invitations, me, pendingInvites }: Props) {
   return (
     <DisplayProvider value={display}>
       <div className="flex min-h-dvh">
-        <Sidebar current={current} invitations={invitations} me={me} />
+        <Sidebar current={current} invitations={invitations} me={me} pendingInvites={pendingInvites} />
         <div className="flex min-h-0 min-w-0 flex-1 pb-28 md:pb-0">
           {panelsLeft}
           <main className="min-w-0 flex-1">{children}</main>

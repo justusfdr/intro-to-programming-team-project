@@ -1,0 +1,345 @@
+"use client";
+
+// Event invitations on the screen (spec 36, R59 to R64):
+// - the answer marks: a green tick (accepted), a red X (declined), a grey "?" (maybe), an empty ring (no
+//   answer yet), each named in words for screen readers ("Emily Lea: accepted");
+// - the people of an event as a list, and as a small stack of up to 3 avatars with "+2" on the owner's block;
+// - the small card that opens while the owner's block is hovered or focused;
+// - "Accept", "Maybe", "Decline" for the invited person, the current answer pressed;
+// - the toolbar's "2 invitations" button with the list of invitations still to look at;
+// - the preview of an invited event (title, time, place, "Invited by", the other people, the buttons).
+// Everything about another person here is a name and a photo; never an e-mail address.
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { CalendarClock, Check, Mail, MapPin, Minus, Users, X } from "lucide-react";
+import { PersonChip } from "@/components/people/PersonChip";
+import { Avatar } from "@/components/ui/Avatar";
+import { Button } from "@/components/ui/Button";
+import { DemoTag } from "@/components/ui/DemoTag";
+import { useDisplay } from "@/components/shell/DisplayProvider";
+import { getJson } from "@/lib/client/post-json";
+import { placeOf, whenSentence } from "@/lib/events/preview";
+import { ANSWER_BUTTONS, answerWords, invitationsText, personAnswerLabel, type GivenAnswer, type InviteAnswer, type InvitedEvent, type InvitePerson } from "@/lib/invites/types";
+import { localDateTimeOf } from "@/lib/time/zoned";
+import { anchorOf, FloatingPanel, type Anchor } from "./FloatingPanel";
+
+/** One answer as a small round mark. Decorative: the row or the button around it says it in words. */
+export function AnswerMark({ answer, size = 14 }: { answer: InviteAnswer; size?: number }) {
+  const box = { width: size, height: size };
+  const icon = Math.round(size * 0.7);
+  if (answer === "accepted") {
+    return (
+      <span aria-hidden data-answer="accepted" style={box} className="inline-flex shrink-0 items-center justify-center rounded-full bg-success text-white">
+        <Check style={{ width: icon, height: icon }} strokeWidth={3} />
+      </span>
+    );
+  }
+  if (answer === "declined") {
+    return (
+      <span aria-hidden data-answer="declined" style={box} className="inline-flex shrink-0 items-center justify-center rounded-full bg-danger text-white">
+        <X style={{ width: icon, height: icon }} strokeWidth={3} />
+      </span>
+    );
+  }
+  if (answer === "tentative") {
+    return (
+      <span aria-hidden data-answer="tentative" style={box} className="inline-flex shrink-0 items-center justify-center rounded-full bg-ink-3 text-white">
+        <Minus style={{ width: icon, height: icon }} strokeWidth={3} />
+      </span>
+    );
+  }
+  return <span aria-hidden data-answer="pending" style={box} className="inline-block shrink-0 rounded-full border-2 border-ink-3/60 bg-surface" />;
+}
+
+/** The people of an event, each with their mark; a contact's name is a chip to their profile. */
+export function InviteesList({ people, links = true }: { people: readonly InvitePerson[]; links?: boolean }) {
+  return (
+    <ul aria-label="People in LockedIn" className="flex flex-col gap-1.5">
+      {people.map((person) => (
+        <li key={person.userId} aria-label={personAnswerLabel(person.name, person.answer)} className="flex min-w-0 items-center gap-2 text-sm">
+          {links ? (
+            <PersonChip person={{ userId: person.userId, name: person.name, photoUrl: person.photoUrl, look: person.demo }} size={24} className="min-w-0 text-sm" />
+          ) : (
+            <>
+              <Avatar name={person.name} photoUrl={person.photoUrl} look={person.demo} size={24} />
+              <span className="min-w-0 truncate text-ink">{person.name}</span>
+            </>
+          )}
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-ink-3">
+            <span aria-hidden>{answerWords(person.answer)}</span>
+            <AnswerMark answer={person.answer} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Up to 3 avatars, overlapping, then "+2" when there are more. Decorative (the block's name says who). */
+export function AvatarStack({ people }: { people: readonly InvitePerson[] }) {
+  const shown = people.slice(0, 3);
+  const more = people.length - shown.length;
+  return (
+    <span aria-hidden data-avatar-stack className="flex items-center">
+      {shown.map((person, i) => (
+        <span key={person.userId} className={`rounded-full ring-1 ring-surface ${i > 0 ? "-ml-1" : ""}`}>
+          <Avatar name={person.name} photoUrl={person.photoUrl} look={person.demo} size={16} />
+        </span>
+      ))}
+      {more > 0 && <span className="ml-0.5 text-[10px] font-medium tabular opacity-80">+{more}</span>}
+    </span>
+  );
+}
+
+/**
+ * The small card beside the owner's block while it is hovered or focused: each invited person with their
+ * mark. Drawn in the page's body (a block clips what is inside it), never takes the pointer, and is
+ * only a picture of what the block's accessible name already says.
+ */
+export function InviteesHoverCard({ people, anchor }: { people: readonly InvitePerson[]; anchor: Anchor }) {
+  // Only ever opened by a pointer or focus event, so this runs in the browser (window and document exist).
+  const width = 240;
+  const left = anchor.right + 8 + width < window.innerWidth ? anchor.right + 8 : Math.max(8, anchor.left - width - 8);
+  const top = Math.min(Math.max(8, anchor.top), window.innerHeight - 40 - people.length * 28);
+  return createPortal(
+    <div
+      aria-hidden
+      data-invitees-card
+      style={{ left, top, width }}
+      className="pointer-events-none fixed z-[70] rounded-card border border-line-subtle bg-surface p-3 shadow-pop"
+    >
+      <p className="mb-2 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">People in LockedIn</p>
+      <ul className="flex flex-col gap-1.5">
+        {people.map((person) => (
+          <li key={person.userId} className="flex min-w-0 items-center gap-2 text-sm">
+            <Avatar name={person.name} photoUrl={person.photoUrl} look={person.demo} size={24} />
+            <span className="min-w-0 flex-1 truncate text-ink">{person.name}</span>
+            <AnswerMark answer={person.answer} />
+          </li>
+        ))}
+      </ul>
+    </div>,
+    document.body,
+  );
+}
+
+/** "Accept", "Maybe", "Decline", the current answer pressed. */
+export function AnswerButtons({ answer, busy, onAnswer }: { answer: InviteAnswer; busy: boolean; onAnswer: (answer: GivenAnswer) => void }) {
+  return (
+    <div role="group" aria-label="Your answer" className="flex flex-wrap gap-2">
+      {ANSWER_BUTTONS.map((button) => {
+        const on = answer === button.answer;
+        return (
+          <Button
+            key={button.answer}
+            size="sm"
+            variant={on ? "primary" : "secondary"}
+            aria-pressed={on}
+            disabled={busy}
+            onClick={() => onAnswer(button.answer)}
+          >
+            <AnswerMark answer={button.answer} size={12} />
+            {button.label}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** "Fri, Nov 20 · 11am to 12pm" of an invited event, on the viewer's clock. */
+export function invitedWhen(event: InvitedEvent, timeZone: string, format: "12h" | "24h"): string {
+  return event.allDay
+    ? whenSentence({ allDay: true, firstDay: event.firstDay, lastDay: event.lastDay }, format)
+    : whenSentence({ allDay: false, startLocal: localDateTimeOf(new Date(event.startAt), timeZone), endLocal: localDateTimeOf(new Date(event.endAt), timeZone) }, format);
+}
+
+/** A part of the preview with its small heading (as EventPreview's own parts). */
+function Part({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-1.5">
+      <h3 className="flex items-center gap-2 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
+        <span aria-hidden className="text-ink-3">
+          {icon}
+        </span>
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+/** The other people of an invitation, asked once when the preview opens (none for the demo one). */
+function useInvitePeople(inviteId: string, wanted: boolean): InvitePerson[] | null {
+  const [answer, setAnswer] = useState<{ id: string; people: InvitePerson[] } | null>(null);
+  useEffect(() => {
+    if (!wanted) return;
+    let current = true;
+    void getJson(`/api/invites/${encodeURIComponent(inviteId)}/people`).then((result) => {
+      const list = (result.data as { people?: InvitePerson[] } | undefined)?.people;
+      if (current && result.ok && Array.isArray(list)) setAnswer({ id: inviteId, people: list });
+    });
+    return () => {
+      current = false;
+    };
+  }, [inviteId, wanted]);
+  if (!wanted) return [];
+  return answer?.id === inviteId ? answer.people : null;
+}
+
+/**
+ * The preview of an event the user is invited to (R60): title, time, place as text, who invited them,
+ * the other people with their marks, and the three answers. Never "Edit"; nothing else can be changed.
+ */
+export function InvitedPreviewBody({
+  event,
+  answer,
+  busy,
+  note,
+  timeZone,
+  headingId,
+  headingRef,
+  onAnswer,
+}: {
+  event: InvitedEvent;
+  answer: InviteAnswer;
+  busy: boolean;
+  /** The quiet line after answering ("You accepted."), or the demo's hint. */
+  note: string | null;
+  timeZone: string;
+  headingId: string;
+  headingRef?: React.Ref<HTMLHeadingElement>;
+  onAnswer: (answer: GivenAnswer) => void;
+}) {
+  const { timeFormat } = useDisplay();
+  const place = placeOf(event.location);
+  const people = useInvitePeople(event.inviteId, !event.demo);
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <h2 id={headingId} ref={headingRef} tabIndex={-1} className="text-[19px] font-semibold leading-snug tracking-snug text-ink break-words focus-visible:outline-none">
+          {event.title}
+        </h2>
+        <p className="flex items-start gap-2 text-sm text-ink-2">
+          <CalendarClock aria-hidden className="mt-0.5 size-4 shrink-0 text-ink-3" strokeWidth={1.8} />
+          <span>{invitedWhen(event, timeZone, timeFormat)}</span>
+        </p>
+      </div>
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-2">
+        <Mail aria-hidden className="size-4 shrink-0 text-ink-3" strokeWidth={1.8} />
+        <span>Invited by</span>
+        {event.demo ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Avatar name={event.inviter.name} photoUrl={null} look={event.inviter.demo} size={24} />
+            <span className="font-medium text-ink">{event.inviter.name}</span>
+            <DemoTag />
+          </span>
+        ) : (
+          <PersonChip person={{ userId: event.inviter.userId, name: event.inviter.name, photoUrl: event.inviter.photoUrl }} size={24} className="text-sm font-medium" />
+        )}
+      </p>
+      <section className="flex flex-col gap-2">
+        <p className="text-sm font-medium text-ink">
+          Your answer: <span className="font-normal text-ink-2">{answerWords(answer)}</span>
+        </p>
+        <AnswerButtons answer={answer} busy={busy} onAnswer={onAnswer} />
+        {note && (
+          <p role="status" className="text-xs text-ink-3">
+            {note}
+          </p>
+        )}
+      </section>
+      {place.kind !== "none" && (
+        <Part icon={<MapPin className="size-4" strokeWidth={1.8} />} title="Place">
+          {/* Other people's places are never looked up for the map (spec 35): text only. */}
+          <p className="text-sm break-words text-ink">{place.text}</p>
+        </Part>
+      )}
+      {people === null ? (
+        <p className="text-xs text-ink-3">Loading who else is invited…</p>
+      ) : people.length > 0 ? (
+        <Part icon={<Users className="size-4" strokeWidth={1.8} />} title="Also invited">
+          <InviteesList people={people} links={false} />
+        </Part>
+      ) : null}
+      <p className="text-xs text-ink-3">
+        {event.demo
+          ? "A made-up invitation from a demo contact. Your answer is kept in this browser only."
+          : "Read only: only the person who invited you can change this event. It is not sent to your Outlook."}
+      </p>
+    </div>
+  );
+}
+
+/** One invitation in the toolbar's list: title, time, who invited, the three answers. */
+function OpenInvitation({ event, answer, busy, timeZone, onAnswer }: { event: InvitedEvent; answer: InviteAnswer; busy: boolean; timeZone: string; onAnswer: (a: GivenAnswer) => void }) {
+  const { timeFormat } = useDisplay();
+  return (
+    <li className="flex flex-col gap-2 border-b border-line-subtle py-3 last:border-b-0">
+      <div className="flex min-w-0 items-start gap-2">
+        <Avatar name={event.inviter.name} photoUrl={event.inviter.photoUrl} look={event.inviter.demo} size={24} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-ink">{event.title}</p>
+          <p className="text-xs text-ink-2">{invitedWhen(event, timeZone, timeFormat)}</p>
+          <p className="flex items-center gap-1 text-xs text-ink-3">
+            <span className="truncate">Invited by {event.inviter.name}</span>
+            {event.demo && <DemoTag />}
+          </p>
+        </div>
+        <span className="sr-only">Your answer: {answerWords(answer)}</span>
+      </div>
+      <AnswerButtons answer={answer} busy={busy} onAnswer={onAnswer} />
+    </li>
+  );
+}
+
+/**
+ * The toolbar's button: "2 invitations" (those not answered yet), shown only while there are invitations
+ * to look at (not answered, or declined, of events that have not ended). It opens their list.
+ */
+export function InvitationsButton({
+  open,
+  answerOf,
+  busyId,
+  timeZone,
+  onAnswer,
+}: {
+  open: readonly InvitedEvent[];
+  answerOf: (event: InvitedEvent) => InviteAnswer;
+  busyId: string | null;
+  timeZone: string;
+  onAnswer: (event: InvitedEvent, answer: GivenAnswer) => void;
+}) {
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  if (open.length === 0) return null;
+  const pending = open.filter((e) => answerOf(e) === "pending").length;
+  const label = pending > 0 ? invitationsText(pending) : "Invitations";
+  return (
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        aria-haspopup="dialog"
+        aria-expanded={anchor !== null}
+        onClick={(e) => setAnchor(anchor ? null : anchorOf(e.currentTarget))}
+        className="relative"
+      >
+        <Mail className="size-4" strokeWidth={2} />
+        {label}
+      </Button>
+      {anchor && (
+        <FloatingPanel anchor={anchor} label="Invitations" width={340} onClose={() => setAnchor(null)}>
+          <div className="flex flex-col p-4">
+            <p className="pr-8 text-sm font-semibold text-ink">Invitations</p>
+            <p className="text-xs text-ink-3">Events your contacts invited you to. Read only; you can change your answer until the event ends.</p>
+            <ul className="mt-1 flex flex-col">
+              {open.map((event) => (
+                <OpenInvitation key={event.inviteId} event={event} answer={answerOf(event)} busy={busyId === event.inviteId} timeZone={timeZone} onAnswer={(a) => onAnswer(event, a)} />
+              ))}
+            </ul>
+          </div>
+        </FloatingPanel>
+      )}
+    </>
+  );
+}

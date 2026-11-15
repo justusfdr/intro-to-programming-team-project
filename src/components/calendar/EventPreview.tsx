@@ -29,10 +29,18 @@ import type { TravelAnswer } from "@/lib/travel/types";
 import { TravelLineView } from "./editor/TravelLine";
 import { anchorOf, type Anchor } from "./FloatingPanel";
 import type { OpenShared } from "./Shared";
+import { InvitedPreviewBody, InviteesList } from "./Invites";
+import type { GivenAnswer, InviteAnswer, InvitedEvent, InvitePerson } from "@/lib/invites/types";
 import type { GoalLabel } from "./TimeGrid";
 
-/** What the panel is open for: one of the user's own events, or a shared event of a contact. */
-export type PreviewTarget = { kind: "own"; event: CalendarEvent } | { kind: "shared"; shared: OpenShared };
+/**
+ * What the panel is open for: one of the user's own events, a shared event of a contact, or (spec 36) an
+ * event the user is invited to, with their answer and what answering does.
+ */
+export type PreviewTarget =
+  | { kind: "own"; event: CalendarEvent }
+  | { kind: "shared"; shared: OpenShared }
+  | { kind: "invite"; event: InvitedEvent; answer: InviteAnswer; busy: boolean; note: string | null; onAnswer: (answer: GivenAnswer) => void };
 
 /** The place as our server found it for the map; "loading" while it is asked. */
 export type PlaceState = "loading" | { status: "found"; lat: number; lon: number } | { status: "none" | "not_found" | "unavailable" };
@@ -51,12 +59,19 @@ type PanelProps = {
   focusOnOpen: boolean;
   onEdit: (event: CalendarEvent, anchor: Anchor) => void;
   onClose: () => void;
+  /** Spec 36: the people the user invited to their own events, by event id. */
+  invitees?: Readonly<Record<string, InvitePerson[]>>;
 };
 
 /** The panel with its frame, its asking and its keyboard handling. */
-export function EventPreview({ target, goals, guestPeople, timeZone, focusOnOpen, onEdit, onClose }: PanelProps) {
+export function EventPreview({ target, goals, guestPeople, timeZone, focusOnOpen, onEdit, onClose, invitees }: PanelProps) {
   const heading = useRef<HTMLHeadingElement>(null);
-  const targetKey = target.kind === "own" ? `own:${target.event.id}` : `shared:${target.shared.person.userId}:${target.shared.title}:${target.shared.when}`;
+  const targetKey =
+    target.kind === "own"
+      ? `own:${target.event.id}`
+      : target.kind === "invite"
+        ? `invite:${target.event.inviteId}`
+        : `shared:${target.shared.person.userId}:${target.shared.title}:${target.shared.when}`;
 
   // Opened (or switched) by the keyboard: the focus goes to the heading, so the panel is read next.
   useEffect(() => {
@@ -101,7 +116,27 @@ export function EventPreview({ target, goals, guestPeople, timeZone, focusOnOpen
       </div>
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-6">
         {target.kind === "own" ? (
-          <OwnEventPreview key={target.event.id} event={target.event} goals={goals} guestPeople={guestPeople} timeZone={timeZone} headingRef={heading} />
+          <OwnEventPreview
+            key={target.event.id}
+            event={target.event}
+            goals={goals}
+            guestPeople={guestPeople}
+            timeZone={timeZone}
+            headingRef={heading}
+            invitees={invitees?.[target.event.id] ?? NO_PEOPLE}
+          />
+        ) : target.kind === "invite" ? (
+          <InvitedPreviewBody
+            key={target.event.inviteId}
+            event={target.event}
+            answer={target.answer}
+            busy={target.busy}
+            note={target.note}
+            timeZone={timeZone}
+            headingId={HEADING_ID}
+            headingRef={heading}
+            onAnswer={target.onAnswer}
+          />
         ) : (
           <SharedPreview shared={target.shared} headingRef={heading} />
         )}
@@ -117,12 +152,14 @@ function OwnEventPreview({
   guestPeople,
   timeZone,
   headingRef,
+  invitees,
 }: {
   event: CalendarEvent;
   goals: GoalLabel[];
   guestPeople: Readonly<Record<string, GuestPerson>>;
   timeZone: string;
   headingRef: Ref<HTMLHeadingElement>;
+  invitees: readonly InvitePerson[];
 }) {
   const { timeFormat } = useDisplay();
   const todos = useOpenTodos(event);
@@ -140,9 +177,12 @@ function OwnEventPreview({
       travel={travel}
       place={place}
       headingRef={headingRef}
+      invitees={invitees}
     />
   );
 }
+
+const NO_PEOPLE: readonly InvitePerson[] = [];
 
 /** The open to-dos' titles, asked once per version of the event (null while asking or when there are none). */
 function useOpenTodos(event: CalendarEvent): string[] | null {
@@ -221,10 +261,12 @@ type BodyProps = {
   travel: TravelState;
   place: PlaceState;
   headingRef?: Ref<HTMLHeadingElement>;
+  /** Spec 36: the people invited in the app, with their answers. */
+  invitees?: readonly InvitePerson[];
 };
 
 /** What the panel shows of one of the user's own events, top to bottom (also drawn on its own in the tests). */
-export function OwnPreviewBody({ event, goals, guestPeople, timeZone, timeFormat, openTodos, travel, place, headingRef }: BodyProps) {
+export function OwnPreviewBody({ event, goals, guestPeople, timeZone, timeFormat, openTodos, travel, place, headingRef, invitees = NO_PEOPLE }: BodyProps) {
   const view = ownPreview(
     event,
     goals.map((g) => ({ id: g.id, title: g.title, color: g.look.color })),
@@ -254,6 +296,13 @@ export function OwnPreviewBody({ event, goals, guestPeople, timeZone, timeFormat
           </p>
         )}
       </div>
+
+      {/* Spec 36: the people invited in the app, apart from the guests by e-mail (Outlook). */}
+      {invitees.length > 0 && (
+        <Part icon={<Users className="size-4" strokeWidth={1.8} />} title="People in LockedIn">
+          <InviteesList people={invitees} />
+        </Part>
+      )}
 
       {view.guests.length > 0 && <GuestsPart rows={view.guests} />}
 

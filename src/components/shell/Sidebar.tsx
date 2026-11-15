@@ -57,6 +57,49 @@ function SidebarLink({ item, on, wide }: { item: NavItem; on: boolean; wide: boo
 }
 
 /**
+ * Spec 36: "Calendar" with the number of event invitations the user has not answered yet. A page that
+ * has read the number passes it (the calendar page); on every other page it is asked once from the server
+ * (a failure just shows no badge). Without invitations it is the plain link.
+ */
+function CalendarLink({ item, on, wide, pending }: { item: NavItem; on: boolean; wide: boolean; pending?: number }) {
+  const [asked, setAsked] = useState<number | null>(null);
+  useEffect(() => {
+    if (pending !== undefined) return;
+    let current = true;
+    void getJson("/api/invites/count").then((answer) => {
+      const count = (answer.data as { count?: unknown } | undefined)?.count;
+      if (current && answer.ok && typeof count === "number") setAsked(count);
+    });
+    return () => {
+      current = false;
+    };
+  }, [pending]);
+  const count = pending ?? asked ?? 0;
+  if (count === 0) return <SidebarLink item={item} on={on} wide={wide} />;
+  const Icon = item.icon;
+  const label = `${item.label}, ${count} ${count === 1 ? "invitation" : "invitations"} to answer`;
+  return (
+    <Link
+      href={item.href}
+      aria-current={on ? "page" : undefined}
+      aria-label={label}
+      title={wide ? undefined : label}
+      className={`${ITEM} relative ${wide ? "w-full" : "w-9"} ${on ? "bg-raised font-medium text-ink" : QUIET}`}
+    >
+      <Icon className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
+      {item.label}
+      {wide ? (
+        <span aria-hidden="true" className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1.5 text-[11px] font-semibold tabular text-white">
+          {count > 99 ? "99+" : count}
+        </span>
+      ) : (
+        <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-today" />
+      )}
+    </Link>
+  );
+}
+
+/**
  * "People" (spec 28) with the number of open invitations to the user. A page that has read the number
  * passes it; on every other page it is asked once from the server (a failure just shows no badge).
  */
@@ -196,7 +239,7 @@ function GoalsItem({ wide }: { wide: boolean }) {
   );
 }
 
-export function Sidebar({ current, invitations, me }: { current: string; invitations?: number; me?: SidebarMe }) {
+export function Sidebar({ current, invitations, me, pendingInvites }: { current: string; invitations?: number; me?: SidebarMe; pendingInvites?: number }) {
   // On the server (and in the first render) the sidebar is open.
   const folded = useSyncExternalStore(subscribe, readFolded, () => false);
   const [peek, setPeek] = useState(false);
@@ -260,7 +303,11 @@ export function Sidebar({ current, invitations, me }: { current: string; invitat
         <nav aria-label="Main navigation" className="mt-4 flex flex-col gap-0.5">
           {NAV.map((item, i) => (
             <Fragment key={item.href}>
-              <SidebarLink item={item} on={current === item.href} wide={wide} />
+              {item.href === "/" ? (
+                <CalendarLink item={item} on={current === item.href} wide={wide} pending={pendingInvites} />
+              ) : (
+                <SidebarLink item={item} on={current === item.href} wide={wide} />
+              )}
               {i === 0 && <GoalsItem wide={wide} />}
             </Fragment>
           ))}

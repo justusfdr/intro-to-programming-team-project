@@ -13,7 +13,8 @@ import { PersonChip } from "@/components/people/PersonChip";
 import { Button } from "@/components/ui/Button";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { blockBox, type GridRange } from "@/lib/events/grid";
-import type { SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
+import type { InviteMark, SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
+import { answerWords, inviteLook } from "@/lib/invites/types";
 import { MAX_SHOWN_CALENDARS, levelText, type SharingPerson } from "@/lib/shares/types";
 import { fmtDateLong, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { localDateTimeOf } from "@/lib/time/zoned";
@@ -35,7 +36,25 @@ export type OpenShared = {
   when: string;
   /** Spec 35: the same time as data, for the event preview's line in the user's format (local to the viewer). */
   time?: WhenInput;
+  /** Spec 36: an event the viewer is invited to (the person is who invited them). */
+  invite?: InviteMark;
 };
+
+/**
+ * Spec 36 (R61): how an invited event looks: no answer yet a dashed outline, maybe a dashed outline with
+ * a lighter fill, accepted solid. Declined ones are never placed.
+ */
+export function inviteClass(invite: InviteMark): string {
+  const look = inviteLook(invite.answer);
+  if (look === "solid") return "border border-line bg-raised text-ink";
+  if (look === "tentative") return "border border-dashed border-ink-3/50 bg-surface/60 text-ink-2 opacity-80";
+  return "border-2 border-dashed border-ink-3/70 bg-surface text-ink";
+}
+
+/** "Group project meeting, Friday, November 20, 11am – 12pm, invited by Lea Sousa, your answer: maybe". */
+function inviteLabel(title: string, when: string, person: SharingPerson, invite: InviteMark): string {
+  return `${title}, ${when}, invited by ${person.name}, your answer: ${answerWords(invite.answer)}`;
+}
 
 /** A shared timed event's start and end on the viewer's clock, for the event preview (spec 35). */
 export function sharedTime(startAt: string, endAt: string, timeZone: string): WhenInput {
@@ -166,6 +185,7 @@ export function SharedBlockView({
     left: `calc(${(left + block.lane * laneWidth) * 100}% + 2px)`,
     width: `calc(${laneWidth * 100}% - 4px)`,
   };
+  if (block.invite) return <InvitedBlockView block={block} invite={block.invite} style={style} height={height} timeZone={timeZone} onOpen={onOpen} />;
   const text = block.level === "details" ? block.title || "Busy" : "Busy";
   const time = fmtRange(block.startMin, block.endMin, timeFormat);
   const inner = (
@@ -220,10 +240,88 @@ export function SharedBlockView({
   );
 }
 
+/**
+ * Spec 36: an event the viewer is invited to, as a read-only block on the right part of the day column:
+ * the inviter's small avatar, the title, "Maybe" when that is the answer. A click opens the preview with
+ * the answers; it is never dragged, resized or opened in the editor (R63).
+ */
+function InvitedBlockView({
+  block,
+  invite,
+  style,
+  height,
+  timeZone,
+  onOpen,
+}: {
+  block: SharedBlock;
+  invite: InviteMark;
+  style: React.CSSProperties;
+  height: number;
+  timeZone: string;
+  onOpen: (shared: OpenShared, anchor: Anchor) => void;
+}) {
+  const { timeFormat } = useDisplay();
+  const title = block.title || "Invitation";
+  const when = sharedWhen(block.startAt, block.endAt, timeZone, timeFormat);
+  const { backgroundImage: _stripes, ...plain } = style as React.CSSProperties & { backgroundImage?: string };
+  void _stripes;
+  return (
+    <button
+      type="button"
+      data-invite={invite.answer}
+      aria-label={inviteLabel(title, when, block.person, invite)}
+      tabIndex={block.continuesBefore ? -1 : undefined}
+      aria-hidden={block.continuesBefore || undefined}
+      style={plain}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen(
+          { person: block.person, title, location: block.location, when, time: sharedTime(block.startAt, block.endAt, timeZone), invite },
+          anchorOf(e.currentTarget),
+        );
+      }}
+      className={`pointer-events-auto absolute z-[1] cursor-pointer overflow-hidden rounded-lg px-1 py-0.5 text-left hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40 ${inviteClass(invite)}`}
+    >
+      <span className="flex items-center gap-1">
+        <Avatar name={block.person.name} photoUrl={block.person.photoUrl} look={block.person.demo} size={16} />
+        <span className="min-w-0 truncate text-[11px] font-medium leading-[14px]">{title}</span>
+      </span>
+      {height >= 44 && (
+        <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">
+          {invite.answer === "tentative" ? `Maybe · ${fmtRange(block.startMin, block.endMin, timeFormat)}` : fmtRange(block.startMin, block.endMin, timeFormat)}
+        </span>
+      )}
+      {height < 44 && invite.answer === "tentative" && <span className="sr-only">Maybe</span>}
+    </button>
+  );
+}
+
 /** A shared all-day event as a small striped chip (all-day row and month view). */
 export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onOpen: (shared: OpenShared, anchor: Anchor) => void }) {
   const text = item.level === "details" ? item.event.title || "Busy" : "Busy";
   const when = allDayWhen(item.event.firstDay, item.event.lastDay);
+  const invite = item.event.invite;
+  if (invite) {
+    return (
+      <button
+        type="button"
+        data-invite={invite.answer}
+        aria-label={inviteLabel(text, when, item.person, invite)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen(
+            { person: item.person, title: text, location: item.event.location ?? null, when, time: { allDay: true, firstDay: item.event.firstDay, lastDay: item.event.lastDay }, invite },
+            anchorOf(e.currentTarget),
+          );
+        }}
+        className={`flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40 ${inviteClass(invite)}`}
+      >
+        <Avatar name={item.person.name} photoUrl={item.person.photoUrl} look={item.person.demo} size={16} />
+        <span className="min-w-0 truncate">{invite.answer === "tentative" ? `Maybe · ${text}` : text}</span>
+      </button>
+    );
+  }
   const label = `${text}, ${when}, ${whose(item.person)}, read only`;
   const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_CLASS}`;
   const inner = (
@@ -286,6 +384,26 @@ export function SharedMonthRow({ entry, timeZone, onOpen }: { entry: SharedMonth
   if ("allDay" in entry) return <SharedAllDayChip item={entry.allDay} onOpen={onOpen} />;
   const { block } = entry;
   const text = block.level === "details" ? block.title || "Busy" : "Busy";
+  if (block.invite) {
+    const invite = block.invite;
+    const when = sharedWhen(block.startAt, block.endAt, timeZone, timeFormat);
+    return (
+      <button
+        type="button"
+        data-invite={invite.answer}
+        aria-label={inviteLabel(text, when, block.person, invite)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen({ person: block.person, title: text, location: block.location, when, time: sharedTime(block.startAt, block.endAt, timeZone), invite }, anchorOf(e.currentTarget));
+        }}
+        className={`flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40 ${inviteClass(invite)}`}
+      >
+        <Avatar name={block.person.name} photoUrl={block.person.photoUrl} look={block.person.demo} size={16} />
+        <span className="shrink-0 tabular text-ink-3">{fmtTime(block.startMin, timeFormat)}</span>
+        <span className="min-w-0 truncate">{invite.answer === "tentative" ? `Maybe · ${text}` : text}</span>
+      </button>
+    );
+  }
   const label = blockLabel(block, timeZone, timeFormat);
   const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_CLASS}`;
   const inner = (

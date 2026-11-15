@@ -52,7 +52,7 @@ export function GuestsSection(props: Props) {
   if (props.mode === "unavailable") {
     return (
       <section className="flex flex-col gap-1.5">
-        <Eyebrow>Guests</Eyebrow>
+        <Eyebrow>Guests by e-mail (Outlook)</Eyebrow>
         {props.guests && props.guests.length > 0 && (
           <ul aria-label="Guests" className="flex flex-wrap gap-1.5">
             {props.guests.map((address) => (
@@ -71,7 +71,7 @@ export function GuestsSection(props: Props) {
     if (!props.organizer && props.guests.length === 0) return null;
     return (
       <section className="flex flex-col gap-1.5">
-        <Eyebrow>Guests</Eyebrow>
+        <Eyebrow>Guests by e-mail (Outlook)</Eyebrow>
         <ul aria-label="Guests" className="flex flex-wrap gap-1.5">
           {props.organizer && <GuestChip address={props.organizer} note="Organizer" />}
           {props.guests.map((address) => (
@@ -84,7 +84,7 @@ export function GuestsSection(props: Props) {
   if (props.mode === "connect") {
     return (
       <section className="flex flex-col gap-1.5">
-        <Eyebrow>Guests</Eyebrow>
+        <Eyebrow>Guests by e-mail (Outlook)</Eyebrow>
         {props.guests.length > 0 && (
           <ul aria-label="Guests" className="flex flex-wrap gap-1.5">
             {props.guests.map((address) => (
@@ -129,7 +129,7 @@ function EditableGuests({ guests, onChange }: { guests: readonly string[]; onCha
 
   return (
     <section className="flex flex-col gap-1.5">
-      <Eyebrow>Guests</Eyebrow>
+      <Eyebrow>Guests by e-mail (Outlook)</Eyebrow>
       {guests.length > 0 && (
         <ul aria-label="Guests" className="flex flex-wrap gap-1.5">
           {guests.map((address) => (

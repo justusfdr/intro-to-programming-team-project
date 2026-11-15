@@ -105,9 +105,10 @@ describe("its place in the editor", () => {
   const order = (html: string) => [...html.matchAll(/uppercase[^>]*>([^<]+)</g)].map((m) => m[1]);
 
   // Rewritten for spec 24: GUESTS now sits between WHEN and TO-DOS, so it is seen without scrolling.
+  // Rewritten for spec 36: PEOPLE IN LOCKEDIN comes before the guests, now called "Guests by e-mail (Outlook)".
   it("an app event: TO-DOS under WHEN and GUESTS, before GOAL", () => {
     const html = renderToStaticMarkup(<EditEventCard event={event("e1", "Study", "2026-11-17T12:00", "2026-11-17T13:00")} {...COMMON} />);
-    expect(order(html).slice(0, 4)).toEqual(["When", "Guests", "To-dos", "Goal"]);
+    expect(order(html).slice(0, 5)).toEqual(["When", "People in LockedIn", "Guests by e-mail (Outlook)", "To-dos", "Goal"]);
   });
 
   it("an Outlook event has no to-dos (R11)", () => {
@@ -120,7 +121,8 @@ describe("its place in the editor", () => {
 
   it("a new event ('Add details') holds a list too", () => {
     const html = renderToStaticMarkup(<NewEventCard draft={{ start: "2026-11-17T12:00", end: "2026-11-17T13:00" }} {...COMMON} />);
-    expect(order(html).slice(0, 4)).toEqual(["When", "Guests", "To-dos", "Goal"]);
+    // Rewritten for spec 36: the guests' heading is "Guests by e-mail (Outlook)" (a new event invites no people yet).
+    expect(order(html).slice(0, 4)).toEqual(["When", "Guests by e-mail (Outlook)", "To-dos", "Goal"]);
   });
 });
 

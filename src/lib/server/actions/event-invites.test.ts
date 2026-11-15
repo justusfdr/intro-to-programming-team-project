@@ -254,7 +254,9 @@ describe("the calendar page (spec 36)", () => {
     expect(on.invites.invited).toEqual([
       expect.objectContaining({ inviteId: "demo-lea-invite", title: "Group project meeting", demo: true, inviter: expect.objectContaining({ userId: "demo-lea" }) }),
     ]);
-    expect(on.invites.pending).toBe(1);
+    expect(on.invites.open.map((e) => e.inviteId)).toEqual(["demo-lea-invite"]);
+    // Its answer lives in the browser only, so the server's badge does not count it.
+    expect(on.invites.pending).toBe(0);
     // Never a row.
     expect(await app.db.admin("select * from app.event_invites")).toEqual([]);
   });

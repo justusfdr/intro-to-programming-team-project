@@ -170,7 +170,8 @@ export async function loadCalendarPageWithInvites(
       invites: {
         invited: demoShown ? [...invited, demoShown] : invited,
         open: demoOpen ? [...openInvitesOf(openRows, cards), demoOpen] : openInvitesOf(openRows, cards),
-        pending: pending + (demoOpen ? 1 : 0),
+        // The demo invitation's answer lives in the browser only, so the server's badge never counts it.
+        pending,
         own,
         contacts: inviteContactsOf(people.contacts),
       },

@@ -4,6 +4,14 @@
 // the VIEWER's time zone (their calendar); all-day events keep their dates.
 import { addDays, localDateOf, localDateTimeOf, startOfLocalDate } from "@/lib/time/zoned";
 import { MAX_SHOWN_CALENDARS, type SharedAllDay, type SharedEvent, type SharingPerson } from "./types";
+import type { InviteAnswer } from "@/lib/invites/types";
+
+/**
+ * Spec 36: an event the viewer is invited to is drawn with the same read-only placement as a shared one
+ * (it is never the viewer's own event either), carrying its invitation's id and the viewer's answer.
+ */
+export type InviteMark = { inviteId: string; answer: InviteAnswer; demo?: true };
+type ShownEvent = SharedEvent & { invite?: InviteMark };
 
 const DAY_MIN = 24 * 60;
 
@@ -15,7 +23,7 @@ export function windowOf(days: readonly string[], timeZone: string): { from: str
 }
 
 /** A shared calendar as the screen draws it: whose it is, its level, its events. */
-export type ShownCalendar = { person: SharingPerson; level: "busy" | "details"; events: SharedEvent[] };
+export type ShownCalendar = { person: SharingPerson; level: "busy" | "details"; events: ShownEvent[] };
 
 /** One shared timed event's part on one day, with its lane among the shared blocks of that day. */
 export type SharedBlock = {
@@ -33,6 +41,8 @@ export type SharedBlock = {
   continuesAfter: boolean;
   lane: number;
   lanes: number;
+  /** Spec 36: set when this is an event the viewer is invited to. */
+  invite?: InviteMark;
 };
 
 /** The minute of the day of a local "YYYY-MM-DDTHH:MM", as the grid counts. */
@@ -90,7 +100,7 @@ export function placeShared(calendars: readonly ShownCalendar[], days: readonly 
         blocks.push({
           person,
           level,
-          key: `${person.userId}-${event.startAt}-${event.endAt}-${event.title ?? ""}`,
+          key: event.invite ? `invite-${event.invite.inviteId}` : `${person.userId}-${event.startAt}-${event.endAt}-${event.title ?? ""}`,
           title: event.title ?? null,
           location: event.location ?? null,
           startAt: event.startAt,
@@ -101,6 +111,7 @@ export function placeShared(calendars: readonly ShownCalendar[], days: readonly 
           continuesAfter,
           lane: 0,
           lanes: 1,
+          ...(event.invite ? { invite: event.invite } : {}),
         });
       }
     }
@@ -115,7 +126,7 @@ function endOfDayMinute(end: number, day: string, timeZone: string): number {
 }
 
 /** A shared all-day event on the days it covers, with whose it is. */
-export type SharedAllDayItem = { person: SharingPerson; level: "busy" | "details"; key: string; event: SharedAllDay };
+export type SharedAllDayItem = { person: SharingPerson; level: "busy" | "details"; key: string; event: SharedAllDay & { invite?: InviteMark } };
 
 /** The shared all-day events covering each shown day. */
 export function sharedAllDayByDay(calendars: readonly ShownCalendar[], days: readonly string[]): SharedAllDayItem[][] {
@@ -124,7 +135,8 @@ export function sharedAllDayByDay(calendars: readonly ShownCalendar[], days: rea
     for (const { person, level, events } of calendars) {
       for (const event of events) {
         if (!event.allDay || event.firstDay > day || event.lastDay < day) continue;
-        items.push({ person, level, key: `${person.userId}-${event.firstDay}-${event.lastDay}-${event.title ?? ""}`, event });
+        const key = event.invite ? `invite-${event.invite.inviteId}` : `${person.userId}-${event.firstDay}-${event.lastDay}-${event.title ?? ""}`;
+        items.push({ person, level, key, event });
       }
     }
     return items;
