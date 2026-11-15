@@ -1,7 +1,8 @@
 // The Analytics page (spec 06): this week's numbers, today's when the week is the current one, a bar
 // per day with a table of the same numbers, and the most blocked sites. Every number is calculated
 // from finished sessions and blocked attempts (R19, R20); the charts are drawn with plain markup and
-// hidden from screen readers, because the table and the list next to them say the same.
+// hidden from screen readers, because the table and the list next to them say the same. Spec 29: a
+// section "Shared with you" for the focus charts contacts share with the user (SharedFocus.tsx).
 import { LinkButton } from "@/components/ui/Button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { scoreText, type Totals } from "@/lib/analytics/score";
@@ -9,6 +10,8 @@ import type { AnalyticsData } from "@/lib/analytics/types";
 import { minutesText } from "@/lib/focus/session-time";
 import { fmtDateShort, fmtWeekRange, fmtWeekday } from "@/lib/time/display";
 import { isoWeekNumber } from "@/lib/time/zoned";
+import type { SharingPerson } from "@/lib/shares/types";
+import { SharedFocus } from "./SharedFocus";
 
 const card = "rounded-card border border-line-subtle bg-surface p-5";
 const eyebrow = "text-[11px] font-medium uppercase tracking-[0.08em] text-ink-3";
@@ -23,7 +26,7 @@ function Tile({ label, value, today }: { label: string; value: string; today: st
   );
 }
 
-export function AnalyticsView({ data }: { data: AnalyticsData }) {
+export function AnalyticsView({ data, sharing = [], person }: { data: AnalyticsData; sharing?: SharingPerson[]; person?: string }) {
   const { analytics } = data;
   const todayTotals: Totals | null = data.today ? (analytics.days.find((d) => d.date === data.today) ?? null) : null;
   const maxMinutes = Math.max(1, ...analytics.days.map((d) => d.focusedMinutes));
@@ -130,6 +133,9 @@ export function AnalyticsView({ data }: { data: AnalyticsData }) {
           )}
         </section>
       </div>
+
+      {/* Spec 29: only when a contact shares their focus chart with the user. */}
+      {sharing.length > 0 && <SharedFocus people={sharing} initial={person} />}
 
       <section aria-labelledby="how-title" className="mt-8 text-sm text-ink-2">
         <h2 id="how-title" className={eyebrow}>

@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/Button";
 import { Card, PageHeader } from "@/components/ui/Card";
 import { postJson } from "@/lib/client/post-json";
 import type { PeopleData, PersonCard } from "@/lib/profiles/types";
+import { NOTHING_SHARED, type ContactShares } from "@/lib/shares/types";
+import { ShareRow } from "./ShareRow";
 import { fmtDayMonth } from "@/lib/time/display";
 import { localDateOf } from "@/lib/time/zoned";
 import type { LucideIcon } from "lucide-react";
@@ -36,7 +38,7 @@ function Quiet({ children }: { children: ReactNode }) {
   return <p className="text-sm text-ink-3">{children}</p>;
 }
 
-function Person({ person, children }: { person: Pick<PersonCard, "name" | "email" | "photoUrl">; children?: ReactNode }) {
+function Person({ person, children, below }: { person: Pick<PersonCard, "name" | "email" | "photoUrl">; children?: ReactNode; below?: ReactNode }) {
   return (
     <li className="flex flex-wrap items-center gap-3 py-3">
       <Avatar name={person.name} photoUrl={person.photoUrl} size={32} />
@@ -45,11 +47,12 @@ function Person({ person, children }: { person: Pick<PersonCard, "name" | "email
         <p className="truncate text-xs text-ink-3">{person.email}</p>
       </div>
       {children && <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>}
+      {below}
     </li>
   );
 }
 
-export function PeopleView({ data, timeZone }: { data: PeopleData; timeZone: string }) {
+export function PeopleView({ data, timeZone, shares = [] }: { data: PeopleData; timeZone: string; shares?: ContactShares[] }) {
   const router = useRouter();
   const announce = useAnnounce();
   const inputId = useId();
@@ -95,7 +98,10 @@ export function PeopleView({ data, timeZone }: { data: PeopleData; timeZone: str
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-6 md:px-8 md:py-8">
-      <PageHeader title="People" subtitle="Your contacts and invitations. Contacts see only each other's name, photo and e-mail address." />
+      <PageHeader
+        title="People"
+        subtitle="Your contacts and invitations. Contacts see each other's name, photo and e-mail address, and only what each of you chooses to share."
+      />
       <div className="flex max-w-3xl flex-col gap-4">
         <div aria-live="polite">{error && <FormMessage tone="error" text={error} />}</div>
 
@@ -212,7 +218,19 @@ export function PeopleView({ data, timeZone }: { data: PeopleData; timeZone: str
                     </Button>
                   </Person>
                 ) : (
-                  <Person key={person.id} person={person}>
+                  <Person
+                    key={person.id}
+                    person={person}
+                    below={
+                      <ShareRow
+                        contactId={person.id}
+                        userId={person.userId}
+                        name={person.name}
+                        out={shares.find((s) => s.contactId === person.id)?.out ?? NOTHING_SHARED}
+                        shared={shares.find((s) => s.contactId === person.id)?.in ?? NOTHING_SHARED}
+                      />
+                    }
+                  >
                     <Button
                       size="sm"
                       variant="secondary"

@@ -10,7 +10,7 @@ import { Welcome } from "@/components/shell/Welcome";
 import { outlookConfigured } from "@/lib/server/config";
 import { pageDeps } from "@/lib/server/deps";
 import { readAddress } from "@/lib/events/views";
-import { loadCalendarPage } from "@/lib/server/pages/load";
+import { loadCalendarPageWithShares } from "@/lib/server/pages/load";
 import { localDateTimeOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -22,15 +22,16 @@ export const metadata: Metadata = { title: "Calendar" };
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string | string[]; date?: string | string[]; week?: string | string[] }>;
+  searchParams: Promise<{ view?: string | string[]; date?: string | string[]; week?: string | string[]; share?: string | string[] }>;
 }) {
   const deps = await pageDeps();
   // The proxy already sends signed-out visitors away; the page checks again (R3).
   const userId = await deps.auth.currentUserId();
   if (!userId) redirect("/sign-in");
 
-  const address = readAddress(await searchParams);
-  const { display, week, goals, tasks, showWelcome } = await loadCalendarPage(deps, userId, address.date, address.view);
+  const params = await searchParams;
+  const address = readAddress(params);
+  const { display, week, goals, tasks, showWelcome, sharing } = await loadCalendarPageWithShares(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
@@ -44,6 +45,8 @@ export default async function CalendarPage({
               nowLocal={nowLocal}
               goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
               outlookAvailable={outlookConfigured()}
+              sharing={sharing.filter((p) => p.calendar !== "none")}
+              showPerson={typeof params.share === "string" ? params.share : undefined}
             />
           </AppShell>
           {showWelcome && <Welcome timeFormat={display.timeFormat} />}

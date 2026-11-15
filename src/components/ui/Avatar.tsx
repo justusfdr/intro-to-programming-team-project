@@ -1,15 +1,15 @@
-// A person's photo, or a circle with their initials when there is none (spec 28). Three sizes: 24 for
-// lists that are tight, 32 for lists, 64 for a profile. Later stages (shared calendars, charts and
-// lists) show people with it too.
+// A person's photo, or a circle with their initials when there is none (spec 28). Sizes: 16 inside a
+// shared calendar block (spec 29), 24 for lists that are tight, 32 for lists, 64 for a profile. Later
+// stages (shared calendars, charts and lists) show people with it too.
 //
 // The photo comes from our own route (/api/profiles/[id]/photo), which answers only to people allowed
 // to see it. The picture is decorative next to the name, so it has no text of its own unless `label`
 // is given (an avatar shown without the name next to it).
 import { initialsOf } from "@/lib/profiles/display-name";
 
-export type AvatarSize = 24 | 32 | 64;
+export type AvatarSize = 16 | 24 | 32 | 64;
 
-const TEXT: Record<AvatarSize, string> = { 24: "text-[10px]", 32: "text-xs", 64: "text-xl" };
+const TEXT: Record<AvatarSize, string> = { 16: "text-[7px]", 24: "text-[10px]", 32: "text-xs", 64: "text-xl" };
 
 export function Avatar({
   name,
