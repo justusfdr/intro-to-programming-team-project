@@ -1,4 +1,6 @@
 # Spec 35: The event preview with a map
+
+**Withdrawn 15 Nov 2026 by the owner's decision** (spec 38): the preview column and its map are gone. A click on one's own event opens the editor again; other people's events open a small card at their block. The text below is kept as a record.
 Asked for by the owner. Branch `36-event-preview`, from `35-no-lists`. Plan: `docs/ontology.md` (`event preview`, `read_event_place`, R27 extended by the map, section 7's map entry, A35; added 15 Nov 2026, spec 35, asked for by the owner; the team confirms with the merge). No database change.
 
 ## Why
