@@ -5,20 +5,19 @@
 // and folds when the mouse leaves; opened like that it lies over the page, so nothing on the page
 // jumps. The same button then keeps it open for good. The choice is remembered in this browser only.
 import Link from "next/link";
-import { Fragment, useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
-import { ChevronsLeft, Pin, Target } from "lucide-react";
+import { useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
+import { ChevronsLeft, Pin } from "lucide-react";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import { keepFocusAfterCollapse } from "./collapse-focus";
 import { Logo, LogoMark } from "./Logo";
 import { NAV, PRICING, SETTINGS, type NavItem } from "./nav";
-import { openAllPanels, usePanels, usePanelsAvailable } from "./PanelState";
 
 export const SIDEBAR_KEY = "lockedin:sidebar-folded:v1";
 const CHANGED = "lockedin:sidebar-changed";
 const WIDE = 232;
 const NARROW = 60;
 
-// The choice lives in localStorage; React reads it as an outside store (as the panels do).
+// The choice lives in localStorage; React reads it as an outside store.
 function subscribe(onChange: () => void) {
   window.addEventListener("storage", onChange);
   window.addEventListener(CHANGED, onChange);
@@ -51,62 +50,6 @@ function SidebarLink({ item, on, wide }: { item: NavItem; on: boolean; wide: boo
       <Icon className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
       {item.label}
     </Link>
-  );
-}
-
-const ITEM = "flex h-9 items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg px-[9px] text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20";
-const QUIET = "text-ink-2 hover:bg-raised/60 hover:text-ink";
-
-/**
- * "Goals", second in the list. On the calendar it shows or hides the goals column (wide screens) or
- * opens it as a sheet (narrower ones); on every other page it goes to the calendar with the column open.
- */
-function GoalsItem({ wide }: { wide: boolean }) {
-  const panels = usePanels();
-  const onCalendar = usePanelsAvailable();
-  const width = wide ? "w-full" : "w-9";
-  const label = wide ? undefined : "Goals";
-  const icon = (on: boolean) => <Target className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />;
-  if (!onCalendar) {
-    return (
-      <Link href="/" onClick={openAllPanels} aria-label={label} title={label} className={`${ITEM} ${width} ${QUIET}`}>
-        {icon(false)}
-        Goals
-      </Link>
-    );
-  }
-  const open = panels.isOpen("goals");
-  // The wrappers decide which button shows (a class on the button itself would fight its own display).
-  return (
-    <>
-      <div className="hidden xl:block">
-        <button
-          type="button"
-          aria-label={label}
-          title={`${open ? "Hide" : "Show"} goals`}
-          aria-pressed={open}
-          onClick={() => panels.toggle("goals")}
-          className={`${ITEM} ${width} ${QUIET}`}
-        >
-          {icon(open)}
-          Goals
-        </button>
-      </div>
-      <div className="xl:hidden">
-        <button
-          type="button"
-          aria-label={label}
-          title="Open goals"
-          aria-haspopup="dialog"
-          aria-expanded={panels.sheet === "goals"}
-          onClick={() => panels.openSheet("goals")}
-          className={`${ITEM} ${width} ${QUIET}`}
-        >
-          {icon(false)}
-          Goals
-        </button>
-      </div>
-    </>
   );
 }
 
@@ -172,11 +115,8 @@ export function Sidebar({ current }: { current: string }) {
           )}
         </div>
         <nav aria-label="Main navigation" className="mt-4 flex flex-col gap-0.5">
-          {NAV.map((item, i) => (
-            <Fragment key={item.href}>
-              <SidebarLink item={item} on={current === item.href} wide={wide} />
-              {i === 0 && <GoalsItem wide={wide} />}
-            </Fragment>
+          {NAV.map((item) => (
+            <SidebarLink key={item.href} item={item} on={current === item.href} wide={wide} />
           ))}
         </nav>
         <div className="mt-auto flex flex-col gap-2">

@@ -1,11 +1,12 @@
 // The pages of the app, in the order of the navigation. Shared by the sidebar (wider screens) and
-// the tab bar (phones).
-import { CalendarDays, ChartColumn, CreditCard, MessageCircle, Settings, Timer, type LucideIcon } from "lucide-react";
+// the tab bar (phones). Goals is a page of its own since spec 39 (before, a column beside the calendar).
+import { CalendarDays, ChartColumn, CreditCard, MessageCircle, Settings, Target, Timer, type LucideIcon } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon };
 
 export const NAV: NavItem[] = [
   { href: "/", label: "Calendar", icon: CalendarDays },
+  { href: "/goals", label: "Goals", icon: Target },
   { href: "/coach", label: "Coach", icon: MessageCircle },
   { href: "/focus", label: "Focus", icon: Timer },
   { href: "/analytics", label: "Analytics", icon: ChartColumn },
