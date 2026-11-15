@@ -37,6 +37,9 @@ import { readFocus } from "@/lib/server/focus/load";
 import { readGoalViews } from "@/lib/server/goals/load";
 import { readOutlookState } from "@/lib/server/outlook/sync";
 import { readOwnProfile, readPeople } from "@/lib/server/profiles/cards";
+import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
+import type { ContactShares, SharingPerson } from "@/lib/shares/types";
+import type { Query } from "@/lib/server/db";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readSettingsPage } from "@/lib/server/settings-page";
 import { readTasks } from "@/lib/server/tasks/rows";
@@ -63,21 +66,45 @@ export async function loadCalendarPage(deps: PageDeps, userId: string, requested
   // By itself: done tasks older than 7 days go first, saved on their own (R33).
   await settleTasks(deps, userId);
   const now = deps.now();
+  return deps.withUser(userId, (query) => readCalendarPage(query, now, requestedDate, requestedView));
+}
+
+/** Every read of the calendar page inside a transaction that is already open. */
+async function readCalendarPage(query: Query, now: Date, requestedDate?: string, requestedView?: View): Promise<CalendarPageData> {
+  // Every read without parameters is started here, before anything is awaited: one round.
+  // The events need the time zone and the view, so they follow as soon as those rows are in.
+  const settingsRead = readSettings(query);
+  const timeZone = settingsRead.then((settings) => settings.timeZone);
+  const view = requestedView ?? readDefaultView(query);
+  const [settings, week, goals, tasks, showWelcome] = await Promise.all([
+    settingsRead,
+    readCalendar(query, now, view, requestedDate, timeZone, readOutlookState(query)),
+    readGoalViews(query, now, timeZone),
+    readTasks(query),
+    // A new account (no goals, events or tasks, welcome never answered) sees the welcome (spec 13).
+    welcomeDue(query),
+  ]);
+  return { display: displayOf(settings), week, goals, tasks: sortTasks(tasks), showWelcome };
+}
+
+/**
+ * The calendar page with the contacts who share something with the user (spec 29), for the "People"
+ * button: the same reads as loadCalendarPage, plus the people, in the same one transaction. Their events
+ * themselves are read by the browser for the shown days (GET /api/shares/[id]/calendar).
+ */
+export async function loadCalendarPageWithShares(
+  deps: PageDeps,
+  userId: string,
+  requestedDate?: string,
+  requestedView?: View,
+): Promise<CalendarPageData & { sharing: SharingPerson[] }> {
+  await settleTasks(deps, userId);
+  const now = deps.now();
   return deps.withUser(userId, async (query) => {
-    // Every read without parameters is started here, before anything is awaited: one round.
-    // The events need the time zone and the view, so they follow as soon as those rows are in.
-    const settingsRead = readSettings(query);
-    const timeZone = settingsRead.then((settings) => settings.timeZone);
-    const view = requestedView ?? readDefaultView(query);
-    const [settings, week, goals, tasks, showWelcome] = await Promise.all([
-      settingsRead,
-      readCalendar(query, now, view, requestedDate, timeZone, readOutlookState(query)),
-      readGoalViews(query, now, timeZone),
-      readTasks(query),
-      // A new account (no goals, events or tasks, welcome never answered) sees the welcome (spec 13).
-      welcomeDue(query),
-    ]);
-    return { display: displayOf(settings), week, goals, tasks: sortTasks(tasks), showWelcome };
+    // Without parameters, so started first (see the top of this file).
+    const sharingRead = readSharingPeople(query);
+    const [page, sharing] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead]);
+    return { ...page, sharing };
   });
 }
 
@@ -112,13 +139,34 @@ export async function loadAnalyticsPage(deps: PageDeps, userId: string, requeste
   const now = deps.now();
   // By itself: a session that reached its planned length finishes first, so it counts (R13).
   await settleSessions(deps, userId, now);
+  return deps.withUser(userId, (query) => readAnalyticsPage(query, now, requestedWeek));
+}
+
+async function readAnalyticsPage(query: Query, now: Date, requestedWeek?: string): Promise<AnalyticsPageData> {
+  const settingsRead = readSettings(query);
+  const [settings, analytics] = await Promise.all([
+    settingsRead,
+    readAnalytics(query, now, requestedWeek, settingsRead.then((s) => s.timeZone)),
+  ]);
+  return { display: displayOf(settings), analytics };
+}
+
+/**
+ * The Analytics page with the contacts who share their focus chart with the user (spec 29): the same
+ * reads as loadAnalyticsPage plus the people, in the same transaction. A chart itself is read by the
+ * browser when the user picks a person (GET /api/shares/[id]/focus).
+ */
+export async function loadAnalyticsPageWithShares(
+  deps: PageDeps,
+  userId: string,
+  requestedWeek?: string,
+): Promise<AnalyticsPageData & { sharing: SharingPerson[] }> {
+  const now = deps.now();
+  await settleSessions(deps, userId, now);
   return deps.withUser(userId, async (query) => {
-    const settingsRead = readSettings(query);
-    const [settings, analytics] = await Promise.all([
-      settingsRead,
-      readAnalytics(query, now, requestedWeek, settingsRead.then((s) => s.timeZone)),
-    ]);
-    return { display: displayOf(settings), analytics };
+    const sharingRead = readSharingPeople(query);
+    const [page, sharing] = await Promise.all([readAnalyticsPage(query, now, requestedWeek), sharingRead]);
+    return { ...page, sharing: sharing.filter((p) => p.focus) };
   });
 }
 
@@ -158,13 +206,16 @@ export async function loadSettingsPageWithProfile(deps: PageDeps, userId: string
   });
 }
 
-export type PeoplePageData = { display: Display; timeZone: string; people: PeopleData };
+export type PeoplePageData = { display: Display; timeZone: string; people: PeopleData; shares: ContactShares[] };
 
-/** The People page (spec 28): the user's profile, contacts and invitations. Reads only, one transaction. */
+/**
+ * The People page (spec 28): the user's profile, contacts and invitations; spec 29: per contact what the
+ * user shares and what is shared with them. Reads only, one transaction.
+ */
 export async function loadPeoplePage(deps: Pick<Deps, "withUser">, userId: string): Promise<PeoplePageData> {
   return deps.withUser(userId, async (query) => {
-    const [settings, people] = await Promise.all([readSettings(query), readPeople(query)]);
-    return { display: displayOf(settings), timeZone: settings.timeZone, people };
+    const [settings, people, shares] = await Promise.all([readSettings(query), readPeople(query), readSharesOverview(query)]);
+    return { display: displayOf(settings), timeZone: settings.timeZone, people, shares };
   });
 }
 
