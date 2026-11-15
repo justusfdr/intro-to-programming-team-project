@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
@@ -12,6 +12,8 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.test.{ts,tsx}", "test/**/*.test.ts", "extension/**/*.test.js"],
+    // The schema tests of the withdrawn shared lists (spec 34); see test/db/_closed/README.md.
+    exclude: [...configDefaults.exclude, "test/db/_closed/**"],
     environment: "node",
     // Each test file starts its own in-process Postgres (about 1 GB of memory). Two at a time fits in 8 GB.
     maxWorkers: 2,
