@@ -33,6 +33,29 @@ export async function readProfileCard(query: Query, userId: string): Promise<Pro
   );
   // The address comes with every row the function gives; a row without one is not shown at all.
   if (!row || row.email === null) return null;
+  return cardOf(row as ShownRow);
+}
+
+/**
+ * The cards of several people at once (spec 33: the People page's cards and hover cards), in one
+ * question: app.profile_card for each id, so the database checks R43 for every one of them and gives
+ * nothing for anyone the user may not see. Malformed ids are left out before asking.
+ */
+export async function readProfileCards(query: Query, userIds: readonly string[]): Promise<ProfileCardData[]> {
+  const ids = [...new Set(userIds.filter(isUserId))];
+  if (ids.length === 0) return [];
+  const rows = await query<CardRow>(
+    `select c.user_id, c.display_name, c.bio, c.linkedin_url, c.time_zone, c.photo_at, c.email
+       from unnest($1::text[]) as wanted(id), lateral app.profile_card(wanted.id::uuid) c`,
+    [ids],
+  );
+  return rows.filter((row): row is ShownRow => row.email !== null).map(cardOf);
+}
+
+/** A row with its address (every row app.profile_card gives has one). */
+type ShownRow = CardRow & { email: string };
+
+function cardOf(row: ShownRow): ProfileCardData {
   return {
     userId: row.user_id,
     displayName: row.display_name,

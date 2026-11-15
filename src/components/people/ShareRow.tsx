@@ -33,6 +33,7 @@ export function ShareRow({
   out: saved,
   shared,
   demo = false,
+  showTheirs = true,
 }: {
   contactId: string;
   userId: string;
@@ -43,6 +44,8 @@ export function ShareRow({
   shared: ShareSetting;
   /** A demo contact (spec 32): nothing can be shared with them. */
   demo?: boolean;
+  /** Spec 33: the profile page says what they share in its own sections, so the line can be left out. */
+  showTheirs?: boolean;
 }) {
   const announce = useAnnounce();
   const labelId = useId();
@@ -103,7 +106,7 @@ export function ShareRow({
         </span>
       </div>
       {demo && <p className="text-xs text-ink-3">{DEMO_SHARE_NOTE}.</p>}
-      <p className="text-xs text-ink-3">
+      {showTheirs && <p className="text-xs text-ink-3">
         {theirs ?? `${name} shares nothing with you.`}
         {shared.calendar !== "none" && (
           <>
@@ -121,7 +124,7 @@ export function ShareRow({
             </Link>
           </>
         )}
-      </p>
+      </p>}
     </div>
   );
 }

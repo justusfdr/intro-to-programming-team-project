@@ -15,7 +15,7 @@ import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
 import type { ChatPageData } from "@/lib/chat/types";
 import { lookOf } from "@/lib/goals/style";
 import type { BlockerData } from "@/lib/blocker/types";
-import type { OwnProfile, PeopleData, ProfileCardData } from "@/lib/profiles/types";
+import type { OwnProfile, PeopleData, PersonFacts, ProfileCardData } from "@/lib/profiles/types";
 import type { ListPageData, ListSummary } from "@/lib/lists/types";
 import type { WeekData } from "@/lib/events/types";
 import type { View } from "@/lib/events/views";
@@ -38,9 +38,9 @@ import { readFocus } from "@/lib/server/focus/load";
 import { readGoalViews } from "@/lib/server/goals/load";
 import { readOutlookState } from "@/lib/server/outlook/sync";
 import { readOwnProfile, readPeople } from "@/lib/server/profiles/cards";
-import { isUserId, readProfileCard } from "@/lib/server/profiles/profile-card";
+import { isUserId, readProfileCard, readProfileCards } from "@/lib/server/profiles/profile-card";
 import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
-import type { ContactShares, ShareSetting, SharingPerson } from "@/lib/shares/types";
+import { NOTHING_SHARED, type ContactShares, type PersonRelation, type ShareSetting, type SharingPerson } from "@/lib/shares/types";
 import type { Query } from "@/lib/server/db";
 import { demoContacts, demoPerson, demoProfileCard, demoSharingPeople, isDemoId, type DemoContact, type DemoProfileCard } from "@/lib/demo/people";
 import { readDemoContactsOn } from "@/lib/server/demo/people";
@@ -228,6 +228,10 @@ export type PeoplePageData = {
   shares: ContactShares[];
   /** Spec 32: whether the user has the demo contacts on, and then the three of them (else none). */
   demo: { on: boolean; contacts: DemoContact[] };
+  /** Spec 33: bio and time zone of the contacts and of the people who invited the user, for their cards. */
+  facts: PersonFacts[];
+  /** When the page was read (ISO), so the cards' local times start from the same minute on server and browser. */
+  now: string;
 };
 
 /**
@@ -235,7 +239,8 @@ export type PeoplePageData = {
  * user shares and what is shared with them; spec 32: the demo contacts, after the real ones. Reads only,
  * one transaction.
  */
-export async function loadPeoplePage(deps: Pick<Deps, "withUser">, userId: string): Promise<PeoplePageData> {
+export async function loadPeoplePage(deps: Pick<Deps, "withUser"> & Partial<Pick<Deps, "now">>, userId: string): Promise<PeoplePageData> {
+  const now = deps.now?.() ?? new Date();
   return deps.withUser(userId, async (query) => {
     const [settings, people, shares, demoOn] = await Promise.all([
       readSettings(query),
@@ -243,12 +248,16 @@ export async function loadPeoplePage(deps: Pick<Deps, "withUser">, userId: strin
       readSharesOverview(query),
       readDemoContactsOn(query),
     ]);
+    // Spec 33: one more question (with a parameter, so after the others): the cards of these people.
+    const cards = await readProfileCards(query, [...people.contacts, ...people.received].map((p) => p.userId));
     return {
       display: displayOf(settings),
       timeZone: settings.timeZone,
       people,
       shares,
       demo: { on: demoOn, contacts: demoOn ? demoContacts() : [] },
+      facts: cards.map((card) => ({ userId: card.userId, bio: card.bio, timeZone: card.timeZone })),
+      now: now.toISOString(),
     };
   });
 }
@@ -329,6 +338,61 @@ export async function loadDemoPersonPage(deps: PageDeps, userId: string, personI
  */
 export async function loadAnyPersonPage(deps: PageDeps, userId: string, personId: string): Promise<PersonPageData | DemoPersonPageData | null> {
   return isDemoId(personId) ? loadDemoPersonPage(deps, userId, personId) : loadPersonPage(deps, userId, personId);
+}
+
+export type PersonProfileData = {
+  display: Display;
+  /** The viewer's own time zone. */
+  timeZone: string;
+  person: ProfileCardData | DemoProfileCard;
+  relation: PersonRelation | null;
+  me: { name: string; photoUrl: string | null };
+  now: string;
+};
+
+/**
+ * /people/[id] with spec 33's sections ("What you share with …", their week, their focus chart): the
+ * card as loadPersonPage and loadDemoPersonPage give it, plus the viewer's time zone and the relation.
+ * The three demo ids are recognised first (spec 32). Null alike for everything the user may not see.
+ * One transaction.
+ */
+export async function loadPersonProfile(deps: PageDeps, userId: string, personId: string): Promise<PersonProfileData | null> {
+  const now = deps.now();
+  if (isDemoId(personId)) {
+    const person = demoPerson(personId);
+    if (!person) return null;
+    return deps.withUser(userId, async (query) => {
+      const [settings, me, on] = await Promise.all([readSettings(query), readOwnProfile(query), readDemoContactsOn(query)]);
+      if (!on) return null;
+      return {
+        display: displayOf(settings),
+        timeZone: settings.timeZone,
+        person: demoProfileCard(person),
+        relation: { contactId: null, out: NOTHING_SHARED, shared: person.shares, demo: true },
+        me: { name: me.name, photoUrl: me.photoUrl },
+        now: now.toISOString(),
+      };
+    });
+  }
+  if (!isUserId(personId)) return null;
+  return deps.withUser(userId, async (query) => {
+    // Reads without parameters first (one round), the card (with one) after them.
+    const settingsRead = readSettings(query);
+    const peopleRead = readPeople(query);
+    const overviewRead = readSharesOverview(query);
+    const [settings, people, overview, person] = await Promise.all([settingsRead, peopleRead, overviewRead, readProfileCard(query, personId)]);
+    if (!person) return null;
+    const contact = people.contacts.find((c) => c.userId === person.userId);
+    const shares = contact ? overview.find((o) => o.contactId === contact.id) : undefined;
+    return {
+      display: displayOf(settings),
+      timeZone: settings.timeZone,
+      person,
+      relation: contact ? { contactId: contact.id, out: shares?.out ?? NOTHING_SHARED, shared: shares?.in ?? NOTHING_SHARED, demo: false } : null,
+      me: { name: people.me.name, photoUrl: people.me.photoUrl },
+      now: now.toISOString(),
+    };
+  });
 }
 
 export type ListsPageData = { display: Display; lists: ListSummary[] };

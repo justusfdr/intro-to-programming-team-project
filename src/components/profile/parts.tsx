@@ -31,6 +31,26 @@ export function LinkedInLink({ url }: { url: string | null }) {
   );
 }
 
+/**
+ * The current time, starting from the minute the server read the page (so server and browser render
+ * the same) and then following the clock, once a minute (spec 33: also the cards' local times).
+ */
+export function useMinuteClock(now: string): Date {
+  const [at, setAt] = useState(() => new Date(now));
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const current = new Date();
+      setAt(current);
+      // Again at the start of the next minute.
+      timer = setTimeout(tick, 60_000 - (current.getTime() % 60_000) + 50);
+    };
+    timer = setTimeout(tick, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  return at;
+}
+
 /** "America/New_York" → "America/New York". */
 const zoneName = (zone: string) => zone.replaceAll("_", " ");
 
@@ -50,18 +70,7 @@ function clockIn(at: Date, timeZone: string, format: "12h" | "24h"): string | nu
  */
 export function TimeZoneLine({ timeZone, now, settingsLink = false }: { timeZone: string; now: string; settingsLink?: boolean }) {
   const { timeFormat } = useDisplay();
-  const [at, setAt] = useState(() => new Date(now));
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      const current = new Date();
-      setAt(current);
-      // Again at the start of the next minute.
-      timer = setTimeout(tick, 60_000 - (current.getTime() % 60_000) + 50);
-    };
-    timer = setTimeout(tick, 0);
-    return () => clearTimeout(timer);
-  }, []);
+  const at = useMinuteClock(now);
   const clock = clockIn(at, timeZone, timeFormat);
   return (
     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-2">

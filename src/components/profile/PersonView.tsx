@@ -1,7 +1,8 @@
 // Another person's profile (spec 31), read only: their photo (or initials), shown name, e-mail address,
 // bio, LinkedIn link and time zone with the local time there. Only for people the user may see (R43);
 // the page shows "Not found" for everyone else. Spec 32: a demo contact's page looks the same, with the
-// "Demo" tag and without an e-mail address (they have none).
+// "Demo" tag and without an e-mail address (they have none). Spec 33: with `sections`, under the card
+// "What you share with <name>", "<name>'s week" and their focus chart (PersonSections).
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
@@ -9,11 +10,33 @@ import { Card } from "@/components/ui/Card";
 import { DemoTag } from "@/components/ui/DemoTag";
 import type { DemoProfileCard } from "@/lib/demo/people";
 import type { ProfileCardData } from "@/lib/profiles/types";
+import { NOTHING_SHARED, type PersonRelation, type SharingPerson } from "@/lib/shares/types";
 import { LinkedInLink, TimeZoneLine } from "./parts";
+import { PersonSections } from "./PersonSections";
 
-export function PersonView({ person, now }: { person: ProfileCardData | DemoProfileCard; now: string }) {
+export function PersonView({
+  person,
+  now,
+  sections = false,
+  relation = null,
+}: {
+  person: ProfileCardData | DemoProfileCard;
+  now: string;
+  /** Spec 33: show the sections under the card. */
+  sections?: boolean;
+  relation?: PersonRelation | null;
+}) {
   const demo = "demo" in person;
   const photoUrl = demo ? null : person.photoUrl;
+  const shared = relation?.shared ?? NOTHING_SHARED;
+  const asSharing: SharingPerson = {
+    userId: person.userId,
+    name: person.name,
+    photoUrl,
+    calendar: shared.calendar,
+    focus: shared.focus,
+    ...(demo ? { demo: person.look } : {}),
+  };
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-6 md:px-8 md:py-8">
       <Link href="/people" className="inline-flex w-fit items-center gap-1.5 text-sm text-ink-2 hover:text-ink">
@@ -49,6 +72,7 @@ export function PersonView({ person, now }: { person: ProfileCardData | DemoProf
         <TimeZoneLine timeZone={person.timeZone} now={now} />
         <LinkedInLink url={person.linkedinUrl} />
       </Card>
+      {sections && <PersonSections person={asSharing} timeZone={person.timeZone} relation={relation} now={now} />}
     </div>
   );
 }

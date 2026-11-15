@@ -4,7 +4,9 @@
 // anchor (kept inside the window), on phones (< 640 px) a sheet from the bottom over a dimmed page.
 // Closes on a click outside and on Esc, then gives the focus back. Without the prototype's animation
 // package: it appears at once.
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+// Spec 33: `passive` makes it a hover card: it never takes the focus, never keeps Tab inside, never
+// becomes a sheet, and reports the pointer entering and leaving it.
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
@@ -44,14 +46,18 @@ type Props = {
   width?: number;
   onClose: () => void;
   children: ReactNode;
+  /** Spec 33: a hover card that leaves the focus where it is and never traps it. */
+  passive?: boolean;
+  onPointerEnter?: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerLeave?: (e: ReactPointerEvent<HTMLDivElement>) => void;
 };
 
-export function FloatingPanel({ anchor, label, width = 340, onClose, children }: Props) {
+export function FloatingPanel({ anchor, label, width = 340, onClose, children, passive = false, onPointerEnter, onPointerLeave }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>(readViewport);
   // The measured height, so long panels stay inside the window too.
   const [height, setHeight] = useState(360);
-  const sheet = viewport.w < SHEET_BREAKPOINT;
+  const sheet = !passive && viewport.w < SHEET_BREAKPOINT;
 
   // Measure, and place again when the window changes (not close: on phones the keyboard resizes it).
   useEffect(() => {
@@ -91,17 +97,19 @@ export function FloatingPanel({ anchor, label, width = 340, onClose, children }:
   useEffect(() => {
     const el = ref.current;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true });
+    if (el && !passive && !el.contains(document.activeElement)) el.focus({ preventScroll: true });
     return () => {
       const active = document.activeElement;
       const lost = active === null || active === document.body || (el !== null && el.contains(active));
       if (lost && previous?.isConnected) previous.focus({ preventScroll: true });
     };
+    // Only when it opens; `passive` does not change while it is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Tab stays in the panel: past the end it goes to the start and back.
   const onPanelKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "Tab" || !ref.current) return;
+    if (passive || e.key !== "Tab" || !ref.current) return;
     const focusables = Array.from(ref.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.getClientRects().length > 0);
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
@@ -158,8 +166,10 @@ export function FloatingPanel({ anchor, label, width = 340, onClose, children }:
       ref={ref}
       role="dialog"
       aria-label={label}
-      tabIndex={-1}
+      tabIndex={passive ? undefined : -1}
       onKeyDown={onPanelKeyDown}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       className="scroll-thin fixed z-50 overflow-y-auto overscroll-contain rounded-card border border-line-subtle bg-surface shadow-float focus:outline-none"
       style={{ left, top, width: w, maxHeight: `calc(100dvh - ${2 * MARGIN}px)` }}
     >

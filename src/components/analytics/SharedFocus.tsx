@@ -51,7 +51,18 @@ function Bars({ bars, current }: { bars: { key: string; label: string; minutes: 
 }
 
 /** `initial`: the person the address names (the People page's "View focus chart"), else the first. */
-export function SharedFocus({ people, initial }: { people: readonly SharingPerson[]; initial?: string }) {
+export function SharedFocus({
+  people,
+  initial,
+  title = "Shared with you",
+  subtitle = "Focus charts your contacts share with you. Read only, in their own time zone.",
+}: {
+  people: readonly SharingPerson[];
+  initial?: string;
+  /** Spec 33: the person's profile page shows the same chart under its own heading. */
+  title?: string;
+  subtitle?: string;
+}) {
   const selectId = useId();
   const [chosen, setChosen] = useState<string>(people.find((p) => p.userId === initial)?.userId ?? people[0]?.userId ?? "");
   const [chart, setChart] = useState<{ userId: string; data: SharedFocusAnswer | null; message: string } | null>(null);
@@ -80,9 +91,9 @@ export function SharedFocus({ people, initial }: { people: readonly SharingPerso
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 id={`${selectId}-title`} className="text-[17px] font-semibold tracking-snug text-ink">
-            Shared with you
+            {title}
           </h2>
-          <p className="mt-0.5 text-sm text-ink-2">Focus charts your contacts share with you. Read only, in their own time zone.</p>
+          <p className="mt-0.5 text-sm text-ink-2">{subtitle}</p>
         </div>
         {people.length > 1 && (
           <div className="flex items-center gap-2">

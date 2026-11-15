@@ -13,6 +13,13 @@ export const NOTHING_SHARED: ShareSetting = { calendar: "none", focus: false };
 /** Per contact row: what I share with them ("out") and what they share with me ("in"). */
 export type ContactShares = { contactId: string; userId: string; out: ShareSetting; in: ShareSetting };
 
+/**
+ * How the user stands with the person on their profile page (spec 33): the contact row (for set_share
+ * and removing; null for a demo contact, spec 32), what the user shares with them ("out"), and what they
+ * share with the user. A person who is not a contact (their invitation is open) has none.
+ */
+export type PersonRelation = { contactId: string | null; out: ShareSetting; shared: ShareSetting; demo: boolean };
+
 /** A contact who shares something with me, with what the calendar and analytics pages need to show them. */
 export type SharingPerson = {
   userId: string;

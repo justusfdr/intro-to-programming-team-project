@@ -62,3 +62,10 @@ export type SidebarMe = { name: string; photoUrl: string | null };
  * fixed people in src/lib/demo/people.ts have one; real people have a photo or the plain initials.
  */
 export type AvatarLook = { initials: string; color: string };
+
+/**
+ * Spec 33: what the People page's cards and hover cards show of a person beyond the contact list: the
+ * first line of the bio and the time zone (for the local time). Read through app.profile_card, so only
+ * for people the user may see (R43).
+ */
+export type PersonFacts = { userId: string; bio: string | null; timeZone: string };

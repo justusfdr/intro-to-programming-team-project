@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { getJson } from "@/lib/client/post-json";
 import { keepChosen, toggleChosen, windowOf, type ShownCalendar } from "@/lib/shares/place";
-import type { SharedCalendarAnswer, SharedEvent, SharingPerson } from "@/lib/shares/types";
+import { MAX_SHOWN_CALENDARS, type SharedCalendarAnswer, type SharedEvent, type SharingPerson } from "@/lib/shares/types";
 
 const STORAGE_KEY = "lockedin.shownCalendars";
 const CHANGED = "shown-calendars-changed";
@@ -51,8 +51,21 @@ function store(ids: string[]): void {
   window.dispatchEvent(new Event(CHANGED));
 }
 
+/**
+ * Spec 33: "Show in my calendar" on a person's profile page: adds them to the remembered choice (the
+ * same one the calendar's People picker stores) while there is room for another (R51). Returns whether
+ * they are now in it.
+ */
+export function rememberShown(userId: string): boolean {
+  const ids = parseStored(readStored()).filter((id): id is string => typeof id === "string");
+  if (ids.includes(userId)) return true;
+  if (ids.length >= MAX_SHOWN_CALENDARS) return false;
+  store([...ids, userId]);
+  return true;
+}
+
 /** Keeps only an answer of the expected shape (the server's allow-list); anything else counts as nothing. */
-function asAnswer(data: unknown): SharedCalendarAnswer | null {
+export function asAnswer(data: unknown): SharedCalendarAnswer | null {
   if (!data || typeof data !== "object") return null;
   const { level, events } = data as { level?: unknown; events?: unknown };
   if ((level !== "busy" && level !== "details") || !Array.isArray(events)) return null;

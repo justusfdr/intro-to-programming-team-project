@@ -1,5 +1,6 @@
 // A person's photo, or a circle with their initials when there is none (spec 28). Sizes: 16 inside a
-// shared calendar block (spec 29), 24 for lists that are tight, 32 for lists, 64 for a profile. Later
+// shared calendar block (spec 29), 24 for lists that are tight, 32 for lists, 48 for a hover card
+// (spec 33), 64 for a profile and a person's card. Later
 // stages (shared calendars, charts and lists) show people with it too.
 //
 // The photo comes from our own route (/api/profiles/[id]/photo), which answers only to people allowed
@@ -8,9 +9,9 @@
 import { initialsOf } from "@/lib/profiles/display-name";
 import type { AvatarLook } from "@/lib/profiles/types";
 
-export type AvatarSize = 16 | 24 | 32 | 64;
+export type AvatarSize = 16 | 24 | 32 | 48 | 64;
 
-const TEXT: Record<AvatarSize, string> = { 16: "text-[7px]", 24: "text-[10px]", 32: "text-xs", 64: "text-xl" };
+const TEXT: Record<AvatarSize, string> = { 16: "text-[7px]", 24: "text-[10px]", 32: "text-xs", 48: "text-base", 64: "text-xl" };
 
 export function Avatar({
   name,

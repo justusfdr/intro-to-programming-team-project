@@ -13,6 +13,10 @@
 // For screen readers and the keyboard, each day is a labelled list of its events in time order,
 // and each event is a button whose name says title, day, time and marks. The hour axis, the lines
 // and the empty slots are decoration. Everything a drag does can be done in the editor too.
+//
+// Spec 33: `readOnly` shows only someone else's shared calendar (a person's profile page): every day
+// column at every width (the page scrolls sideways on phones), weekday labels without links, shared
+// blocks across the whole column, and nothing to click on empty time, drag or open in the editor.
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import { blockBox, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, type GridRange, type Placed } from "@/lib/events/grid";
@@ -61,7 +65,9 @@ type Props = {
   pending?: ReadonlySet<string>;
   onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
   /** A click or a drag on empty space: the new event's day and minutes, and where the pointer was. */
-  onCreate: (date: string, span: Span, anchor: Anchor) => void;
+  onCreate?: (date: string, span: Span, anchor: Anchor) => void;
+  /** Spec 33: only shared blocks, nothing can be created, dragged or edited; every day is shown. */
+  readOnly?: boolean;
   /** A block was dropped somewhere else (moved, or its end dragged). */
   onDrop?: (event: WeekEvent, date: string, span: Span, anchor: Anchor) => void;
   /** R27: the travel answers by event id; an event with a time to leave gets a dashed block before it. */
@@ -395,22 +401,25 @@ function SharedAllDayRow({
   days,
   items,
   selectedDay,
+  everyDay = false,
   onOpen,
 }: {
   days: WeekDay[];
   items: SharedAllDayItem[][];
   selectedDay: string;
+  /** Spec 33: every day's column at every width (read-only grid). */
+  everyDay?: boolean;
   onOpen: (shared: OpenShared, anchor: Anchor) => void;
 }) {
   if (!items.some((list) => list.length > 0)) return null;
   const chosen = days.findIndex((d) => d.date === selectedDay);
   return (
-    <section aria-label="Shared, all day" className={`${items[chosen]?.length ? "flex" : "hidden"} border-b border-line-subtle md:flex`}>
+    <section aria-label="Shared, all day" className={`${everyDay || items[chosen]?.length ? "flex" : "hidden"} border-b border-line-subtle md:flex`}>
       <div aria-hidden className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] leading-[12px] font-medium text-ink-3">
         Shared
       </div>
       {days.map((day, i) => (
-        <ul key={day.date} className={`${day.date === selectedDay ? "flex" : "hidden"} min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:flex`}>
+        <ul key={day.date} className={`${everyDay || day.date === selectedDay ? "flex" : "hidden"} min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:flex`}>
           {(items[i] ?? []).map((item) => (
             <li key={item.key} className="min-w-0">
               <SharedAllDayChip item={item} onOpen={onOpen} />
@@ -439,6 +448,7 @@ export function TimeGrid({
   sharedAllDay,
   timeZone = "UTC",
   onOpenShared,
+  readOnly = false,
 }: Props) {
   const { timeFormat } = useDisplay();
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
@@ -548,7 +558,7 @@ export function TimeGrid({
     if (!day) return;
     const anchor = pointAnchor(e.clientX, e.clientY);
     if (g.kind === "create") {
-      onCreate(day.date, result.span, anchor);
+      onCreate?.(day.date, result.span, anchor);
     } else if (g.kind === "move") {
       const changed = day.date !== g.block.event.startLocal.slice(0, 10) || result.span.startMin !== g.block.startMin;
       if (changed) onDrop?.(g.block.event, day.date, result.span, anchor);
@@ -588,7 +598,23 @@ export function TimeGrid({
         }}
       >
         {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip). */}
-        {dayHref && (
+        {readOnly && (
+          <div className="sticky top-0 z-20 flex border-b border-line-subtle bg-surface">
+            <div className="w-[52px] shrink-0" />
+            {days.map((day) => {
+              const parts = dayParts(day.date);
+              return (
+                <div key={day.date} aria-hidden className="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2">
+                  <span className="text-[11px] font-medium text-ink-3">{parts.weekday}</span>
+                  <span className={`flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular ${day.isToday ? "bg-today text-white" : "text-ink"}`}>
+                    {parts.day}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {dayHref && !readOnly && (
           <div className="sticky top-0 z-20 hidden border-b border-line-subtle bg-surface md:flex">
             <div className="w-[52px] shrink-0" />
             {days.map((day) => {
@@ -615,7 +641,7 @@ export function TimeGrid({
         )}
 
         <AllDayRow days={days} selectedDay={selectedDay} onOpenEvent={onOpenEvent} />
-        {sharedAllDay && onOpenShared && <SharedAllDayRow days={days} items={sharedAllDay} selectedDay={selectedDay} onOpen={onOpenShared} />}
+        {sharedAllDay && onOpenShared && <SharedAllDayRow days={days} items={sharedAllDay} selectedDay={selectedDay} everyDay={readOnly} onOpen={onOpenShared} />}
 
         {hasEarly && (
           // Mouse only and not read out: each of these events is already listed on the day it starts.
@@ -677,13 +703,13 @@ export function TimeGrid({
             const blocks = placed[i];
             const listed = blocks.filter((b) => !b.continuesBefore);
             const sharedHere = (shared?.[i] ?? NO_SHARED).filter((b) => b.endMin > range.startMin && b.startMin < range.endMin);
-            const area = sharedHere.length > 0 ? OWN_AREA : 1;
+            const area = sharedHere.length > 0 && !readOnly ? OWN_AREA : 1;
             return (
               <section
                 key={day.date}
                 aria-label={`${parts.long}${day.isToday ? ", today" : ""}`}
                 data-day-col
-                className={`${day.date === selectedDay ? "block" : "hidden"} relative min-w-0 flex-1 border-l border-line-subtle md:block ${
+                className={`${readOnly || day.date === selectedDay ? "block" : "hidden"} relative min-w-0 flex-1 border-l border-line-subtle md:block ${
                   day.isToday ? "bg-raised/40" : ""
                 }`}
                 style={{ height }}
@@ -692,11 +718,11 @@ export function TimeGrid({
                 <div
                   aria-hidden
                   className="absolute inset-0"
-                  onPointerDown={(e) => {
+                  onPointerDown={readOnly ? undefined : (e) => {
                     dismissClickRef.current = document.querySelector('[role="dialog"],dialog[open]') !== null;
                     beginCreate(e, i);
                   }}
-                  onClick={(e) => {
+                  onClick={readOnly ? undefined : (e) => {
                     if (dismissClickRef.current) {
                       dismissClickRef.current = false;
                       return;
@@ -707,7 +733,7 @@ export function TimeGrid({
                     }
                     if (e.target !== e.currentTarget) return;
                     const rect = e.currentTarget.getBoundingClientRect();
-                    onCreate(day.date, clickSpan(minuteAtY(e.clientY - rect.top, range), range), pointAnchor(e.clientX, e.clientY));
+                    onCreate?.(day.date, clickSpan(minuteAtY(e.clientY - rect.top, range), range), pointAnchor(e.clientX, e.clientY));
                   }}
                 >
                   {hours.map((m) => (
@@ -731,7 +757,7 @@ export function TimeGrid({
                   <ul aria-label="Shared calendars" className="pointer-events-none absolute inset-0">
                     {sharedHere.map((block) => (
                       <li key={`${block.key}-${block.continuesBefore ? "after" : "start"}`}>
-                        <SharedBlockView block={block} range={range} left={OWN_AREA} width={1 - OWN_AREA} timeZone={timeZone} onOpen={onOpenShared} />
+                        <SharedBlockView block={block} range={range} left={readOnly ? 0 : OWN_AREA} width={readOnly ? 1 : 1 - OWN_AREA} timeZone={timeZone} onOpen={onOpenShared} />
                       </li>
                     ))}
                   </ul>
