@@ -9,7 +9,9 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     // form-action: our own forms, and Microsoft's sign-in, which "Sign in with Microsoft" posts to
     // through our server's redirect (browsers apply form-action to the redirect as well).
-    value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://login.microsoftonline.com; object-src 'none'",
+    // frame-src: the only frame our pages show is OpenStreetMap's map in the event preview (spec 35).
+    value:
+      "frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://login.microsoftonline.com; object-src 'none'; frame-src https://www.openstreetmap.org",
   },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -23,6 +25,9 @@ const securityHeaders = [
 // policy itself; this entry comes after the general one, so it replaces the general policy on that
 // address whichever of the two the framework applies last.
 const photoHeaders = [{ key: "Content-Security-Policy", value: "default-src 'none'; sandbox; frame-ancestors 'none'" }];
+
+/** The general headers, exported for test/repo/security-headers.test.ts. */
+export const SECURITY_HEADERS = securityHeaders;
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
