@@ -194,18 +194,4 @@ describe("app.profile_card", () => {
     expect(await card(bob, alice)).toEqual([]);
     expect(await db.admin("select * from app.profile_card($1::uuid)", [alice])).toEqual([]);
   });
-
-  it("gives people who only share a list nothing of the card (they keep the name and photo inside the list)", async () => {
-    await connect(alice, bob, "bob@example.com");
-    await connect(alice, carol, "carol@example.com");
-    const [{ id: list }] = await as<{ id: string }>(alice, "select app.create_list('Flat') as id");
-    for (const user of [bob, carol]) {
-      const [contact] = await as<{ id: string }>(alice, "select id from app.contacts where $1 in (user_a, user_b)", [user]);
-      await as(alice, "select app.add_list_member($1::uuid, $2::uuid)", [list, contact.id]);
-    }
-    // Bob and Carol share the list but are not contacts of each other.
-    expect((await as(bob, "select user_id from app.list_people($1::uuid)", [list])).length).toBe(3);
-    expect(await card(bob, carol)).toEqual([]);
-    expect(await card(carol, bob)).toEqual([]);
-  });
 });

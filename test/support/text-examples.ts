@@ -1,6 +1,6 @@
 // One table of examples for the rules on texts other people see (security review of sharing, fix 3):
-// a display name (app.display_name_valid, src/lib/profiles/display-name.ts) and a list or entry title
-// (app.list_text_valid, src/lib/lists/text.ts). The database tests and the TypeScript tests both run
+// a display name (app.display_name_valid, src/lib/profiles/display-name.ts) and other shown text such as
+// a bio (app.list_text_valid, src/lib/text/shown-text.ts; once the rule of list titles, spec 30). The database tests and the TypeScript tests both run
 // every row, so the two sides of each rule cannot drift apart. No example has spaces at either end, so
 // the TypeScript trimming leaves it as it is.
 
@@ -10,7 +10,7 @@ export type TextExample = {
   text: string;
   /** Accepted as a display name. */
   name: boolean;
-  /** Accepted as a list or entry title. */
+  /** Accepted as shown text (a bio; once a list or entry title). */
   title: boolean;
 };
 
