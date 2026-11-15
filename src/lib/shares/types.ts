@@ -1,5 +1,6 @@
 // What a user shares with a contact, and what the server hands out of a shared calendar or focus chart
 // (spec 29, ontology R47 to R51). Only these shapes ever leave another user's rows.
+import type { AvatarLook } from "@/lib/profiles/types";
 
 /** How much of the calendar a contact sees: nothing, blocks without text, or title, time and place. */
 export type CalendarLevel = "none" | "busy" | "details";
@@ -20,6 +21,8 @@ export type SharingPerson = {
   /** Their calendar's level for me ("none": they do not share it). */
   calendar: CalendarLevel;
   focus: boolean;
+  /** Only for a demo contact (spec 32): their initials and colour. Real people never have this key. */
+  demo?: AvatarLook;
 };
 
 /** At most this many shared calendars are shown at once (R51). */

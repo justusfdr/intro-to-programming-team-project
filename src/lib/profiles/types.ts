@@ -56,3 +56,9 @@ export type ProfileCardData = {
 
 /** The signed-in user as the sidebar shows them (spec 31): the shown name and the photo. */
 export type SidebarMe = { name: string; photoUrl: string | null };
+
+/**
+ * How a demo contact (spec 32) is drawn instead of a photo: their initials on their own colour. Only the
+ * fixed people in src/lib/demo/people.ts have one; real people have a photo or the plain initials.
+ */
+export type AvatarLook = { initials: string; color: string };
