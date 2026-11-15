@@ -1,4 +1,6 @@
 # Spec 12: Shell, settings and the prototype's time format
+> 15 Nov 2026: the goals column (and its phone sheet) was replaced by the Goals page, `/goals` (spec 39).
+
 **This branch (`prototype-style`) is a variant for the team to compare with `main`.** It turns the app, step by step, into a copy of our first prototype's screens, with only the changes the owner decided. This is step 1. Plan: `docs/ontology.md` (display settings and R34 added on this branch, 12 Nov 2026). Migration: `supabase/migrations/20261119000000_settings_and_account.sql` (additive: `main` runs against the same database).
 
 ## Why

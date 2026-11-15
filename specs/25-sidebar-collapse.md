@@ -1,4 +1,6 @@
 # Spec 25: Fold the sidebar to a strip of icons
+> 15 Nov 2026: the goals column (and its phone sheet) was replaced by the Goals page, `/goals` (spec 39).
+
 Branch `25-sidebar-collapse`, built on `24-guests`. Asked for by the owner. No change to the server, the database or the ontology (it is only how the frame is shown).
 
 ## Why

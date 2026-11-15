@@ -1,4 +1,6 @@
 # Spec 03: Goals
+> 15 Nov 2026: the goals column (and its phone sheet) was replaced by the Goals page, `/goals` (spec 39).
+
 Build step 2. Plan: `docs/ontology.md`. Branch: `04-goals`.
 
 ## Why
