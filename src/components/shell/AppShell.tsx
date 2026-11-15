@@ -1,14 +1,15 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
+import type { SidebarMe } from "@/lib/profiles/types";
 import { DEFAULT_DISPLAY, type Display } from "@/lib/time/display";
 import { NAV, PRICING, SETTINGS } from "./nav";
 import { ShortcutHelp } from "./ShortcutHelp";
 import { Sidebar } from "./Sidebar";
 
 // The frame of every signed-in page, copied from the prototype's shell: the sidebar on wider screens
-// (mark and name, navigation, Pricing and Settings at the bottom, then the account row) and the floating tab bar
-// on phones. Navigation shows only what exists: Calendar, Goals (a page of its own since spec 39; before,
+// (mark and name, navigation, Pricing and Settings at the bottom, then the user's own row to their profile,
+// spec 40) and the floating tab bar on phones (the profile is reached from Settings there). Navigation shows only what exists: Calendar, Goals (a page of its own since spec 39; before,
 // a column beside the calendar), Coach (spec 19), Focus, Analytics. Search and quick capture come with
 // their features. The sidebar itself folds to a strip of icons (./Sidebar.tsx, spec 25). "?" opens the
 // list of keyboard shortcuts on every signed-in page (./ShortcutHelp.tsx, spec 26).
@@ -19,6 +20,8 @@ type Props = {
   children: ReactNode;
   /** How times and dates are shown (the user's settings). */
   display?: Display;
+  /** The user's shown name and photo for the sidebar's last row (spec 40); the sidebar asks the server when left out. */
+  me?: SidebarMe;
 };
 
 /**
@@ -53,11 +56,11 @@ function TabBar({ current }: { current: string }) {
   );
 }
 
-export function AppShell({ current, children, display = DEFAULT_DISPLAY }: Props) {
+export function AppShell({ current, children, display = DEFAULT_DISPLAY, me }: Props) {
   return (
     <DisplayProvider value={display}>
       <div className="flex min-h-dvh">
-        <Sidebar current={current} />
+        <Sidebar current={current} me={me} />
         <div className="flex min-h-0 min-w-0 flex-1 pb-28 md:pb-0">
           <main className="min-w-0 flex-1">{children}</main>
         </div>

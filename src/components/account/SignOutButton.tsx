@@ -6,10 +6,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { LogOut } from "lucide-react";
+import { buttonClass } from "@/components/ui/Button";
 import { postJson } from "@/lib/client/post-json";
 
-/** The account row at the bottom of the sidebar. On phones, Settings has the same action. */
-export function SignOutButton({ compact = false }: { compact?: boolean }) {
+/**
+ * "Sign out" at the top right of the profile page (spec 40). Until spec 40 it was the account row at the
+ * bottom of the sidebar. Settings' "Your account" card has the same action.
+ */
+export function SignOutButton() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,19 +33,12 @@ export function SignOutButton({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={busy}
-        aria-label={compact ? "Sign out" : undefined}
-        title={compact ? "Sign out" : undefined}
-        className="flex h-9 w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg px-[9px] text-sm text-ink-2 transition-colors hover:bg-raised/60 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 disabled:opacity-50"
-      >
-        <LogOut className="size-[18px] shrink-0 text-ink-3" strokeWidth={1.8} />
-        {!compact && (busy ? "Signing out…" : "Sign out")}
+    <div className="flex flex-col items-end">
+      <button type="button" onClick={onClick} disabled={busy} className={buttonClass("secondary", "md")}>
+        <LogOut className="size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
+        {busy ? "Signing out…" : "Sign out"}
       </button>
-      {error && !compact && <FormMessage tone="error" text={error} />}
+      {error && <FormMessage tone="error" text={error} />}
     </div>
   );
 }

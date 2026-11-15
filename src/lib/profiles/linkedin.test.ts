@@ -1,5 +1,5 @@
 // The LinkedIn link (spec 40): the stored form is the very pattern the database checks, and typed input
-// is turned into it or refused. Both tables of examples are shared with the database tests.
+// is turned into it or refused. Both tables of examples are used by the database tests too.
 import { describe, expect, it } from "vitest";
 import { STORED_EXAMPLES, TYPED_EXAMPLES } from "@test/support/linkedin-examples";
 import { cleanLinkedIn, isLinkedInUrl, LINKEDIN_URL } from "./linkedin";
