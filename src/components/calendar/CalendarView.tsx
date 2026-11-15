@@ -18,6 +18,10 @@
 // events ("People" in the toolbar, at most three). Their events are a separate kind of thing on the
 // screen (src/lib/shares/place.ts): read only, never dragged, never in the editor, and never part of the
 // viewer's overlap marks (R10) or of what the coach gets (R22).
+//
+// Spec 35: a single click on an event opens the preview panel at the right (./EventPreview.tsx) instead
+// of the editor; a double-click opens the editor at once, and the panel's "Edit" does too. A shared event
+// opens the same panel, read only. The open panel lives only in this visit (not in storage).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -59,8 +63,10 @@ import { MonthView } from "./MonthView";
 import { NewEventPopover } from "./NewEventPopover";
 import { useTravelTimes } from "./useTravelTimes";
 import { OutlookChip } from "./OutlookChip";
-import { TimeGrid, type GoalLabel } from "./TimeGrid";
-import { SharedEventCard, SharedPeopleButton, type OpenShared, type SharedMonthEntry } from "./Shared";
+import { TimeGrid, type GoalLabel, type OpenIntent } from "./TimeGrid";
+import { SharedPeopleButton, type OpenShared, type SharedMonthEntry } from "./Shared";
+import { EventPreview, type PreviewTarget } from "./EventPreview";
+import { previewDelay, type GuestPerson } from "@/lib/events/preview";
 import { useSharedCalendars } from "./useSharedCalendars";
 import { placeShared, sharedAllDayByDay } from "@/lib/shares/place";
 import type { SharingPerson } from "@/lib/shares/types";
@@ -79,9 +85,18 @@ type Props = {
   sharing?: SharingPerson[];
   /** Spec 29: a person the address asks to show ("?share=" from the People page). */
   showPerson?: string;
+  /** Spec 35: the shown events' guests who are the user's contacts, by address (matched on the server). */
+  guestPeople?: Readonly<Record<string, GuestPerson>>;
 };
 
+/** Spec 35: what the preview panel is open for; an own event by id, so it follows the live week. */
+type Preview = { kind: "own"; id: string } | { kind: "shared"; shared: OpenShared };
+
+/** Beside the preview panel, a week's day columns keep at least this width and the grid scrolls sideways. */
+const PREVIEW_MIN_COLUMN_PX = 64;
+
 const NO_PEOPLE: SharingPerson[] = [];
+const NO_GUEST_PEOPLE: Readonly<Record<string, GuestPerson>> = {};
 
 /** Minutes of lead time above "now" when today is shown, and above the earliest event otherwise. */
 const SCROLL_CONTEXT_MIN = 90;
@@ -132,7 +147,7 @@ function findEvent(week: WeekData, id: string): CalendarEvent | null {
   return week.lead.find((e) => e.id === id) ?? null;
 }
 
-export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailable = false, sharing = NO_PEOPLE, showPerson }: Props) {
+export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailable = false, sharing = NO_PEOPLE, showPerson, guestPeople = NO_GUEST_PEOPLE }: Props) {
   const week = useLiveWeek(serverWeek);
   const router = useRouter();
   const now = useNowLocal(nowLocal, week.timeZone);
@@ -258,8 +273,48 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   // Spec 29: the shared calendars chosen for showing, read for the days the server sent.
   const shownDates = useMemo(() => week.days.map((d) => d.date), [week.days]);
   const { chosen: shownPeople, toggle: togglePerson, calendars: sharedCalendars } = useSharedCalendars(sharing, shownDates, week.timeZone, showPerson);
-  const [openShared, setOpenShared] = useState<{ shared: OpenShared; anchor: Anchor } | null>(null);
-  const onOpenShared = (item: OpenShared, anchor: Anchor) => setOpenShared({ shared: item, anchor });
+  // Spec 35: the preview panel. Opened by the keyboard, the focus goes to its heading; closed, it goes
+  // back to the event that opened it.
+  const [preview, setPreview] = useState<{ open: Preview; byKeyboard: boolean } | null>(null);
+  const opener = useRef<{ element: HTMLElement | null; eventId: string | null }>({ element: null, eventId: null });
+  const openPreview = useCallback((open: Preview) => {
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    opener.current = { element: active, eventId: open.kind === "own" ? open.id : null };
+    setPreview({ open, byKeyboard: Boolean(active?.matches(":focus-visible")) });
+  }, []);
+  const closePreview = useCallback(() => {
+    const panel = document.querySelector("[data-event-preview]");
+    const focusInside = !document.activeElement || document.activeElement === document.body || Boolean(panel?.contains(document.activeElement));
+    setPreview(null);
+    if (!focusInside) return;
+    const { element, eventId } = opener.current;
+    const back = element?.isConnected ? element : eventId ? document.querySelector<HTMLElement>(`[data-event-id="${CSS.escape(eventId)}"]`) : null;
+    back?.focus();
+  }, []);
+  // A single mouse click on a closed panel waits a moment (lib/events/preview.ts, previewDelay): a second
+  // click in that time is a double-click and opens the editor instead.
+  const waitingPreview = useRef<number | null>(null);
+  const stopWaiting = useCallback(() => {
+    if (waitingPreview.current !== null) window.clearTimeout(waitingPreview.current);
+    waitingPreview.current = null;
+  }, []);
+  useEffect(() => stopWaiting, [stopWaiting]);
+  const onOpenEvent = (event: CalendarEvent, anchor: Anchor, intent: OpenIntent) => {
+    stopWaiting();
+    if (intent === "editor") return setEditor({ mode: "edit", event, anchor });
+    const byKeyboard = document.activeElement instanceof HTMLElement && document.activeElement.matches(":focus-visible");
+    const delay = previewDelay({ panelOpen: previewTarget !== null, byKeyboard });
+    if (delay === 0) return openPreview({ kind: "own", id: event.id });
+    waitingPreview.current = window.setTimeout(() => {
+      waitingPreview.current = null;
+      openPreview({ kind: "own", id: event.id });
+    }, delay);
+  };
+  const onOpenShared = (item: OpenShared) => openPreview({ kind: "shared", shared: item });
+  // An own event follows the live week; when it is no longer shown (deleted, or another week) the panel is hidden.
+  const previewEvent = preview?.open.kind === "own" ? findEvent(week, preview.open.id) : null;
+  const previewTarget: PreviewTarget | null =
+    preview === null ? null : preview.open.kind === "shared" ? { kind: "shared", shared: preview.open.shared } : previewEvent ? { kind: "own", event: previewEvent } : null;
   const gridDates = useMemo(() => days.map((d) => d.date), [days]);
   const sharedBlocks = useMemo(() => placeShared(sharedCalendars, gridDates, week.timeZone), [sharedCalendars, gridDates, week.timeZone]);
   const sharedAllDay = useMemo(() => sharedAllDayByDay(sharedCalendars, gridDates), [sharedCalendars, gridDates]);
@@ -340,9 +395,10 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
 
   return (
     <>
+      <div className="flex min-w-0">
       <section
         aria-label="Calendar"
-        className="@container flex h-[calc(100dvh-7rem)] min-h-[480px] min-w-0 flex-col gap-3 px-4 pt-4 pb-3 md:h-dvh md:px-6 md:pt-6 md:pb-5"
+        className="@container flex h-[calc(100dvh-7rem)] min-h-[480px] min-w-0 flex-1 flex-col gap-3 px-4 pt-4 pb-3 md:h-dvh md:px-6 md:pt-6 md:pb-5"
       >
         <header className="flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
@@ -402,7 +458,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               goals={goals}
               dayHref={dayHref}
               onOpenDay={(day) => router.push(dayHref(day))}
-              onOpenEvent={(event, anchor) => setEditor({ mode: "edit", event, anchor })}
+              onOpenEvent={onOpenEvent}
               shared={sharedMonth}
               timeZone={week.timeZone}
               onOpenShared={onOpenShared}
@@ -417,7 +473,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               dayHref={view === "week" ? dayHref : undefined}
               goals={goals}
               pending={pending}
-              onOpenEvent={(event, anchor) => setEditor({ mode: "edit", event, anchor })}
+              onOpenEvent={onOpenEvent}
               onCreate={(day, span, anchor) => setPop({ kind: "new", date: day, span, anchor })}
               onDrop={onDrop}
               travel={travel}
@@ -425,10 +481,23 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               sharedAllDay={sharedCalendars.length > 0 ? sharedAllDay : undefined}
               timeZone={week.timeZone}
               onOpenShared={onOpenShared}
+              minColumnPx={previewTarget && view === "week" ? PREVIEW_MIN_COLUMN_PX : undefined}
             />
           )}
         </div>
       </section>
+      {previewTarget && (
+        <EventPreview
+          target={previewTarget}
+          goals={goals}
+          guestPeople={guestPeople}
+          timeZone={week.timeZone}
+          focusOnOpen={preview?.byKeyboard ?? false}
+          onEdit={(event, anchor) => setEditor({ mode: "edit", event, anchor })}
+          onClose={closePreview}
+        />
+      )}
+      </div>
       <EventEditor
         state={editor}
         shown={editor?.mode === "edit" ? findEvent(week, editor.event.id) : null}
@@ -474,7 +543,6 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
           </div>
         </FloatingPanel>
       )}
-      {openShared && <SharedEventCard shared={openShared.shared} anchor={openShared.anchor} onClose={() => setOpenShared(null)} />}
       {toast && <ToastBar key={toast.id} toast={toast} onDone={() => setToast(null)} />}
     </>
   );

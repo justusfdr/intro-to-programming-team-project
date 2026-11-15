@@ -31,7 +31,7 @@ export default async function CalendarPage({
 
   const params = await searchParams;
   const address = readAddress(params);
-  const { display, week, goals, tasks, showWelcome, sharing } = await loadCalendarPageWithShares(deps, userId, address.date, address.view);
+  const { display, week, goals, tasks, showWelcome, sharing, guestPeople } = await loadCalendarPageWithShares(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
@@ -47,6 +47,7 @@ export default async function CalendarPage({
               outlookAvailable={outlookConfigured()}
               sharing={sharing.filter((p) => p.calendar !== "none")}
               showPerson={typeof params.share === "string" ? params.share : undefined}
+              guestPeople={guestPeople}
             />
           </AppShell>
           {showWelcome && <Welcome timeFormat={display.timeFormat} />}

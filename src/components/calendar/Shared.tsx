@@ -17,6 +17,7 @@ import type { SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
 import { MAX_SHOWN_CALENDARS, levelText, type SharingPerson } from "@/lib/shares/types";
 import { fmtDateLong, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { localDateTimeOf } from "@/lib/time/zoned";
+import type { WhenInput } from "@/lib/events/preview";
 import { anchorOf, FloatingPanel, type Anchor } from "./FloatingPanel";
 
 /** The muted, striped look of everything that is someone else's. */
@@ -32,7 +33,14 @@ export type OpenShared = {
   location: string | null;
   /** "Monday, November 16, 9 – 11am" or "Monday, November 16 to Wednesday, November 18 (all day)". */
   when: string;
+  /** Spec 35: the same time as data, for the event preview's line in the user's format (local to the viewer). */
+  time?: WhenInput;
 };
+
+/** A shared timed event's start and end on the viewer's clock, for the event preview (spec 35). */
+export function sharedTime(startAt: string, endAt: string, timeZone: string): WhenInput {
+  return { allDay: false, startLocal: localDateTimeOf(new Date(startAt), timeZone), endLocal: localDateTimeOf(new Date(endAt), timeZone) };
+}
 
 /** "Monday, November 16, 9 – 11am" for a shared timed event, in the viewer's zone. */
 export function sharedWhen(startAt: string, endAt: string, timeZone: string, format: TimeFormat): string {
@@ -195,7 +203,13 @@ export function SharedBlockView({
       onClick={(e) => {
         e.stopPropagation();
         onOpen(
-          { person: block.person, title: block.title || "Busy", location: block.location, when: sharedWhen(block.startAt, block.endAt, timeZone, timeFormat) },
+          {
+            person: block.person,
+            title: block.title || "Busy",
+            location: block.location,
+            when: sharedWhen(block.startAt, block.endAt, timeZone, timeFormat),
+            time: sharedTime(block.startAt, block.endAt, timeZone),
+          },
           anchorOf(e.currentTarget),
         );
       }}
@@ -232,7 +246,10 @@ export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onO
       style={SHARED_STRIPES}
       onClick={(e) => {
         e.stopPropagation();
-        onOpen({ person: item.person, title: text, location: item.event.location ?? null, when }, anchorOf(e.currentTarget));
+        onOpen(
+          { person: item.person, title: text, location: item.event.location ?? null, when, time: { allDay: true, firstDay: item.event.firstDay, lastDay: item.event.lastDay } },
+          anchorOf(e.currentTarget),
+        );
       }}
       className={`${className} hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40`}
     >
@@ -292,7 +309,16 @@ export function SharedMonthRow({ entry, timeZone, onOpen }: { entry: SharedMonth
       style={SHARED_STRIPES}
       onClick={(e) => {
         e.stopPropagation();
-        onOpen({ person: block.person, title: text, location: block.location, when: sharedWhen(block.startAt, block.endAt, timeZone, timeFormat) }, anchorOf(e.currentTarget));
+        onOpen(
+          {
+            person: block.person,
+            title: text,
+            location: block.location,
+            when: sharedWhen(block.startAt, block.endAt, timeZone, timeFormat),
+            time: sharedTime(block.startAt, block.endAt, timeZone),
+          },
+          anchorOf(e.currentTarget),
+        );
       }}
       className={`${className} hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40`}
     >
