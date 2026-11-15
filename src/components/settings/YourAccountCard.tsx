@@ -134,7 +134,7 @@ export function YourAccountCard({
             }}
           >
             <p className="text-sm text-ink">
-              Remove the demo goals, tasks and events? Demo items you changed are removed too. Everything you added yourself stays.
+              Remove the demo goals, tasks and events, and the demo contacts? Demo items you changed are removed too. Everything you added yourself stays.
             </p>
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button variant="ghost" size="sm" autoFocus onClick={() => setAskingDemo(false)}>

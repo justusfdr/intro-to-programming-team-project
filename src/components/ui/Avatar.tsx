@@ -6,6 +6,7 @@
 // to see it. The picture is decorative next to the name, so it has no text of its own unless `label`
 // is given (an avatar shown without the name next to it).
 import { initialsOf } from "@/lib/profiles/display-name";
+import type { AvatarLook } from "@/lib/profiles/types";
 
 export type AvatarSize = 16 | 24 | 32 | 64;
 
@@ -16,6 +17,7 @@ export function Avatar({
   photoUrl,
   size = 32,
   label,
+  look,
   className = "",
 }: {
   /** The name shown for the person: its initials stand in for a missing photo. */
@@ -24,10 +26,12 @@ export function Avatar({
   size?: AvatarSize;
   /** Text for screen readers when the name is not written next to the avatar. */
   label?: string;
+  /** A demo contact (spec 32): their fixed initials on their own colour, never a photo. */
+  look?: AvatarLook;
   className?: string;
 }) {
   const box = { width: size, height: size };
-  if (photoUrl) {
+  if (photoUrl && !look) {
     return (
       // A plain <img>: the photo is already 256 x 256 and must not go through the image optimizer,
       // which would fetch it without the viewer's session.
@@ -50,10 +54,10 @@ export function Avatar({
       role={label ? "img" : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
-      style={box}
-      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full bg-muted font-semibold text-ink-2 ${TEXT[size]} ${className}`}
+      style={look ? { ...box, backgroundColor: look.color } : box}
+      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-semibold ${look ? "text-white" : "bg-muted text-ink-2"} ${TEXT[size]} ${className}`}
     >
-      {initialsOf(name)}
+      {look ? look.initials : initialsOf(name)}
     </span>
   );
 }

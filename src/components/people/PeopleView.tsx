@@ -4,6 +4,8 @@
 // invitations you sent, and your contacts. In the look of the settings cards. The server decides
 // everything; this sends the input and shows the answer. The answer to an invitation is always the
 // same sentence, whatever happened to the address (R44).
+// Spec 32: the demo contacts follow the real ones, each with a "Demo" tag and the sharing controls
+// disabled; one quiet button adds them, one removes all three.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
@@ -12,10 +14,12 @@ import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { SettingsCardHeader, INPUT_CLASS } from "@/components/settings/fields";
 import { Avatar } from "@/components/ui/Avatar";
+import { DemoTag } from "@/components/ui/DemoTag";
 import { Button } from "@/components/ui/Button";
 import { Card, PageHeader } from "@/components/ui/Card";
 import { postJson } from "@/lib/client/post-json";
-import type { PeopleData, PersonCard } from "@/lib/profiles/types";
+import type { DemoContact } from "@/lib/demo/people";
+import type { AvatarLook, PeopleData, PersonCard } from "@/lib/profiles/types";
 import { NOTHING_SHARED, type ContactShares } from "@/lib/shares/types";
 import { ShareRow } from "./ShareRow";
 import { fmtDayMonth } from "@/lib/time/display";
@@ -39,30 +43,33 @@ function Quiet({ children }: { children: ReactNode }) {
   return <p className="text-sm text-ink-3">{children}</p>;
 }
 
-/** One person in a list. `href`: their profile page (spec 31), for contacts. */
+/** One person in a list. `href`: their profile page (spec 31), for contacts. `look`: a demo contact (spec 32). */
 function Person({
   person,
   href,
+  look,
   children,
   below,
 }: {
   person: Pick<PersonCard, "name" | "email" | "photoUrl">;
   href?: string;
+  look?: AvatarLook;
   children?: ReactNode;
   below?: ReactNode;
 }) {
   return (
     <li className="flex flex-wrap items-center gap-3 py-3">
-      <Avatar name={person.name} photoUrl={person.photoUrl} size={32} />
+      <Avatar name={person.name} photoUrl={person.photoUrl} look={look} size={32} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink">
+        <p className={look ? "flex min-w-0 items-center gap-2 text-sm font-medium text-ink" : "truncate text-sm font-medium text-ink"}>
           {href ? (
-            <Link href={href} className="hover:underline hover:underline-offset-2 focus-visible:underline">
+            <Link href={href} className={`${look ? "truncate " : ""}hover:underline hover:underline-offset-2 focus-visible:underline`}>
               {person.name}
             </Link>
           ) : (
             person.name
           )}
+          {look && <DemoTag />}
         </p>
         <p className="truncate text-xs text-ink-3">{person.email}</p>
       </div>
@@ -72,7 +79,23 @@ function Person({
   );
 }
 
-export function PeopleView({ data, timeZone, shares = [] }: { data: PeopleData; timeZone: string; shares?: ContactShares[] }) {
+/** What the demo contacts are, next to the button that adds them. */
+export const DEMO_CONTACTS_NOTE = "Three made-up people to try sharing with. They are not accounts and see nothing of yours.";
+
+const NO_DEMO = { on: false, contacts: [] as DemoContact[] };
+
+export function PeopleView({
+  data,
+  timeZone,
+  shares = [],
+  demo = NO_DEMO,
+}: {
+  data: PeopleData;
+  timeZone: string;
+  shares?: ContactShares[];
+  /** Spec 32: whether the demo contacts are on, and then the three of them. */
+  demo?: { on: boolean; contacts: DemoContact[] };
+}) {
   const router = useRouter();
   const announce = useAnnounce();
   const inputId = useId();
@@ -213,7 +236,7 @@ export function PeopleView({ data, timeZone, shares = [] }: { data: PeopleData; 
         </Section>
 
         <Section icon={Users} title="Your contacts">
-          {data.contacts.length === 0 ? (
+          {data.contacts.length === 0 && demo.contacts.length === 0 ? (
             <Quiet>No contacts yet.</Quiet>
           ) : (
             <ul className="divide-y divide-line-subtle">
@@ -264,8 +287,34 @@ export function PeopleView({ data, timeZone, shares = [] }: { data: PeopleData; 
                   </Person>
                 ),
               )}
+              {demo.contacts.map((person) => (
+                <Person
+                  key={person.userId}
+                  person={{ name: person.name, email: person.bio, photoUrl: null }}
+                  look={person.look}
+                  href={`/people/${person.userId}`}
+                  below={<ShareRow contactId={person.userId} userId={person.userId} name={person.name} out={NOTHING_SHARED} shared={person.shared} demo />}
+                />
+              ))}
             </ul>
           )}
+          <div className="mt-4 flex flex-col gap-2 border-t border-line-subtle pt-4 sm:flex-row sm:items-center">
+            {demo.on ? (
+              <>
+                <p className="min-w-0 flex-1 text-xs text-ink-3">The demo contacts are made up. Removing them changes nothing else.</p>
+                <Button size="sm" variant="secondary" disabled={busy} className="shrink-0" onClick={() => void run("/api/demo/contacts", { on: false })}>
+                  Remove demo contacts
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="min-w-0 flex-1 text-xs text-ink-3">{DEMO_CONTACTS_NOTE}</p>
+                <Button size="sm" variant="ghost" disabled={busy} className="shrink-0" onClick={() => void run("/api/demo/contacts", { on: true })}>
+                  Add demo contacts
+                </Button>
+              </>
+            )}
+          </div>
         </Section>
       </div>
     </div>

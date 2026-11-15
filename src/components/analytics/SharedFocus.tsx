@@ -6,6 +6,7 @@
 // zone. Drawn in the page's chart look; the bars are hidden from screen readers and a table says the same.
 import { useEffect, useId, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
+import { DemoTag } from "@/components/ui/DemoTag";
 import { INPUT_CLASS } from "@/components/settings/fields";
 import { getJson } from "@/lib/client/post-json";
 import { minutesText } from "@/lib/focus/session-time";
@@ -91,7 +92,7 @@ export function SharedFocus({ people, initial }: { people: readonly SharingPerso
             <select id={selectId} value={chosen} onChange={(e) => setChosen(e.target.value)} className={`${INPUT_CLASS} pr-8`}>
               {people.map((p) => (
                 <option key={p.userId} value={p.userId}>
-                  {p.name}
+                  {p.demo ? `${p.name} (demo)` : p.name}
                 </option>
               ))}
             </select>
@@ -102,8 +103,9 @@ export function SharedFocus({ people, initial }: { people: readonly SharingPerso
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-2">
         <section aria-label={`${person.name}'s focus time per week`} className={`${card} min-w-0`}>
           <div className="flex items-center gap-2">
-            <Avatar name={person.name} photoUrl={person.photoUrl} size={24} />
+            <Avatar name={person.name} photoUrl={person.photoUrl} look={person.demo} size={24} />
             <h3 className={eyebrow}>{person.name} · focus time per week</h3>
+            {person.demo && <DemoTag />}
           </div>
           {chart?.userId === chosen && !data ? (
             <p className="mt-4 text-sm text-ink-2">{chart.message || "This chart is not available."}</p>
@@ -135,7 +137,7 @@ export function SharedFocus({ people, initial }: { people: readonly SharingPerso
 
         <section aria-label={`${person.name}'s focus time this week`} className={`${card} min-w-0`}>
           <div className="flex items-center gap-2">
-            <Avatar name={person.name} photoUrl={person.photoUrl} size={24} />
+            <Avatar name={person.name} photoUrl={person.photoUrl} look={person.demo} size={24} />
             <h3 className={eyebrow}>{person.name} · this week</h3>
           </div>
           {data && (

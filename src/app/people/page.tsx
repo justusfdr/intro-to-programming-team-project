@@ -15,12 +15,12 @@ export default async function PeoplePage() {
   const userId = await deps.auth.currentUserId();
   if (!userId) redirect("/sign-in");
 
-  const { display, timeZone, people, shares } = await loadPeoplePage(deps, userId);
+  const { display, timeZone, people, shares, demo } = await loadPeoplePage(deps, userId);
 
   return (
     <Announcer>
       <AppShell current="/people" display={display} invitations={people.received.length} me={{ name: people.me.name, photoUrl: people.me.photoUrl }}>
-        <PeopleView data={people} timeZone={timeZone} shares={shares} />
+        <PeopleView data={people} timeZone={timeZone} shares={shares} demo={demo} />
       </AppShell>
     </Announcer>
   );

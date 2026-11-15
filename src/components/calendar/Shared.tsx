@@ -8,6 +8,7 @@
 import { useId, useState } from "react";
 import { Users } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
+import { DemoTag } from "@/components/ui/DemoTag";
 import { Button } from "@/components/ui/Button";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { blockBox, type GridRange } from "@/lib/events/grid";
@@ -104,8 +105,9 @@ export function SharedPeopleButton({
                         onChange={() => onToggle(person.userId)}
                         className="size-4 shrink-0 accent-ink"
                       />
-                      <Avatar name={person.name} photoUrl={person.photoUrl} size={24} />
+                      <Avatar name={person.name} photoUrl={person.photoUrl} look={person.demo} size={24} />
                       <span className="min-w-0 flex-1 truncate text-ink">{person.name}</span>
+                      {person.demo && <DemoTag />}
                       <span className="shrink-0 text-xs text-ink-3">{levelText(person.calendar)}</span>
                     </label>
                   </li>
@@ -160,7 +162,7 @@ export function SharedBlockView({
   const inner = (
     <>
       <span className="flex items-center gap-1">
-        <Avatar name={block.person.name} photoUrl={block.person.photoUrl} size={16} />
+        <Avatar name={block.person.name} photoUrl={block.person.photoUrl} look={block.person.demo} size={16} />
         <span className="min-w-0 truncate text-[11px] font-medium leading-[14px]">{text}</span>
       </span>
       {height >= 44 && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{time}</span>}
@@ -211,7 +213,7 @@ export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onO
   const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_CLASS}`;
   const inner = (
     <>
-      <Avatar name={item.person.name} photoUrl={item.person.photoUrl} size={16} />
+      <Avatar name={item.person.name} photoUrl={item.person.photoUrl} look={item.person.demo} size={16} />
       <span className="min-w-0 truncate">{text}</span>
     </>
   );
@@ -247,7 +249,7 @@ export function SharedEventCard({ shared, anchor, onClose }: { shared: OpenShare
         <p className="text-sm text-ink-2">{shared.when}</p>
         {shared.location && <p className="text-sm text-ink-2">{shared.location}</p>}
         <p className="mt-1 flex items-center gap-2 text-xs text-ink-3">
-          <Avatar name={shared.person.name} photoUrl={shared.person.photoUrl} size={24} />
+          <Avatar name={shared.person.name} photoUrl={shared.person.photoUrl} look={shared.person.demo} size={24} />
           <span>From {whose(shared.person)}. Read only.</span>
         </p>
       </div>
@@ -268,7 +270,7 @@ export function SharedMonthRow({ entry, timeZone, onOpen }: { entry: SharedMonth
   const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_CLASS}`;
   const inner = (
     <>
-      <Avatar name={block.person.name} photoUrl={block.person.photoUrl} size={16} />
+      <Avatar name={block.person.name} photoUrl={block.person.photoUrl} look={block.person.demo} size={16} />
       <span className="shrink-0 tabular text-ink-3">{fmtTime(block.startMin, timeFormat)}</span>
       <span className="min-w-0 truncate">{text}</span>
     </>
