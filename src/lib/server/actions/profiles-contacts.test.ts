@@ -123,7 +123,7 @@ describe("GET /api/profiles/[id]/photo (R43)", () => {
     "content-type": "image/jpeg",
     "x-content-type-options": "nosniff",
     "content-disposition": "inline",
-    "cache-control": "private, max-age=300",
+    "cache-control": "private, no-cache",
     "cross-origin-resource-policy": "same-origin",
     "content-security-policy": "default-src 'none'; sandbox",
   };
