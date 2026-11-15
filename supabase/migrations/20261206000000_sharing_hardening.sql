@@ -46,11 +46,11 @@ set search_path = ''
 as $$
   select p_name is not null
      and pg_catalog.char_length(p_name) between 1 and 40
-     and p_name !~ '[\u0001-\u001f\u007f-\u009f​-‏ -‮⁠-⁩﻿]'
-     and p_name !~ '^[[:space:]   -   　]'
-     and p_name !~ '[[:space:]   -   　]$'
-     and p_name !~ '[­͏؜ᅟᅠ឴឵᠎⠀ㅤ︀-️ﾠ\U000e0000-\U000e007f\U000e0100-\U000e01ef]'
-     and p_name !~ '[̀-ͯ᪰-᫿᷀-᷿⃐-⃿︠-︯]{3}'
+     and p_name !~ '[\u0001-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]'
+     and p_name !~ '^[[:space:]\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]'
+     and p_name !~ '[[:space:]\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]$'
+     and p_name !~ '[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u2800\u3164\ufe00-\ufe0e\uffa0\U000e0000-\U000e007f\U000e0100-\U000e01ef]'
+     and p_name !~ '[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]{3}'
      and p_name ~ '[[:alnum:]]';
 $$;
 
@@ -69,11 +69,11 @@ set search_path = ''
 as $$
   select p_text is not null
      and pg_catalog.char_length(p_text) between 1 and p_max
-     and p_text !~ '[\u0001-\u001f\u007f-\u009f​-‏ -‮⁠-⁩﻿]'
-     and p_text !~ '^[[:space:]   -   　]'
-     and p_text !~ '[[:space:]   -   　]$'
-     and p_text !~ '[­͏؜ᅟᅠ឴឵᠎⠀ㅤ︀-️ﾠ\U000e0000-\U000e007f\U000e0100-\U000e01ef]'
-     and p_text !~ '[̀-ͯ᪰-᫿᷀-᷿⃐-⃿︠-︯]{3}';
+     and p_text !~ '[\u0001-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]'
+     and p_text !~ '^[[:space:]\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]'
+     and p_text !~ '[[:space:]\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]$'
+     and p_text !~ '[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u2800\u3164\ufe00-\ufe0e\uffa0\U000e0000-\U000e007f\U000e0100-\U000e01ef]'
+     and p_text !~ '[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]{3}';
 $$;
 
 revoke all on function app.list_text_valid(text, integer) from public, anon;

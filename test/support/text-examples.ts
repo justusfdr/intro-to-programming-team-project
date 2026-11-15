@@ -49,7 +49,7 @@ export const TEXT_EXAMPLES: readonly TextExample[] = [
   { what: "Khmer inherent vowel U+17B4", text: "Le឴a", name: false, title: false },
   { what: "Khmer inherent vowel U+17B5", text: "Le឵a", name: false, title: false },
   { what: "variation selector U+FE00", text: "Le︀a", name: false, title: false },
-  { what: "variation selector U+FE0F", text: "Lea️", name: false, title: false },
+  { what: "emoji variation selector U+FE0F (allowed: emoji such as a red heart need it)", text: "Lea️", name: true, title: true },
   { what: "tag U+E0001", text: "Lea\u{e0001}", name: false, title: false },
   { what: "tag U+E0041", text: "Le\u{e0041}a", name: false, title: false },
   { what: "cancel tag U+E007F", text: "Lea\u{e007f}", name: false, title: false },

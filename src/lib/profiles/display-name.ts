@@ -16,7 +16,7 @@ const FORBIDDEN = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\
  * app.display_name_valid.
  */
 const INVISIBLE =
-  /[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u2800\u3164\ufe00-\ufe0f\uffa0\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/u;
+  /[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u2800\u3164\ufe00-\ufe0e\uffa0\u{e0000}-\u{e007f}\u{e0100}-\u{e01ef}]/u;
 
 /** Three combining marks in a row, in the same blocks the database names. */
 const MARK_STACK = /[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]{3}/u;
