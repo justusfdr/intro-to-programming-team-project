@@ -30,10 +30,14 @@ export function PersonView({ person, now }: { person: ProfileCardData | DemoProf
             label={photoUrl ? `Photo of ${person.name}` : `Initials of ${person.name}`}
           />
           <div className="min-w-0">
-            <h1 className="flex min-w-0 items-center gap-2 text-[24px] leading-[30px] font-semibold tracking-heading text-ink">
-              <span className="truncate">{person.name}</span>
-              {demo && <DemoTag />}
-            </h1>
+            {demo ? (
+              <h1 className="flex min-w-0 items-center gap-2 text-[24px] leading-[30px] font-semibold tracking-heading text-ink">
+                <span className="truncate">{person.name}</span>
+                <DemoTag />
+              </h1>
+            ) : (
+              <h1 className="truncate text-[24px] leading-[30px] font-semibold tracking-heading text-ink">{person.name}</h1>
+            )}
             {demo ? (
               <p className="text-sm text-ink-3">A made-up person to try LockedIn with. Not an account.</p>
             ) : (
