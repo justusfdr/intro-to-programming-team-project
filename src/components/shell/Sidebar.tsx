@@ -5,12 +5,13 @@
 // and folds when the mouse leaves; opened like that it lies over the page, so nothing on the page
 // jumps. The same button then keeps it open for good. The choice is remembered in this browser only.
 import Link from "next/link";
-import { Fragment, useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
 import { ChevronsLeft, Pin, Target } from "lucide-react";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import { keepFocusAfterCollapse } from "./collapse-focus";
 import { Logo, LogoMark } from "./Logo";
-import { NAV, PRICING, SETTINGS, type NavItem } from "./nav";
+import { getJson } from "@/lib/client/post-json";
+import { NAV, PEOPLE, PRICING, SETTINGS, type NavItem } from "./nav";
 import { openAllPanels, usePanels, usePanelsAvailable } from "./PanelState";
 
 export const SIDEBAR_KEY = "lockedin:sidebar-folded:v1";
@@ -50,6 +51,48 @@ function SidebarLink({ item, on, wide }: { item: NavItem; on: boolean; wide: boo
     >
       <Icon className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
       {item.label}
+    </Link>
+  );
+}
+
+/**
+ * "People" (spec 28) with the number of open invitations to the user. A page that has read the number
+ * passes it; on every other page it is asked once from the server (a failure just shows no badge).
+ */
+function PeopleLink({ on, wide, invitations }: { on: boolean; wide: boolean; invitations?: number }) {
+  const [asked, setAsked] = useState<number | null>(null);
+  useEffect(() => {
+    if (invitations !== undefined) return;
+    let current = true;
+    void getJson("/api/contacts/invitations/count").then((answer) => {
+      const count = (answer.data as { count?: unknown } | undefined)?.count;
+      if (current && answer.ok && typeof count === "number") setAsked(count);
+    });
+    return () => {
+      current = false;
+    };
+  }, [invitations]);
+  const count = invitations ?? asked ?? 0;
+  const Icon = PEOPLE.icon;
+  const label = count > 0 ? `${PEOPLE.label}, ${count} open ${count === 1 ? "invitation" : "invitations"}` : PEOPLE.label;
+  return (
+    <Link
+      href={PEOPLE.href}
+      aria-current={on ? "page" : undefined}
+      aria-label={wide && count === 0 ? undefined : label}
+      title={wide ? undefined : label}
+      className={`${ITEM} relative ${wide ? "w-full" : "w-9"} ${on ? "bg-raised font-medium text-ink" : QUIET}`}
+    >
+      <Icon className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
+      {PEOPLE.label}
+      {count > 0 &&
+        (wide ? (
+          <span aria-hidden="true" className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1.5 text-[11px] font-semibold tabular text-white">
+            {count > 99 ? "99+" : count}
+          </span>
+        ) : (
+          <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-today" />
+        ))}
     </Link>
   );
 }
@@ -110,7 +153,7 @@ function GoalsItem({ wide }: { wide: boolean }) {
   );
 }
 
-export function Sidebar({ current }: { current: string }) {
+export function Sidebar({ current, invitations }: { current: string; invitations?: number }) {
   // On the server (and in the first render) the sidebar is open.
   const folded = useSyncExternalStore(subscribe, readFolded, () => false);
   const [peek, setPeek] = useState(false);
@@ -178,6 +221,7 @@ export function Sidebar({ current }: { current: string }) {
               {i === 0 && <GoalsItem wide={wide} />}
             </Fragment>
           ))}
+          <PeopleLink on={current === PEOPLE.href} wide={wide} invitations={invitations} />
         </nav>
         <div className="mt-auto flex flex-col gap-2">
           <div className="flex flex-col gap-0.5">

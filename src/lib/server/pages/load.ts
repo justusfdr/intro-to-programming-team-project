@@ -15,6 +15,7 @@ import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
 import type { ChatPageData } from "@/lib/chat/types";
 import { lookOf } from "@/lib/goals/style";
 import type { BlockerData } from "@/lib/blocker/types";
+import type { OwnProfile, PeopleData } from "@/lib/profiles/types";
 import type { WeekData } from "@/lib/events/types";
 import type { View } from "@/lib/events/views";
 import type { FocusData } from "@/lib/focus/types";
@@ -35,6 +36,7 @@ import { settleSessions } from "@/lib/server/focus/sessions";
 import { readFocus } from "@/lib/server/focus/load";
 import { readGoalViews } from "@/lib/server/goals/load";
 import { readOutlookState } from "@/lib/server/outlook/sync";
+import { readOwnProfile, readPeople } from "@/lib/server/profiles/cards";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readSettingsPage } from "@/lib/server/settings-page";
 import { readTasks } from "@/lib/server/tasks/rows";
@@ -134,6 +136,35 @@ export async function loadSettingsPageAll(deps: PageDeps, userId: string): Promi
       readBlocker(query, now, settingsRead.then((s) => s.timeZone)),
     ]);
     return { display: displayOf(page.settings), page, blocker };
+  });
+}
+
+/**
+ * The settings page with the Profile card (spec 28): the same reads as loadSettingsPageAll, plus the
+ * user's own profile (display name, address, photo), in the same one transaction.
+ */
+export async function loadSettingsPageWithProfile(deps: PageDeps, userId: string): Promise<SettingsPageLoad & { profile: OwnProfile }> {
+  const now = deps.now();
+  await settleSessions(deps, userId, now);
+  return deps.withUser(userId, async (query) => {
+    const settingsRead = readSettings(query);
+    const profileRead = readOwnProfile(query);
+    const [page, blocker, profile] = await Promise.all([
+      readSettingsPage(query, now, settingsRead),
+      readBlocker(query, now, settingsRead.then((s) => s.timeZone)),
+      profileRead,
+    ]);
+    return { display: displayOf(page.settings), page, blocker, profile };
+  });
+}
+
+export type PeoplePageData = { display: Display; timeZone: string; people: PeopleData };
+
+/** The People page (spec 28): the user's profile, contacts and invitations. Reads only, one transaction. */
+export async function loadPeoplePage(deps: Pick<Deps, "withUser">, userId: string): Promise<PeoplePageData> {
+  return deps.withUser(userId, async (query) => {
+    const [settings, people] = await Promise.all([readSettings(query), readPeople(query)]);
+    return { display: displayOf(settings), timeZone: settings.timeZone, people };
   });
 }
 

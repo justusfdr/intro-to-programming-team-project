@@ -25,6 +25,8 @@ type Props = {
   panelsLeft?: ReactNode;
   /** Side panels to the right of the page. */
   panelsRight?: ReactNode;
+  /** Open invitations to the user, for the badge on "People" (spec 28); the sidebar asks the server when left out. */
+  invitations?: number;
 };
 
 /** Phones: the floating round tab bar at the bottom, one icon per page. */
@@ -56,11 +58,11 @@ function TabBar({ current }: { current: string }) {
   );
 }
 
-export function AppShell({ current, children, display = DEFAULT_DISPLAY, panelsLeft, panelsRight }: Props) {
+export function AppShell({ current, children, display = DEFAULT_DISPLAY, panelsLeft, panelsRight, invitations }: Props) {
   return (
     <DisplayProvider value={display}>
       <div className="flex min-h-dvh">
-        <Sidebar current={current} />
+        <Sidebar current={current} invitations={invitations} />
         <div className="flex min-h-0 min-w-0 flex-1 pb-28 md:pb-0">
           {panelsLeft}
           <main className="min-w-0 flex-1">{children}</main>

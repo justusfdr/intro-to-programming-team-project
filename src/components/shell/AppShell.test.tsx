@@ -19,12 +19,13 @@ const render = (current: string) => renderToStaticMarkup(<AppShell current={curr
 
 describe("app shell", () => {
   // Rewritten for spec 25: "Goals" is second in the list (it moved here from the calendar's toolbar).
-  it("lists Calendar, Goals, Coach, Focus and Analytics in the main navigation, then Settings and Sign out at the bottom", () => {
+  // Rewritten for spec 28: "People" (contacts and invitations) is last in the list.
+  it("lists Calendar, Goals, Coach, Focus, Analytics and People in the main navigation, then Settings and Sign out at the bottom", () => {
     const html = render("/");
     const nav = html.slice(html.indexOf('aria-label="Main navigation"'), html.indexOf("</nav>"));
-    expect([...nav.matchAll(/<\/svg>([A-Za-z ]+)<\/a>/g)].map((m) => m[1])).toEqual(["Calendar", "Goals", "Coach", "Focus", "Analytics"]);
+    expect([...nav.matchAll(/<\/svg>([A-Za-z ]+)<\/a>/g)].map((m) => m[1])).toEqual(["Calendar", "Goals", "Coach", "Focus", "Analytics", "People"]);
     // Outside the calendar page "Goals" goes to the calendar.
-    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/", "/coach", "/focus", "/analytics"]);
+    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/", "/coach", "/focus", "/analytics", "/people"]);
     expect(html.indexOf('href="/settings"')).toBeGreaterThan(html.indexOf("</nav>"));
     expect(html.indexOf("Sign out")).toBeGreaterThan(html.indexOf('href="/settings"'));
   });
@@ -47,6 +48,25 @@ describe("app shell", () => {
 
   it("marks Settings as the current page on the settings page", () => {
     expect(render("/settings")).toMatch(/href="\/settings" aria-current="page"/);
+  });
+
+  // Spec 28: the number of open invitations on "People", for screen readers in words; none, no badge.
+  // People is not in the phone tab bar (a seventh icon does not fit at 375 px).
+  it("shows the open invitations on People in the sidebar, and leaves People out of the tab bar", () => {
+    const withTwo = renderToStaticMarkup(
+      <AppShell current="/people" invitations={2}>
+        page
+      </AppShell>,
+    );
+    expect(withTwo).toMatch(/<a href="\/people" aria-current="page" aria-label="People, 2 open invitations"[^>]*>.*People<span aria-hidden="true"[^>]*>2<\/span><\/a>/s);
+    const withNone = renderToStaticMarkup(
+      <AppShell current="/" invitations={0}>
+        page
+      </AppShell>,
+    );
+    expect(withNone).toMatch(/<a href="\/people" class="[^"]*">.*?People<\/a>/s);
+    const bar = withTwo.slice(withTwo.indexOf('aria-label="Tab bar"'));
+    expect(bar).not.toContain("/people");
   });
 
   it("marks Coach as the current page on the coach page", () => {

@@ -5,7 +5,7 @@ import { LiveProvider } from "@/components/live/Live";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { AppShell } from "@/components/shell/AppShell";
 import { pageDeps } from "@/lib/server/deps";
-import { loadSettingsPageAll } from "@/lib/server/pages/load";
+import { loadSettingsPageWithProfile } from "@/lib/server/pages/load";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -17,13 +17,13 @@ export default async function SettingsPage() {
   if (!userId) redirect("/sign-in");
 
   // Everything in one transaction (src/lib/server/pages/load.ts).
-  const { display, page: data, blocker } = await loadSettingsPageAll(deps, userId);
+  const { display, page: data, blocker, profile } = await loadSettingsPageWithProfile(deps, userId);
 
   return (
     <Announcer>
       <LiveProvider>
         <AppShell current="/settings" display={display}>
-          <SettingsView data={data} blocker={blocker} />
+          <SettingsView data={data} blocker={blocker} profile={profile} />
         </AppShell>
       </LiveProvider>
     </Announcer>
