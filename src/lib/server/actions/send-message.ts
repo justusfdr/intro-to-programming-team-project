@@ -15,11 +15,19 @@ import "server-only";
 // turned back into the event at once, and the draft keeps the event's id and updated_at.
 // Spec 23: the same references name the events the coach adds to-dos to; each event in the data block
 // also says whether it takes to-dos from the coach and how many it has (the count only).
+// Spec 37 (R65 to R68): in step 4 the server also finds the people named in the conversation who share
+// their calendar with the user (at most 5) and reads their busy times through the shares, at this
+// moment. Only then are they sent: a handle made for this request ("p1"), the shown name, the time zone
+// and the merged busy times; with the prompt's addition and the schema that lets a proposed event invite
+// them by handle. With nobody named, the request is exactly as before. In step 6 a proposal whose time
+// does not fit an invited person is left out and the answer says so; the draft keeps the people as
+// contact row ids (or demo ids), and accept_draft invites them.
 import { z } from "zod";
 import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
 import { checkAnswer, checkText } from "@/lib/chat/checks";
 import { buildAssistantInput, HISTORY_LENGTH } from "@/lib/chat/input";
-import { ANSWER_JSON_SCHEMA, SYSTEM_PROMPT } from "@/lib/chat/prompt";
+import { busyWindow, namedPeople, tooManyNamedNote, withNotes } from "@/lib/chat/people";
+import { ANSWER_JSON_SCHEMA, ANSWER_JSON_SCHEMA_WITH_PEOPLE, SYSTEM_PROMPT, SYSTEM_PROMPT_WITH_PEOPLE } from "@/lib/chat/prompt";
 import { chatTotals } from "@/lib/chat/totals";
 import { MESSAGES } from "@/lib/messages";
 import {
@@ -36,6 +44,7 @@ import {
   todoTargetsOf,
   withReferences,
 } from "@/lib/server/chat/rows";
+import { readCoachCandidates, readCoachPeople } from "@/lib/server/chat/people";
 import { chatProOnly } from "@/lib/server/config";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
@@ -82,19 +91,27 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       // R13: a session that reached its planned length counts as finished in the totals.
       await finishDueSessions(query, now);
       const settings = await readSettings(query);
-      const [goals, calendar, totalsInput, messages] = await Promise.all([
+      const [goals, calendar, totalsInput, messages, { candidates }] = await Promise.all([
         readGoalInputs(query),
         readCalendar(query, now, settings.timeZone),
         readTotalsInput(query, now, settings.timeZone),
         readMessages(query, HISTORY_LENGTH),
+        readCoachCandidates(query),
       ]);
-      return { text, settings, goals, calendar, totalsInput, messages };
+      // Spec 37 (R65): named in the new message or in the messages sent anyway, matched here, before
+      // anything is read of them or sent.
+      const { named, more } = namedPeople(candidates, [...messages.map((m) => m.text), text]);
+      const window = busyWindow(now, settings.timeZone);
+      const people = named.length > 0 ? await readCoachPeople(query, named, window.from, window.until) : [];
+      return { text, settings, goals, calendar, totalsInput, messages, people, more: more.map((c) => c.name) };
     });
 
     // Step 5: Claude, outside any transaction.
     const { settings, goals } = context;
     const asked = deps.now();
     const calendar = withReferences(context.calendar, asked, settings.timeZone);
+    // Spec 37: handles made for this request, in the order the people were named.
+    const people = context.people.map((p, i) => ({ ...p, handle: `p${i + 1}` }));
     const input = buildAssistantInput({
       now: asked,
       timeZone: settings.timeZone,
@@ -105,8 +122,14 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       calendar,
       totals: chatTotals({ ...context.totalsInput, goals }, asked, settings.timeZone),
       message: context.text,
+      ...(people.length > 0 ? { people: people.map((p) => ({ handle: p.handle, name: p.name, timeZone: p.timeZone, busy: p.busy })) } : {}),
     });
-    const result = await assistant!.ask({ system: SYSTEM_PROMPT, data: JSON.stringify(input), schema: ANSWER_JSON_SCHEMA });
+    const withPeople = people.length > 0;
+    const result = await assistant!.ask({
+      system: withPeople ? SYSTEM_PROMPT_WITH_PEOPLE : SYSTEM_PROMPT,
+      data: JSON.stringify(input),
+      schema: withPeople ? ANSWER_JSON_SCHEMA_WITH_PEOPLE : ANSWER_JSON_SCHEMA,
+    });
     if (result.kind === "unavailable") throw unavailableError();
     if (result.kind === "failed") throw failedChecksError();
 
@@ -118,6 +141,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       calendar: blocksOf(calendar),
       targets: targetsOf(calendar),
       todoTargets: todoTargetsOf(calendar),
+      people: new Map(people.map((p) => [p.handle, { key: p.key, name: p.name, busy: p.busy }])),
     });
     if (!checked.ok) {
       console.error("Assistant answer failed a check:", checked.failure);
@@ -125,7 +149,8 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
     }
 
     // Step 7: both messages and the draft in one step.
-    const answer = checked.value;
+    // Spec 37 (R65): more than 5 people named: the answer says who was taken into account.
+    const answer = context.more.length > 0 ? { ...checked.value, text: withNotes(checked.value.text, [tooManyNamedNote(people.map((p) => p.name))]) } : checked.value;
     const messages = await deps.withUser(userId, async (query) => {
       const saved = await saveTurn(query, context.text, {
         text: answer.text,

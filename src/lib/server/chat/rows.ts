@@ -14,7 +14,9 @@ import {
 } from "@/lib/chat/checks";
 import type { CalendarInput, GoalInput, HistoryInput } from "@/lib/chat/input";
 import { totalsWindow, type DoneEventInput, type SessionInput } from "@/lib/chat/totals";
-import type { ChatMessageDto, ChatRole, DraftChangeDto, DraftDto, DraftStatus, DraftTodosDto, ProposedEventDto } from "@/lib/chat/types";
+import type { ChatMessageDto, ChatRole, DraftChangeDto, DraftDto, DraftPersonDto, DraftStatus, DraftTodosDto, ProposedEventDto } from "@/lib/chat/types";
+import { demoPerson, isDemoId } from "@/lib/demo/people";
+import { readPeople } from "@/lib/server/profiles/cards";
 import type { Plan } from "@/lib/chat/access";
 import { focusedMinutes } from "@/lib/focus/session-time";
 import { MESSAGES } from "@/lib/messages";
@@ -31,10 +33,62 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * A proposed event as the database keeps it in draft_plans.proposed_events. `todos` (spec 21): its
  * to-dos' titles, only when it has some (app.chat_apply_draft writes them with the event).
  */
-type StoredProposal = { title: string; start_at: string; end_at: string; goal_id: string | null; todos?: string[] };
+type StoredProposal = {
+  title: string;
+  start_at: string;
+  end_at: string;
+  goal_id: string | null;
+  todos?: string[];
+  /**
+   * Spec 37: the people it invites, resolved on our server: contact row ids (real contacts, invited
+   * when the draft is applied) and, apart, demo contacts' fixed ids (taken into account for the time,
+   * shown on the card, never invited). Each key is left out when empty. Never a handle, never a user id.
+   */
+  invite_contacts?: string[];
+  demo_people?: string[];
+};
 
 /** The to-dos of a proposal as a field to spread: left out when there are none. */
 const todosField = (todos: readonly string[] | undefined) => (todos && todos.length > 0 ? { todos: [...todos] } : {});
+
+/** Spec 37: the invited people of a proposal as stored fields to spread: contacts and demo people apart, each left out when empty. */
+function storedPeopleFields(people: readonly string[] | undefined): Pick<StoredProposal, "invite_contacts" | "demo_people"> {
+  const contacts = (people ?? []).filter((key) => UUID.test(key));
+  const demo = (people ?? []).filter((key) => isDemoId(key));
+  return { ...(contacts.length > 0 ? { invite_contacts: contacts } : {}), ...(demo.length > 0 ? { demo_people: demo } : {}) };
+}
+
+/** Spec 37: the stored people of a proposal back as keys (only well-formed ones), or nothing when there are none. */
+function peopleField(p: StoredProposal): { people?: string[] } {
+  const strings = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []);
+  const people = [...strings(p.invite_contacts).filter((key) => UUID.test(key)), ...strings(p.demo_people).filter((key) => isDemoId(key))];
+  return people.length > 0 ? { people } : {};
+}
+
+/**
+ * Spec 37: how the card shows an invited person. Real contacts by their shown name and photo (read from
+ * the user's own contact cards, R43); a key that is no longer a contact as "No longer a contact"; demo
+ * contacts from the code. Built only when a draft invites someone.
+ */
+export type PeopleLookup = (key: string) => DraftPersonDto;
+
+export async function readPeopleLookup(query: Query): Promise<PeopleLookup> {
+  const { contacts } = await readPeople(query);
+  return (key) => {
+    const demo = isDemoId(key) ? demoPerson(key) : null;
+    if (demo) return { key, name: demo.name, photoUrl: null, demo: demo.look };
+    const card = contacts.find((c) => c.id === key);
+    return card ? { key, name: card.name, photoUrl: card.photoUrl } : { key, name: "No longer a contact", photoUrl: null, gone: true };
+  };
+}
+
+const rowHasPeople = (row: MessageRow) => storedOf(row.proposed_events).some((p) => peopleField(p).people !== undefined);
+
+/** The rows as the page shows them; the people lookup is read only when some draft invites someone. */
+async function dtosOf(query: Query, rows: MessageRow[]): Promise<ChatMessageDto[]> {
+  const lookup = rows.some(rowHasPeople) ? await readPeopleLookup(query) : null;
+  return rows.map((row) => toMessageDto(row, lookup));
+}
 
 /**
  * A change of an existing event as the database keeps it in draft_plans.changes (spec 20): the event's
@@ -154,6 +208,7 @@ export function toStored(proposals: readonly Proposal[]): StoredProposal[] {
     end_at: p.endAt.toISOString(),
     goal_id: p.goalId,
     ...todosField(p.todos),
+    ...storedPeopleFields(p.people),
   }));
 }
 
@@ -164,25 +219,27 @@ export function proposalsOf(value: StoredProposal[] | string | null): Proposal[]
     endAt: new Date(p.end_at),
     goalId: p.goal_id ?? null,
     ...todosField(p.todos),
+    ...peopleField(p),
   }));
 }
 
-const proposedDto = (p: Proposal): ProposedEventDto => ({
+const proposedDto = (p: Proposal, lookup: PeopleLookup | null): ProposedEventDto => ({
   title: p.title,
   startAt: p.startAt.toISOString(),
   endAt: p.endAt.toISOString(),
   goalId: p.goalId,
   ...todosField(p.todos),
+  ...(p.people && p.people.length > 0 && lookup ? { people: p.people.map(lookup) } : {}),
 });
 
-function toMessageDto(row: MessageRow): ChatMessageDto {
+function toMessageDto(row: MessageRow, lookup: PeopleLookup | null): ChatMessageDto {
   const added = storedAdditionsOf(row.added_todos).map(additionDto);
   const draft: DraftDto | null =
     row.draft_id && row.draft_status
       ? {
           id: row.draft_id,
           status: row.draft_status,
-          events: proposalsOf(row.proposed_events).map(proposedDto),
+          events: proposalsOf(row.proposed_events).map((p) => proposedDto(p, lookup)),
           changes: storedChangesOf(row.changes).map(changeDto),
           version: row.draft_version ?? 0,
           // Spec 23: only when the draft adds to-dos to existing events.
@@ -195,7 +252,7 @@ function toMessageDto(row: MessageRow): ChatMessageDto {
 /** The latest `limit` messages with their drafts, oldest first. */
 export async function readMessages(query: Query, limit: number): Promise<ChatMessageDto[]> {
   const rows = await query<MessageRow>(`${MESSAGE_SELECT} order by m.seq desc limit $1`, [limit]);
-  return rows.reverse().map(toMessageDto);
+  return dtosOf(query, rows.reverse());
 }
 
 /** The same as what Claude receives as history (R22). */
@@ -511,7 +568,7 @@ export async function saveTurn(
     );
   }
   const rows = await query<MessageRow>(`${MESSAGE_SELECT} where m.id = any($1::uuid[]) order by m.seq`, [[user.id, assistant.id]]);
-  return rows.map(toMessageDto);
+  return dtosOf(query, rows);
 }
 
 export type DraftRow = {
@@ -536,7 +593,7 @@ export async function findOwnDraft(query: Query, id: string): Promise<DraftRow> 
 /** One draft with its message's other fields left out, as the page shows it (spec 22: after a change). */
 export async function readDraft(query: Query, id: string): Promise<DraftDto | null> {
   const [row] = await query<MessageRow>(`${MESSAGE_SELECT} where d.id = $1`, [id]);
-  return row ? toMessageDto(row).draft : null;
+  return row ? (await dtosOf(query, [row]))[0].draft : null;
 }
 
 export function assertDraftOpen(draft: DraftRow): void {

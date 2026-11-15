@@ -89,6 +89,10 @@ export const MESSAGES = {
   draftEditPast: "This time is in the past",
   draftEditTooLate: "The coach plans only the next 14 days",
   draftEditOtherDay: "A block stays on its day. Ask the coach to move it to another day",
+  // Spec 37 (R68): accept_draft with invited people (the two sentences with a name are in
+  // src/lib/chat/people.ts).
+  draftInviteeGone: "Someone you invited is no longer one of your contacts",
+  draftInviteFailed: "The people could not be invited. Nothing was changed",
   // ontology, section 5 (profiles and contacts, spec 28)
   displayName: "Name must be 1 to 40 characters, without control characters",
   photoType: "A photo must be a JPEG, PNG or WebP image",
@@ -131,6 +135,8 @@ export const MESSAGES = {
   draftUndone: "Undone. Your calendar is as before.",
   draftRejected: "Draft rejected.",
   draftEdited: "Draft changed.",
+  // Spec 37: inviting the people of a draft when it is applied (R67, R68).
+  draftInvitesSent: "The people you invited see it in their calendar.",
   chatCleared: "Chat cleared.",
   taskDone: "Task done.",
   taskReopened: "Task reopened.",

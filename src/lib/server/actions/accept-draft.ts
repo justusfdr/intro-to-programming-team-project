@@ -19,8 +19,19 @@ import "server-only";
 // unchanged); otherwise "This draft is out of date. Ask again". app.chat_apply_draft_todos then does
 // everything app.chat_apply_draft does and also writes these to-dos at the end of each event's list,
 // remembering their ids for undo.
+// Spec 37 (R67, R68): a proposed event may invite people (contact row ids, and demo contacts apart).
+// Before anything is written, each of them must still share their calendar with the user (read fresh
+// through the shares) and the event's time, also after a drag, must not overlap any of their busy times
+// ("<name> no longer shares their calendar with you" / "The time no longer fits <name>"). After
+// app.chat_apply_draft_todos has created the events, app.set_event_invites invites the real contacts to
+// each of them, in this same transaction: if any invitation fails (no longer a contact, the 20 limit,
+// any refusal of the database), the whole transaction rolls back, so no event is created and the draft
+// stays open (R1). Demo contacts are never invited. Undo deletes the events, and their invitations
+// with them (the table's foreign key).
 import { chatAllowed } from "@/lib/chat/access";
-import { checkDraft } from "@/lib/chat/checks";
+import { checkDraft, type Proposal } from "@/lib/chat/checks";
+import { fitsBusy, noLongerFitsMessage, notSharingMessage } from "@/lib/chat/people";
+import { demoPerson, isDemoId } from "@/lib/demo/people";
 import { MESSAGES } from "@/lib/messages";
 import {
   assertDraftOpen,
@@ -32,7 +43,9 @@ import {
   readCalendar,
   readChatAccount,
 } from "@/lib/server/chat/rows";
+import { readBusy, readCoachCandidates } from "@/lib/server/chat/people";
 import { chatProOnly } from "@/lib/server/config";
+import type { Query } from "@/lib/server/db";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
@@ -40,6 +53,66 @@ import { assertSameOrigin, jsonOk } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { readTimeZone } from "@/lib/server/settings";
 import { proOnlyError } from "./send-message";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Invitations the database refused, as the sentence the person sees; null for anything else. */
+const INVITE_REFUSALS: readonly string[] = [
+  MESSAGES.tooManyInvitees,
+  MESSAGES.invitesNotEnded,
+  MESSAGES.invitesNotInSeries,
+  MESSAGES.invitesNotOutlook,
+  MESSAGES.invitesNotDemo,
+];
+
+/** Thrown inside the transaction when inviting fails, so everything rolls back; turned into the answer outside. */
+class InviteRefusal extends Error {}
+
+/**
+ * Spec 37 (R67, R68): every person a proposal invites still shares their calendar with the user, and
+ * the proposal's time (as it is now, also after a drag) fits their busy times read at this moment.
+ * Throws the refusal; nothing has been written yet.
+ */
+async function checkInvitedPeople(query: Query, proposals: readonly Proposal[]): Promise<void> {
+  const keys = [...new Set(proposals.flatMap((p) => p.people ?? []))];
+  if (keys.length === 0) return;
+  const { candidates, contacts } = await readCoachCandidates(query);
+  for (const key of keys) {
+    const candidate = candidates.find((c) => c.key === key);
+    if (!candidate) {
+      const name = isDemoId(key) ? demoPerson(key)?.name : contacts.find((c) => c.id === key)?.name;
+      throw new ActionError(409, "invitee_not_sharing", name ? notSharingMessage(name) : MESSAGES.draftInviteeGone);
+    }
+    const times = proposals.filter((p) => p.people?.includes(key));
+    const from = new Date(Math.min(...times.map((p) => p.startAt.getTime())));
+    const until = new Date(Math.max(...times.map((p) => p.endAt.getTime())));
+    const busy = await readBusy(query, candidate, from, until);
+    if (times.some((p) => !fitsBusy(p, busy))) throw new ActionError(409, "invitee_busy", noLongerFitsMessage(candidate.name));
+  }
+}
+
+/**
+ * Spec 37: invites the real contacts of each proposal to the event created for it. Proposals never
+ * overlap each other (R23), so each one's start finds its event.
+ */
+async function inviteToCreated(query: Query, proposals: readonly Proposal[], created: readonly { id: string; start_at: Date | string | null }[]): Promise<number> {
+  let invited = 0;
+  for (const proposal of proposals) {
+    const contacts = (proposal.people ?? []).filter((key) => UUID.test(key));
+    if (contacts.length === 0) continue;
+    const event = created.find((e) => e.start_at !== null && new Date(e.start_at).getTime() === proposal.startAt.getTime());
+    if (!event) throw new InviteRefusal(MESSAGES.draftOutOfDate);
+    try {
+      await query("select app.set_event_invites($1::uuid, $2::uuid[])", [event.id, contacts]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message === MESSAGES.notFound) throw new InviteRefusal(MESSAGES.draftInviteeGone);
+      throw new InviteRefusal(INVITE_REFUSALS.includes(message) ? message : MESSAGES.draftInviteFailed);
+    }
+    invited += contacts.length;
+  }
+  return invited;
+}
 
 export function acceptDraft(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now">, id: string): Promise<Response> {
   return handleAction(async () => {
@@ -66,23 +139,31 @@ export function acceptDraft(request: Request, deps: Pick<Deps, "auth" | "withUse
         if (changes === null) throw outOfDate();
         const additions = currentAdditions(draft.added_todos, calendar, now, timeZone);
         if (additions === null) throw outOfDate();
+        const proposals = proposalsOf(draft.proposed_events);
         const checked = checkDraft(
-          proposalsOf(draft.proposed_events),
+          proposals,
           changes,
           { now, timeZone, goalIds: new Set(goals.map((g) => g.id)), calendar: blocksOf(calendar) },
           additions,
         );
         if (!checked.ok) throw outOfDate();
+        // Spec 37: the invited people, fresh, before anything is written.
+        await checkInvitedPeople(query, proposals);
 
         const created = await query<{ id: string }>("select id from app.chat_apply_draft_todos($1::uuid) as id", [draft.id]);
         const rows = await query<EventRow>(
           `select ${EVENT_COLUMNS} from app.events where id = any($1::uuid[]) order by start_at, id`,
           [created.map((c) => c.id)],
         );
-        const message = changes.length > 0 || additions.length > 0 ? MESSAGES.draftApplied : MESSAGES.draftAccepted;
+        // Spec 37: in the same transaction; a failure rolls back the events too.
+        const invited = await inviteToCreated(query, proposals, rows);
+        const base = changes.length > 0 || additions.length > 0 ? MESSAGES.draftApplied : MESSAGES.draftAccepted;
+        const message = invited > 0 ? `${base} ${MESSAGES.draftInvitesSent}` : base;
         return jsonOk({ message, draftId: draft.id, events: rows.map(toEventDto) }, 201);
       });
     } catch (error) {
+      // Spec 37: inviting failed; the transaction has rolled back (no event, the draft still open).
+      if (error instanceof InviteRefusal) throw new ActionError(409, "invite_failed", error.message);
       // The database's own refusal (a second device got there first between our read and the function).
       const constraint = (error as { constraint?: unknown } | null)?.constraint;
       if (constraint === "draft_plans_status_forward") {
