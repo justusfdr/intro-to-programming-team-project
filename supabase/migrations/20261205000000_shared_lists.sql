@@ -31,9 +31,9 @@ set search_path = ''
 as $$
   select p_text is not null
      and pg_catalog.char_length(p_text) between 1 and p_max
-     and p_text !~ '[\u0001-\u001f\u007f-\u009f​-‏ -‮⁠-⁩﻿]'
-     and p_text !~ '^[[:space:]   -   　]'
-     and p_text !~ '[[:space:]   -   　]$';
+     and p_text !~ '[\u0001-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]'
+     and p_text !~ '^[[:space:]\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]'
+     and p_text !~ '[[:space:]\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]$';
 $$;
 
 revoke all on function app.list_text_valid(text, integer) from public, anon;

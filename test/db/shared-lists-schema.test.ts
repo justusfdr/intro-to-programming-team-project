@@ -98,7 +98,7 @@ describe("R52 a list: owner, title, at most 20", () => {
   it("refuses an empty title, 61 characters, spaces at the ends and control characters; nothing changes", async () => {
     await createList(alice, "A");
     const before = await everything();
-    for (const bad of ["", " Groceries", "Groceries ", "a".repeat(61), "Gro\u0007ceries", "‮ecilA"]) {
+    for (const bad of ["", " Groceries", "Groceries ", "a".repeat(61), "Gro\u0007ceries", "\u202eecilA"]) {
       await expect(createList(alice, bad)).rejects.toThrow("A list needs a title of 1 to 60 characters");
     }
     expect(await everything()).toEqual(before);
