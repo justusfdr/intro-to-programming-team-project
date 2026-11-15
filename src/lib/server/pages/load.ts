@@ -41,6 +41,9 @@ import type { GuestPerson } from "@/lib/events/preview";
 import { guestAddresses, matchGuests } from "@/lib/people/guest-match";
 import { isUserId, readProfileCard, readProfileCards } from "@/lib/server/profiles/profile-card";
 import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
+import { cardsOfContacts, inviteContactsOf, openInvitesOf, readInvitedEvents, readOpenInviteRows, readOwnInvitees, readPendingInviteCount } from "@/lib/server/invites/read";
+import type { CalendarInvites } from "@/lib/invites/types";
+import { demoInviteFor, openDemoInvite } from "@/lib/demo/invite";
 import { NOTHING_SHARED, type ContactShares, type PersonRelation, type ShareSetting, type SharingPerson } from "@/lib/shares/types";
 import type { Query } from "@/lib/server/db";
 import { demoContacts, demoPerson, demoProfileCard, demoSharingPeople, isDemoId, type DemoContact, type DemoProfileCard } from "@/lib/demo/people";
@@ -115,15 +118,63 @@ export async function loadCalendarPageWithShares(
 ): Promise<CalendarPageData & { sharing: SharingPerson[]; guestPeople: Record<string, GuestPerson> }> {
   await settleTasks(deps, userId);
   const now = deps.now();
+  return deps.withUser(userId, async (query) => (await readWithShares(query, now, requestedDate, requestedView)).page);
+}
+
+type WithShares = CalendarPageData & { sharing: SharingPerson[]; guestPeople: Record<string, GuestPerson> };
+
+/** The reads of loadCalendarPageWithShares inside a transaction that is already open (also whether the demo contacts are on). */
+async function readWithShares(query: Query, now: Date, requestedDate?: string, requestedView?: View): Promise<{ page: WithShares; demo: boolean }> {
+  // Without parameters, so started first (see the top of this file).
+  const sharingRead = readSharingPeople(query);
+  const demoRead = readDemoContactsOn(query);
+  const contactsRead = readContactsForGuests(query);
+  const [page, sharing, demo, contacts] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead, demoRead, contactsRead]);
+  // Spec 35: the guests of the shown events who are the user's contacts, for the event preview.
+  const events = [...page.week.days.flatMap((d) => [...d.events, ...d.allDay]), ...page.week.lead];
+  return { page: { ...page, sharing: withDemoPeople(sharing, demo), guestPeople: matchGuests(guestAddresses(events), contacts) }, demo };
+}
+
+/**
+ * Spec 36: the calendar page with everything of loadCalendarPageWithShares, plus the event invitations,
+ * in the same one transaction: the events of the shown days the user is invited to, the invitations
+ * still to look at, how many are not answered (the badge), the invited people of the user's own shown
+ * events (so the blocks and the preview need no extra request) and the user's contacts for the editor's
+ * picker (contact row, name, photo; never an address). With the demo contacts on, Lea's one made-up
+ * invitation is added (src/lib/demo/invite.ts).
+ */
+export async function loadCalendarPageWithInvites(
+  deps: PageDeps,
+  userId: string,
+  requestedDate?: string,
+  requestedView?: View,
+): Promise<WithShares & { invites: CalendarInvites }> {
+  await settleTasks(deps, userId);
+  const now = deps.now();
   return deps.withUser(userId, async (query) => {
     // Without parameters, so started first (see the top of this file).
-    const sharingRead = readSharingPeople(query);
-    const demoRead = readDemoContactsOn(query);
-    const contactsRead = readContactsForGuests(query);
-    const [page, sharing, demo, contacts] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead, demoRead, contactsRead]);
-    // Spec 35: the guests of the shown events who are the user's contacts, for the event preview.
-    const events = [...page.week.days.flatMap((d) => [...d.events, ...d.allDay]), ...page.week.lead];
-    return { ...page, sharing: withDemoPeople(sharing, demo), guestPeople: matchGuests(guestAddresses(events), contacts) };
+    const openRead = readOpenInviteRows(query);
+    const pendingRead = readPendingInviteCount(query);
+    const peopleRead = readPeople(query);
+    const [{ page, demo }, openRows, pending, people] = await Promise.all([readWithShares(query, now, requestedDate, requestedView), openRead, pendingRead, peopleRead]);
+    const cards = cardsOfContacts(people.contacts);
+    const days = page.week.days.map((d) => d.date);
+    const from = startOfLocalDate(days[0], page.week.timeZone);
+    const to = startOfLocalDate(addDays(days[days.length - 1], 1), page.week.timeZone);
+    const ownIds = [...new Set([...page.week.days.flatMap((d) => [...d.events, ...d.allDay]), ...page.week.lead].map((e) => e.id))];
+    const [invited, own] = await Promise.all([readInvitedEvents(query, from, to, cards), readOwnInvitees(query, ownIds, cards)]);
+    const demoShown = demo ? demoInviteFor(now, from, to) : null;
+    const demoOpen = demo ? openDemoInvite(now) : null;
+    return {
+      ...page,
+      invites: {
+        invited: demoShown ? [...invited, demoShown] : invited,
+        open: demoOpen ? [...openInvitesOf(openRows, cards), demoOpen] : openInvitesOf(openRows, cards),
+        pending: pending + (demoOpen ? 1 : 0),
+        own,
+        contacts: inviteContactsOf(people.contacts),
+      },
+    };
   });
 }
 

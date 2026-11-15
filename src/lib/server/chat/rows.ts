@@ -281,7 +281,7 @@ type CalendarRow = {
   updated_at: Date;
   /** Spec 23: how many to-dos the event has (the count only). */
   todo_count: number;
-  /** Spec 24: whether it has guests (never the addresses). */
+  /** Spec 24: whether it has guests (never the addresses). Spec 36: or people invited in the app (never who). */
   has_guests: boolean;
 };
 
@@ -304,7 +304,9 @@ export type CalendarEntry = CalendarInput & {
 
 /**
  * The user's events in the window, each with the number of its to-dos (spec 23). No location is read,
- * and of the guests only whether there are any (spec 24).
+ * and of the guests only whether there are any (spec 24). Spec 36: an event with people invited in the
+ * app counts as one with guests (the coach may not move or delete it, R63); who they are is never read.
+ * Only the user's own rows are read (row-level security), so events they are invited to are never here.
  */
 export async function readCalendar(query: Query, now: Date, timeZone: string): Promise<CalendarEntry[]> {
   const w = calendarWindow(now, timeZone);
@@ -312,7 +314,7 @@ export async function readCalendar(query: Query, now: Date, timeZone: string): P
     `select e.id, e.title, e.all_day, e.start_at, e.end_at, e.first_day::text as first_day, e.last_day::text as last_day,
             e.may_overlap, e.goal_id, e.series_id, e.source, e.updated_at,
             (select count(*) from app.event_todos t where t.event_id = e.id)::integer as todo_count,
-            coalesce(cardinality(e.guests), 0) > 0 as has_guests
+            (coalesce(cardinality(e.guests), 0) > 0 or app.event_has_invites(e.id)) as has_guests
        from app.events e
       where (not e.all_day and e.end_at > $1::timestamptz and e.start_at < $2::timestamptz)
          or (e.all_day and e.last_day >= $3::date and e.first_day <= $4::date)
