@@ -61,6 +61,13 @@ const keys = (value: object) => Object.keys(value).sort();
 const SHARING_KEYS = ["calendar", "demo", "focus", "name", "photoUrl", "userId"];
 const REAL_SHARING_KEYS = ["calendar", "focus", "name", "photoUrl", "userId"];
 
+/** A snapshot without the profiles table (where the choice itself is saved). */
+function withoutProfiles(snapshot: Record<string, unknown>): Record<string, unknown> {
+  const tables = { ...(snapshot.tables as Record<string, unknown>) };
+  delete tables.profiles;
+  return { ...snapshot, tables };
+}
+
 /** Ana shares her calendar (details) with Ben; Ben is signed in at the end. */
 async function anaSharesWithBen(): Promise<{ ana: string; ben: string }> {
   const ben = await app.signedInAs("ben@example.com");
@@ -83,11 +90,7 @@ describe("switching the demo contacts on and off", () => {
     expect(await isOn(ben)).toBe(true);
     expect(await isOn(other)).toBe(false);
     // Only the user's own choice changed: no account, contact, share or anything else.
-    const after = (await app.snapshot()) as { tables: Record<string, unknown> };
-    const { profiles: _p1, ...restAfter } = after.tables;
-    const { profiles: _p0, ...restBefore } = (before as { tables: Record<string, unknown> }).tables;
-    expect(restAfter).toEqual(restBefore);
-    expect((after as unknown as { users: unknown }).users).toEqual((before as unknown as { users: unknown }).users);
+    expect(withoutProfiles(await app.snapshot())).toEqual(withoutProfiles(before));
     expect(await read(await switchDemo(false))).toEqual({ status: 200, body: { message: "Demo contacts removed.", on: false } });
     expect(await isOn(ben)).toBe(false);
   });
