@@ -125,16 +125,17 @@ create index contact_invitations_to_user on app.contact_invitations (to_user);
 -- A decline: the sender may not invite this person again until "until" (30 days). Read only by the
 -- functions below; nobody, not even the two people, can read it.
 create table app.contact_declines (
+  id uuid primary key default gen_random_uuid(),
   from_user uuid not null references auth.users (id) on delete cascade,
   to_user uuid not null references auth.users (id) on delete cascade,
   until timestamptz not null,
-  primary key (from_user, to_user)
+  constraint contact_declines_pair unique (from_user, to_user)
 );
 
 -- Every invitation a user sent in the last hour (the time only, never the address), for the limit of
 -- 10 per hour. Counted in the database, so it holds across servers. Read only by app.invite_contact.
 create table app.contact_invite_attempts (
-  id bigint generated always as identity primary key,
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   at timestamptz not null default now()
 );

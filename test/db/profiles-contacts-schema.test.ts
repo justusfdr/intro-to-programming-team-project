@@ -171,7 +171,8 @@ describe("invite_contact (R44)", () => {
     await invite(alice, "nobody@example.com");
     const sent = await kinds(alice, "sent");
     expect(sent.map((c) => c.email)).toEqual(["bob@example.com", "nobody@example.com"]);
-    expect(sent.map(({ id: _id, email: _email, ...rest }) => rest)).toEqual([sent[0], sent[0]].map(({ id: _id, email: _email, ...rest }) => rest));
+    const shape = (c: Card) => ({ kind: c.kind, user_id: c.user_id, display_name: c.display_name, photo_at: c.photo_at });
+    expect(shape(sent[1])).toEqual(shape(sent[0]));
     // Not even the table tells them apart: to_user is not readable for the sender.
     await expect(as(alice, "select to_user from app.contact_invitations")).rejects.toThrow(/permission denied/);
     expect((await as(alice, "select id, from_user, to_email, created_at from app.contact_invitations")).length).toBe(2);
