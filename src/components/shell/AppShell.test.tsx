@@ -20,12 +20,14 @@ const render = (current: string) => renderToStaticMarkup(<AppShell current={curr
 describe("app shell", () => {
   // Rewritten for spec 25: "Goals" is second in the list (it moved here from the calendar's toolbar).
   // Rewritten for spec 28: "People" (contacts and invitations) is last in the list.
-  it("lists Calendar, Goals, Coach, Focus, Analytics and People in the main navigation, then Settings and Sign out at the bottom", () => {
+  // Rewritten for spec 30: "Lists" (shared to-do lists) follows "Goals".
+  it("lists Calendar, Goals, Lists, Coach, Focus, Analytics and People in the main navigation, then Settings and Sign out at the bottom", () => {
     const html = render("/");
     const nav = html.slice(html.indexOf('aria-label="Main navigation"'), html.indexOf("</nav>"));
-    expect([...nav.matchAll(/<\/svg>([A-Za-z ]+)<\/a>/g)].map((m) => m[1])).toEqual(["Calendar", "Goals", "Coach", "Focus", "Analytics", "People"]);
+    expect([...nav.matchAll(/<\/svg>([A-Za-z ]+)<\/a>/g)].map((m) => m[1])).toEqual(["Calendar", "Goals", "Lists", "Coach", "Focus", "Analytics", "People"]);
     // Outside the calendar page "Goals" goes to the calendar.
-    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/", "/coach", "/focus", "/analytics", "/people"]);
+    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/", "/lists", "/coach", "/focus", "/analytics", "/people"]);
+    expect(render("/lists")).toMatch(/href="\/lists" aria-current="page"/);
     expect(html.indexOf('href="/settings"')).toBeGreaterThan(html.indexOf("</nav>"));
     expect(html.indexOf("Sign out")).toBeGreaterThan(html.indexOf('href="/settings"'));
   });
