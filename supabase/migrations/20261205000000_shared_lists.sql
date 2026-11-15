@@ -4,7 +4,7 @@
 -- Additive only: the code on main runs against the same database and must keep working unchanged.
 -- Three new tables and functions. Nothing existing is removed, renamed or loosened: the private tasks
 -- and goals (app.tasks, app.goals) are not touched at all. The one existing function that changes is
--- app.may_see_profile, which keeps its old conditions word for word and gets one more (R56: people who
+-- app.may_see_profile, which keeps its old conditions word for word and gets one more (R55: people who
 -- share a list see each other's display name and photo).
 --
 -- Who sees what (ontology R52 to R57):
@@ -142,7 +142,7 @@ create policy "Owner and members read the entries" on app.list_items
 
 -- ---------- Seeing each other inside a list ----------
 
--- R43 with one more condition (spec 30, R56): two users who share a list (each its owner or a member)
+-- R43 with one more condition (spec 30, R55): two users who share a list (each its owner or a member)
 -- see each other's display name and photo. The first three conditions are unchanged, word for word.
 create or replace function app.may_see_profile(p_viewer uuid, p_owner uuid)
 returns boolean
