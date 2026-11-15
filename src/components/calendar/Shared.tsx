@@ -9,6 +9,7 @@ import { useId, useState } from "react";
 import { Users } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { DemoTag } from "@/components/ui/DemoTag";
+import { PersonChip } from "@/components/people/PersonChip";
 import { Button } from "@/components/ui/Button";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { blockBox, type GridRange } from "@/lib/events/grid";
@@ -248,9 +249,11 @@ export function SharedEventCard({ shared, anchor, onClose }: { shared: OpenShare
         <p className="pr-8 text-[15px] font-semibold text-ink">{shared.title}</p>
         <p className="text-sm text-ink-2">{shared.when}</p>
         {shared.location && <p className="text-sm text-ink-2">{shared.location}</p>}
-        <p className="mt-1 flex items-center gap-2 text-xs text-ink-3">
-          <Avatar name={shared.person.name} photoUrl={shared.person.photoUrl} look={shared.person.demo} size={24} />
-          <span>From {whose(shared.person)}. Read only.</span>
+        <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-ink-3">
+          <span>From</span>
+          {/* Spec 33: the person's name is a chip to their profile (only a link here: no card in a card). */}
+          <PersonChip person={{ userId: shared.person.userId, name: shared.person.name, photoUrl: shared.person.photoUrl, look: shared.person.demo }} className="text-xs font-medium" />
+          <span>&apos;s calendar. Read only.</span>
         </p>
       </div>
     </FloatingPanel>
