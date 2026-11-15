@@ -19,7 +19,7 @@ export default async function PeoplePage() {
 
   return (
     <Announcer>
-      <AppShell current="/people" display={display} invitations={people.received.length}>
+      <AppShell current="/people" display={display} invitations={people.received.length} me={{ name: people.me.name, photoUrl: people.me.photoUrl }}>
         <PeopleView data={people} timeZone={timeZone} shares={shares} />
       </AppShell>
     </Announcer>

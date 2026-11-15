@@ -22,7 +22,7 @@ export default async function SettingsPage() {
   return (
     <Announcer>
       <LiveProvider>
-        <AppShell current="/settings" display={display}>
+        <AppShell current="/settings" display={display} me={{ name: profile.name, photoUrl: profile.photoUrl }}>
           <SettingsView data={data} blocker={blocker} profile={profile} />
         </AppShell>
       </LiveProvider>

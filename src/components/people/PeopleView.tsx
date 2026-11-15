@@ -4,6 +4,7 @@
 // invitations you sent, and your contacts. In the look of the settings cards. The server decides
 // everything; this sends the input and shows the answer. The answer to an invitation is always the
 // same sentence, whatever happened to the address (R44).
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { Inbox, Mail, Send, UserPlus, Users } from "lucide-react";
@@ -38,12 +39,31 @@ function Quiet({ children }: { children: ReactNode }) {
   return <p className="text-sm text-ink-3">{children}</p>;
 }
 
-function Person({ person, children, below }: { person: Pick<PersonCard, "name" | "email" | "photoUrl">; children?: ReactNode; below?: ReactNode }) {
+/** One person in a list. `href`: their profile page (spec 31), for contacts. */
+function Person({
+  person,
+  href,
+  children,
+  below,
+}: {
+  person: Pick<PersonCard, "name" | "email" | "photoUrl">;
+  href?: string;
+  children?: ReactNode;
+  below?: ReactNode;
+}) {
   return (
     <li className="flex flex-wrap items-center gap-3 py-3">
       <Avatar name={person.name} photoUrl={person.photoUrl} size={32} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink">{person.name}</p>
+        <p className="truncate text-sm font-medium text-ink">
+          {href ? (
+            <Link href={href} className="hover:underline hover:underline-offset-2 focus-visible:underline">
+              {person.name}
+            </Link>
+          ) : (
+            person.name
+          )}
+        </p>
         <p className="truncate text-xs text-ink-3">{person.email}</p>
       </div>
       {children && <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>}
@@ -221,6 +241,7 @@ export function PeopleView({ data, timeZone, shares = [] }: { data: PeopleData; 
                   <Person
                     key={person.id}
                     person={person}
+                    href={`/people/${person.userId}`}
                     below={
                       <ShareRow
                         contactId={person.id}
