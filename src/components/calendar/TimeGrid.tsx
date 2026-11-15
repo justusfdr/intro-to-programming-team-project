@@ -43,7 +43,7 @@ import { todoCountText } from "@/lib/todos/types";
 import { guestCountText } from "@/lib/events/guests";
 import { travelBlock, type TravelBlock } from "@/lib/travel/blocks";
 import type { TravelAnswer } from "@/lib/travel/types";
-import type { SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
+import { splitBeside, type SharedAllDayItem, type SharedBlock } from "@/lib/shares/place";
 import { clickIntent, type ClickIntent } from "@/lib/events/preview";
 import { anchorOf, pointAnchor, type Anchor } from "./FloatingPanel";
 
@@ -748,7 +748,9 @@ export function TimeGrid({
             const blocks = placed[i];
             const listed = blocks.filter((b) => !b.continuesBefore);
             const sharedHere = (shared?.[i] ?? NO_SHARED).filter((b) => b.endMin > range.startMin && b.startMin < range.endMin);
-            const area = sharedHere.length > 0 && !readOnly ? OWN_AREA : 1;
+            // Only blocks that run at the same time as a shared or invited block give up width for it.
+            const beside = readOnly ? null : splitBeside(blocks, sharedHere);
+            const areaOf = (block: Placed) => (beside?.own[blocks.indexOf(block)] ? OWN_AREA : 1);
             return (
               <section
                 key={day.date}
@@ -796,15 +798,18 @@ export function TimeGrid({
                 {travel &&
                   blocks.map((block) => {
                     const trip = travelBlock(block.event, block.startMin, block.continuesBefore, travel[block.event.id]);
-                    return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} area={area} />;
+                    return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} area={areaOf(block)} />;
                   })}
                 {sharedHere.length > 0 && onOpenShared && (
                   <ul aria-label="Shared calendars" className="pointer-events-none absolute inset-0">
-                    {sharedHere.map((block) => (
+                    {sharedHere.map((block, n) => {
+                      const besideOwn = beside?.shared[n] ?? false;
+                      return (
                       <li key={`${block.key}-${block.continuesBefore ? "after" : "start"}`}>
-                        <SharedBlockView block={block} range={range} left={readOnly ? 0 : OWN_AREA} width={readOnly ? 1 : 1 - OWN_AREA} timeZone={timeZone} onOpen={onOpenShared} />
+                        <SharedBlockView block={block} range={range} left={besideOwn ? OWN_AREA : 0} width={besideOwn ? 1 - OWN_AREA : 1} timeZone={timeZone} onOpen={onOpenShared} />
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )}
                 <ul className="pointer-events-none absolute inset-0">
@@ -812,7 +817,7 @@ export function TimeGrid({
                     <li key={`${block.event.id}-${block.continuesBefore ? "after" : "start"}`}>
                       <EventBlock
                         block={block}
-                        area={area}
+                        area={areaOf(block)}
                         range={range}
                         dayLong={parts.long}
                         dayIndex={i}
