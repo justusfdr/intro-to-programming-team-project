@@ -177,7 +177,7 @@ describe("the editor's People in LockedIn (R59)", () => {
     { contactId: "c2", userId: "u2", name: "Ben Brown", photoUrl: null },
   ];
   const COMMON = { goals: [], timeZone: "Europe/Lisbon", today: "2026-11-16", anchor: null, onClose: noop, outlookConnected: true };
-  const edit = (e: WeekEvent, invites = { contacts: CONTACTS, own: { e1: [PEOPLE[0]] } }) => renderToStaticMarkup(<EditEventCard event={e} {...COMMON} invites={invites} />);
+  const edit = (e: WeekEvent, invites: { contacts: InviteContact[]; own: Record<string, InvitePerson[]> } = { contacts: CONTACTS, own: { e1: [PEOPLE[0]] } }) => renderToStaticMarkup(<EditEventCard event={e} {...COMMON} invites={invites} />);
 
   it("above the guests by e-mail: the invited contact with their mark, and a list of the others to add", () => {
     const html = edit(event());
