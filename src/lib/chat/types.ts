@@ -1,6 +1,7 @@
 // The shapes of the coach (the AI chat, spec 19) as the server sends them to the page.
 import type { EventDto } from "@/lib/events/types";
 import type { GoalLook } from "@/lib/goals/style";
+import type { AvatarLook } from "@/lib/profiles/types";
 import type { Display } from "@/lib/time/display";
 
 export type ChatRole = "user" | "assistant";
@@ -8,8 +9,18 @@ export type ChatRole = "user" | "assistant";
 /** "undone" (spec 20): an accepted draft whose changes were taken back; final. */
 export type DraftStatus = "open" | "accepted" | "rejected" | "replaced" | "undone";
 
-/** One proposed event of a draft. Times are ISO strings in UTC. `todos` (spec 21): its to-dos, left out when it has none. */
-export type ProposedEventDto = { title: string; startAt: string; endAt: string; goalId: string | null; todos?: string[] };
+/**
+ * Spec 37: a person a proposed event invites, as the card shows them. `key` is the contact row id (or a
+ * demo contact's fixed id) the server stored; the card sends it back to take the person off. A demo
+ * contact has its look and gets no invitation; `gone` marks someone who is no longer a contact.
+ */
+export type DraftPersonDto = { key: string; name: string; photoUrl: string | null; demo?: AvatarLook; gone?: true };
+
+/**
+ * One proposed event of a draft. Times are ISO strings in UTC. `todos` (spec 21): its to-dos, left out
+ * when it has none. `people` (spec 37): the people it invites, left out when none.
+ */
+export type ProposedEventDto = { title: string; startAt: string; endAt: string; goalId: string | null; todos?: string[]; people?: DraftPersonDto[] };
 
 /**
  * A proposed change of an existing event (spec 20): a move to new times, or a delete. The title, goal

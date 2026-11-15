@@ -16,6 +16,7 @@
 // Spec 20: each event in the block carries a short reference ("e1") that is valid for this one request
 // only, and whether the coach may change it; an earlier draft carries its changes in words (title, old
 // and new time), never an event's id.
+import { MAX_BUSY_INTERVALS, cleanPersonName, type Interval } from "./people";
 import type { ChatTotals } from "./totals";
 import { addDays, localDateOf, localDateTimeOf, startOfLocalDate } from "@/lib/time/zoned";
 import type { ChatRole, DraftStatus } from "./types";
@@ -69,7 +70,16 @@ export type AssistantInputSource = {
   totals: ChatTotals;
   /** The user's new message, already checked. */
   message: string;
+  /**
+   * Spec 37 (R65, R66): the people named in the conversation who share their calendar with the user,
+   * each with the handle made for this request ("p1"), the shown name, their time zone and their busy
+   * times. Left out (or empty) when nobody is named: then the block is exactly as before.
+   */
+  people?: readonly PersonInput[];
 };
+
+/** Spec 37: one named person as the server read them. Only these four fields are ever copied. */
+export type PersonInput = { handle: string; name: string; timeZone: string; busy: readonly Interval[] };
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -116,6 +126,17 @@ export function buildAssistantInput(source: AssistantInputSource) {
       rules: g.rules.map((r) => ({ kind: r.kind, target: r.target, minMinutes: r.minMinutes })),
     })),
     events,
+    // Spec 37: only when someone is named; the key order of everything else stays as it was.
+    ...(source.people && source.people.length > 0
+      ? {
+          people: source.people.map((p) => ({
+            handle: p.handle,
+            name: cleanPersonName(p.name),
+            timeZone: p.timeZone,
+            busy: p.busy.slice(0, MAX_BUSY_INTERVALS).map((b) => ({ start: local(b.startAt), end: local(b.endAt) })),
+          })),
+        }
+      : {}),
     totals: source.totals,
     history: source.history.slice(-HISTORY_LENGTH).map((m) => ({
       role: m.role,

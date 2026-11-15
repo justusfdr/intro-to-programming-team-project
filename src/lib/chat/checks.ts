@@ -14,11 +14,18 @@
 // new ones at most 20. An event the draft deletes gets nothing else; each event at most once per kind.
 // Each "to-dos for an event" counts as one of the draft's 30 things.
 //
+// Spec 37 (R67): a new event may name people to invite, by the handles of this one request ("p1").
+// Each handle must be one that was sent, and the event's time must not overlap any busy time of any
+// person it invites. A proposal that fails this is left out of the draft (not the whole answer), and the
+// answer says so in words; every other check still rejects the whole answer. The checked proposal keeps
+// the people as the server's own keys (contact row ids or demo ids), never the handles.
+//
 // The assistant answers with local date-times ("2026-11-14T09:00") in the user's time zone. They are
 // turned into instants with the project's own helpers; a time that does not exist in the zone (the
 // hour skipped when clocks go forward) fails the check.
 import { z } from "zod";
 import { MAX_TODO_TITLE, MAX_TODOS } from "@/lib/todos/types";
+import { droppedNote, fitsBusy, NO_COMMON_TIME_NOTE, withNotes, type Interval } from "./people";
 import {
   addDays,
   localDateOf,
@@ -91,8 +98,24 @@ export const AnswerShape = z
   })
   .strict();
 
-/** A proposed event with its times as instants, and its to-dos (spec 21; left out when it has none). */
-export type Proposal = { title: string; startAt: Date; endAt: Date; goalId: string | null; todos?: string[] };
+/**
+ * Spec 37: the shape when people were sent with the request (the schema ANSWER_JSON_SCHEMA_WITH_PEOPLE):
+ * every new event may also list the handles of the people it invites. Without people the shape above
+ * applies unchanged, so an "invite" there is refused as any unknown field.
+ */
+export const AnswerShapeWithPeople = AnswerShape.extend({
+  events: z.array(AnswerShape.shape.events.element.extend({ invite: z.array(z.string()).optional() }).strict()),
+}).strict();
+
+/**
+ * A proposed event with its times as instants, and its to-dos (spec 21; left out when it has none).
+ * `people` (spec 37): the people it invites, as the server's keys (a contact row id, or a demo
+ * contact's fixed id); left out when it invites nobody.
+ */
+export type Proposal = { title: string; startAt: Date; endAt: Date; goalId: string | null; todos?: string[]; people?: string[] };
+
+/** Spec 37: a person sent with this request, by handle: the server's key, the shown name and the busy times read now. */
+export type InvitePerson = { key: string; name: string; busy: readonly Interval[] };
 
 /**
  * A timed event already in the calendar, as the overlap check needs it. All-day events never block (R29).
@@ -193,6 +216,8 @@ export type CheckContext = {
    * no to-dos from the coach. Without it, no to-dos can be added to existing events.
    */
   todoTargets?: ReadonlyMap<string, TodoTarget | null>;
+  /** Spec 37: the people sent with this request, by handle ("p1"). Without it, no event can invite anyone. */
+  people?: ReadonlyMap<string, InvitePerson>;
 };
 
 /** `additions` (spec 23) is left out when the draft adds no to-dos to existing events. */
@@ -320,7 +345,7 @@ export function checkDraft(
     // R10: ending exactly when the next starts is no overlap. An event that may overlap never blocks.
     if (remaining.some((event) => !event.mayOverlap && overlaps(event, proposal))) return fail("overlaps_calendar");
     const kept: Proposal = { title, startAt: proposal.startAt, endAt: proposal.endAt, goalId: proposal.goalId };
-    checked.push(todos.length > 0 ? { ...kept, todos } : kept);
+    checked.push({ ...kept, ...(todos.length > 0 ? { todos } : {}), ...(proposal.people && proposal.people.length > 0 ? { people: [...proposal.people] } : {}) });
   }
 
   // Moved events at their new times: against the new events, each other and what stays.
@@ -359,9 +384,9 @@ export function checkDraft(
 
 /** The assistant's raw answer (parsed JSON, not trusted) through every check of R23. */
 export function checkAnswer(raw: unknown, context: CheckContext): CheckResult<CheckedAnswer> {
-  const parsed = AnswerShape.safeParse(raw);
+  const parsed = context.people && context.people.size > 0 ? AnswerShapeWithPeople.safeParse(raw) : AnswerShape.safeParse(raw);
   if (!parsed.success) return fail("shape");
-  const answer = parsed.data;
+  const answer: z.infer<typeof AnswerShapeWithPeople> = parsed.data;
   const rawChanges = answer.changes ?? [];
   const rawTodos = answer.addTodos ?? [];
   const text = checkText(answer.text);
@@ -376,12 +401,31 @@ export function checkAnswer(raw: unknown, context: CheckContext): CheckResult<Ch
   if (total === 0) return fail("no_events");
   if (total > MAX_PROPOSALS) return fail("too_many_events");
   const proposals: Proposal[] = [];
+  // Spec 37: proposals left out because of the people they invite, with the sentence that says why.
+  const notes: string[] = [];
   for (const event of answer.events) {
     const startAt = exactLocal(event.start, context.timeZone);
     const endAt = exactLocal(event.end, context.timeZone);
     if (!startAt || !endAt) return fail("bad_time");
     const goalId = event.goalId === "" ? null : event.goalId;
-    proposals.push(event.todos && event.todos.length > 0 ? { title: event.title, startAt, endAt, goalId, todos: event.todos } : { title: event.title, startAt, endAt, goalId });
+    const base: Proposal = event.todos && event.todos.length > 0 ? { title: event.title, startAt, endAt, goalId, todos: event.todos } : { title: event.title, startAt, endAt, goalId };
+    const handles = [...new Set(event.invite ?? [])];
+    if (handles.length === 0) {
+      proposals.push(base);
+      continue;
+    }
+    const people = handles.map((handle) => context.people?.get(handle));
+    if (people.some((person) => person === undefined)) {
+      notes.push(droppedNote(event.title.trim(), "unknown", []));
+      continue;
+    }
+    const known = people as InvitePerson[];
+    const busy = known.filter((person) => !fitsBusy({ startAt, endAt }, person.busy));
+    if (busy.length > 0) {
+      notes.push(droppedNote(event.title.trim(), "busy", busy.map((person) => person.name)));
+      continue;
+    }
+    proposals.push({ ...base, people: known.map((person) => person.key) });
   }
 
   // A reference is turned back into its event at once; an unknown one fails.
@@ -410,8 +454,13 @@ export function checkAnswer(raw: unknown, context: CheckContext): CheckResult<Ch
     additions.push({ target, todos: raw.todos });
   }
 
+  // Spec 37: when every part of the draft was left out for its people, the answer is a text that says so.
+  if (notes.length > 0 && proposals.length + changes.length + additions.length === 0) {
+    return { ok: true, value: { kind: "text", text: withNotes(text, [...notes, NO_COMMON_TIME_NOTE]) } };
+  }
   const checked = checkDraft(proposals, changes, context, additions);
   if (!checked.ok) return checked;
   const { proposals: kept, changes: keptChanges, additions: keptAdditions } = checked.value;
-  return { ok: true, value: { kind: "draft", text, proposals: kept, changes: keptChanges, ...(keptAdditions ? { additions: keptAdditions } : {}) } };
+  const shown = withNotes(text, notes);
+  return { ok: true, value: { kind: "draft", text: shown, proposals: kept, changes: keptChanges, ...(keptAdditions ? { additions: keptAdditions } : {}) } };
 }
