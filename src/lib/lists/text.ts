@@ -15,7 +15,11 @@ const INVISIBLE =
 /** Three combining marks in a row, in the same blocks the database names. */
 const MARK_STACK = /[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]{3}/u;
 
-function clean(raw: string, max: number): string | null {
+/**
+ * Any text other people see under this rule, with its own maximum (also a profile's bio, spec 31): the
+ * text as it is saved (trimmed), or null when it breaks the rule.
+ */
+export function cleanShownText(raw: string, max: number): string | null {
   const text = raw.trim();
   const length = [...text].length;
   if (length < 1 || length > max || FORBIDDEN.test(text) || INVISIBLE.test(text) || MARK_STACK.test(text)) return null;
@@ -24,10 +28,10 @@ function clean(raw: string, max: number): string | null {
 
 /** A list's title as it is saved (trimmed), or null when it breaks the rule. */
 export function cleanListTitle(raw: string): string | null {
-  return clean(raw, MAX_LIST_TITLE);
+  return cleanShownText(raw, MAX_LIST_TITLE);
 }
 
 /** An entry's title as it is saved (trimmed), or null when it breaks the rule. */
 export function cleanEntryTitle(raw: string): string | null {
-  return clean(raw, MAX_ENTRY_TITLE);
+  return cleanShownText(raw, MAX_ENTRY_TITLE);
 }

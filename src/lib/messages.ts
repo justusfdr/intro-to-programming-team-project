@@ -93,6 +93,9 @@ export const MESSAGES = {
   displayName: "Name must be 1 to 40 characters, without control characters",
   photoType: "A photo must be a JPEG, PNG or WebP image",
   photoSize: "A photo can be at most 200 KB",
+  // ontology, section 5 (the profile page, spec 31)
+  bio: "A bio must be 1 to 160 characters on one line, without control characters",
+  linkedin: "Enter a LinkedIn profile link, like https://www.linkedin.com/in/your-name",
   invited: "If this person uses LockedIn, they will see your invitation.",
   inviteSelf: "You cannot invite yourself",
   tooManyInvitations: "You can have at most 20 open invitations",
@@ -158,6 +161,7 @@ export const MESSAGES = {
   ratingSaved: "Rating saved.",
   siteAdded: "Added to your block list.",
   nameSaved: "Name saved.",
+  profileSaved: "Profile saved.",
   photoSaved: "Photo saved.",
   photoRemoved: "Photo removed.",
   invitationAccepted: "You are now contacts.",
