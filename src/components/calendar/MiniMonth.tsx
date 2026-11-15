@@ -2,7 +2,8 @@
 
 // A small month calendar, copied from the first prototype (components/calendar/fields.tsx there):
 // the month with previous and next, the weekdays from Monday, the 6 × 7 days; today in red, the
-// chosen day black. The shown month starts at the month of `value`.
+// chosen day black. The shown month starts at the month of `value` (without a value: of `min`, else of
+// today). Days before `min` cannot be chosen.
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { addMonths, monthGrid, startOfMonth, viewTitle } from "@/lib/events/views";
@@ -13,8 +14,20 @@ const ICON_BUTTON =
 
 export const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export function MiniMonth({ value, onChange, todayKey }: { value: string; onChange: (dayKey: string) => void; todayKey: string }) {
-  const [shown, setShown] = useState(() => startOfMonth(value));
+export function MiniMonth({
+  value,
+  onChange,
+  todayKey,
+  min,
+}: {
+  /** The chosen day, or "" when none is chosen yet. */
+  value: string;
+  onChange: (dayKey: string) => void;
+  todayKey: string;
+  /** The earliest day that can be chosen. */
+  min?: string;
+}) {
+  const [shown, setShown] = useState(() => startOfMonth(value || (min && min > todayKey ? min : todayKey)));
   const days = monthGrid(shown);
 
   return (
@@ -41,6 +54,7 @@ export function MiniMonth({ value, onChange, todayKey }: { value: string; onChan
         {days.map((key) => {
           const selected = key === value;
           const today = key === todayKey;
+          const tooEarly = min !== undefined && key < min;
           const inMonth = key.slice(0, 7) === shown.slice(0, 7);
           const tone = selected
             ? "bg-ink font-medium text-white"
@@ -55,8 +69,9 @@ export function MiniMonth({ value, onChange, todayKey }: { value: string; onChan
               type="button"
               aria-pressed={selected}
               aria-label={`${fmtDateLong(key)}, ${key.slice(0, 4)}`}
+              disabled={tooEarly}
               onClick={() => onChange(key)}
-              className={`mx-auto inline-flex size-8 items-center justify-center rounded-full text-xs tabular transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${tone}`}
+              className={`mx-auto inline-flex size-8 items-center justify-center rounded-full text-xs tabular transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 disabled:pointer-events-none disabled:opacity-35 ${tone}`}
             >
               {Number(key.slice(8, 10))}
             </button>

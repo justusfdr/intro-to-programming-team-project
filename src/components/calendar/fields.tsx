@@ -4,7 +4,7 @@
 // frame, the eyebrow label, a chip that can be pressed, the goal chips, a time list and the date field
 // with its folded month calendar.
 import { useRef, useState, type ReactNode } from "react";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, X } from "lucide-react";
 import { GoalTile } from "@/components/goals/GoalTile";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { fmtDateShort, fmtMinutes, fmtTime } from "@/lib/time/display";
@@ -120,7 +120,10 @@ export function TimeSelect({
 /**
  * The date field: shows the date like a field. A click unfolds the month calendar below it (no
  * overlay). Choosing a day folds it; Esc folds only the calendar. `label` names the button for
- * screen readers ("Date", "First day").
+ * screen readers ("Date", "First day"). Also used for a task's due date and a goal's deadline
+ * (spec 39): `min` greys out earlier days, `placeholder` is shown quietly while there is no date,
+ * `clear` adds a small button that removes the date, `name` sends the value ("YYYY-MM-DD", or empty)
+ * with a form, and `tall` gives it the 40 px height of the goal and task forms.
  */
 export function DateField({
   label,
@@ -128,15 +131,29 @@ export function DateField({
   onChange,
   todayKey,
   disabled = false,
+  min,
+  placeholder = "",
+  clear,
+  name,
+  id,
+  tall = false,
 }: {
   label: string;
   value: string;
   onChange: (dayKey: string) => void;
   todayKey: string;
   disabled?: boolean;
+  min?: string;
+  placeholder?: string;
+  clear?: { label: string; onClear: () => void };
+  name?: string;
+  id?: string;
+  tall?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const shown = value ? fmtDateShort(value) : placeholder;
+  const canClear = clear !== undefined && value !== "" && !disabled;
 
   const close = () => {
     setOpen(false);
@@ -147,31 +164,51 @@ export function DateField({
     <div
       className="flex flex-col"
       onKeyDown={(e) => {
-        // preventDefault: the floating panel does not close as well.
+        // preventDefault: the floating panel (or the form around it) does not close as well.
         if (open && e.key === "Escape") {
           e.preventDefault();
           close();
         }
       }}
     >
-      <button
-        ref={buttonRef}
-        type="button"
-        disabled={disabled}
-        aria-expanded={open}
-        aria-label={`${label}: ${fmtDateShort(value)}`}
-        onClick={() => setOpen((o) => !o)}
-        className={`${inputClass} flex items-center gap-2 text-left disabled:pointer-events-none disabled:opacity-40`}
-      >
-        <CalendarDays className="size-4 shrink-0 text-ink-3" strokeWidth={1.8} />
-        <span className="min-w-0 flex-1 truncate tabular">{fmtDateShort(value)}</span>
-      </button>
+      {name !== undefined && <input type="hidden" name={name} value={value} />}
+      <div className="flex items-center gap-1">
+        <button
+          ref={buttonRef}
+          id={id}
+          type="button"
+          disabled={disabled}
+          aria-expanded={open}
+          aria-label={value ? `${label}: ${fmtDateShort(value)}` : label}
+          onClick={() => setOpen((o) => !o)}
+          className={`${tall ? inputClass.replace("h-9", "h-10") : inputClass} flex items-center gap-2 text-left disabled:pointer-events-none disabled:opacity-40${canClear ? " min-w-0 flex-1" : ""}`}
+        >
+          <CalendarDays className="size-4 shrink-0 text-ink-3" strokeWidth={1.8} />
+          <span className={`min-w-0 flex-1 truncate tabular${value ? "" : " text-ink-3"}`}>{shown}</span>
+        </button>
+        {canClear && (
+          <button
+            type="button"
+            aria-label={clear.label}
+            title={clear.label}
+            onClick={() => {
+              clear.onClear();
+              setOpen(false);
+              buttonRef.current?.focus();
+            }}
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+          >
+            <X className="size-3.5" strokeWidth={2} />
+          </button>
+        )}
+      </div>
 
       {open && !disabled && (
         <div className="mt-2 rounded-card border border-line-subtle bg-surface p-3">
           <MiniMonth
             value={value}
             todayKey={todayKey}
+            min={min}
             onChange={(key) => {
               onChange(key);
               close();
