@@ -12,6 +12,8 @@ const KNOWN: ReadonlyArray<readonly [string, number, string]> = [
   [MESSAGES.tooManyLists, 409, "too_many_lists"],
   [MESSAGES.listOwnerOnly, 403, "owner_only"],
   [MESSAGES.tooManyMembers, 409, "too_many_members"],
+  [MESSAGES.memberLeft, 409, "member_left"],
+  [MESSAGES.memberListsFull, 409, "member_lists_full"],
   [MESSAGES.ownerCannotLeave, 409, "owner_cannot_leave"],
   [MESSAGES.entryTitle, 400, "entry_title"],
   [MESSAGES.tooManyEntries, 409, "too_many_entries"],

@@ -104,6 +104,8 @@ export const MESSAGES = {
   tooManyLists: "You can have at most 20 lists",
   listOwnerOnly: "Only the owner of this list can do this",
   tooManyMembers: "A list can have at most 20 members",
+  memberLeft: "This person left the list",
+  memberListsFull: "This person cannot join more lists",
   ownerCannotLeave: "The owner cannot leave a list. Delete it instead",
   entryTitle: "An entry needs a title of 1 to 200 characters",
   tooManyEntries: "A list can have at most 200 entries",
