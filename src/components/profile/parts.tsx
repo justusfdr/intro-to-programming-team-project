@@ -1,0 +1,64 @@
+"use client";
+
+// A small piece of the profile page (spec 40): the time-zone line with the current local time there.
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Globe } from "lucide-react";
+import { useDisplay } from "@/components/shell/DisplayProvider";
+import { fmtTime } from "@/lib/time/display";
+import { localTimeOf } from "@/lib/time/zoned";
+
+/**
+ * The current time, starting from the minute the server read the page (so server and browser render
+ * the same) and then following the clock, once a minute.
+ */
+export function useMinuteClock(now: string): Date {
+  const [at, setAt] = useState(() => new Date(now));
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const current = new Date();
+      setAt(current);
+      // Again at the start of the next minute.
+      timer = setTimeout(tick, 60_000 - (current.getTime() % 60_000) + 50);
+    };
+    timer = setTimeout(tick, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  return at;
+}
+
+/** "America/New_York" → "America/New York". */
+const zoneName = (zone: string) => zone.replaceAll("_", " ");
+
+/** The local time in `timeZone` at `at`, in the user's time format; null for a zone the browser does not know. */
+function clockIn(at: Date, timeZone: string, format: "12h" | "24h"): string | null {
+  try {
+    return fmtTime(localTimeOf(at, timeZone), format);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * "Time zone: Europe/Lisbon · it is 2:20pm there", read only, with the way to change it in Settings.
+ * Starts from the minute the server read the page (so server and browser show the same) and then
+ * follows the clock.
+ */
+export function TimeZoneLine({ timeZone, now }: { timeZone: string; now: string }) {
+  const { timeFormat } = useDisplay();
+  const at = useMinuteClock(now);
+  const clock = clockIn(at, timeZone, timeFormat);
+  return (
+    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-2">
+      <Globe className="size-4 shrink-0 text-ink-3" strokeWidth={1.8} aria-hidden="true" />
+      <span>
+        Time zone: <span className="font-medium text-ink">{zoneName(timeZone)}</span>
+        {clock && <> · it is <time className="tabular">{clock}</time> there</>}
+      </span>
+      <Link href="/settings" className="font-medium text-ink underline underline-offset-2">
+        Change in Settings
+      </Link>
+    </p>
+  );
+}

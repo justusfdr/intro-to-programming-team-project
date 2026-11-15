@@ -5,11 +5,12 @@ import { LiveProvider } from "@/components/live/Live";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { AppShell } from "@/components/shell/AppShell";
 import { pageDeps } from "@/lib/server/deps";
-import { loadSettingsPageAll } from "@/lib/server/pages/load";
+import { loadSettingsPageWithProfile } from "@/lib/server/pages/load";
 
 export const metadata: Metadata = { title: "Settings" };
 
-// The settings page (spec 12), in the prototype's layout: one column of cards, Outlook first.
+// The settings page (spec 12), in the prototype's layout: one column of cards, Outlook first; above them
+// the row "Your profile" (spec 40).
 export default async function SettingsPage() {
   const deps = await pageDeps();
   // The proxy already sends signed-out visitors away; the page checks again (R3).
@@ -17,13 +18,13 @@ export default async function SettingsPage() {
   if (!userId) redirect("/sign-in");
 
   // Everything in one transaction (src/lib/server/pages/load.ts).
-  const { display, page: data, blocker } = await loadSettingsPageAll(deps, userId);
+  const { display, page: data, blocker, profile } = await loadSettingsPageWithProfile(deps, userId);
 
   return (
     <Announcer>
       <LiveProvider>
-        <AppShell current="/settings" display={display}>
-          <SettingsView data={data} blocker={blocker} />
+        <AppShell current="/settings" display={display} me={{ name: profile.name, photoUrl: profile.photoUrl }}>
+          <SettingsView data={data} blocker={blocker} profile={profile} />
         </AppShell>
       </LiveProvider>
     </Announcer>

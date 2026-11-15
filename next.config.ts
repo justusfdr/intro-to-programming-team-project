@@ -19,13 +19,24 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
 ];
 
+// The profile photo (spec 40) is served as an image that can never run as a page. The route sets the same
+// policy itself; this entry comes after the general one, so it replaces the general policy on that
+// address whichever of the two the framework applies last.
+const photoHeaders = [{ key: "Content-Security-Policy", value: "default-src 'none'; sandbox; frame-ancestors 'none'" }];
+
+/** The general headers, exported for test/repo/security-headers.test.ts. */
+export const SECURITY_HEADERS = securityHeaders;
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   devIndicators: false,
   // The download of the Chrome extension reads the project's `extension` folder at run time (spec 18).
   outputFileTracingIncludes: { "/api/extension/download": ["./extension/**/*"] },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      { source: "/api/profiles/:id/photo", headers: photoHeaders },
+    ];
   },
   turbopack: {
     rules: {

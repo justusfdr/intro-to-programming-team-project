@@ -89,6 +89,12 @@ export const MESSAGES = {
   draftEditPast: "This time is in the past",
   draftEditTooLate: "The coach plans only the next 14 days",
   draftEditOtherDay: "A block stays on its day. Ask the coach to move it to another day",
+  // ontology, section 5 (the profile, spec 40)
+  displayName: "Name must be 1 to 40 characters, without control characters",
+  photoType: "A photo must be a JPEG, PNG or WebP image",
+  photoSize: "A photo can be at most 200 KB",
+  bio: "A bio must be 1 to 160 characters on one line, without control characters",
+  linkedin: "Enter a LinkedIn profile link, like https://www.linkedin.com/in/your-name",
   // ontology, section 7 (when a service is down)
   databaseDown: "Your data cannot be loaded right now.",
   emailDown: "We could not send the email. Try again later",
@@ -136,6 +142,9 @@ export const MESSAGES = {
   sessionCancelled: "Session cancelled. Nothing was saved.",
   ratingSaved: "Rating saved.",
   siteAdded: "Added to your block list.",
+  profileSaved: "Profile saved.",
+  photoSaved: "Photo saved.",
+  photoRemoved: "Photo removed.",
   siteRemoved: "Removed from your block list.",
   settingsSaved: "Settings saved.",
   demoAdded: "Demo week added.",

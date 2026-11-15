@@ -4,10 +4,13 @@
 // its top right. Folded, it opens again while the mouse is over it (or the keyboard focus is inside)
 // and folds when the mouse leaves; opened like that it lies over the page, so nothing on the page
 // jumps. The same button then keeps it open for good. The choice is remembered in this browser only.
+// At the bottom: Pricing, Settings, then the user's own row to their profile (spec 40), where "Sign out" is.
 import Link from "next/link";
-import { useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
 import { ChevronsLeft, Pin } from "lucide-react";
-import { SignOutButton } from "@/components/account/SignOutButton";
+import { Avatar } from "@/components/ui/Avatar";
+import { getJson } from "@/lib/client/post-json";
+import type { SidebarMe } from "@/lib/profiles/types";
 import { keepFocusAfterCollapse } from "./collapse-focus";
 import { Logo, LogoMark } from "./Logo";
 import { NAV, PRICING, SETTINGS, type NavItem } from "./nav";
@@ -53,7 +56,49 @@ function SidebarLink({ item, on, wide }: { item: NavItem; on: boolean; wide: boo
   );
 }
 
-export function Sidebar({ current }: { current: string }) {
+/** Only an address of our own photo route is ever used as a picture. */
+const OWN_PHOTO = /^\/api\/profiles\/[0-9a-f-]{36}\/photo\?v=\d+$/i;
+
+/**
+ * The user's own row at the bottom (spec 40): their photo or initials and their shown name, to the
+ * profile page (where "Sign out" is). Folded, the avatar alone, with the name as its label. A page that
+ * has read the profile passes it; on every other page it is asked once from the server (until then the
+ * row shows an empty circle and is called "Your profile"; a failure keeps it so).
+ */
+function ProfileLink({ on, wide, me }: { on: boolean; wide: boolean; me?: SidebarMe }) {
+  const [asked, setAsked] = useState<SidebarMe | null>(null);
+  useEffect(() => {
+    if (me) return;
+    let current = true;
+    void getJson("/api/profile").then((answer) => {
+      const data = answer.data as { name?: unknown; photoUrl?: unknown } | undefined;
+      if (!current || !answer.ok || typeof data?.name !== "string") return;
+      const photoUrl = typeof data.photoUrl === "string" && OWN_PHOTO.test(data.photoUrl) ? data.photoUrl : null;
+      setAsked({ name: data.name, photoUrl });
+    });
+    return () => {
+      current = false;
+    };
+  }, [me]);
+  const shown = me ?? asked;
+  const label = shown ? shown.name : "Your profile";
+  return (
+    <Link
+      href="/profile"
+      aria-current={on ? "page" : undefined}
+      aria-label={wide && shown ? undefined : label}
+      title={wide ? undefined : label}
+      className={`flex h-9 items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg px-[6px] text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
+        wide ? "w-full" : "w-9"
+      } ${on ? "bg-raised font-medium text-ink" : "text-ink-2 hover:bg-raised/60 hover:text-ink"}`}
+    >
+      {shown ? <Avatar name={shown.name} photoUrl={shown.photoUrl} size={24} /> : <span aria-hidden="true" className="size-6 shrink-0 rounded-full bg-muted" />}
+      {wide && shown && <span className="min-w-0 truncate">{shown.name}</span>}
+    </Link>
+  );
+}
+
+export function Sidebar({ current, me }: { current: string; me?: SidebarMe }) {
   // On the server (and in the first render) the sidebar is open.
   const folded = useSyncExternalStore(subscribe, readFolded, () => false);
   const [peek, setPeek] = useState(false);
@@ -119,14 +164,10 @@ export function Sidebar({ current }: { current: string }) {
             <SidebarLink key={item.href} item={item} on={current === item.href} wide={wide} />
           ))}
         </nav>
-        <div className="mt-auto flex flex-col gap-2">
-          <div className="flex flex-col gap-0.5">
-            <SidebarLink item={PRICING} on={current === PRICING.href} wide={wide} />
-            <SidebarLink item={SETTINGS} on={current === SETTINGS.href} wide={wide} />
-          </div>
-          <div className={wide ? "w-full" : "w-9"}>
-            <SignOutButton compact={!wide} />
-          </div>
+        <div className="mt-auto flex flex-col gap-0.5">
+          <SidebarLink item={PRICING} on={current === PRICING.href} wide={wide} />
+          <SidebarLink item={SETTINGS} on={current === SETTINGS.href} wide={wide} />
+          <ProfileLink on={current === "/profile"} wide={wide} me={me} />
         </div>
       </aside>
     </div>
