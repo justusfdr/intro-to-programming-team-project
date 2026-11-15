@@ -1,6 +1,8 @@
 // The People page's markup (spec 28): the four sections in order, the labelled invite field, accept
 // and decline with the sentence about what the other person sees, sent invitations with their date and
-// Withdraw, contacts with Remove, and one quiet sentence for each empty section.
+// Withdraw, and one quiet sentence for each empty section. Two tests rewritten for spec 33 (contacts as
+// cards): the inviter is a chip with name and photo (the address moved into its hover card), and a
+// contact is a card linking to their profile, without address or Remove (those moved to the profile page).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { PeopleData } from "@/lib/profiles/types";
@@ -40,12 +42,14 @@ describe("People page", () => {
     for (const text of ["No one has invited you.", "You have no open invitations.", "No contacts yet."]) expect(html).toContain(text);
   });
 
-  it("lists an invitation with the inviter's photo, name and address, Accept and Decline, and what accepting shows", () => {
+  it("lists an invitation with the inviter's photo and name as a chip to their profile, Accept and Decline, and what accepting shows", () => {
     const html = render(FULL);
     expect(html).toContain("They will see your name, photo and e-mail address.");
     expect(html).toMatch(/<img src="\/api\/profiles\/u2\/photo\?v=5" alt=""/);
-    expect(html).toContain(">Bob Stone</p>");
-    expect(html).toContain(">bob@example.com</p>");
+    expect(html).toMatch(/<a aria-haspopup="dialog" aria-expanded="false"[^>]*href="\/people\/u2"/);
+    expect(html).toContain(">Bob Stone</span>");
+    // The address is in the hover card only, never on the page itself.
+    expect(html).not.toContain("bob@example.com");
     expect(html).toMatch(/aria-label="Accept the invitation from Bob Stone\. They will see your name, photo and e-mail address\."[^>]*>Accept<\/button>/);
     expect(html).toMatch(/aria-label="Decline the invitation from Bob Stone"[^>]*>Decline<\/button>/);
   });
@@ -57,10 +61,11 @@ describe("People page", () => {
     expect(html).toMatch(/aria-label="Withdraw the invitation to carol@example.com"[^>]*>Withdraw<\/button>/);
   });
 
-  it("lists a contact with the initials, name, address and Remove", () => {
+  it("shows a contact as a card linking to their profile, with the initials and name, without address or Remove", () => {
     const html = render(FULL);
-    expect(html).toMatch(/aria-hidden="true"[^>]*>D<\/span>/);
-    expect(html).toContain(">dave@example.com</p>");
-    expect(html).toMatch(/aria-label="Remove dave"[^>]*>Remove<\/button>/);
+    expect(html).toMatch(/<a class="[^"]*" href="\/people\/u3"><span aria-hidden="true"[^>]*>D<\/span>/);
+    expect(html).toContain(">dave</span>");
+    expect(html).not.toContain("dave@example.com");
+    expect(html).not.toContain(">Remove</button>");
   });
 });

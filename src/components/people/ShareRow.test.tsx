@@ -1,10 +1,12 @@
 // The sharing row under each contact on the People page (spec 29): the calendar's three levels as a
 // labelled radio group with the saved one checked, the focus chart as a labelled switch, and a line with
-// what the contact shares with the user and its links. The People page shows it under every contact.
+// what the contact shares with the user and its links. The last test is rewritten for spec 33: the row
+// moved from the People page to the person's profile page ("What you share with <name>").
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { PeopleData } from "@/lib/profiles/types";
 import { PeopleView } from "./PeopleView";
+import { PersonView } from "@/components/profile/PersonView";
 import { ShareRow } from "./ShareRow";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -33,18 +35,26 @@ describe("ShareRow", () => {
     expect(html).toContain('href="/analytics?person=u3"');
   });
 
-  it("appears under every contact on the People page", () => {
+  it("appears on a contact's profile page under \"What you share with\", no longer on the People page", () => {
     const data: PeopleData = {
       me: { userId: "u1", displayName: null, name: "alice", email: "alice@example.com", photoUrl: null },
       received: [],
       sent: [],
       contacts: [{ id: "c1", userId: "u3", name: "dave", email: "dave@example.com", photoUrl: null, since: "2026-11-10T10:00:00.000Z" }],
     };
-    const html = renderToStaticMarkup(
-      <PeopleView data={data} timeZone="Europe/Lisbon" shares={[{ contactId: "c1", userId: "u3", out: { calendar: "details", focus: false }, in: { calendar: "busy", focus: false } }]} />,
+    const shares = [{ contactId: "c1", userId: "u3", out: { calendar: "details" as const, focus: false }, in: { calendar: "busy" as const, focus: false } }];
+    const people = renderToStaticMarkup(<PeopleView data={data} timeZone="Europe/Lisbon" shares={shares} />);
+    expect(people).not.toContain("You share with dave");
+    const profile = renderToStaticMarkup(
+      <PersonView
+        person={{ userId: "u3", displayName: null, name: "dave", email: "dave@example.com", photoUrl: null, bio: null, linkedinUrl: null, timeZone: "Europe/Berlin" }}
+        now="2026-11-17T14:20:00.000Z"
+        sections
+        relation={{ contactId: "c1", out: shares[0].out, shared: shares[0].in, demo: false }}
+      />,
     );
-    expect(html).toContain(">You share with dave</p>");
-    expect(html).toMatch(/checked="" value="details"/);
-    expect(html).toContain("Shares their calendar (free/busy) with you");
+    expect(profile).toContain(">What you share with dave</h2>");
+    expect(profile).toContain(">You share with dave</p>");
+    expect(profile).toMatch(/checked="" value="details"/);
   });
 });

@@ -1,7 +1,9 @@
 // The demo contacts' markup (spec 32): on People, the quiet "Add demo contacts" with its sentence while
 // they are off; while on, each after the real contacts with the "Demo" tag, their own colour, a link to
-// their page and the sharing controls disabled with the reason, and one "Remove demo contacts". Their
-// profile page has the tag and no e-mail address; the calendar's People picker and Analytics mark them.
+// their page, and one "Remove demo contacts". Their profile page has the tag and no e-mail address, and
+// the sharing controls disabled with the reason; the calendar's People picker and Analytics mark them.
+// Rewritten for spec 33: the two tests of the People page now look at the cards, and the disabled
+// sharing controls moved with the controls to the profile page.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { SharedFocus } from "@/components/analytics/SharedFocus";
@@ -10,6 +12,7 @@ import { PersonView } from "@/components/profile/PersonView";
 import { Avatar } from "@/components/ui/Avatar";
 import { demoContacts, demoPerson, demoProfileCard, demoSharingPeople } from "@/lib/demo/people";
 import type { PeopleData } from "@/lib/profiles/types";
+import { NOTHING_SHARED } from "@/lib/shares/types";
 import { DEMO_CONTACTS_NOTE, PeopleView } from "./PeopleView";
 import { DEMO_SHARE_NOTE } from "./ShareRow";
 
@@ -37,9 +40,9 @@ describe("People page with demo contacts", () => {
     expect(html).not.toContain("Lea Sousa");
   });
 
-  it("on: the three after the real contacts, each tagged Demo, linking to their page, without an address", () => {
+  it("on: the three cards after the real contacts, each tagged Demo, linking to their page, without an address", () => {
     const html = render(DATA, true);
-    const order = ["dave", "Lea Sousa", "Jonas Becker", "Maya Brooks"].map((name) => html.indexOf(`>${name}</a>`));
+    const order = ["dave", "Lea Sousa", "Jonas Becker", "Maya Brooks"].map((name) => html.indexOf(`>${name}</span>`));
     expect(order.every((at) => at > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html.match(/>Demo<\/span>/g)).toHaveLength(3);
@@ -48,20 +51,17 @@ describe("People page with demo contacts", () => {
     expect(html).toContain(">LS</span>");
     expect(html).toMatch(/<button type="button"[^>]*>Remove demo contacts<\/button>/);
     expect(html).not.toContain("Add demo contacts");
-    expect(html).not.toContain("@example.com</p><p");
+    // No address anywhere but the invite field's example.
+    expect(html.replace(/placeholder="[^"]*"/, "")).not.toContain("@");
   });
 
-  it("on: the sharing controls of a demo contact are off and disabled, with the reason; what they share is listed", () => {
+  it("on: their cards show what they share as marks; no sharing controls on the People page", () => {
     const html = render(DATA, true);
-    expect(html.match(new RegExp(`${DEMO_SHARE_NOTE}\\.`, "g"))).toHaveLength(3);
-    expect(html).toMatch(/disabled="" aria-label="Share your focus chart with Lea Sousa"/);
-    expect(html).toContain("Shares their calendar (details) and focus chart with you");
-    expect(html).toContain("Shares their calendar (free/busy) with you");
-    expect(html).toContain("Maya Brooks shares nothing with you.");
-    expect(html).toContain('href="/?share=demo-lea"');
-    expect(html).toContain('href="/analytics?person=demo-lea"');
-    // The real contact's controls stay enabled.
-    expect(html).toMatch(/role="switch" aria-label="Share your focus chart with dave"/);
+    expect(html).toContain(">Shares their calendar with details</span>");
+    expect(html).toContain(">Shares their calendar as free/busy</span>");
+    expect(html).toContain(">Shares their focus chart</span>");
+    expect(html).not.toContain(DEMO_SHARE_NOTE);
+    expect(html).not.toContain('role="switch"');
   });
 });
 
@@ -76,6 +76,18 @@ describe("a demo contact elsewhere", () => {
     expect(html).toContain("Europe/Berlin");
     expect(html).toContain('href="https://www.linkedin.com/in/lockedin-demo-jonas"');
     expect(html).not.toContain("@");
+  });
+
+  it("their profile page's sharing controls are off and disabled, with the reason, and nothing to remove", () => {
+    const lea = demoPerson("demo-lea")!;
+    const html = renderToStaticMarkup(
+      <PersonView person={demoProfileCard(lea)} now="2026-11-17T13:20:00.000Z" sections relation={{ contactId: null, out: NOTHING_SHARED, shared: lea.shares, demo: true }} />,
+    );
+    expect(html).toContain(`${DEMO_SHARE_NOTE}.`);
+    expect(html).toMatch(/disabled="" aria-label="Share your focus chart with Lea Sousa"/);
+    expect(html).not.toContain("Remove contact");
+    expect(html).toContain(">Lea Sousa&#x27;s week</h2>");
+    expect(html).toContain(">Show in my calendar</button>");
   });
 
   it("the calendar's People picker shows them with the tag; Analytics names them as demo", () => {
