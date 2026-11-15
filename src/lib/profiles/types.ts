@@ -1,4 +1,4 @@
-// What the server sends to the People page and the settings' Profile card (spec 28).
+// What the server sends to the People page and the settings (spec 28) and to the profile pages (spec 31).
 
 /** Another user as the signed-in user may see them: a contact, or someone who invited them. */
 export type PersonCard = {
@@ -34,4 +34,22 @@ export type PeopleData = {
   contacts: PersonCard[];
   received: PersonCard[];
   sent: SentInvitation[];
+};
+
+/**
+ * One person's whole card (spec 31): the signed-in user's own, a contact's, or that of someone who invited
+ * them (R43). The time zone is the person's own, from their settings.
+ */
+export type ProfileCardData = {
+  userId: string;
+  /** Empty until set. */
+  displayName: string | null;
+  /** The name shown: the display name or the part of the address before the "@". */
+  name: string;
+  email: string;
+  photoUrl: string | null;
+  bio: string | null;
+  /** Only ever https://www.linkedin.com/in/<slug>; checked again when it is read. */
+  linkedinUrl: string | null;
+  timeZone: string;
 };

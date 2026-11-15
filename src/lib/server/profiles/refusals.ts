@@ -1,6 +1,6 @@
 import "server-only";
 
-// The refusals the database functions of spec 28 raise, turned into the answers the user sees. The
+// The refusals the database functions of specs 28 and 31 raise, turned into the answers the user sees. The
 // database raises the ontology's exact sentence; anything else is passed on unchanged (and becomes the
 // neutral "Something went wrong" answer in handleAction).
 import { MESSAGES } from "@/lib/messages";
@@ -9,6 +9,8 @@ import { notFound } from "@/lib/server/events/own-event";
 
 const KNOWN: ReadonlyArray<readonly [string, number, string]> = [
   [MESSAGES.displayName, 400, "invalid_name"],
+  [MESSAGES.bio, 400, "invalid_bio"],
+  [MESSAGES.linkedin, 400, "invalid_linkedin"],
   [MESSAGES.photoType, 400, "photo_type"],
   [MESSAGES.photoSize, 413, "photo_size"],
   [MESSAGES.invalidEmail, 400, "invalid_email"],

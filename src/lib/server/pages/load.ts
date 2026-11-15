@@ -15,7 +15,7 @@ import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
 import type { ChatPageData } from "@/lib/chat/types";
 import { lookOf } from "@/lib/goals/style";
 import type { BlockerData } from "@/lib/blocker/types";
-import type { OwnProfile, PeopleData } from "@/lib/profiles/types";
+import type { OwnProfile, PeopleData, ProfileCardData } from "@/lib/profiles/types";
 import type { ListPageData, ListSummary } from "@/lib/lists/types";
 import type { WeekData } from "@/lib/events/types";
 import type { View } from "@/lib/events/views";
@@ -38,6 +38,7 @@ import { readFocus } from "@/lib/server/focus/load";
 import { readGoalViews } from "@/lib/server/goals/load";
 import { readOutlookState } from "@/lib/server/outlook/sync";
 import { readOwnProfile, readPeople } from "@/lib/server/profiles/cards";
+import { isUserId, readProfileCard } from "@/lib/server/profiles/profile-card";
 import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
 import type { ContactShares, SharingPerson } from "@/lib/shares/types";
 import type { Query } from "@/lib/server/db";
@@ -218,6 +219,51 @@ export async function loadPeoplePage(deps: Pick<Deps, "withUser">, userId: strin
   return deps.withUser(userId, async (query) => {
     const [settings, people, shares] = await Promise.all([readSettings(query), readPeople(query), readSharesOverview(query)]);
     return { display: displayOf(settings), timeZone: settings.timeZone, people, shares };
+  });
+}
+
+export type ProfilePageData = {
+  display: Display;
+  /** The user's own card; its time zone is the one in their settings. */
+  profile: ProfileCardData;
+  /** When the page was read (ISO), so the clocks of server and browser start from the same minute. */
+  now: string;
+};
+
+/** The user's own profile page (spec 31): their card and the display settings. Reads only, one transaction. */
+export async function loadProfilePage(deps: PageDeps, userId: string): Promise<ProfilePageData> {
+  const now = deps.now();
+  return deps.withUser(userId, async (query) => {
+    // The settings without parameters first, the card (with one) after them.
+    const settingsRead = readSettings(query);
+    const [settings, profile] = await Promise.all([settingsRead, readProfileCard(query, userId)]);
+    if (!profile) throw new Error("The signed-in user has no profile.");
+    return { display: displayOf(settings), profile, now: now.toISOString() };
+  });
+}
+
+export type PersonPageData = {
+  display: Display;
+  /** The person's card as the user may see it. */
+  person: ProfileCardData;
+  /** The user's own shown name and photo, for the sidebar. */
+  me: { name: string; photoUrl: string | null };
+  now: string;
+};
+
+/**
+ * Another person's profile (spec 31), read only. Null for anyone the user may not see (R43), a missing
+ * user and a malformed id alike, so the page shows the same "Not found" for each. One transaction.
+ */
+export async function loadPersonPage(deps: PageDeps, userId: string, personId: string): Promise<PersonPageData | null> {
+  if (!isUserId(personId)) return null;
+  const now = deps.now();
+  return deps.withUser(userId, async (query) => {
+    const settingsRead = readSettings(query);
+    const meRead = readOwnProfile(query);
+    const [settings, me, person] = await Promise.all([settingsRead, meRead, readProfileCard(query, personId)]);
+    if (!person) return null;
+    return { display: displayOf(settings), person, me: { name: me.name, photoUrl: me.photoUrl }, now: now.toISOString() };
   });
 }
 
