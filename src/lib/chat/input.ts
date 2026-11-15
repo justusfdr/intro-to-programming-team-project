@@ -16,6 +16,11 @@
 // Spec 20: each event in the block carries a short reference ("e1") that is valid for this one request
 // only, and whether the coach may change it; an earlier draft carries its changes in words (title, old
 // and new time), never an event's id.
+// Spec 37 (R22 extended, R66): when the user names contacts who share their calendar with them, the
+// block also has "people": per person a handle for this request ("p1"), the shown name (line breaks
+// stripped), their time zone and their busy times (start and end only, at most 200). Never their id,
+// address, photo, an event's title or place, or the level they share. With nobody named the block is
+// exactly as before (no "people" key at all).
 import { MAX_BUSY_INTERVALS, cleanPersonName, type Interval } from "./people";
 import type { ChatTotals } from "./totals";
 import { addDays, localDateOf, localDateTimeOf, startOfLocalDate } from "@/lib/time/zoned";
