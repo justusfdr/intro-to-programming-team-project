@@ -6,6 +6,8 @@ import "server-only";
 //      their rules, events, tasks)   5. one answer.
 // A demo row the user has changed is still removed (the confirmation says so). Rows the user added
 // stay: an own event or task under a demo goal stays, without goal (as delete_goal does).
+// Spec 32: it also switches the demo contacts off (they are demo data too; nothing else to delete, as
+// they live only in code).
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
@@ -30,6 +32,7 @@ export function removeDemo(request: Request, deps: Pick<Deps, "auth" | "withUser
       await query("delete from app.tasks where demo");
       await query("delete from app.events where demo");
       await query("delete from app.goals where demo");
+      await query("select app.set_demo_contacts(false)");
       return jsonOk({ message: MESSAGES.demoRemoved });
     });
   });

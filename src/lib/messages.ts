@@ -187,6 +187,8 @@ export const MESSAGES = {
   settingsSaved: "Settings saved.",
   demoAdded: "Demo week added.",
   demoRemoved: "Demo data removed.",
+  demoContactsAdded: "Demo contacts added.",
+  demoContactsRemoved: "Demo contacts removed.",
   welcomeAnswered: "Your calendar is ready.",
   unknownTimeZone: "Choose a time zone from the list",
   addressTooLong: "Home address can be at most 200 characters",

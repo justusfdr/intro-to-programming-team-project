@@ -16,6 +16,7 @@ import "server-only";
 // permission the answer is the same 404 as always.
 import type { Deps } from "@/lib/server/deps";
 import { handleAction } from "@/lib/server/errors";
+import { isDemoId } from "@/lib/demo/people";
 import { photoTypeOf } from "@/lib/profiles/photo";
 import { requireUser } from "@/lib/server/session";
 
@@ -52,6 +53,9 @@ export function deliverProfilePhoto(
 ): Promise<Response> {
   return handleAction(async () => {
     const userId = await requireUser(deps.auth);
+    // Spec 32: a demo contact has no photo (their initials are drawn on their colour), whether the
+    // user has them on or not, so their fixed ids get the same 404 as everything else without one.
+    if (isDemoId(id)) return photoNotFound();
     if (!UUID.test(id)) return photoNotFound();
 
     // version: the photo's time in microseconds, so two uploads in the same millisecond still differ.

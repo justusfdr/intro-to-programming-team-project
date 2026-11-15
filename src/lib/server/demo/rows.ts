@@ -4,12 +4,16 @@ import "server-only";
 // welcome is due (a new account: not answered yet, and no goals, events or tasks).
 import type { Query } from "@/lib/server/db";
 
-/** True when the account still has a row from the demo (row-level security: only the user's own rows). */
+/**
+ * True when the account still has a row from the demo (row-level security: only the user's own rows),
+ * or has the demo contacts on (spec 32): "Remove the demo data" removes both.
+ */
 export async function hasDemoRows(query: Query): Promise<boolean> {
   const [row] = await query<{ loaded: boolean }>(
     `select exists (select 1 from app.goals where demo)
          or exists (select 1 from app.events where demo)
-         or exists (select 1 from app.tasks where demo) as loaded`,
+         or exists (select 1 from app.tasks where demo)
+         or coalesce((select demo_contacts from app.profiles), false) as loaded`,
   );
   return row.loaded;
 }

@@ -40,8 +40,10 @@ import { readOutlookState } from "@/lib/server/outlook/sync";
 import { readOwnProfile, readPeople } from "@/lib/server/profiles/cards";
 import { isUserId, readProfileCard } from "@/lib/server/profiles/profile-card";
 import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
-import type { ContactShares, SharingPerson } from "@/lib/shares/types";
+import type { ContactShares, ShareSetting, SharingPerson } from "@/lib/shares/types";
 import type { Query } from "@/lib/server/db";
+import { demoContacts, demoPerson, demoProfileCard, demoSharingPeople, isDemoId, type DemoContact, type DemoProfileCard } from "@/lib/demo/people";
+import { readDemoContactsOn } from "@/lib/server/demo/people";
 import { readListDetail, readListSummaries, readShareContacts } from "@/lib/server/lists/read";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readSettingsPage } from "@/lib/server/settings-page";
@@ -57,6 +59,14 @@ const CHAT_PAGE_MESSAGES = 100;
 
 function displayOf(settings: { timeFormat: Display["timeFormat"]; dayStartHour: number; dayEndHour: number }): Display {
   return { timeFormat: settings.timeFormat, dayStartHour: settings.dayStartHour, dayEndHour: settings.dayEndHour };
+}
+
+/**
+ * The real people who share with the user, then (spec 32) the demo contacts who share something, when
+ * the user has them on. The demo people are never read from the database; only the choice is.
+ */
+function withDemoPeople(real: SharingPerson[], demoOn: boolean): SharingPerson[] {
+  return demoOn ? [...real, ...demoSharingPeople()] : real;
 }
 
 export type CalendarPageData = { display: Display; week: WeekData; goals: GoalView[]; tasks: TaskDto[]; showWelcome: boolean };
@@ -106,8 +116,9 @@ export async function loadCalendarPageWithShares(
   return deps.withUser(userId, async (query) => {
     // Without parameters, so started first (see the top of this file).
     const sharingRead = readSharingPeople(query);
-    const [page, sharing] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead]);
-    return { ...page, sharing };
+    const demoRead = readDemoContactsOn(query);
+    const [page, sharing, demo] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead, demoRead]);
+    return { ...page, sharing: withDemoPeople(sharing, demo) };
   });
 }
 
@@ -168,8 +179,9 @@ export async function loadAnalyticsPageWithShares(
   await settleSessions(deps, userId, now);
   return deps.withUser(userId, async (query) => {
     const sharingRead = readSharingPeople(query);
-    const [page, sharing] = await Promise.all([readAnalyticsPage(query, now, requestedWeek), sharingRead]);
-    return { ...page, sharing: sharing.filter((p) => p.focus) };
+    const demoRead = readDemoContactsOn(query);
+    const [page, sharing, demo] = await Promise.all([readAnalyticsPage(query, now, requestedWeek), sharingRead, demoRead]);
+    return { ...page, sharing: withDemoPeople(sharing, demo).filter((p) => p.focus) };
   });
 }
 
@@ -209,16 +221,35 @@ export async function loadSettingsPageWithProfile(deps: PageDeps, userId: string
   });
 }
 
-export type PeoplePageData = { display: Display; timeZone: string; people: PeopleData; shares: ContactShares[] };
+export type PeoplePageData = {
+  display: Display;
+  timeZone: string;
+  people: PeopleData;
+  shares: ContactShares[];
+  /** Spec 32: whether the user has the demo contacts on, and then the three of them (else none). */
+  demo: { on: boolean; contacts: DemoContact[] };
+};
 
 /**
  * The People page (spec 28): the user's profile, contacts and invitations; spec 29: per contact what the
- * user shares and what is shared with them. Reads only, one transaction.
+ * user shares and what is shared with them; spec 32: the demo contacts, after the real ones. Reads only,
+ * one transaction.
  */
 export async function loadPeoplePage(deps: Pick<Deps, "withUser">, userId: string): Promise<PeoplePageData> {
   return deps.withUser(userId, async (query) => {
-    const [settings, people, shares] = await Promise.all([readSettings(query), readPeople(query), readSharesOverview(query)]);
-    return { display: displayOf(settings), timeZone: settings.timeZone, people, shares };
+    const [settings, people, shares, demoOn] = await Promise.all([
+      readSettings(query),
+      readPeople(query),
+      readSharesOverview(query),
+      readDemoContactsOn(query),
+    ]);
+    return {
+      display: displayOf(settings),
+      timeZone: settings.timeZone,
+      people,
+      shares,
+      demo: { on: demoOn, contacts: demoOn ? demoContacts() : [] },
+    };
   });
 }
 
@@ -265,6 +296,39 @@ export async function loadPersonPage(deps: PageDeps, userId: string, personId: s
     if (!person) return null;
     return { display: displayOf(settings), person, me: { name: me.name, photoUrl: me.photoUrl }, now: now.toISOString() };
   });
+}
+
+export type DemoPersonPageData = {
+  display: Display;
+  /** The demo contact's card: no e-mail address, marked as a demo. */
+  person: DemoProfileCard;
+  /** What they share with the user. */
+  shared: ShareSetting;
+  me: { name: string; photoUrl: string | null };
+  now: string;
+};
+
+/**
+ * A demo contact's profile (spec 32), for one of the three fixed ids, only while the user has the demo
+ * contacts on; null otherwise, the same as for any unknown id. One transaction.
+ */
+export async function loadDemoPersonPage(deps: PageDeps, userId: string, personId: string): Promise<DemoPersonPageData | null> {
+  const person = isDemoId(personId) ? demoPerson(personId) : null;
+  if (!person) return null;
+  const now = deps.now();
+  return deps.withUser(userId, async (query) => {
+    const [settings, me, on] = await Promise.all([readSettings(query), readOwnProfile(query), readDemoContactsOn(query)]);
+    if (!on) return null;
+    return { display: displayOf(settings), person: demoProfileCard(person), shared: person.shares, me: { name: me.name, photoUrl: me.photoUrl }, now: now.toISOString() };
+  });
+}
+
+/**
+ * /people/[id]: one of the three demo ids is recognised first (spec 32), everything else goes to the
+ * real person's loader, which checks the uuid. Null alike for everything the user may not see.
+ */
+export async function loadAnyPersonPage(deps: PageDeps, userId: string, personId: string): Promise<PersonPageData | DemoPersonPageData | null> {
+  return isDemoId(personId) ? loadDemoPersonPage(deps, userId, personId) : loadPersonPage(deps, userId, personId);
 }
 
 export type ListsPageData = { display: Display; lists: ListSummary[] };
