@@ -29,6 +29,7 @@ import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/ro
 import { readGoals } from "@/lib/server/goals/rows";
 import { readBlocker } from "@/lib/server/blocker/page";
 import type { Deps } from "@/lib/server/deps";
+import type { Query } from "@/lib/server/db";
 import { welcomeDue } from "@/lib/server/demo/rows";
 import { readCalendar } from "@/lib/server/events/week";
 import { settleSessions } from "@/lib/server/focus/sessions";
@@ -40,7 +41,7 @@ import { readSettingsPage } from "@/lib/server/settings-page";
 import { readTasks } from "@/lib/server/tasks/rows";
 import { settleTasks } from "@/lib/server/tasks/settle";
 import { sortTasks } from "@/lib/tasks/order";
-import { addDays, localDateOf, startOfLocalDate } from "@/lib/time/zoned";
+import { addDays, localDateOf, startOfLocalDate, type LocalDate } from "@/lib/time/zoned";
 
 type PageDeps = Pick<Deps, "withUser" | "now">;
 
@@ -67,15 +68,41 @@ export async function loadCalendarPage(deps: PageDeps, userId: string, requested
     const settingsRead = readSettings(query);
     const timeZone = settingsRead.then((settings) => settings.timeZone);
     const view = requestedView ?? readDefaultView(query);
-    const [settings, week, goals, tasks, showWelcome] = await Promise.all([
+    const [settings, week, { goals, tasks }, showWelcome] = await Promise.all([
       settingsRead,
       readCalendar(query, now, view, requestedDate, timeZone, readOutlookState(query)),
-      readGoalViews(query, now, timeZone),
-      readTasks(query),
+      readGoalsAndTasks(query, now, timeZone),
       // A new account (no goals, events or tasks, welcome never answered) sees the welcome (spec 13).
       welcomeDue(query),
     ]);
-    return { display: displayOf(settings), week, goals, tasks: sortTasks(tasks), showWelcome };
+    return { display: displayOf(settings), week, goals, tasks, showWelcome };
+  });
+}
+
+/**
+ * The goals with their progress and look, and the tasks in R33's order. The calendar page and the
+ * Goals page read them the same way. Both reads start at once (they have no parameters).
+ */
+function readGoalsAndTasks(query: Query, now: Date, timeZone: Promise<string>): Promise<{ goals: GoalView[]; tasks: TaskDto[] }> {
+  return Promise.all([readGoalViews(query, now, timeZone), readTasks(query)]).then(([goals, tasks]) => ({ goals, tasks: sortTasks(tasks) }));
+}
+
+export type GoalsPageData = { display: Display; goals: GoalView[]; tasks: TaskDto[]; today: LocalDate };
+
+/**
+ * The Goals page (spec 39; before, the goals column beside the calendar): the goals with progress, the
+ * tasks, and the user's local date (for overdue marks and the earliest due date). Reads only, apart
+ * from removing old done tasks first (R33), as the calendar does.
+ */
+export async function loadGoalsPage(deps: PageDeps, userId: string): Promise<GoalsPageData> {
+  // By itself: done tasks older than 7 days go first, saved on their own (R33).
+  await settleTasks(deps, userId);
+  const now = deps.now();
+  return deps.withUser(userId, async (query) => {
+    const settingsRead = readSettings(query);
+    const timeZone = settingsRead.then((settings) => settings.timeZone);
+    const [settings, { goals, tasks }] = await Promise.all([settingsRead, readGoalsAndTasks(query, now, timeZone)]);
+    return { display: displayOf(settings), goals, tasks, today: localDateOf(now, settings.timeZone) };
   });
 }
 
