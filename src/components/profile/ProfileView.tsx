@@ -2,13 +2,14 @@
 
 // The user's own profile page (spec 31): at the top the photo (or initials), the shown name and the
 // e-mail address, with "Sign out" at the top right. Below, in the look of the settings cards: the photo
-// (change, remove), the display name, a one-line bio, the LinkedIn link, and the time zone from the
+// (change, remove; a chosen picture is placed in the "Position your photo" dialog first, ./PhotoDialog.tsx),
+// the display name, a one-line bio, the LinkedIn link, and the time zone from the
 // settings with the local time there. The three fields save together with one Save button that appears
 // when something changed (the pattern of the event editor, spec 17); a refusal shows at its field. The
 // server checks everything again; the browser's checks only spare a round trip.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { Eye, UserRound, Users } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { SignOutButton } from "@/components/account/SignOutButton";
@@ -18,7 +19,8 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { postJson } from "@/lib/client/post-json";
-import { preparePhoto, PhotoUnreadableError } from "@/lib/client/resize-photo";
+import { encodePhoto, loadPicture, looksLikePicture, PhotoTooLargeError, PhotoUnreadableError, type Picture } from "@/lib/client/resize-photo";
+import type { SourceRect } from "@/lib/profiles/crop";
 import { MAX_DISPLAY_NAME, shownName } from "@/lib/profiles/display-name";
 import {
   cleanProfile,
@@ -31,6 +33,7 @@ import {
 } from "@/lib/profiles/profile-fields";
 import type { ProfileCardData } from "@/lib/profiles/types";
 import { TimeZoneLine } from "./parts";
+import { PhotoDialog } from "./PhotoDialog";
 
 /** Who sees the profile (R43), said once on the page. */
 export const WHO_SEES = "Your contacts and people you invite see your name, photo, bio, LinkedIn link and time zone.";
@@ -86,6 +89,19 @@ export function ProfileView({ profile, now }: { profile: ProfileCardData; now: s
   const [busy, setBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  // The picture being placed in the dialog (read once, shown from a local address), and the dialog's error.
+  const [placing, setPlacing] = useState<{ picture: Picture; url: string } | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const changeButton = useRef<HTMLButtonElement>(null);
+
+  // The local address and the read picture are freed when the dialog closes (and when the page goes).
+  useEffect(() => {
+    if (!placing) return;
+    return () => {
+      URL.revokeObjectURL(placing.url);
+      placing.picture.close();
+    };
+  }, [placing]);
 
   const changed = profileChanged(saved, draft);
   const fallback = shownName(null, profile.email);
@@ -146,22 +162,55 @@ export function ProfileView({ profile, now }: { profile: ProfileCardData; now: s
     router.refresh();
   }
 
+  /** A picture was chosen: read it (anything that is not a picture is refused here), then place it. */
   async function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     // The same file can be chosen again later.
     event.target.value = "";
     if (!file) return;
-    setBusy(true);
     setPhotoError(null);
+    const refused = new PhotoUnreadableError().message;
+    if (!looksLikePicture(file)) return setPhotoError(refused);
+    setBusy(true);
+    try {
+      const picture = await loadPicture(file);
+      setDialogError(null);
+      setPlacing({ picture, url: URL.createObjectURL(file) });
+    } catch (problem) {
+      setPhotoError(problem instanceof PhotoUnreadableError ? problem.message : refused);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function closeDialog() {
+    setPlacing(null);
+    setDialogError(null);
+    changeButton.current?.focus({ preventScroll: true });
+  }
+
+  /** "Use photo": cut the placed square, encode it and upload it; a refusal stays in the dialog. */
+  async function applyPhoto(source: SourceRect) {
+    if (!placing) return;
+    setBusy(true);
+    setDialogError(null);
     let data: string;
     try {
-      data = await preparePhoto(file);
+      data = await encodePhoto(placing.picture, source);
     } catch (problem) {
       setBusy(false);
-      setPhotoError(problem instanceof PhotoUnreadableError ? problem.message : "This picture cannot be read.");
+      setDialogError(problem instanceof PhotoUnreadableError || problem instanceof PhotoTooLargeError ? problem.message : new PhotoUnreadableError().message);
       return;
     }
-    await photoAction("/api/profile/photo", { data });
+    const answer = await postJson("/api/profile/photo", { data });
+    setBusy(false);
+    if (!answer.ok) {
+      setDialogError(answer.message);
+      return;
+    }
+    closeDialog();
+    announce(answer.message);
+    router.refresh();
   }
 
   const described = (id: string, field: ProfileField) => (errors[field] ? `${id}-hint ${id}-error` : `${id}-hint`);
@@ -207,7 +256,7 @@ export function ProfileView({ profile, now }: { profile: ProfileCardData; now: s
               aria-hidden="true"
               onChange={choosePhoto}
             />
-            <Button variant="secondary" size="sm" disabled={busy} onClick={() => fileInput.current?.click()}>
+            <Button ref={changeButton} variant="secondary" size="sm" disabled={busy} onClick={() => fileInput.current?.click()}>
               Change photo
             </Button>
             {profile.photoUrl && (
@@ -215,8 +264,16 @@ export function ProfileView({ profile, now }: { profile: ProfileCardData; now: s
                 Remove
               </Button>
             )}
+            {profile.photoUrl && <p className="w-full text-xs text-ink-3 sm:ml-[6.75rem]">Choose the photo again to move it.</p>}
           </div>
           <div aria-live="polite">{photoError && <FormMessage tone="error" text={photoError} />}</div>
+          <PhotoDialog
+            picture={placing ? { url: placing.url, width: placing.picture.width, height: placing.picture.height } : null}
+            busy={busy}
+            error={dialogError}
+            onCancel={closeDialog}
+            onUse={(source) => void applyPhoto(source)}
+          />
 
           <form onSubmit={save} noValidate className="mt-5 flex flex-col gap-4">
             <Field id={nameId} label="Display name" error={errors.displayName} hint={<>1 to {MAX_DISPLAY_NAME} characters. Until you set one, people see &quot;{fallback}&quot;.</>}>

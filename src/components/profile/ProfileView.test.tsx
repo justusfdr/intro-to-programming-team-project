@@ -64,6 +64,13 @@ describe("own profile page", () => {
     expect(html).not.toContain("<textarea");
   });
 
+  it("with a photo: says to choose it again to move it; the placing dialog is closed and empty until a picture is chosen (spec 31)", () => {
+    const html = own(FULL);
+    expect(html).toContain("Choose the photo again to move it.");
+    expect(own(NO_NAME)).not.toContain("Choose the photo again to move it.");
+    expect(html).toMatch(/<dialog aria-labelledby="photo-dialog-title"[^>]*><\/dialog>/);
+  });
+
   it("shows the time zone from the settings with the local time and the way to change it", () => {
     expect(own(NO_NAME)).toMatch(/Time zone: <span[^>]*>Europe\/Lisbon<\/span> · it is <time[^>]*>2:20pm<\/time> there/);
     expect(own(NO_NAME)).toMatch(/<a[^>]*href="\/settings"[^>]*>Change in Settings<\/a>/);
