@@ -36,7 +36,9 @@ import { settleSessions } from "@/lib/server/focus/sessions";
 import { readFocus } from "@/lib/server/focus/load";
 import { readGoalViews } from "@/lib/server/goals/load";
 import { readOutlookState } from "@/lib/server/outlook/sync";
-import { readOwnProfile, readPeople } from "@/lib/server/profiles/cards";
+import { readContactsForGuests, readOwnProfile, readPeople } from "@/lib/server/profiles/cards";
+import type { GuestPerson } from "@/lib/events/preview";
+import { guestAddresses, matchGuests } from "@/lib/people/guest-match";
 import { isUserId, readProfileCard, readProfileCards } from "@/lib/server/profiles/profile-card";
 import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
 import { NOTHING_SHARED, type ContactShares, type PersonRelation, type ShareSetting, type SharingPerson } from "@/lib/shares/types";
@@ -101,22 +103,27 @@ async function readCalendarPage(query: Query, now: Date, requestedDate?: string,
 /**
  * The calendar page with the contacts who share something with the user (spec 29), for the "People"
  * button: the same reads as loadCalendarPage, plus the people, in the same one transaction. Their events
- * themselves are read by the browser for the shown days (GET /api/shares/[id]/calendar).
+ * themselves are read by the browser for the shown days (GET /api/shares/[id]/calendar). Spec 35: also
+ * the guests of the shown events who are the user's own contacts (address → id, name, photo), for the
+ * event preview; matched here, so no other address is looked up and none is sent.
  */
 export async function loadCalendarPageWithShares(
   deps: PageDeps,
   userId: string,
   requestedDate?: string,
   requestedView?: View,
-): Promise<CalendarPageData & { sharing: SharingPerson[] }> {
+): Promise<CalendarPageData & { sharing: SharingPerson[]; guestPeople: Record<string, GuestPerson> }> {
   await settleTasks(deps, userId);
   const now = deps.now();
   return deps.withUser(userId, async (query) => {
     // Without parameters, so started first (see the top of this file).
     const sharingRead = readSharingPeople(query);
     const demoRead = readDemoContactsOn(query);
-    const [page, sharing, demo] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead, demoRead]);
-    return { ...page, sharing: withDemoPeople(sharing, demo) };
+    const contactsRead = readContactsForGuests(query);
+    const [page, sharing, demo, contacts] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead, demoRead, contactsRead]);
+    // Spec 35: the guests of the shown events who are the user's contacts, for the event preview.
+    const events = [...page.week.days.flatMap((d) => [...d.events, ...d.allDay]), ...page.week.lead];
+    return { ...page, sharing: withDemoPeople(sharing, demo), guestPeople: matchGuests(guestAddresses(events), contacts) };
   });
 }
 

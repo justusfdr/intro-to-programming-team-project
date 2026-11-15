@@ -6,6 +6,7 @@ import "server-only";
 import type { Query } from "@/lib/server/db";
 import { shownName } from "@/lib/profiles/display-name";
 import type { OwnProfile, PeopleData, PersonCard } from "@/lib/profiles/types";
+import type { MatchableContact } from "@/lib/people/guest-match";
 
 type CardRow = {
   kind: "self" | "contact" | "received" | "sent";
@@ -64,6 +65,16 @@ export async function readPeople(query: Query): Promise<PeopleData> {
       .map((r) => ({ id: r.id!, email: r.email, sentAt: iso(r.created_at) }))
       .sort((a, b) => b.sentAt.localeCompare(a.sentAt)),
   };
+}
+
+/**
+ * Only the signed-in user's contacts, with what the event preview needs to show a guest as a person
+ * (spec 35): id, shown name, photo address and the e-mail address to match on the server. The address
+ * never leaves the server from here (see lib/people/guest-match.ts).
+ */
+export async function readContactsForGuests(query: Query): Promise<MatchableContact[]> {
+  const rows = await query<CardRow>(`${CARDS} where kind = 'contact'`);
+  return rows.map((row) => ({ userId: row.user_id!, name: shownName(row.display_name, row.email), photoUrl: photoUrlOf(row.user_id!, row.photo_at), email: row.email }));
 }
 
 /** Only the signed-in user's own profile (the settings' Profile card). */
