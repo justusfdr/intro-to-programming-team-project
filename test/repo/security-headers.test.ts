@@ -1,5 +1,6 @@
-// The security headers of every answer (next.config.ts). Spec 35 adds one frame source: OpenStreetMap's
-// embedded map in the event preview, and nothing else; our own pages still never show inside a frame.
+// The security headers of every answer (next.config.ts). Spec 35 had added one frame source for the
+// event preview's map; spec 38 took the map away again, so the policy names no frame source at all, and
+// our own pages still never show inside a frame.
 import { describe, expect, it } from "vitest";
 import nextConfig, { SECURITY_HEADERS } from "../../next.config";
 
@@ -17,9 +18,10 @@ const directives = (policy: string) =>
   );
 
 describe("security headers", () => {
-  it("allows exactly one frame source, OpenStreetMap over https, and nothing else", () => {
+  it("names no frame source (spec 38: no map in the event preview any more)", () => {
     const policy = directives(policyOf(SECURITY_HEADERS));
-    expect(policy["frame-src"]).toEqual(["https://www.openstreetmap.org"]);
+    expect(policy["frame-src"]).toBeUndefined();
+    expect(policyOf(SECURITY_HEADERS)).not.toContain("openstreetmap");
     // No default-src or child-src that would widen or narrow frames another way.
     expect(policy["default-src"]).toBeUndefined();
     expect(policy["child-src"]).toBeUndefined();
@@ -32,7 +34,6 @@ describe("security headers", () => {
       "base-uri": ["'self'"],
       "form-action": ["'self'", "https://login.microsoftonline.com"],
       "object-src": ["'none'"],
-      "frame-src": ["https://www.openstreetmap.org"],
     });
     expect(SECURITY_HEADERS.find((h) => h.key === "X-Frame-Options")?.value).toBe("DENY");
   });

@@ -9,9 +9,8 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     // form-action: our own forms, and Microsoft's sign-in, which "Sign in with Microsoft" posts to
     // through our server's redirect (browsers apply form-action to the redirect as well).
-    // frame-src: the only frame our pages show is OpenStreetMap's map in the event preview (spec 35).
-    value:
-      "frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://login.microsoftonline.com; object-src 'none'; frame-src https://www.openstreetmap.org",
+    // No frame-src: our pages show no frames since spec 38 took the event preview's map away.
+    value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://login.microsoftonline.com; object-src 'none'",
   },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
