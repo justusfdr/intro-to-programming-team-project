@@ -3,8 +3,10 @@ import { redirect } from "next/navigation";
 import { Announcer } from "@/components/calendar/Announcer";
 import { FocusView } from "@/components/focus/FocusView";
 import { AppShell } from "@/components/shell/AppShell";
+import { teasersFor } from "@/lib/library/library";
 import { pageDeps } from "@/lib/server/deps";
 import { loadFocusPage } from "@/lib/server/pages/load";
+import { localDateOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Focus" };
 
@@ -22,7 +24,8 @@ export default async function FocusPage({ searchParams }: { searchParams: Promis
   return (
     <Announcer>
       <AppShell current="/focus" display={display}>
-        <FocusView data={data} blocker={blocker} />
+        {/* Three articles of the library, the same all day in the user's time zone (spec 29). */}
+        <FocusView data={data} blocker={blocker} library={teasersFor(localDateOf(new Date(data.now), blocker.timeZone))} />
       </AppShell>
     </Announcer>
   );
