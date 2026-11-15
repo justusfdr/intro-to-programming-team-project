@@ -113,7 +113,7 @@ export async function readListSummaries(query: Query, me: string): Promise<ListS
   });
 }
 
-/** The user's own contacts, by name, for the owner's "Share" panel (their own contacts' addresses only). */
+/** The user's own contacts, by name, for the owner's "Share" panel (name and photo; the address stays here). */
 export async function readShareContacts(query: Query): Promise<ShareContact[]> {
   const rows = await query<{ id: string; user_id: string; display_name: string | null; email: string; photo_at: Date | string | null }>(
     "select id, user_id, display_name, email, photo_at from app.contact_cards() where kind = 'contact'",
@@ -123,8 +123,7 @@ export async function readShareContacts(query: Query): Promise<ShareContact[]> {
       contactId: row.id,
       userId: row.user_id,
       name: shownName(row.display_name, row.email),
-      email: row.email,
       photoUrl: photoUrlOf(row.user_id, row.photo_at),
     }))
-    .sort((a, b) => a.name.localeCompare(b.name) || a.email.localeCompare(b.email));
+    .sort((a, b) => a.name.localeCompare(b.name) || a.userId.localeCompare(b.userId));
 }

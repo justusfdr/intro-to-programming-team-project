@@ -76,7 +76,8 @@ describe("page loaders of spec 30", () => {
     expect(own?.page.list.entries).toEqual([
       { id: expect.any(String), title: "Milk", done: false, position: 0, updatedAt: expect.any(String), addedBy: bob, doneBy: null },
     ]);
-    expect(own?.page.contacts).toEqual([{ contactId: aliceBob, userId: bob, name: "bob", email: "bob@example.com", photoUrl: null }]);
+    expect(own?.page.contacts).toEqual([{ contactId: aliceBob, userId: bob, name: "bob", photoUrl: null }]);
+    expect(JSON.stringify(own)).not.toContain("@");
 
     const member = await loadListPage(app.deps, bob, id);
     expect(member?.page.list.isOwner).toBe(false);

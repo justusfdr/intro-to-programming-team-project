@@ -1,5 +1,7 @@
 // What the server sends to the lists pages (spec 30). Other people appear only with a name and a photo
-// address, never with an e-mail address (R55); only the owner's own contacts, for "Share", carry one.
+// address, never with an e-mail address (R55); the owner's own contacts, for "Share",
+// are named the way the People page names them (the part of the address before the "@" without a
+// display name), and their addresses are not sent either.
 
 export const MAX_LIST_TITLE = 60;
 export const MAX_ENTRY_TITLE = 200;
@@ -60,7 +62,6 @@ export type ShareContact = {
   contactId: string;
   userId: string;
   name: string;
-  email: string;
   photoUrl: string | null;
 };
 
