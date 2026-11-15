@@ -1,6 +1,6 @@
 "use client";
 
-// The tasks of one section of the goals column (spec 11): one row per task (R33's order, done ones
+// The tasks of one card of the Goals page (spec 11; spec 39 moved them from the goals column): one row per task (R33's order, done ones
 // struck through), the ring as a button that completes or reopens the task, a date chip (red with
 // "overdue" for screen readers when the date is before today), and "Add task" at the end.
 // "Add task" opens a one-line input with an optional due date: Enter saves, Escape closes.
@@ -274,7 +274,7 @@ export function TaskForm({
 
   function onKeyDown(event: KeyboardEvent<HTMLFormElement>) {
     if (event.key !== "Escape") return;
-    // Closes only this small form, not the phone sheet around it.
+    // Closes only this small form, not a dialog around it.
     event.preventDefault();
     event.stopPropagation();
     onDone();

@@ -1,4 +1,4 @@
-// One row under a goal in the goals column: a ring in the goal's colour while open, a filled circle
+// One row under a goal on the Goals page: a ring in the goal's colour while open, a filled circle
 // with a white check when done, the text, and an optional small chip at the right. Used for the
 // rules of this week and for tasks (spec 11). For a task the ring is a real button (`toggle`); for a
 // rule it is only a picture. `color` null is the grey of "Inbox".

@@ -70,9 +70,8 @@ it("writes the preview files", async () => {
   const styles = builtStyles();
   const { Announcer } = await import("@/components/calendar/Announcer");
   const { CalendarView } = await import("@/components/calendar/CalendarView");
-  const { GoalsPanel } = await import("@/components/goals/GoalsPanel");
+  const { GoalsPage } = await import("@/components/goals/GoalsPage");
   const { GoalEditor } = await import("@/components/goals/GoalEditor");
-  const { PanelState } = await import("@/components/shell/PanelState");
   const { loadGoals } = await import("@/lib/server/goals/load");
   const { loadTasks } = await import("@/lib/server/tasks/load");
   const { EditEventCard, NewEventCard, SeriesQuestion } = await import("@/components/calendar/EventEditor");
@@ -187,16 +186,14 @@ it("writes the preview files", async () => {
   const calendar = (shown = week) =>
     renderToStaticMarkup(
       <Announcer>
-        <PanelState>
-          <AppShell current="/" panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today="2026-11-17" />}>
-            <CalendarView
-              week={shown}
-              nowLocal="2026-11-17T12:10"
-              goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
-              outlookAvailable
-            />
-          </AppShell>
-        </PanelState>
+        <AppShell current="/">
+          <CalendarView
+            week={shown}
+            nowLocal="2026-11-17T12:10"
+            goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
+            outlookAvailable
+          />
+        </AppShell>
       </Announcer>,
     );
 
@@ -370,15 +367,16 @@ it("writes the preview files", async () => {
     ),
   );
 
-  // The goals column with tasks at phone width: the same content the phone sheet shows.
-  const sheetMarkup = renderToStaticMarkup(
+  // Spec 39: the Goals page with tasks, on a wide screen and at phone width.
+  const goalsPageMarkup = renderToStaticMarkup(
     <Announcer>
-      <PanelState>
-        <GoalsPanel goals={goals} tasks={tasks} today="2026-11-17" />
-      </PanelState>
+      <AppShell current="/goals">
+        <GoalsPage goals={goals} tasks={tasks} today="2026-11-17" />
+      </AppShell>
     </Announcer>,
-  ).replace("sticky top-0 hidden h-dvh w-[280px]", "block h-dvh w-full");
-  writeFileSync(join(OUT, "goals-tasks-phone.html"), phoneFrame("Goals with tasks", page("Goals with tasks", sheetMarkup, styles)));
+  );
+  writeFileSync(join(OUT, "goals-page.html"), page("Goals", goalsPageMarkup, styles));
+  writeFileSync(join(OUT, "goals-tasks-phone.html"), phoneFrame("Goals with tasks", page("Goals with tasks", goalsPageMarkup, styles)));
 
   // The goal editor, open for a new goal (same static-dialog treatment as the event editor).
   const goalEditorMarkup = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: "2026-11-17", color: "rose" }} onClose={() => {}} />).replace(
@@ -403,7 +401,7 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   );
 
   // Spec 13: the demo week. A new account chooses "Explore the demo" on Wednesday 18 November at 13:00 in
-  // Lisbon; the calendar, the goals column and the Focus page then show what load_demo created.
+  // Lisbon; the calendar, the Goals page and the Focus page then show what load_demo created.
   const { loadDemo } = await import("@/lib/server/actions/load-demo");
   const { Welcome } = await import("@/components/shell/Welcome");
   const demoApp = await createTestApp();
@@ -416,22 +414,34 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
   const demoGoals = await loadGoals(demoApp.deps, demoUser);
   const demoTasks = await loadTasks(demoApp.deps, demoUser);
   await demoApp.close();
-  const demoCalendar = (w: typeof demoWeek, g: typeof demoGoals, t: typeof demoTasks, after = "") =>
+  const demoCalendar = (w: typeof demoWeek, g: typeof demoGoals, after = "") =>
     renderToStaticMarkup(
       <Announcer>
-        <PanelState>
-          <AppShell current="/" panelsLeft={<GoalsPanel goals={g} tasks={t} today="2026-11-18" />}>
-            <CalendarView
-              week={w}
-              nowLocal="2026-11-18T13:00"
-              goals={g.map(({ id, title, look }) => ({ id, title, look }))}
-              outlookAvailable
-            />
-          </AppShell>
-        </PanelState>
+        <AppShell current="/">
+          <CalendarView
+            week={w}
+            nowLocal="2026-11-18T13:00"
+            goals={g.map(({ id, title, look }) => ({ id, title, look }))}
+            outlookAvailable
+          />
+        </AppShell>
       </Announcer>,
     ) + after;
-  const demoHtml = page("Demo week", demoCalendar(demoWeek, demoGoals, demoTasks), styles);
+  const demoHtml = page("Demo week", demoCalendar(demoWeek, demoGoals), styles);
+  writeFileSync(
+    join(OUT, "demo-goals.html"),
+    page(
+      "Demo goals",
+      renderToStaticMarkup(
+        <Announcer>
+          <AppShell current="/goals">
+            <GoalsPage goals={demoGoals} tasks={demoTasks} today="2026-11-18" />
+          </AppShell>
+        </Announcer>,
+      ),
+      styles,
+    ),
+  );
   writeFileSync(join(OUT, "demo-week.html"), demoHtml);
   writeFileSync(join(OUT, "demo-week-phone.html"), phoneFrame("Demo week", demoHtml));
 
@@ -442,7 +452,7 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
 @media (min-width:768px){dialog.welcome[open]{inset:0;margin:auto;height:fit-content}}`;
   for (const step of [1, 2, 3] as const) {
     const welcome = renderToStaticMarkup(<Welcome timeFormat="12h" defaultStep={step} />).replace("<dialog", "<dialog open");
-    const html = page("Welcome", demoCalendar(emptyWeek, [], [], `<div class="preview-dim"></div>${welcome}`), styles, welcomeCss);
+    const html = page("Welcome", demoCalendar(emptyWeek, [], `<div class="preview-dim"></div>${welcome}`), styles, welcomeCss);
     writeFileSync(join(OUT, `welcome-${step}.html`), html);
     if (step === 1) writeFileSync(join(OUT, "welcome-phone.html"), phoneFrame("Welcome", html));
   }

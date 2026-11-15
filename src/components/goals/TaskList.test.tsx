@@ -1,13 +1,14 @@
-// The tasks in the goals column (spec 11): rows in R33's order with a real ring button, the date chip
+// The tasks on the Goals page (spec 11): rows in R33's order with a real ring button, the date chip
 // (red with "overdue" for screen readers before today), done tasks struck through, the open count in
-// each header, "Add task" per section, and "Inbox" always at the bottom.
+// each header, "Add task" per section, and "Inbox" always last.
+// Rewritten for spec 39: the last part rendered the goals column (GoalsPanel inside PanelState); it now
+// renders the Goals page (GoalsPage), with the same promises about tasks.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { PanelState } from "@/components/shell/PanelState";
 import type { GoalView } from "@/lib/goals/types";
 import type { GoalColorName } from "@/lib/goals/style";
 import type { TaskDto } from "@/lib/tasks/types";
-import { GoalsPanel } from "./GoalsPanel";
+import { GoalsPage } from "./GoalsPage";
 import { TaskForm, TaskList } from "./TaskList";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -106,13 +107,8 @@ describe("the small task form", () => {
   });
 });
 
-describe("the goals column with tasks", () => {
-  const render = (goals: GoalView[], tasks: TaskDto[]) =>
-    renderToStaticMarkup(
-      <PanelState>
-        <GoalsPanel goals={goals} tasks={tasks} today={TODAY} />
-      </PanelState>,
-    );
+describe("the Goals page with tasks", () => {
+  const render = (goals: GoalView[], tasks: TaskDto[]) => renderToStaticMarkup(<GoalsPage goals={goals} tasks={tasks} today={TODAY} />);
 
   it("lists a goal's tasks under it in R33's order and shows its open count at the right of the header", () => {
     const html = render(
@@ -135,7 +131,7 @@ describe("the goals column with tasks", () => {
     const html = render([], [task("Call mom back", { goalId: null })]);
     const inbox = html.slice(html.indexOf('aria-label="Inbox"'));
     expect(inbox).toContain("bg-raised text-ink-3"); // the grey tile
-    expect(inbox).toContain(">Inbox</h3>");
+    expect(inbox).toContain(">Inbox</h2>");
     expect(inbox).toContain('<span class="sr-only">1 open task</span>');
     expect(inbox).toContain(">Call mom back<");
     expect(inbox).toContain('aria-label="Add task to Inbox"');

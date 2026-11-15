@@ -2,8 +2,9 @@
 
 // The calendar screen in the prototype's layout (its components/calendar/CalendarScreen.tsx): the title
 // (month and year, opens a month calendar to jump to a day) with the view's line below it, the toolbar
-// (goals, previous, next, Today, Day | Week | Month, "+" for a new event), on the day view the day
-// strip, then the time grid or the month grid. Left out as decided: plan week, plan strength, the coach.
+// (previous, next, Today, Day | Week | Month, "+" for a new event; goals have a page of their own since
+// spec 39), on the day view the day strip, then the time grid or the month grid. Left out as decided:
+// plan week, plan strength, the coach.
 // Which view and which day live in the address (/?view=day&date=2026-11-18), so reload and back work;
 // the page reads exactly those days on the server (src/app/page.tsx). Phones get day and month only.
 // An action's change shows at once and the days are read again in the background (components/live/Live.tsx).
@@ -45,7 +46,6 @@ import type { NewTodo } from "@/lib/todos/types";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { useLive, useLiveWeek } from "@/components/live/Live";
-import { GoalsToggle } from "@/components/goals/GoalsPanel";
 import { DateJumpTitle } from "./DateJump";
 import { EventEditor, SeriesQuestion, type EditorState } from "./EventEditor";
 import { dropText, isGuestsError, movedChange, recreateBody, savedEvent, savedEventChange, timesBody, withoutGuests, type Scope } from "./event-changes";
@@ -325,7 +325,6 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <GoalsToggle />
             <div className="flex items-center gap-1">
               <LinkButton href={calendarHref(view, previous)} variant="secondary" size="icon" aria-label={navLabel(view, -1)} title={`${navLabel(view, -1)} (←)`}>
                 <ChevronLeft className="size-4" strokeWidth={2} />

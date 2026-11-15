@@ -290,10 +290,11 @@ describe("calendar markup", () => {
   });
 
   // Rewritten for spec 25: on wider screens "Goals" moved into the sidebar; the toolbar keeps it for phones only.
-  it("keeps the round goals button with the target icon in the toolbar for phones only", () => {
+  // Rewritten for spec 39: Goals is a page of its own (sidebar and tab bar), so the toolbar has no goals button.
+  it("has no goals button in the toolbar", () => {
     const html = render(week({}));
-    expect(html).toMatch(/<div class="md:hidden"><button type="button" aria-label="Goals" title="Open goals" aria-haspopup="dialog" aria-expanded="false"[^>]*><svg[^>]*lucide-target/);
-    expect(html).not.toContain('title="Hide goals"');
+    expect(html).not.toContain('aria-label="Goals"');
+    expect(html).not.toContain("lucide-target");
     expect(html).not.toMatch(/>Goals<\/button>/);
   });
 
