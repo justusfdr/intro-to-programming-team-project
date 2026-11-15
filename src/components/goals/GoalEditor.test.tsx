@@ -1,6 +1,8 @@
 // The goal editor's markup (spec 03, G5; spec 13): laid out like the prototype's goal dialog (name, why
 // it matters, colour dots, icon grid), then deadline, rules and auto-block; the goal filled in, the
 // delete button, and a remove button per rule. Rendered on the server, as the browser first receives it.
+// Rewritten for spec 39: the deadline is the app's date field (a new test below); the older tests still
+// find its value and its label.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { GoalView } from "@/lib/goals/types";
@@ -104,6 +106,18 @@ describe("goal editor in edit mode", () => {
     expect(html).toContain('aria-label="Teal" aria-pressed="true"');
     expect(html).toContain('aria-label="Footprints" aria-pressed="true"');
     expect(html).toContain('value="Stay fit, even when the semester gets busy."');
+  });
+
+  // Spec 39: the deadline is the event editor's date field instead of the browser's date input.
+  it("shows the deadline as the app's date field ('Sun, Mar 14') that sends 'YYYY-MM-DD' with the form", () => {
+    const html = renderToStaticMarkup(<GoalEditor state={{ mode: "edit", goal: GOAL, today: TODAY }} onClose={() => {}} />);
+    expect(html).not.toContain('type="date"');
+    expect(html).toContain('<input type="hidden" name="deadline" value="2027-03-14"/>');
+    expect(html).toMatch(/<button id="goal-deadline" type="button" aria-expanded="false" aria-label="Deadline: Sun, Mar 14"[^>]*>.*>Sun, Mar 14<\/span><\/button>/);
+    // A new goal has no deadline yet: a quiet "Choose a deadline", sent empty (the server names the problem).
+    const create = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: TODAY, color: "rose" }} onClose={() => {}} />);
+    expect(create).toContain('<input type="hidden" name="deadline" value=""/>');
+    expect(create).toMatch(/aria-label="Deadline"[^>]*>.*<span class="[^"]*text-ink-3">Choose a deadline<\/span>/);
   });
 
   it("starts a new goal with the suggested colour and the rocket, and offers Cancel and Create", () => {

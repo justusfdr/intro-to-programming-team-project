@@ -9,7 +9,8 @@ import type { GoalView } from "@/lib/goals/types";
 import type { GoalColorName } from "@/lib/goals/style";
 import type { TaskDto } from "@/lib/tasks/types";
 import { GoalsPage } from "./GoalsPage";
-import { TaskForm, TaskList } from "./TaskList";
+import { MiniMonth } from "@/components/calendar/MiniMonth";
+import { earliestDueDate, TaskForm, TaskList } from "./TaskList";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
@@ -78,32 +79,55 @@ describe("task rows", () => {
   });
 });
 
+// Rewritten for spec 39: the due date is no longer the browser's date input (it showed "15 . 11 . 2026"
+// in grey) but the event editor's date field: a button with the date as "Fri, Nov 20" or a quiet
+// "Add due date", a button to remove the date, and the small month calendar with earlier days greyed out.
 describe("the small task form", () => {
-  it("adding: a title input and an optional due date from today on, Save and Close, no goal list", () => {
+  it("adding: a title input and the due date as a quiet 'Add due date' button, Save and Close, no goal list", () => {
     const html = renderToStaticMarkup(
       <TaskForm mode={{ kind: "add", sectionTitle: "Inbox" }} goalId={null} today={TODAY} goals={[]} onDone={() => {}} />,
     );
     expect(html).toContain('aria-label="Add task to Inbox"');
     expect(html).toContain('aria-label="Task title"');
-    expect(html).toMatch(/type="date"[^>]*min="2026-11-17"[^>]*aria-label="Due date \(optional\)"/);
+    expect(html).not.toContain('type="date"');
+    expect(html).toMatch(/<button type="button" aria-expanded="false" aria-label="Due date \(optional\)"[^>]*>.*<span class="[^"]*text-ink-3">Add due date<\/span><\/button>/);
+    // Nothing to remove while there is no date.
+    expect(html).not.toContain("Remove due date");
     expect(html).not.toContain('aria-label="Goal"');
     expect(html).toContain(">Save<");
   });
 
-  it("editing: title, due date (an old past date stays choosable), the goal list with Inbox, and Delete", () => {
+  it("editing: title, the due date in the app's format with a button to remove it, the goal list with Inbox, and Delete", () => {
     const html = renderToStaticMarkup(
       <TaskForm
-        mode={{ kind: "edit", task: task("Late", { dueDate: "2026-11-10" }) }}
+        mode={{ kind: "edit", task: task("Later", { dueDate: "2026-11-20" }) }}
         goalId="g1"
         today={TODAY}
         goals={[{ id: "g1", title: "Half marathon" }]}
         onDone={() => {}}
       />,
     );
-    expect(html).toContain('value="Late"');
-    expect(html).toContain('min="2026-11-10"');
+    expect(html).toContain('value="Later"');
+    expect(html).not.toContain('type="date"');
+    expect(html).toMatch(/aria-label="Due date \(optional\): Fri, Nov 20"[^>]*>.*>Fri, Nov 20<\/span><\/button>/);
+    expect(html).toMatch(/<button type="button" aria-label="Remove due date" title="Remove due date"/);
     expect(html).toMatch(/<option value="">Inbox \(no goal\)<\/option><option value="g1" selected="">Half marathon<\/option>/);
-    expect(html).toContain('aria-label="Delete task Late"');
+    expect(html).toContain('aria-label="Delete task Later"');
+  });
+
+  it("offers due dates from today on; an unchanged past due date of an edited task stays choosable", () => {
+    expect(earliestDueDate(null, TODAY)).toBe(TODAY);
+    expect(earliestDueDate(task("Soon", { dueDate: "2026-11-20" }), TODAY)).toBe(TODAY);
+    expect(earliestDueDate(task("Late", { dueDate: "2026-11-10" }), TODAY)).toBe("2026-11-10");
+  });
+
+  it("greys out the days before the earliest date in the small month calendar", () => {
+    const html = renderToStaticMarkup(<MiniMonth value="" min={TODAY} todayKey={TODAY} onChange={() => {}} />);
+    expect(html).toMatch(/aria-label="Monday, November 16, 2026" disabled=""/);
+    expect(html).not.toMatch(/aria-label="Tuesday, November 17, 2026" disabled=""/);
+    // Without a chosen date nothing is marked as chosen, and the month shown is today's.
+    expect(html).not.toContain('aria-pressed="true"');
+    expect(html).toContain(">November 2026<");
   });
 });
 
