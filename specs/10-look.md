@@ -1,4 +1,6 @@
 # Spec 10: The look of our first prototype
+> 15 Nov 2026: the goals column (and its phone sheet) was replaced by the Goals page, `/goals` (spec 39).
+
 Interface only, no build step of its own. Plan: `docs/ontology.md` (unchanged). Branch: `10-look`.
 
 ## Why

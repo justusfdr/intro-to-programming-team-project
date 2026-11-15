@@ -3,9 +3,7 @@ import { redirect } from "next/navigation";
 import { Announcer } from "@/components/calendar/Announcer";
 import { LiveProvider } from "@/components/live/Live";
 import { CalendarView } from "@/components/calendar/CalendarView";
-import { GoalsPanel } from "@/components/goals/GoalsPanel";
 import { AppShell } from "@/components/shell/AppShell";
-import { PanelState } from "@/components/shell/PanelState";
 import { Welcome } from "@/components/shell/Welcome";
 import { outlookConfigured } from "@/lib/server/config";
 import { pageDeps } from "@/lib/server/deps";
@@ -19,6 +17,8 @@ export const metadata: Metadata = { title: "Calendar" };
 // without them the default view from the settings and today). The page reads exactly those days, the
 // goals and the tasks on the server in one transaction (src/lib/server/pages/load.ts). After an action
 // the screen shows the answer at once and router.refresh() runs this page again in the background.
+// The goals are read for their names and colours (event blocks, the editor's goal chips); their
+// progress and tasks have a page of their own since spec 39 (src/app/goals/page.tsx).
 export default async function CalendarPage({
   searchParams,
 }: {
@@ -30,24 +30,22 @@ export default async function CalendarPage({
   if (!userId) redirect("/sign-in");
 
   const address = readAddress(await searchParams);
-  const { display, week, goals, tasks, showWelcome } = await loadCalendarPage(deps, userId, address.date, address.view);
+  const { display, week, goals, showWelcome } = await loadCalendarPage(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
   return (
     <Announcer>
       <LiveProvider>
-        <PanelState>
-          <AppShell current="/" display={display} panelsLeft={<GoalsPanel goals={goals} tasks={tasks} today={nowLocal.slice(0, 10)} />}>
-            <CalendarView
-              week={week}
-              nowLocal={nowLocal}
-              goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
-              outlookAvailable={outlookConfigured()}
-            />
-          </AppShell>
-          {showWelcome && <Welcome timeFormat={display.timeFormat} />}
-        </PanelState>
+        <AppShell current="/" display={display}>
+          <CalendarView
+            week={week}
+            nowLocal={nowLocal}
+            goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
+            outlookAvailable={outlookConfigured()}
+          />
+        </AppShell>
+        {showWelcome && <Welcome timeFormat={display.timeFormat} />}
       </LiveProvider>
     </Announcer>
   );

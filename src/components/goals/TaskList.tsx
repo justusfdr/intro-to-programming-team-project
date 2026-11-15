@@ -1,15 +1,18 @@
 "use client";
 
-// The tasks of one section of the goals column (spec 11): one row per task (R33's order, done ones
+// The tasks of one card of the Goals page (spec 11; spec 39 moved them from the goals column): one row per task (R33's order, done ones
 // struck through), the ring as a button that completes or reopens the task, a date chip (red with
 // "overdue" for screen readers when the date is before today), and "Add task" at the end.
-// "Add task" opens a one-line input with an optional due date: Enter saves, Escape closes.
+// "Add task" opens a one-line input with an optional due date: Enter saves, Escape closes. The due
+// date is the event editor's date field ("Sun, Nov 15" and the small month calendar; "Add due date"
+// while empty, with a button to remove it again), so no browser date input shows its own format.
 // Clicking a task's title opens the same small form to change title, due date and goal, with Delete.
 // It only collects the input and shows the server's answer; the server checks every rule.
 // A tick shows at once and goes back if the server rejects it; a saved task shows as soon as the answer
 // arrives; the page re-reads in the background (components/live/Live.tsx).
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
+import { DateField } from "@/components/calendar/fields";
 import { taskChanges, useLive } from "@/components/live/Live";
 import { Button } from "@/components/ui/Button";
 import { Plus, Trash2 } from "lucide-react";
@@ -195,6 +198,14 @@ function TaskRow({
   );
 }
 
+/**
+ * The earliest due date the form offers: today, or an unchanged past due date of the task being
+ * edited (it stays allowed). The server checks it as well.
+ */
+export function earliestDueDate(task: Pick<TaskDto, "dueDate"> | null, today: string): string {
+  return task?.dueDate && task.dueDate < today ? task.dueDate : today;
+}
+
 export type FormMode = { kind: "add"; sectionTitle: string } | { kind: "edit"; task: TaskDto };
 
 export function TaskForm({
@@ -224,8 +235,7 @@ export function TaskForm({
     titleInput.current?.focus();
   }, []);
 
-  // An unchanged past due date stays allowed when editing; the server checks it as well.
-  const minDate = task?.dueDate && task.dueDate < today ? task.dueDate : today;
+  const minDate = earliestDueDate(task, today);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -273,8 +283,9 @@ export function TaskForm({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLFormElement>) {
-    if (event.key !== "Escape") return;
-    // Closes only this small form, not the phone sheet around it.
+    // An Escape the date field already used (to fold its month calendar) leaves the form open.
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+    // Closes only this small form, not a dialog around it.
     event.preventDefault();
     event.stopPropagation();
     onDone();
@@ -295,14 +306,15 @@ export function TaskForm({
         className={inputClass}
       />
       <div className="mt-1.5 flex flex-col gap-1.5">
-        <input
-          type="date"
+        <DateField
+          label="Due date (optional)"
           value={dueDate}
           min={minDate}
-          onChange={(event) => setDueDate(event.target.value)}
-          aria-label="Due date (optional)"
-          title="Due date (optional)"
-          className={inputClass}
+          todayKey={today}
+          onChange={setDueDate}
+          placeholder="Add due date"
+          clear={{ label: "Remove due date", onClear: () => setDueDate("") }}
+          tall
         />
         {task && (
           <select value={goal} onChange={(event) => setGoal(event.target.value)} aria-label="Goal" className={inputClass}>

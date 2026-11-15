@@ -1,4 +1,6 @@
 # Spec 11: Tasks under goals
+> 15 Nov 2026: the goals column (and its phone sheet) was replaced by the Goals page, `/goals` (spec 39).
+
 Between build steps 2 and 3 of the plan, after spec 10. Plan: `docs/ontology.md` (tasks added 12 Nov 2026). Branch: `11-tasks`.
 
 ## Why

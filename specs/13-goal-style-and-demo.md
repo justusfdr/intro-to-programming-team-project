@@ -1,4 +1,6 @@
 # Spec 13: Goal colours and icons, the demo week and the welcome
+> 15 Nov 2026: the goals column (and its phone sheet) was replaced by the Goals page, `/goals` (spec 39).
+
 **This branch (`prototype-style`) is a variant for the team to compare with `main`.** It turns the app, step by step, into a copy of our first prototype's screens, with only the changes the owner decided. This is step 2. Plan: `docs/ontology.md` (R35, R36, `load_demo`, `remove_demo`, `start_fresh`, A18 to A20, added on this branch 12 Nov 2026). Migration: `supabase/migrations/20261120000000_goal_style_and_demo.sql` (additive: `main` runs against the same database).
 
 ## Why

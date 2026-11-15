@@ -1,4 +1,4 @@
-// The shell (spec 12), copied from the prototype: the sidebar with Calendar, Coach (spec 19), Focus, Analytics, then
+// The shell (spec 12), copied from the prototype: the sidebar with Calendar, Goals (spec 39), Coach (spec 19), Focus, Analytics, then
 // Settings and the account row at the bottom; on phones the floating tab bar with the same pages and
 // Settings, each with its name for screen readers and the current page marked.
 import { renderToStaticMarkup } from "react-dom/server";
@@ -19,12 +19,12 @@ const render = (current: string) => renderToStaticMarkup(<AppShell current={curr
 
 describe("app shell", () => {
   // Rewritten for spec 25: "Goals" is second in the list (it moved here from the calendar's toolbar).
+  // Rewritten for spec 39: "Goals" is a link to its own page, like the others (before, it went to the calendar).
   it("lists Calendar, Goals, Coach, Focus and Analytics in the main navigation, then Settings and Sign out at the bottom", () => {
     const html = render("/");
     const nav = html.slice(html.indexOf('aria-label="Main navigation"'), html.indexOf("</nav>"));
     expect([...nav.matchAll(/<\/svg>([A-Za-z ]+)<\/a>/g)].map((m) => m[1])).toEqual(["Calendar", "Goals", "Coach", "Focus", "Analytics"]);
-    // Outside the calendar page "Goals" goes to the calendar.
-    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/", "/coach", "/focus", "/analytics"]);
+    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/goals", "/coach", "/focus", "/analytics"]);
     expect(html.indexOf('href="/settings"')).toBeGreaterThan(html.indexOf("</nav>"));
     expect(html.indexOf("Sign out")).toBeGreaterThan(html.indexOf('href="/settings"'));
   });
@@ -38,10 +38,13 @@ describe("app shell", () => {
     expect(html).toMatch(/<a[^>]*href="\/coach"[^>]*>.*Coach<\/a>/s);
   });
 
-  it("has a tab bar for phones with Calendar, Coach, Focus, Analytics and Settings, each named", () => {
+  // Spec 39 added Goals, second as in the sidebar.
+  it("has a tab bar for phones with Calendar, Goals, Coach, Focus, Analytics and Settings, each named", () => {
     const html = render("/focus");
     const bar = html.slice(html.indexOf('aria-label="Tab bar"'));
-    for (const name of ["Calendar", "Coach", "Focus", "Analytics", "Settings"]) expect(bar).toContain(`aria-label="${name}"`);
+    for (const name of ["Calendar", "Goals", "Coach", "Focus", "Analytics", "Settings"]) expect(bar).toContain(`aria-label="${name}"`);
+    expect(bar.indexOf('aria-label="Goals"')).toBeGreaterThan(bar.indexOf('aria-label="Calendar"'));
+    expect(bar.indexOf('aria-label="Goals"')).toBeLessThan(bar.indexOf('aria-label="Coach"'));
     expect(bar).toMatch(/href="\/focus" aria-label="Focus" aria-current="page"/);
   });
 
@@ -51,6 +54,10 @@ describe("app shell", () => {
 
   it("marks Coach as the current page on the coach page", () => {
     expect(render("/coach")).toMatch(/href="\/coach" aria-current="page"/);
+  });
+
+  it("marks Goals as the current page on the Goals page, in the sidebar and in the tab bar (spec 39)", () => {
+    expect(render("/goals").match(/href="\/goals"[^>]*aria-current="page"/g)).toHaveLength(2);
   });
 
   it("has no controls for features that do not exist yet (search, quick capture)", () => {

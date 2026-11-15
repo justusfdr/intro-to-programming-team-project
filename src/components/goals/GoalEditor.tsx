@@ -1,8 +1,8 @@
 "use client";
 
 // The goal editor, laid out like the prototype's goal dialog: name, why it matters, colour dots and
-// icon grid (R35); then what our goals have and the prototype's did not: deadline, the weekly rules
-// (R7) and auto-block. A native <dialog> like the event editor: focus stays inside, Escape closes it,
+// icon grid (R35); then what our goals have and the prototype's did not: deadline (the event editor's
+// date field with its small month calendar, spec 39), the weekly rules (R7) and auto-block. A native <dialog> like the event editor: focus stays inside, Escape closes it,
 // focus returns afterwards.
 // It creates a goal (create_goal) or edits one (edit_goal). In edit mode a rule that already exists
 // is removed at once (remove_rule), and the goal can be deleted after a confirmation (delete_goal).
@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
+import { DateField } from "@/components/calendar/fields";
 import { Button } from "@/components/ui/Button";
 import { Plus, Trash2, X } from "lucide-react";
 import { GOAL_ICONS } from "./GoalTile";
@@ -102,6 +103,8 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
   // A goal without a saved colour shows (and saves) the colour it has now.
   const [color, setColor] = useState<GoalColorName>(goal ? goal.look.color : state.mode === "create" ? state.color : "rose");
   const [icon, setIcon] = useState<GoalIconName>(goal ? goal.look.icon : DEFAULT_GOAL_ICON);
+  // The deadline as "YYYY-MM-DD" (empty until one is chosen); sent with the form by the date field.
+  const [deadline, setDeadline] = useState(goal?.deadline ?? "");
   const [result, setResult] = useState<PostResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -268,7 +271,17 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
           <label htmlFor="goal-deadline" className={labelClass}>
             Deadline
           </label>
-          <input id="goal-deadline" name="deadline" type="date" defaultValue={goal?.deadline ?? ""} min={minDeadline} className={inputClass} />
+          <DateField
+            id="goal-deadline"
+            name="deadline"
+            label="Deadline"
+            value={deadline}
+            min={minDeadline}
+            todayKey={state.today}
+            onChange={setDeadline}
+            placeholder="Choose a deadline"
+            tall
+          />
         </div>
 
         <fieldset className="flex flex-col gap-2">

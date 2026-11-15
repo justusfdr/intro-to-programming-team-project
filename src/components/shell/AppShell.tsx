@@ -8,12 +8,10 @@ import { Sidebar } from "./Sidebar";
 
 // The frame of every signed-in page, copied from the prototype's shell: the sidebar on wider screens
 // (mark and name, navigation, Pricing and Settings at the bottom, then the account row) and the floating tab bar
-// on phones. Navigation shows only what exists; the Goals page takes its place between Calendar and
-// Focus in a later step. The coach (the AI chat, spec 19) is a page of its own, second in the list.
-// Search and quick capture come with their features. Side panels go in as in the prototype: the goals
-// panel to the left of the page (`panelsLeft`), others to the right (`panelsRight`); each collapses on its own.
-// The sidebar itself folds to a strip of icons (./Sidebar.tsx, spec 25). "?" opens the list of keyboard
-// shortcuts on every signed-in page (./ShortcutHelp.tsx, spec 26).
+// on phones. Navigation shows only what exists: Calendar, Goals (a page of its own since spec 39; before,
+// a column beside the calendar), Coach (spec 19), Focus, Analytics. Search and quick capture come with
+// their features. The sidebar itself folds to a strip of icons (./Sidebar.tsx, spec 25). "?" opens the
+// list of keyboard shortcuts on every signed-in page (./ShortcutHelp.tsx, spec 26).
 
 type Props = {
   /** The address of the current page, to mark it in the navigation. */
@@ -21,19 +19,18 @@ type Props = {
   children: ReactNode;
   /** How times and dates are shown (the user's settings). */
   display?: Display;
-  /** Side panels between the sidebar and the page (the goals panel). */
-  panelsLeft?: ReactNode;
-  /** Side panels to the right of the page. */
-  panelsRight?: ReactNode;
 };
 
-/** Phones: the floating round tab bar at the bottom, one icon per page. */
+/**
+ * Phones: the floating round tab bar at the bottom, one icon per page. Seven icons of 44 px with 2 px
+ * between them make a bar of 334 px, which fits a 375 px phone with 16 px on each side.
+ */
 function TabBar({ current }: { current: string }) {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex items-end justify-center gap-3 px-4 pb-[max(16px,env(safe-area-inset-bottom))] md:hidden">
       <nav
         aria-label="Tab bar"
-        className="pointer-events-auto flex h-14 items-center gap-1 rounded-full border border-line-subtle bg-surface/90 px-2 shadow-float backdrop-blur-xl"
+        className="pointer-events-auto flex h-14 items-center gap-0.5 rounded-full border border-line-subtle bg-surface/90 px-1.5 shadow-float backdrop-blur-xl"
       >
         {[...NAV, PRICING, SETTINGS].map(({ href, label, icon: Icon }) => {
           const on = current === href;
@@ -56,15 +53,13 @@ function TabBar({ current }: { current: string }) {
   );
 }
 
-export function AppShell({ current, children, display = DEFAULT_DISPLAY, panelsLeft, panelsRight }: Props) {
+export function AppShell({ current, children, display = DEFAULT_DISPLAY }: Props) {
   return (
     <DisplayProvider value={display}>
       <div className="flex min-h-dvh">
         <Sidebar current={current} />
         <div className="flex min-h-0 min-w-0 flex-1 pb-28 md:pb-0">
-          {panelsLeft}
           <main className="min-w-0 flex-1">{children}</main>
-          {panelsRight}
         </div>
         <TabBar current={current} />
         <ShortcutHelp />

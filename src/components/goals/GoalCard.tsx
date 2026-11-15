@@ -1,4 +1,4 @@
-// One goal in the goals column (R9), as an open section without a card border: a chevron that
+// One goal on the Goals page (R9; spec 39, before in the goals column): a chevron that
 // collapses it, the goal's tile and title, a thin bar for how far this week's rules
 // are, one row per rule ("This week: 1 of 2 done"), the strip of weeks, and a caption with the
 // countdown and "Auto-block on".
