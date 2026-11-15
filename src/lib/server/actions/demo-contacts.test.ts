@@ -22,7 +22,6 @@ import { answerInvitation, removeContact, withdrawInvitation } from "./contacts"
 import { setDemoContacts } from "./demo-contacts";
 import { deliverProfilePhoto } from "./deliver-photo";
 import { inviteContact } from "./invite-contact";
-import { addListMember, createList, removeListMember } from "./lists";
 import { removeDemo } from "./remove-demo";
 import { sendMessage } from "./send-message";
 import { setShare, sharedCalendar, sharedFocus } from "./shares";
@@ -238,18 +237,15 @@ describe("the read actions for the three demo ids", () => {
 });
 
 describe("every other route that takes a contact or user id refuses the demo ids with its normal answer (R1)", () => {
-  it("setting a share, removing a contact, answering and withdrawing an invitation, list membership, inviting", async () => {
+  it("setting a share, removing a contact, answering and withdrawing an invitation, inviting", async () => {
     await app.signedInAs("ben@example.com");
     await switchDemo(true);
-    const list = (await read(await createList(postJson("/api/lists", { title: "Flat shopping" }), app.deps))).body.id as string;
     const before = await app.snapshot();
     for (const id of DEMO_IDS) {
       expect(await read(await setShare(postJson(`/api/contacts/${id}/share`, { calendar: "details", focus: true }), app.deps, id))).toEqual(NOT_FOUND);
       expect(await read(await removeContact(postJson(`/api/contacts/${id}/remove`, {}), app.deps, id))).toEqual(NOT_FOUND);
       expect(await read(await answerInvitation(postJson(`/api/contacts/invitations/${id}/answer`, { accept: true }), app.deps, id))).toEqual(NOT_FOUND);
       expect(await read(await withdrawInvitation(postJson(`/api/contacts/invitations/${id}/withdraw`, {}), app.deps, id))).toEqual(NOT_FOUND);
-      expect(await read(await addListMember(postJson(`/api/lists/${list}/members/add`, { contactId: id }), app.deps, list))).toEqual(NOT_FOUND);
-      expect(await read(await removeListMember(postJson(`/api/lists/${list}/members/remove`, { userId: id }), app.deps, list))).toEqual(NOT_FOUND);
     }
     // Inviting takes an address, and a demo id is none.
     expect(await read(await inviteContact(postJson("/api/contacts/invite", { email: "demo-lea" }, { "x-forwarded-for": "10.9.9.9" }), app.deps))).toEqual({

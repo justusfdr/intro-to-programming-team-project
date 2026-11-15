@@ -4,7 +4,7 @@
 // test/db/sharing-hardening-schema.test.ts.
 import { describe, expect, it } from "vitest";
 import { TEXT_EXAMPLES } from "@test/support/text-examples";
-import { cleanEntryTitle, cleanListTitle } from "@/lib/lists/text";
+import { cleanShownText } from "@/lib/text/shown-text";
 import { cleanDisplayName } from "./display-name";
 
 describe("cleanDisplayName with the shared examples", () => {
@@ -15,11 +15,13 @@ describe("cleanDisplayName with the shared examples", () => {
   }
 });
 
-describe("cleanListTitle and cleanEntryTitle with the shared examples", () => {
+// Rewritten for spec 34: the list and entry titles are gone; the same rule (cleanShownText) now guards
+// the bio only, so it runs with the two maximums the titles had (60 and 200).
+describe("cleanShownText with the shared examples", () => {
   for (const example of TEXT_EXAMPLES) {
     it(`${example.title ? "accepts" : "refuses"} ${example.what}`, () => {
-      expect(cleanListTitle(example.text)).toBe(example.title ? example.text : null);
-      expect(cleanEntryTitle(example.text)).toBe(example.title ? example.text : null);
+      expect(cleanShownText(example.text, 60)).toBe(example.title ? example.text : null);
+      expect(cleanShownText(example.text, 200)).toBe(example.title ? example.text : null);
     });
   }
 });

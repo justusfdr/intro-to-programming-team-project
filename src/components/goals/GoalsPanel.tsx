@@ -5,11 +5,10 @@
 // tasks without a goal.
 // Wide screens: a column beside the calendar that collapses (toolbar button "Goals").
 // Smaller screens: the same content as a sheet from the bottom, opened by the same button.
-import Link from "next/link";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { usePanels } from "@/components/shell/PanelState";
 import { Button } from "@/components/ui/Button";
-import { ChevronRight, ListChecks, Plus, Target, X } from "lucide-react";
+import { ChevronRight, Plus, Target, X } from "lucide-react";
 import { COLLAPSED_KEY, readCollapsed, toggleCollapsed } from "@/lib/goals/collapsed";
 import { nextGoalColor } from "@/lib/goals/style";
 import type { GoalView } from "@/lib/goals/types";
@@ -100,14 +99,6 @@ function PanelContent({ titleId, goals, tasks, today, collapsed, onToggle, onNew
           collapsed={collapsed.includes(INBOX_KEY)}
           onToggle={() => onToggle(INBOX_KEY)}
         />
-        {/* Shared lists (spec 30) are a page of their own; this is the way there on phones, where the tab bar has no room. */}
-        <Link
-          href="/lists"
-          className="-mx-1 flex h-8 items-center gap-2.5 rounded-md px-1 text-[14px] text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
-        >
-          <ListChecks className="size-4" />
-          Shared lists
-        </Link>
       </div>
     </div>
   );

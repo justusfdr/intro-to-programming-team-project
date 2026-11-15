@@ -16,7 +16,6 @@ import type { ChatPageData } from "@/lib/chat/types";
 import { lookOf } from "@/lib/goals/style";
 import type { BlockerData } from "@/lib/blocker/types";
 import type { OwnProfile, PeopleData, PersonFacts, ProfileCardData } from "@/lib/profiles/types";
-import type { ListPageData, ListSummary } from "@/lib/lists/types";
 import type { WeekData } from "@/lib/events/types";
 import type { View } from "@/lib/events/views";
 import type { FocusData } from "@/lib/focus/types";
@@ -44,7 +43,6 @@ import { NOTHING_SHARED, type ContactShares, type PersonRelation, type ShareSett
 import type { Query } from "@/lib/server/db";
 import { demoContacts, demoPerson, demoProfileCard, demoSharingPeople, isDemoId, type DemoContact, type DemoProfileCard } from "@/lib/demo/people";
 import { readDemoContactsOn } from "@/lib/server/demo/people";
-import { readListDetail, readListSummaries, readShareContacts } from "@/lib/server/lists/read";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readSettingsPage } from "@/lib/server/settings-page";
 import { readTasks } from "@/lib/server/tasks/rows";
@@ -392,36 +390,6 @@ export async function loadPersonProfile(deps: PageDeps, userId: string, personId
       me: { name: people.me.name, photoUrl: people.me.photoUrl },
       now: now.toISOString(),
     };
-  });
-}
-
-export type ListsPageData = { display: Display; lists: ListSummary[] };
-
-/** The lists overview (spec 30): the user's own lists and those shared with them. Reads only, one transaction. */
-export async function loadListsPage(deps: Pick<Deps, "withUser">, userId: string): Promise<ListsPageData> {
-  return deps.withUser(userId, async (query) => {
-    const [settings, lists] = await Promise.all([readSettings(query), readListSummaries(query, userId)]);
-    return { display: displayOf(settings), lists };
-  });
-}
-
-export type ListPageLoad = { display: Display; page: ListPageData };
-
-const LIST_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * One list (spec 30) with its people and entries, and for its owner their contacts (the "Share" panel).
- * Null for a list the user may not use, a missing one and a malformed id alike (R55). One transaction.
- */
-export async function loadListPage(deps: Pick<Deps, "withUser">, userId: string, listId: string): Promise<ListPageLoad | null> {
-  if (!LIST_ID.test(listId)) return null;
-  return deps.withUser(userId, async (query) => {
-    // Reads without parameters first (one round), the list's reads (with a parameter) after them.
-    const settingsRead = readSettings(query);
-    const contactsRead = readShareContacts(query);
-    const [settings, contacts, list] = await Promise.all([settingsRead, contactsRead, readListDetail(query, userId, listId)]);
-    if (!list) return null;
-    return { display: displayOf(settings), page: { list, contacts: list.isOwner ? contacts : [] } };
   });
 }
 

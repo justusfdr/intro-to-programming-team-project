@@ -20,16 +20,17 @@ const render = (current: string) => renderToStaticMarkup(<AppShell current={curr
 describe("app shell", () => {
   // Rewritten for spec 25: "Goals" is second in the list (it moved here from the calendar's toolbar).
   // Rewritten for spec 28: "People" (contacts and invitations) is last in the list.
-  // Rewritten for spec 30: "Lists" (shared to-do lists) follows "Goals".
+  // Rewritten for spec 30: "Lists" (shared to-do lists) follows "Goals". Rewritten for spec 34: the lists
+  // are withdrawn, so the item is gone again.
   // Rewritten for spec 31: the bottom is Pricing, Settings, then the user's own row to /profile; "Sign
   // out" moved to the profile page.
-  it("lists Calendar, Goals, Lists, Coach, Focus, Analytics and People in the main navigation, then Pricing, Settings and the user's own row", () => {
+  it("lists Calendar, Goals, Coach, Focus, Analytics and People in the main navigation, then Pricing, Settings and the user's own row", () => {
     const html = render("/");
     const nav = html.slice(html.indexOf('aria-label="Main navigation"'), html.indexOf("</nav>"));
-    expect([...nav.matchAll(/<\/svg>([A-Za-z ]+)<\/a>/g)].map((m) => m[1])).toEqual(["Calendar", "Goals", "Lists", "Coach", "Focus", "Analytics", "People"]);
+    expect([...nav.matchAll(/<\/svg>([A-Za-z ]+)<\/a>/g)].map((m) => m[1])).toEqual(["Calendar", "Goals", "Coach", "Focus", "Analytics", "People"]);
     // Outside the calendar page "Goals" goes to the calendar.
-    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/", "/lists", "/coach", "/focus", "/analytics", "/people"]);
-    expect(render("/lists")).toMatch(/href="\/lists" aria-current="page"/);
+    expect([...nav.matchAll(/href="([^"]+)"/g)].map((m) => m[1])).toEqual(["/", "/", "/coach", "/focus", "/analytics", "/people"]);
+    expect(html).not.toContain('href="/lists"');
     expect(html.indexOf('href="/pricing"')).toBeGreaterThan(html.indexOf("</nav>"));
     expect(html.indexOf('href="/settings"')).toBeGreaterThan(html.indexOf('href="/pricing"'));
     expect(html.indexOf('href="/profile"')).toBeGreaterThan(html.indexOf('href="/settings"'));

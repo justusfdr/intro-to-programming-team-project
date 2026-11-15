@@ -1,16 +1,13 @@
 // Tests for the server side of the security review of sharing (specs 28 and 30): the photo is never
-// kept in the browser without asking again (fix 5), the two new refusals of adding a list member reach
-// the owner with their message (fix 7), and a display name needs a letter or digit and no invisible
-// characters (fix 3). Accepted and rejected case each; a refusal changes nothing (R1).
+// kept in the browser without asking again (fix 5), and a display name needs a letter or digit and no
+// invisible characters (fix 3). Accepted and rejected case each; a refusal changes nothing (R1).
+// The tests of fix 7 (adding a list member) went with the shared lists in spec 34.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
-import { ActionError } from "@/lib/server/errors";
-import { listRefusalOf } from "@/lib/server/lists/refusals";
 import { readPeople } from "@/lib/server/profiles/cards";
 import { answerInvitation } from "./contacts";
 import { deliverProfilePhoto } from "./deliver-photo";
 import { inviteContact } from "./invite-contact";
-import { addListMember, createList, leaveList } from "./lists";
 import { uploadProfilePhoto } from "./profile-photo";
 import { setDisplayName } from "./set-display-name";
 
@@ -104,40 +101,6 @@ describe("GET /api/profiles/[id]/photo: no copy kept without asking (fix 5)", ()
     const removed = await deliverProfilePhoto(app.deps, alice, etag);
     expect(removed.status).toBe(404);
     expect(await removed.text()).toBe("Not found");
-  });
-});
-
-describe("add_list_member: someone who left, someone in too many lists (fix 7)", () => {
-  it("the owner gets 'This person left the list' and nothing changes; another list works", async () => {
-    const { contactId } = await contacts();
-    const flat = (await read(await createList(postJson("/api/lists", { title: "Flat shopping" }), app.deps))).body.id as string;
-    expect((await addListMember(postJson(`/api/lists/${flat}/members/add`, { contactId }), app.deps, flat)).status).toBe(200);
-    await app.signedInAs("bob@example.com");
-    expect((await leaveList(postJson(`/api/lists/${flat}/leave`, {}), app.deps, flat)).status).toBe(200);
-
-    await app.signedInAs("alice@example.com");
-    const before = await app.snapshot();
-    expect(await read(await addListMember(postJson(`/api/lists/${flat}/members/add`, { contactId }), app.deps, flat))).toEqual({
-      status: 409,
-      body: { error: "member_left", message: "This person left the list" },
-    });
-    expect(await app.snapshot()).toEqual(before);
-
-    const trip = (await read(await createList(postJson("/api/lists", { title: "Trip" }), app.deps))).body.id as string;
-    expect((await addListMember(postJson(`/api/lists/${trip}/members/add`, { contactId }), app.deps, trip)).status).toBe(200);
-  });
-
-  it("maps the database's 'This person cannot join more lists' to a 409 with that message", () => {
-    let thrown: unknown;
-    try {
-      listRefusalOf(new Error("This person cannot join more lists"));
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown).toBeInstanceOf(ActionError);
-    expect(thrown).toMatchObject({ status: 409, code: "member_lists_full", message: "This person cannot join more lists" });
-    // Anything else is passed on unchanged.
-    expect(() => listRefusalOf(new Error("something else"))).toThrow("something else");
   });
 });
 

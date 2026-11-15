@@ -1,7 +1,7 @@
 // The fields of the profile page (spec 31): display name, bio and LinkedIn link, checked the same way in
 // the browser (the form) and on the server (the action). The database checks each again
 // (app.set_profile).
-import { cleanShownText } from "@/lib/lists/text";
+import { cleanShownText } from "@/lib/text/shown-text";
 import { MESSAGES } from "@/lib/messages";
 import { cleanDisplayName } from "./display-name";
 import { cleanLinkedIn } from "./linkedin";
@@ -10,7 +10,7 @@ export const MAX_BIO = 160;
 
 /**
  * A bio as it is saved: null for empty input; otherwise 1 to 160 characters after trimming, on one line,
- * under the rule of list titles (no control characters, so no line breaks; no invisible characters; at
+ * under the rule of shown text (no control characters, so no line breaks; no invisible characters; at
  * most two combining marks in a row; emoji are fine). "refused" when it breaks the rule.
  */
 export function cleanBio(raw: string): string | null | "refused" {

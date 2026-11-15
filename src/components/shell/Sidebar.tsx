@@ -12,7 +12,7 @@ import { keepFocusAfterCollapse } from "./collapse-focus";
 import { Logo, LogoMark } from "./Logo";
 import { getJson } from "@/lib/client/post-json";
 import type { SidebarMe } from "@/lib/profiles/types";
-import { LISTS, NAV, PEOPLE, PRICING, SETTINGS, type NavItem } from "./nav";
+import { NAV, PEOPLE, PRICING, SETTINGS, type NavItem } from "./nav";
 import { openAllPanels, usePanels, usePanelsAvailable } from "./PanelState";
 
 export const SIDEBAR_KEY = "lockedin:sidebar-folded:v1";
@@ -261,12 +261,7 @@ export function Sidebar({ current, invitations, me }: { current: string; invitat
           {NAV.map((item, i) => (
             <Fragment key={item.href}>
               <SidebarLink item={item} on={current === item.href} wide={wide} />
-              {i === 0 && (
-                <>
-                  <GoalsItem wide={wide} />
-                  <SidebarLink item={LISTS} on={current === LISTS.href} wide={wide} />
-                </>
-              )}
+              {i === 0 && <GoalsItem wide={wide} />}
             </Fragment>
           ))}
           <PeopleLink on={current === PEOPLE.href} wide={wide} invitations={invitations} />
