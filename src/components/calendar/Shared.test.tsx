@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { SharedBlock } from "@/lib/shares/place";
 import type { SharingPerson } from "@/lib/shares/types";
-import { SharedBlockView, SharedPeopleButton } from "./Shared";
+import { SharedBlockView, SharedEventBody, SharedPeopleButton } from "./Shared";
 
 const ANA: SharingPerson = { userId: "a", name: "Ana Lopes", photoUrl: null, calendar: "busy", focus: false };
 const RANGE = { startMin: 7 * 60, endMin: 21 * 60 };
@@ -100,5 +100,30 @@ describe("in the time grid", () => {
     // The viewer's own block: still a draggable button, now on the left 62% of the column.
     expect(html).toMatch(/data-event-id="e1"[^>]*style="[^"]*width:calc\(62% - 4px\)/);
     expect(html).toContain("cursor-grab");
+  });
+});
+
+describe("the small card of a shared event (spec 38)", () => {
+  it("title, the date-and-time line, the place as text only, whose calendar; no Edit, no map, no link", () => {
+    const html = renderToStaticMarkup(
+      <SharedEventBody
+        shared={{
+          person: { ...ANA, calendar: "details" },
+          title: "Dentist",
+          location: "https://meet.example.com/abc",
+          when: "Tuesday, November 17, 9 – 11am",
+          time: { allDay: false, startLocal: "2026-11-17T09:00", endLocal: "2026-11-17T11:00" },
+        }}
+      />,
+    );
+    const at = (text: string) => html.indexOf(text);
+    expect(at("Dentist")).toBeGreaterThan(-1);
+    expect(at("Tue, Nov 17 · 9am to 11am")).toBeGreaterThan(at("Dentist"));
+    expect(html).toContain(">https://meet.example.com/abc</p>");
+    expect(html).not.toContain('href="https://meet.example.com');
+    expect(html).toContain('href="/people/a"');
+    expect(html).toContain("calendar. Read only.");
+    expect(html).not.toContain("<iframe");
+    expect(html).not.toContain(">Edit<");
   });
 });

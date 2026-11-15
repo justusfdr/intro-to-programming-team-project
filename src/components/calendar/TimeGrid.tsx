@@ -44,11 +44,7 @@ import { guestCountText } from "@/lib/events/guests";
 import { travelBlock, type TravelBlock } from "@/lib/travel/blocks";
 import type { TravelAnswer } from "@/lib/travel/types";
 import { splitBeside, type SharedAllDayItem, type SharedBlock } from "@/lib/shares/place";
-import { clickIntent, type ClickIntent } from "@/lib/events/preview";
 import { anchorOf, pointAnchor, type Anchor } from "./FloatingPanel";
-
-/** What a click on an event asks for (spec 35). */
-export type OpenIntent = Exclude<ClickIntent, "ignore">;
 import { SharedAllDayChip, SharedBlockView, type OpenShared } from "./Shared";
 import { AvatarStack, InviteesHoverCard } from "./Invites";
 import { inviteesSummary, type InvitePerson } from "@/lib/invites/types";
@@ -69,16 +65,7 @@ type Props = {
   dayHref?: (date: string) => string;
   /** Events whose save is still running: they cannot be dragged until it is done. */
   pending?: ReadonlySet<string>;
-  /**
-   * Spec 35: a click on an event. `intent` says what the click means (lib/events/preview.ts): a single
-   * click or a keyboard click "preview", the second click of a double-click "editor".
-   */
-  onOpenEvent: (event: CalendarEvent, anchor: Anchor, intent: OpenIntent) => void;
-  /**
-   * Spec 35: with the preview panel beside it, each day column keeps at least this width (px) and the
-   * grid scrolls sideways inside itself instead of squeezing the days.
-   */
-  minColumnPx?: number;
+  onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
   /** A click or a drag on empty space: the new event's day and minutes, and where the pointer was. */
   onCreate?: (date: string, span: Span, anchor: Anchor) => void;
   /** Spec 33: only shared blocks, nothing can be created, dragged or edited; every day is shown. */
@@ -375,12 +362,7 @@ function allDayLabel(event: AllDayEvent): string {
 const allDayClass =
   "block w-full truncate rounded-md border border-line bg-raised px-1.5 py-0.5 text-left text-[11px] font-medium leading-[15px] text-ink hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40";
 
-type AllDayRowProps = { days: WeekDay[]; selectedDay: string; onOpenEvent: (event: CalendarEvent, anchor: Anchor, intent: OpenIntent) => void };
-
-/** The intent of a click on a button that is never dragged (all-day bars, early strips, month items). */
-export function intentOfClick(detail: number): OpenIntent {
-  return clickIntent(detail, false) === "editor" ? "editor" : "preview";
-}
+type AllDayRowProps = { days: WeekDay[]; selectedDay: string; onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void };
 
 /**
  * All-day events (R29) in a row above the hours: on wider screens one bar per event across its days
@@ -401,7 +383,7 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
       <ul className="flex min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:hidden">
         {chosen.map((event) => (
           <li key={event.id}>
-            <button type="button" aria-label={allDayLabel(event)} onClick={(e) => onOpenEvent(event, anchorOf(e.currentTarget), intentOfClick(e.detail))} className={allDayClass}>
+            <button type="button" aria-label={allDayLabel(event)} onClick={(e) => onOpenEvent(event, anchorOf(e.currentTarget))} className={allDayClass}>
               <span className="flex items-center gap-1">
                 <span className="min-w-0 truncate">{event.title}</span>
                 <OutlookMark event={event} />
@@ -421,7 +403,7 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
           const last = event.lastDay > days[end].date ? end : columnOf(event.lastDay);
           return (
             <li key={event.id} style={{ gridColumn: `${first + 1} / ${last + 2}` }} className="min-w-0 px-0.5">
-              <button type="button" aria-label={allDayLabel(event)} onClick={(e) => onOpenEvent(event, anchorOf(e.currentTarget), intentOfClick(e.detail))} className={allDayClass}>
+              <button type="button" aria-label={allDayLabel(event)} onClick={(e) => onOpenEvent(event, anchorOf(e.currentTarget))} className={allDayClass}>
                 <span className="flex items-center gap-1">
                   <span className="min-w-0 truncate">{event.firstDay < days[0].date ? `… ${event.title}` : event.title}</span>
                   <OutlookMark event={event} />
@@ -491,7 +473,6 @@ export function TimeGrid({
   timeZone = "UTC",
   onOpenShared,
   readOnly = false,
-  minColumnPx,
   invitees,
 }: Props) {
   const { timeFormat } = useDisplay();
@@ -620,12 +601,13 @@ export function TimeGrid({
   };
 
   // A click on a block (also a touch tap). A finished drag swallows its click; keyboard clicks
-  // (detail 0) are never swallowed. Spec 35: one click previews, the second of a double-click edits.
+  // (detail 0) are never swallowed.
   const openBlock = (event: CalendarEvent, detail: number, anchor: Anchor) => {
-    const intent = clickIntent(detail, suppressClickRef.current);
-    suppressClickRef.current = false;
-    if (intent === "ignore") return;
-    onOpenEvent(event, anchor, intent);
+    if (suppressClickRef.current && detail !== 0) {
+      suppressClickRef.current = false;
+      return;
+    }
+    onOpenEvent(event, anchor);
   };
 
   return (
@@ -633,15 +615,13 @@ export function TimeGrid({
       <div
         ref={scrollRef}
         data-grid-scroll
-        className={`scroll-thin relative min-h-0 flex-1 overflow-y-auto ${minColumnPx ? "overflow-x-auto" : ""}`}
+        className="scroll-thin relative min-h-0 flex-1 overflow-y-auto"
         // Runs before the block and column handlers: every new gesture starts with clean click flags.
         onPointerDownCapture={() => {
           suppressClickRef.current = false;
           dismissClickRef.current = false;
         }}
       >
-        {/* Spec 35: beside the preview panel the days keep a usable width; the grid then scrolls sideways. */}
-        <div style={minColumnPx ? { minWidth: 52 + days.length * minColumnPx } : undefined}>
         {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip). */}
         {readOnly && (
           <div className="sticky top-0 z-20 flex border-b border-line-subtle bg-surface">
@@ -704,7 +684,7 @@ export function TimeGrid({
                     key={block.event.id}
                     type="button"
                     tabIndex={-1}
-                    onClick={(e) => onOpenEvent(block.event, anchorOf(e.currentTarget), intentOfClick(e.detail))}
+                    onClick={(e) => onOpenEvent(block.event, anchorOf(e.currentTarget))}
                     className="line-clamp-2 rounded-md border border-dashed border-ink-3 bg-raised px-1.5 py-0.5 text-left text-[10px] leading-[13px] text-ink-2"
                   >
                     {`${block.event.title}, until ${fmtTime(block.event.endTime, timeFormat)}`}
@@ -838,7 +818,6 @@ export function TimeGrid({
               </section>
             );
           })}
-        </div>
         </div>
       </div>
     </div>

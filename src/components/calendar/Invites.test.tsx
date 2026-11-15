@@ -1,7 +1,7 @@
 // The markup of event invitations (spec 36, R59 to R64), as the browser first receives it: the marks with
 // their names in words, the owner's block with its avatar stack and its name listing the answers, the
 // invited person's read-only block in each look (pending dashed, maybe lighter with "Maybe", accepted
-// solid), the preview with "Invited by" and the three answers, the toolbar's button, and the editor's
+// solid), the small card with "Invited by" and the three answers (spec 38), the toolbar's button, and the editor's
 // "People in LockedIn" section above "Guests by e-mail (Outlook)", disabled with a reason where R59 says so.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -9,7 +9,7 @@ import type { WeekEvent } from "@/lib/events/types";
 import type { InviteContact, InvitedEvent, InvitePerson } from "@/lib/invites/types";
 import type { SharedBlock } from "@/lib/shares/place";
 import { EditEventCard } from "./EventEditor";
-import { AnswerButtons, AnswerMark, InvitationsButton, InvitedPreviewBody, InviteesList } from "./Invites";
+import { AnswerButtons, AnswerMark, InvitationsButton, InvitedEventBody, InviteesList } from "./Invites";
 import { SharedBlockView } from "./Shared";
 import { TimeGrid } from "./TimeGrid";
 
@@ -141,10 +141,10 @@ const INVITED: InvitedEvent = {
   endAt: "2026-11-20T12:00:00.000Z",
 };
 
-describe("the preview of an invited event and the invitations button", () => {
+describe("the card of an invited event and the invitations button", () => {
   it("title, time, 'Invited by', the answers and the place as text; no Edit, no map", () => {
     const html = renderToStaticMarkup(
-      <InvitedPreviewBody event={INVITED} answer="accepted" busy={false} note="You accepted." timeZone="Europe/Lisbon" headingId="h" onAnswer={noop} />,
+      <InvitedEventBody event={INVITED} answer="accepted" busy={false} note="You accepted." timeZone="Europe/Lisbon" onAnswer={noop} />,
     );
     const at = (text: string) => html.indexOf(text);
     expect(at("Group project meeting")).toBeGreaterThan(-1);

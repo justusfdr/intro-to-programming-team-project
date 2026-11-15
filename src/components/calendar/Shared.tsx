@@ -18,7 +18,7 @@ import { answerWords, inviteLook } from "@/lib/invites/types";
 import { MAX_SHOWN_CALENDARS, levelText, type SharingPerson } from "@/lib/shares/types";
 import { fmtDateLong, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { localDateTimeOf } from "@/lib/time/zoned";
-import type { WhenInput } from "@/lib/events/preview";
+import { placeOf, whenSentence, type WhenInput } from "@/lib/events/preview";
 import { anchorOf, FloatingPanel, type Anchor } from "./FloatingPanel";
 
 /** The muted, striped look of everything that is someone else's. */
@@ -34,7 +34,7 @@ export type OpenShared = {
   location: string | null;
   /** "Monday, November 16, 9 – 11am" or "Monday, November 16 to Wednesday, November 18 (all day)". */
   when: string;
-  /** Spec 35: the same time as data, for the event preview's line in the user's format (local to the viewer). */
+  /** The same time as data, for the card's short line in the user's format (local to the viewer). */
   time?: WhenInput;
   /** Spec 36: an event the viewer is invited to (the person is who invited them). */
   invite?: InviteMark;
@@ -56,7 +56,7 @@ function inviteLabel(title: string, when: string, person: SharingPerson, invite:
   return `${title}, ${when}, invited by ${person.name}, your answer: ${answerWords(invite.answer)}`;
 }
 
-/** A shared timed event's start and end on the viewer's clock, for the event preview (spec 35). */
+/** A shared timed event's start and end on the viewer's clock, for the card's line. */
 export function sharedTime(startAt: string, endAt: string, timeZone: string): WhenInput {
   return { allDay: false, startLocal: localDateTimeOf(new Date(startAt), timeZone), endLocal: localDateTimeOf(new Date(endAt), timeZone) };
 }
@@ -356,22 +356,34 @@ export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onO
   );
 }
 
-/** The read-only card of a shared "details" event: title, time, place, whose calendar. */
+/**
+ * The read-only card of a shared "details" event at its block: title, time, place as text (never a link
+ * or a map), whose calendar. Escape and a click outside close it; the focus goes back to the block.
+ */
 export function SharedEventCard({ shared, anchor, onClose }: { shared: OpenShared; anchor: Anchor; onClose: () => void }) {
   return (
     <FloatingPanel anchor={anchor} label={`${shared.title}, from ${whose(shared.person)}`} width={300} onClose={onClose}>
-      <div className="flex flex-col gap-2 p-4" style={SHARED_STRIPES}>
-        <p className="pr-8 text-[15px] font-semibold text-ink">{shared.title}</p>
-        <p className="text-sm text-ink-2">{shared.when}</p>
-        {shared.location && <p className="text-sm text-ink-2">{shared.location}</p>}
-        <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-ink-3">
-          <span>From</span>
-          {/* Spec 33: the person's name is a chip to their profile (only a link here: no card in a card). */}
-          <PersonChip person={{ userId: shared.person.userId, name: shared.person.name, photoUrl: shared.person.photoUrl, look: shared.person.demo }} className="text-xs font-medium" />
-          <span>&apos;s calendar. Read only.</span>
-        </p>
-      </div>
+      <SharedEventBody shared={shared} />
     </FloatingPanel>
+  );
+}
+
+/** What the shared event's card shows (also drawn on its own in the tests). */
+export function SharedEventBody({ shared }: { shared: OpenShared }) {
+  const { timeFormat } = useDisplay();
+  const place = placeOf(shared.location);
+  return (
+    <div className="flex flex-col gap-2 p-4" style={SHARED_STRIPES}>
+      <p className="pr-8 text-[15px] font-semibold text-ink break-words">{shared.title}</p>
+      <p className="text-sm text-ink-2">{shared.time ? whenSentence(shared.time, timeFormat) : shared.when}</p>
+      {place.kind !== "none" && <p className="text-sm break-words text-ink-2">{place.text}</p>}
+      <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-ink-3">
+        <span>From</span>
+        {/* Spec 33: the person's name is a chip to their profile (only a link here: no card in a card). */}
+        <PersonChip person={{ userId: shared.person.userId, name: shared.person.name, photoUrl: shared.person.photoUrl, look: shared.person.demo }} className="text-xs font-medium" />
+        <span>&apos;s calendar. Read only.</span>
+      </p>
+    </div>
   );
 }
 

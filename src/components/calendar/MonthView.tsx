@@ -12,7 +12,7 @@ import { buildMonthCells, itemsPerCell, monthRows, splitVisible, type MonthCell,
 import type { CalendarEvent, WeekDay, WeekEvent } from "@/lib/events/types";
 import { goalColor } from "@/lib/goals/colors";
 import { fmtDateLong, fmtDateShort, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
-import { intentOfClick, type GoalLabel, type OpenIntent } from "./TimeGrid";
+import type { GoalLabel } from "./TimeGrid";
 import { WEEKDAY_LABELS } from "./MiniMonth";
 import { anchorOf, type Anchor } from "./FloatingPanel";
 import { SharedMonthRow, type OpenShared, type SharedMonthEntry } from "./Shared";
@@ -25,7 +25,7 @@ type Props = {
   goals: GoalLabel[];
   dayHref: (date: string) => string;
   onOpenDay: (date: string) => void;
-  onOpenEvent: (event: CalendarEvent, anchor: Anchor, intent: OpenIntent) => void;
+  onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
   /** Spec 29: other people's shared events by day (read only), shown under the day's own events. */
   shared?: Readonly<Record<string, SharedMonthEntry[]>>;
   timeZone?: string;
@@ -109,7 +109,7 @@ type CellProps = {
   dotOf: (goalId: string | null) => string;
   dayHref: (date: string) => string;
   onOpenDay: (date: string) => void;
-  onOpenEvent: (event: CalendarEvent, anchor: Anchor, intent: OpenIntent) => void;
+  onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
   shared?: SharedMonthEntry[];
   timeZone: string;
   onOpenShared?: (shared: OpenShared, anchor: Anchor) => void;
@@ -166,7 +166,7 @@ function CellItems({
   max: number;
   dotOf: (goalId: string | null) => string;
   onOpenDay: (date: string) => void;
-  onOpenEvent: (event: CalendarEvent, anchor: Anchor, intent: OpenIntent) => void;
+  onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
 }) {
   const { shown, more } = splitVisible(cell.items, max);
   if (shown.length === 0 && more === 0) return null;
@@ -204,7 +204,7 @@ function itemLabel(item: MonthItem, format: TimeFormat): string {
   return `${item.event.title}, ${fmtRange(item.event.startTime, item.event.endTime, format)}${item.event.status === "done" ? ", done" : ""}`;
 }
 
-function ItemButton({ item, dot, onOpenEvent }: { item: MonthItem; dot: string; onOpenEvent: (event: CalendarEvent, anchor: Anchor, intent: OpenIntent) => void }) {
+function ItemButton({ item, dot, onOpenEvent }: { item: MonthItem; dot: string; onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void }) {
   const { timeFormat } = useDisplay();
   const done = item.event.status === "done";
   const showTime = item.kind === "timed" && !item.continuesBefore;
@@ -214,7 +214,7 @@ function ItemButton({ item, dot, onOpenEvent }: { item: MonthItem; dot: string; 
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        onOpenEvent(item.event, anchorOf(e.currentTarget), intentOfClick(e.detail));
+        onOpenEvent(item.event, anchorOf(e.currentTarget));
       }}
       aria-label={itemLabel(item, timeFormat)}
       // The part after midnight repeats an event of the day before: mouse only, not a second tab stop.

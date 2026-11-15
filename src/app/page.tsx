@@ -33,7 +33,7 @@ export default async function CalendarPage({
   const address = readAddress(params);
   // Spec 36: also the event invitations (the events the user is invited to, the open ones, the badge's
   // number and the people of the user's own events), in the same one transaction.
-  const { display, week, goals, tasks, showWelcome, sharing, guestPeople, invites } = await loadCalendarPageWithInvites(deps, userId, address.date, address.view);
+  const { display, week, goals, tasks, showWelcome, sharing, invites } = await loadCalendarPageWithInvites(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
@@ -49,7 +49,6 @@ export default async function CalendarPage({
               outlookAvailable={outlookConfigured()}
               sharing={sharing.filter((p) => p.calendar !== "none")}
               showPerson={typeof params.share === "string" ? params.share : undefined}
-              guestPeople={guestPeople}
               invites={invites}
             />
           </AppShell>

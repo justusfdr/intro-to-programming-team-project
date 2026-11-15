@@ -7,7 +7,8 @@
 // - the small card that opens while the owner's block is hovered or focused;
 // - "Accept", "Maybe", "Decline" for the invited person, the current answer pressed;
 // - the toolbar's "2 invitations" button with the list of invitations still to look at;
-// - the preview of an invited event (title, time, place, "Invited by", the other people, the buttons).
+// - the small card of an invited event at its block (title, time, place, "Invited by", the other people,
+//   the buttons; spec 38: a floating card, no longer a column at the right).
 // Everything about another person here is a name and a photo; never an e-mail address.
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -154,7 +155,7 @@ export function invitedWhen(event: InvitedEvent, timeZone: string, format: "12h"
     : whenSentence({ allDay: false, startLocal: localDateTimeOf(new Date(event.startAt), timeZone), endLocal: localDateTimeOf(new Date(event.endAt), timeZone) }, format);
 }
 
-/** A part of the preview with its small heading (as EventPreview's own parts). */
+/** A part of the card with its small heading. */
 function Part({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-1.5">
@@ -169,7 +170,7 @@ function Part({ icon, title, children }: { icon: ReactNode; title: string; child
   );
 }
 
-/** The other people of an invitation, asked once when the preview opens (none for the demo one). */
+/** The other people of an invitation, asked once when the card opens (none for the demo one). */
 function useInvitePeople(inviteId: string, wanted: boolean): InvitePerson[] | null {
   const [answer, setAnswer] = useState<{ id: string; people: InvitePerson[] } | null>(null);
   useEffect(() => {
@@ -187,39 +188,28 @@ function useInvitePeople(inviteId: string, wanted: boolean): InvitePerson[] | nu
   return answer?.id === inviteId ? answer.people : null;
 }
 
-/**
- * The preview of an event the user is invited to (R60): title, time, place as text, who invited them,
- * the other people with their marks, and the three answers. Never "Edit"; nothing else can be changed.
- */
-export function InvitedPreviewBody({
-  event,
-  answer,
-  busy,
-  note,
-  timeZone,
-  headingId,
-  headingRef,
-  onAnswer,
-}: {
+type InvitedProps = {
   event: InvitedEvent;
   answer: InviteAnswer;
   busy: boolean;
   /** The quiet line after answering ("You accepted."), or the demo's hint. */
   note: string | null;
   timeZone: string;
-  headingId: string;
-  headingRef?: React.Ref<HTMLHeadingElement>;
   onAnswer: (answer: GivenAnswer) => void;
-}) {
+};
+
+/**
+ * What the card of an event the user is invited to shows (R60): title, time, place as text, who invited
+ * them, the other people with their marks, and the three answers. Never "Edit"; nothing else can be changed.
+ */
+export function InvitedEventBody({ event, answer, busy, note, timeZone, onAnswer }: InvitedProps) {
   const { timeFormat } = useDisplay();
   const place = placeOf(event.location);
   const people = useInvitePeople(event.inviteId, !event.demo);
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        <h2 id={headingId} ref={headingRef} tabIndex={-1} className="text-[19px] font-semibold leading-snug tracking-snug text-ink break-words focus-visible:outline-none">
-          {event.title}
-        </h2>
+        <h2 className="pr-8 text-[15px] font-semibold leading-snug text-ink break-words">{event.title}</h2>
         <p className="flex items-start gap-2 text-sm text-ink-2">
           <CalendarClock aria-hidden className="mt-0.5 size-4 shrink-0 text-ink-3" strokeWidth={1.8} />
           <span>{invitedWhen(event, timeZone, timeFormat)}</span>
@@ -251,7 +241,7 @@ export function InvitedPreviewBody({
       </section>
       {place.kind !== "none" && (
         <Part icon={<MapPin className="size-4" strokeWidth={1.8} />} title="Place">
-          {/* Other people's places are never looked up for the map (spec 35): text only. */}
+          {/* Other people's places are text only, never looked up anywhere. */}
           <p className="text-sm break-words text-ink">{place.text}</p>
         </Part>
       )}
@@ -268,6 +258,20 @@ export function InvitedPreviewBody({
           : "Read only: only the person who invited you can change this event. It is not sent to your Outlook."}
       </p>
     </div>
+  );
+}
+
+/**
+ * The small floating card at an invited event's block (spec 38): Escape and a click outside close it, and
+ * the focus goes back to the block.
+ */
+export function InvitedEventCard({ anchor, onClose, ...body }: InvitedProps & { anchor: Anchor; onClose: () => void }) {
+  return (
+    <FloatingPanel anchor={anchor} label={`${body.event.title}, invited by ${body.event.inviter.name}`} width={340} onClose={onClose}>
+      <div className="p-4">
+        <InvitedEventBody {...body} />
+      </div>
+    </FloatingPanel>
   );
 }
 
