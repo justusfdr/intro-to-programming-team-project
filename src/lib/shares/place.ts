@@ -165,3 +165,32 @@ export function toggleChosen(chosen: readonly string[], userId: string): string[
   if (chosen.length >= MAX_SHOWN_CALENDARS) return [...chosen];
   return [...chosen, userId];
 }
+
+type Timed = { startMin: number; endMin: number };
+
+/**
+ * Which blocks of a day have to share the column's width: own blocks that run at the same time as a
+ * shared (or invited) block, and the shared blocks that run at the same time as an own block. Blocks that
+ * overlap each other are decided together (they already sit side by side in lanes), so a group is either
+ * split or not. A day with a shared block in the morning leaves the afternoon's own blocks at full width.
+ */
+export function splitBeside(own: readonly Timed[], shared: readonly Timed[]): { own: boolean[]; shared: boolean[] } {
+  const all = [...own.map((b, i) => ({ ...b, kind: "own" as const, i })), ...shared.map((b, i) => ({ ...b, kind: "shared" as const, i }))].sort(
+    (a, b) => a.startMin - b.startMin || a.endMin - b.endMin,
+  );
+  const result = { own: own.map(() => false), shared: shared.map(() => false) };
+  let group: typeof all = [];
+  let groupEnd = -Infinity;
+  const close = () => {
+    const mixed = group.some((b) => b.kind === "own") && group.some((b) => b.kind === "shared");
+    if (mixed) for (const b of group) result[b.kind][b.i] = true;
+    group = [];
+  };
+  for (const block of all) {
+    if (block.startMin >= groupEnd) close();
+    group.push(block);
+    groupEnd = Math.max(group.length === 1 ? -Infinity : groupEnd, block.endMin);
+  }
+  close();
+  return result;
+}
