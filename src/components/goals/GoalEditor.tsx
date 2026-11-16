@@ -115,7 +115,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
   }, [confirmingDelete]);
 
   // An unchanged past deadline stays allowed when editing; the server checks it as well.
-  const minDeadline = goal && goal.deadline < state.today ? goal.deadline : state.today;
+  const minDeadline = goal && goal.deadline !== null && goal.deadline < state.today ? goal.deadline : state.today;
 
   function updateRule(key: number, change: Partial<RuleRow>) {
     setRules((current) => current.map((rule) => (rule.key === key ? { ...rule, ...change } : rule)));
