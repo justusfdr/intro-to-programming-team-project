@@ -3,10 +3,14 @@
 // are, one row per rule ("This week: 1 of 2 done"), the strip of weeks, and a caption with the
 // countdown and "Auto-block on".
 // Every status is said in words and shown with a symbol, so nothing depends on colour alone.
+// Spec 42: a goal with a routine shows it as one quiet line of tags under the title (only what is set,
+// its category's name first); a goal without one looks exactly as before.
 import { useId, type ReactNode } from "react";
 import { Check, ChevronRight, X } from "lucide-react";
+import { useDisplay } from "@/components/shell/DisplayProvider";
 import { goalColor } from "@/lib/goals/colors";
 import type { StripWeek, WeekStatus } from "@/lib/goals/progress";
+import { routineTags } from "@/lib/goals/setup";
 import { weekShare } from "@/lib/goals/share";
 import type { GoalView } from "@/lib/goals/types";
 import { fmtDayMonth } from "@/lib/time/display";
@@ -59,6 +63,8 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks,
   const passed = goal.progress.countdown === "Deadline passed";
   const share = weekShare(goal.progress.thisWeek);
   const bodyId = useId();
+  const { timeFormat } = useDisplay();
+  const tags = goal.routine ? routineTags({ routine: goal.routine, withCategory: true }, timeFormat) : [];
   const title = <span className="block min-w-0 truncate text-[15px] font-semibold tracking-snug text-ink">{goal.title}</span>;
 
   return (
@@ -92,6 +98,19 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks,
         )}
         {openTasks !== undefined && <OpenTaskCount count={openTasks} />}
       </div>
+
+      {tags.length > 0 && (
+        <ul aria-label={`Routine of ${goal.title}`} className="mt-1 flex flex-wrap gap-1">
+          {tags.map((tag) => (
+            <li key={tag.key} className="inline-flex h-5 max-w-full items-center rounded-md bg-raised px-1.5 text-[11px] text-ink-2">
+              <span aria-hidden className="truncate">
+                {tag.text}
+              </span>
+              <span className="sr-only">{tag.label}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* The bar repeats the rows below in one line; screen readers read the rows. */}
       <div aria-hidden className="mt-1.5 h-[3px] rounded-full bg-muted">
