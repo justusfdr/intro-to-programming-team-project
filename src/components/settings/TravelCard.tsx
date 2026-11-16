@@ -13,9 +13,11 @@ import { useLiveSettings } from "@/components/live/Live";
 import { Card } from "@/components/ui/Card";
 import { PlaceList, checkClass, lookUpCurrent, nextRow, usePlaceSuggestions } from "@/components/places/places";
 import type { PlaceSuggestion } from "@/lib/places/places";
+import type { SavedPlace } from "@/lib/places/saved";
 import type { SettingsData, TravelMode } from "@/lib/settings/types";
 import { Button } from "@/components/ui/Button";
 import { FieldRow, INPUT_CLASS, SegmentedField, SelectField, SettingsCardHeader, type FieldOption } from "./fields";
+import { PlacesRow } from "./PlacesDialog";
 import { useSaveSettings } from "./useSaveSettings";
 
 const MODE_OPTIONS: FieldOption<TravelMode>[] = [
@@ -36,7 +38,7 @@ function bufferOptionsFor(value: number): FieldOption<number>[] {
   return [...BUFFER_OPTIONS, { value, label: `${value} min` }].sort((a, b) => a.value - b.value);
 }
 
-export function TravelCard({ settings: serverSettings }: { settings: SettingsData }) {
+export function TravelCard({ settings: serverSettings, places = [] }: { settings: SettingsData; places?: SavedPlace[] }) {
   // The saved values, with a change that is on its way shown at once.
   const settings = useLiveSettings(serverSettings);
   const uid = useId();
@@ -156,6 +158,8 @@ export function TravelCard({ settings: serverSettings }: { settings: SettingsDat
             </p>
           </div>
         </FieldRow>
+
+        <PlacesRow homeAddress={settings.homeAddress} places={places} />
 
         <FieldRow label="Getting there" labelId={ids.mode}>
           <SegmentedField

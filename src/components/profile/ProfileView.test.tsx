@@ -105,6 +105,7 @@ describe("Settings", () => {
     today: "2026-11-17",
     hasDemo: false,
     defaultView: "week",
+    places: [],
   } satisfies SettingsPageData;
   const blocker: BlockerData = { sites: [], connected: false, blockingOn: false, blockingUntil: null, timeZone: "Europe/Lisbon" };
 

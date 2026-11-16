@@ -7,6 +7,7 @@ import type { Deps } from "@/lib/server/deps";
 import { outlookConfigured } from "@/lib/server/config";
 import { hasDemoRows } from "@/lib/server/demo/rows";
 import { readOutlookState } from "@/lib/server/outlook/sync";
+import { readPlaces } from "@/lib/server/places/saved";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import type { SettingsData, SettingsPageData } from "@/lib/settings/types";
 import { localDateOf } from "@/lib/time/zoned";
@@ -23,12 +24,13 @@ export async function readSettingsPage(
 ): Promise<SettingsPageData> {
   // Started together. Row-level security returns only the user's own profile (auth.uid() is the
   // signed-in user), so the statement needs no parameter and travels with the others.
-  const [settings, [profile], outlook, hasDemo, defaultView] = await Promise.all([
+  const [settings, [profile], outlook, hasDemo, defaultView, places] = await Promise.all([
     settingsRead,
     query<{ plan: "free" | "pro" }>("select plan from app.profiles where id = auth.uid()"),
     readOutlookState(query),
     hasDemoRows(query),
     readDefaultView(query),
+    readPlaces(query),
   ]);
   return {
     settings,
@@ -38,5 +40,6 @@ export async function readSettingsPage(
     today: localDateOf(now, settings.timeZone),
     hasDemo,
     defaultView,
+    places,
   };
 }
