@@ -6,6 +6,8 @@
 // rules, the strip of weeks, the countdown and its tasks; then "Inbox", tasks without a goal, as a
 // card of its own. Each card can be collapsed, remembered in this browser as before (spec 10).
 // Ticking, adding and editing tasks show at once; the page re-reads in the background (Live.tsx).
+// Spec 42: "New goal" opens the guided questions (setup/GoalSetup.tsx); their first question offers
+// "Use the form instead", which opens the goal editor for a new goal. Editing a goal opens the editor.
 import { useId, useState, useSyncExternalStore } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { useLiveTasks } from "@/components/live/Live";
@@ -13,14 +15,24 @@ import { Button } from "@/components/ui/Button";
 import { COLLAPSED_KEY, readCollapsed, toggleCollapsed } from "@/lib/goals/collapsed";
 import { nextGoalColor } from "@/lib/goals/style";
 import type { GoalView } from "@/lib/goals/types";
+import type { SavedPlace } from "@/lib/places/saved";
 import { openCount, sortTasks } from "@/lib/tasks/order";
 import type { TaskDto } from "@/lib/tasks/types";
 import { GoalCard, OpenTaskCount } from "./GoalCard";
 import { GoalEditor, type GoalEditorState } from "./GoalEditor";
 import { GoalTile } from "./GoalTile";
+import { GoalSetup } from "./setup/GoalSetup";
 import { TaskList, type GoalOption } from "./TaskList";
 
-type Props = { goals: GoalView[]; tasks: TaskDto[]; today: string };
+type Props = {
+  goals: GoalView[];
+  tasks: TaskDto[];
+  today: string;
+  /** The saved places, offered as a goal's place (spec 42). */
+  places?: SavedPlace[];
+  /** Previews and tests only: open with the questions or the form for a new goal. */
+  openOn?: "setup" | "form";
+};
 
 /** The key under which the Inbox card's collapsed state is remembered (next to goal ids). */
 const INBOX_KEY = "inbox";
@@ -40,21 +52,22 @@ function groupTasks(goals: GoalView[], tasks: TaskDto[]): { byGoal: Map<string, 
   return { byGoal, inbox };
 }
 
-export function GoalsPage({ goals, tasks: serverTasks, today }: Props) {
+export function GoalsPage({ goals, tasks: serverTasks, today, places = [], openOn }: Props) {
   // The tasks with the changes of actions whose re-read has not arrived yet (components/live/Live.tsx).
   const tasks = useLiveTasks(serverTasks);
-  const [editor, setEditor] = useState<GoalEditorState>(null);
+  const newGoalState = (): GoalEditorState => ({ mode: "create", today, color: nextGoalColor(goals.map((goal) => goal.look.color)) });
+  const [editor, setEditor] = useState<GoalEditorState>(() => (openOn === "form" ? newGoalState() : null));
+  const [setupOpen, setSetupOpen] = useState(openOn === "setup");
   const [collapsed, toggle] = useCollapsed([...goals.map((goal) => goal.id), INBOX_KEY]);
   const { byGoal, inbox } = groupTasks(goals, tasks);
   const goalOptions: GoalOption[] = goals.map(({ id, title }) => ({ id, title }));
 
-  const newGoal = () => setEditor({ mode: "create", today, color: nextGoalColor(goals.map((goal) => goal.look.color)) });
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8 md:py-10">
       <header className="flex items-center justify-between gap-4">
         <h1 className="text-[28px] leading-[34px] font-semibold tracking-display text-ink md:text-[32px] md:leading-[38px]">Goals</h1>
-        <Button onClick={newGoal}>
+        <Button onClick={() => setSetupOpen(true)}>
           <Plus className="size-4" aria-hidden />
           New goal
         </Button>
@@ -88,7 +101,18 @@ export function GoalsPage({ goals, tasks: serverTasks, today }: Props) {
         />
       </div>
 
-      <GoalEditor state={editor} onClose={() => setEditor(null)} />
+      <GoalSetup
+        open={setupOpen}
+        onClose={() => setSetupOpen(false)}
+        onUseForm={() => {
+          setSetupOpen(false);
+          setEditor(newGoalState());
+        }}
+        goals={goals}
+        places={places}
+        today={today}
+      />
+      <GoalEditor state={editor} onClose={() => setEditor(null)} places={places} />
     </div>
   );
 }
