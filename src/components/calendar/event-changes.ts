@@ -61,6 +61,7 @@ export function movedChange(event: WeekEvent, start: string, end: string, timeZo
     source: event.source,
     location: event.location,
     travelMode: event.travelMode,
+    travelFrom: event.travelFrom,
     notSent: event.notSent,
     updatedAt: event.updatedAt,
     todoCount: event.todoCount,
@@ -98,6 +99,7 @@ export function recreateBody(event: CalendarEvent, todos: readonly NewTodo[] = [
     mayOverlap: event.mayOverlap,
     goalId: event.goalId,
     ...(event.travelMode ? { travelMode: event.travelMode } : {}),
+    ...(event.travelFrom ? { travelFrom: event.travelFrom } : {}),
     ...list,
   };
 }

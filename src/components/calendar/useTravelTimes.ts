@@ -10,7 +10,7 @@ import type { TravelAnswer } from "@/lib/travel/types";
 import { canTravel } from "@/lib/travel/web-link";
 
 /** What an event's travel time depends on: when it changes, its old answer no longer fits. */
-const versionOf = (e: WeekEvent) => `${e.updatedAt}@${e.startAt}@${e.location}@${e.travelMode ?? ""}`;
+const versionOf = (e: WeekEvent) => `${e.updatedAt}@${e.startAt}@${e.location}@${e.travelMode ?? ""}@${e.travelFrom ?? ""}`;
 
 type Answers = Record<string, { version: string; travel: TravelAnswer }>;
 

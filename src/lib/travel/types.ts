@@ -8,6 +8,8 @@ export type TravelAnswer =
       minutes: number;
       bufferMinutes: number;
       leaveAt: string;
+      /** Where the trip starts, in words: "Home", "Last event", a saved place's name or "Other address". */
+      from?: string;
       /** The address of Google's map of the way (only for one event, and only when the server has a browser key). */
       map?: string;
     }

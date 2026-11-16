@@ -60,7 +60,7 @@ describe("travel_time", () => {
     const before = await app.snapshot();
     expect(await read(await ask(id))).toEqual({
       status: 200,
-      body: { travel: { status: "ok", mode: "driving", minutes: 25, bufferMinutes: 10, leaveAt: "2026-11-17T09:25:00.000Z" } },
+      body: { travel: { status: "ok", mode: "driving", minutes: 25, bufferMinutes: 10, leaveAt: "2026-11-17T09:25:00.000Z", from: "Home" } },
     });
     expect(await app.snapshot()).toEqual(before);
   });
@@ -90,7 +90,7 @@ describe("travel_time", () => {
     // The stand-in's last trip arrives 5 minutes early (09:55) and takes 35 minutes: it leaves at 09:20.
     const id = await lecture(await alice({ buffer: 10 }), "Nova SBE, Carcavelos", "transit");
     expect((await read(await ask(id))).body).toEqual({
-      travel: { status: "ok", mode: "transit", minutes: 35, bufferMinutes: 10, leaveAt: "2026-11-17T09:10:00.000Z" },
+      travel: { status: "ok", mode: "transit", minutes: 35, bufferMinutes: 10, leaveAt: "2026-11-17T09:10:00.000Z", from: "Home" },
     });
     expect(routing.asked).toEqual([{ mode: "transit", arriveBy: new Date("2026-11-17T10:00:00Z") }]);
   });
@@ -166,8 +166,8 @@ describe("travel_times (the calendar's travel blocks)", () => {
     expect(status).toBe(200);
     expect(body).toEqual({
       travel: {
-        [car]: { status: "ok", mode: "driving", minutes: 25, bufferMinutes: 10, leaveAt: "2026-11-17T09:25:00.000Z" },
-        [bus]: { status: "ok", mode: "transit", minutes: 35, bufferMinutes: 10, leaveAt: "2026-11-17T09:10:00.000Z" },
+        [car]: { status: "ok", mode: "driving", minutes: 25, bufferMinutes: 10, leaveAt: "2026-11-17T09:25:00.000Z", from: "Home" },
+        [bus]: { status: "ok", mode: "transit", minutes: 35, bufferMinutes: 10, leaveAt: "2026-11-17T09:10:00.000Z", from: "Home" },
       },
     });
     expect(await app.snapshot()).toEqual(before);
@@ -226,7 +226,7 @@ describe("travel_time: the map of the way", () => {
     try {
       const id = await lecture(await alice());
       const { body } = await read(await ask(id));
-      expect(body.travel).toEqual({ status: "ok", mode: "driving", minutes: 25, bufferMinutes: 10, leaveAt: "2026-11-17T09:25:00.000Z" });
+      expect(body.travel).toEqual({ status: "ok", mode: "driving", minutes: 25, bufferMinutes: 10, leaveAt: "2026-11-17T09:25:00.000Z", from: "Home" });
     } finally {
       vi.unstubAllEnvs();
     }
@@ -261,5 +261,71 @@ describe("travel_time: the map of the way", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe("travel_time: where the trip starts (travel_from)", () => {
+  /** An earlier event of the user that ends at `end` at a location. */
+  async function before(user: string, location: string, end = "2026-11-17T09:00:00Z", start = "2026-11-17T08:00:00Z") {
+    const { id } = await seedEvent(app.db, user, { title: "Before", start, end });
+    await app.db.admin("update app.events set location = $2 where id = $1", [id, location]);
+  }
+  const setFrom = (id: string, from: string | null) => app.db.admin("update app.events set travel_from = $2 where id = $1", [id, from]);
+  const fromOf = async (id: string) => ((await read(await ask(id))).body.travel as { status: string; from?: string });
+
+  it("the standard starts at the event before when there is one, else at home", async () => {
+    const user = await alice();
+    const id = await lecture(user);
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Home" });
+    routing.places.set("gym street 1", { lat: 38.7, lon: -9.2 });
+    await before(user, "Gym Street 1");
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Last event" });
+  });
+
+  it("skips an event before that ended more than 12 hours earlier, has no address or is a web link", async () => {
+    const user = await alice();
+    const id = await lecture(user);
+    await before(user, "Gym Street 1", "2026-11-16T21:00:00Z", "2026-11-16T20:00:00Z");
+    await before(user, "https://meet.example.com/abc", "2026-11-17T09:30:00Z", "2026-11-17T09:00:00Z");
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Home" });
+  });
+
+  it("starts at home when told so, even with an event before", async () => {
+    const user = await alice();
+    const id = await lecture(user);
+    await before(user, "Unknown Street 9");
+    await setFrom(id, "home");
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Home" });
+  });
+
+  it("starts at a saved place by its name; a deleted place falls back to the standard", async () => {
+    const user = await alice();
+    const id = await lecture(user);
+    routing.places.set("campus 1, lisboa", { lat: 38.75, lon: -9.15 });
+    const [place] = await app.db.withUser(user, (q) => q<{ id: string }>("insert into app.places (name, address) values ('Uni', 'Campus 1, Lisboa') returning id"));
+    await setFrom(id, `place:${place.id}`);
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Uni" });
+    await app.db.admin("delete from app.places where id = $1", [place.id]);
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Home" });
+  });
+
+  it("starts at an address typed for this event, and says when it cannot be found", async () => {
+    const user = await alice();
+    const id = await lecture(user);
+    routing.places.set("rua augusta 1", { lat: 38.71, lon: -9.137 });
+    await setFrom(id, "address:Rua Augusta 1");
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Other address" });
+    await setFrom(id, "address:Nowhere 0");
+    expect(await fromOf(id)).toMatchObject({ status: "not_found" });
+  });
+
+  it("never uses another user's place or events (R3)", async () => {
+    const bob = await app.signedInAs("bob@example.com");
+    const [place] = await app.db.withUser(bob, (q) => q<{ id: string }>("insert into app.places (name, address) values ('Bob home', 'Rua Augusta 1') returning id"));
+    await seedEvent(app.db, bob, { title: "Bob", start: "2026-11-17T08:00:00Z", end: "2026-11-17T09:00:00Z" });
+    const user = await alice();
+    const id = await lecture(user);
+    await setFrom(id, `place:${place.id}`);
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Home" });
   });
 });

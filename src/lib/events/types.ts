@@ -27,6 +27,8 @@ export type EventDto = {
   location: string | null;
   /** How the user gets there; null or left out means the standard from the settings (R27). */
   travelMode?: TravelMode | null;
+  /** Where the trip there starts, as stored ("home", "last", "place:<id>", "address:<text>"); left out: the standard. */
+  travelFrom?: string | null;
   /** R26: connected to Outlook, an app event that has not ended, and Outlook does not have it yet. */
   notSent: boolean;
   /** Sent back with every edit and delete, so the server can see whether the row changed since (R4). */

@@ -96,6 +96,7 @@ function timedDtoOf(e: WeekEvent): TimedEventDto {
     source: e.source,
     location: e.location,
     travelMode: e.travelMode,
+    ...(e.travelFrom ? { travelFrom: e.travelFrom } : {}),
     notSent: e.notSent,
     updatedAt: e.updatedAt,
     todoCount: e.todoCount,

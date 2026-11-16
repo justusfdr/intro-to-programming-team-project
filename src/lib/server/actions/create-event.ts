@@ -76,16 +76,17 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
       const mayOverlap = event.mayOverlap ?? false;
       const location = event.location ?? null;
       const travelMode = event.travelMode ?? null;
+      const travelFrom = event.travelFrom ?? null;
       const notes = event.notes ?? null;
 
       const dates = checkRepeat(body.data, localDateOf(event.startAt, timeZone));
       if (!dates) {
         // user_id, status ("planned"), source ("app") and updated_at are filled in by the database.
         const [row] = await query<EventRow>(
-          `insert into app.events (title, start_at, end_at, may_overlap, goal_id, location, travel_mode, guests, notes)
-           values ($1, $2, $3, $4, $5, $6, $7, $8::text[], $9)
+          `insert into app.events (title, start_at, end_at, may_overlap, goal_id, location, travel_mode, guests, notes, travel_from)
+           values ($1, $2, $3, $4, $5, $6, $7, $8::text[], $9, $10)
            returning ${EVENT_COLUMNS}`,
-          [event.title, event.startAt, event.endAt, mayOverlap, goalId, location, travelMode, guests, notes],
+          [event.title, event.startAt, event.endAt, mayOverlap, goalId, location, travelMode, guests, notes, travelFrom],
         );
         return jsonOk({ message: MESSAGES.eventSaved, event: await savedDto(row) }, 201);
       }
@@ -93,14 +94,14 @@ export function createEvent(request: Request, deps: Pick<Deps, "auth" | "withUse
       // A series (R28): the same title, time, length, goal, location, notes and may_overlap on every date, one series_id.
       const template = templateOf(event.startAt, event.endAt, timeZone);
       const seriesId = randomUUID();
-      const params: unknown[] = [event.title, mayOverlap, goalId, seriesId, location, travelMode, notes];
+      const params: unknown[] = [event.title, mayOverlap, goalId, seriesId, location, travelMode, notes, travelFrom];
       const values = dates.map((date) => {
         const { startAt, endAt } = timesOn(date, template, timeZone);
         params.push(startAt, endAt);
-        return `($1, $${params.length - 1}, $${params.length}, $2, $3, $4, $5, $6, $7)`;
+        return `($1, $${params.length - 1}, $${params.length}, $2, $3, $4, $5, $6, $7, $8)`;
       });
       const rows = await query<EventRow>(
-        `insert into app.events (title, start_at, end_at, may_overlap, goal_id, series_id, location, travel_mode, notes)
+        `insert into app.events (title, start_at, end_at, may_overlap, goal_id, series_id, location, travel_mode, notes, travel_from)
          values ${values.join(", ")}
          returning ${EVENT_COLUMNS}`,
         params,

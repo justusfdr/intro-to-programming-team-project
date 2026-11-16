@@ -4,6 +4,7 @@ import "server-only";
 // ontology's order: title; location up to 200 characters; notes up to 2,000 characters (issue #5); for a timed event end after start and at most 24 hours; for an all-day
 // event last day not before first, at most 31 days, no goal; for a series the end date and at most
 // 100 dates. Each throws the ontology's message.
+import { travelFromOf, travelFromText } from "@/lib/places/saved";
 import { z } from "zod";
 import { cleanNotes, notesTooLong } from "@/lib/events/notes";
 import { repeatDates, type RepeatRule, type Weekday } from "@/lib/events/repeat";
@@ -37,6 +38,8 @@ export const EventFields = z.object({
   notes: z.string().max(20000).nullable().optional(),
   /** How the user gets there; null means the standard from the settings. Left out: unchanged (edit) or standard (create). */
   travelMode: z.enum(["driving", "cycling", "walking", "transit"]).nullable().optional(),
+  /** Where the trip starts, as stored text (src/lib/places/saved.ts); null means the standard. Left out: unchanged (edit) or standard (create). */
+  travelFrom: z.string().max(400).nullable().optional(),
   repeat: z
     .object({
       frequency: z.enum(["daily", "weekly", "monthly"]),
@@ -73,6 +76,7 @@ export type CheckedTimed = {
   location: string | null | undefined;
   notes: string | null | undefined;
   travelMode: TravelMode | null | undefined;
+  travelFrom: string | null | undefined;
 };
 
 /** A checked all-day event: days only, no times, no goal (R29). */
@@ -127,7 +131,7 @@ export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent
     if (days > 31) throw new ActionError(400, "too_many_days", MESSAGES.atMost31Days);
     if (fields.goalId) throw new ActionError(400, "all_day_goal", MESSAGES.allDayNoGoal);
     // R29: an all-day event has no travel time, so no way of getting there.
-    if (fields.travelMode) throw badRequest();
+    if (fields.travelMode || fields.travelFrom) throw badRequest();
     return { allDay: true, title, firstDay: fields.firstDay, lastDay: fields.lastDay, location, notes };
   }
 
@@ -136,7 +140,7 @@ export function checkEventFields(fields: Fields, timeZone: string): CheckedEvent
   if (!startAt || !endAt) throw badRequest();
   if (endAt <= startAt) throw new ActionError(400, "end_before_start", MESSAGES.endAfterStart);
   if (endAt.getTime() - startAt.getTime() > MAX_LENGTH_MS) throw new ActionError(400, "too_long", MESSAGES.atMost24Hours);
-  return { allDay: false, title, startAt, endAt, mayOverlap: fields.mayOverlap, goalId: fields.goalId, location, notes, travelMode: fields.travelMode };
+  return { allDay: false, title, startAt, endAt, mayOverlap: fields.mayOverlap, goalId: fields.goalId, location, notes, travelMode: fields.travelMode, travelFrom: checkTravelFrom(fields.travelFrom) };
 }
 
 /**
@@ -156,4 +160,12 @@ export function checkRepeat(fields: Fields, first: LocalDate): LocalDate[] | nul
   const dates = repeatDates(first, rule);
   if (dates === "too_many") throw new ActionError(400, "too_many_dates", MESSAGES.tooManyDates);
   return dates;
+}
+
+/** The start of the trip as the database stores it: null (the standard), or a valid choice; anything else is refused. */
+function checkTravelFrom(text: string | null | undefined): string | null | undefined {
+  if (text === undefined || text === null) return text;
+  const stored = travelFromText(travelFromOf(text));
+  if (stored === null) throw badRequest();
+  return stored;
 }
