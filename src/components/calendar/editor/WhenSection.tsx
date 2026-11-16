@@ -12,7 +12,7 @@ import { weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent } from "@/lib/events/types";
 import { fmtDateShort, fmtMinutes, fmtRange, fmtTime } from "@/lib/time/display";
 import { endProblem } from "@/lib/time/wheel";
-import { DateField, Eyebrow, ToggleChip, inputClass } from "../fields";
+import { DateField, Eyebrow, ToggleChip } from "../fields";
 import { TimeField, TimeWheel } from "../TimeWheel";
 import { moveFirstDay, switchAllDay, type EventValues, type Repeat } from "./values";
 
@@ -143,17 +143,34 @@ function outlookWhen(event: CalendarEvent, format: "12h" | "24h"): string {
   return `${fmtDateShort(day)} ${fmtTime(event.startTime, format)} – ${fmtDateShort(event.endDay)} ${fmtTime(event.endTime, format)}`;
 }
 
-const WEEKDAYS: { day: Weekday; short: string; long: string }[] = [
-  { day: 1, short: "Mon", long: "Monday" },
-  { day: 2, short: "Tue", long: "Tuesday" },
-  { day: 3, short: "Wed", long: "Wednesday" },
-  { day: 4, short: "Thu", long: "Thursday" },
-  { day: 5, short: "Fri", long: "Friday" },
-  { day: 6, short: "Sat", long: "Saturday" },
-  { day: 7, short: "Sun", long: "Sunday" },
+const WEEKDAYS: { day: Weekday; letter: string; short: string; long: string }[] = [
+  { day: 1, letter: "M", short: "Mon", long: "Monday" },
+  { day: 2, letter: "T", short: "Tue", long: "Tuesday" },
+  { day: 3, letter: "W", short: "Wed", long: "Wednesday" },
+  { day: 4, letter: "T", short: "Thu", long: "Thursday" },
+  { day: 5, letter: "F", short: "Fri", long: "Friday" },
+  { day: 6, letter: "S", short: "Sat", long: "Saturday" },
+  { day: 7, letter: "S", short: "Sun", long: "Sunday" },
+];
+
+const FREQUENCIES: { value: Frequency; label: string }[] = [
+  { value: "none", label: "Never" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
 ];
 
 export type Frequency = "none" | Repeat["frequency"];
+
+/** The repeat choice in words, as in Teams: "Every week on Mon, Wed until Dec 20". */
+export function repeatSummary(frequency: Frequency, days: Weekday[], until: string): string {
+  if (frequency === "none") return "";
+  const end = until ? ` until ${fmtDateShort(until)}` : "";
+  if (frequency === "daily") return `Every day${end}`;
+  if (frequency === "monthly") return `Every month${end}`;
+  const names = WEEKDAYS.filter((w) => days.includes(w.day)).map((w) => w.short);
+  return `Every week on ${names.join(", ")}${end}`;
+}
 
 /** The repeat choice of a new timed event (R28): how often, on which weekdays, until when. */
 export function RepeatFields({
@@ -176,42 +193,50 @@ export function RepeatFields({
   onUntil: (day: string) => void;
 }) {
   const first = weekdayOf(date);
+  // The first date's weekday is always included.
+  const chosen = weekdays.includes(first) ? weekdays : [...weekdays, first];
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor="new-repeat" className="sr-only">
-        Repeat
-      </label>
-      <select id="new-repeat" value={frequency} onChange={(e) => onFrequency(e.target.value as Frequency)} className={`${inputClass} pr-8`}>
-        <option value="none">Does not repeat</option>
-        <option value="daily">Every day</option>
-        <option value="weekly">Every week</option>
-        <option value="monthly">Every month</option>
-      </select>
+    <div className="flex flex-col gap-2 rounded-lg border border-line-subtle p-2.5">
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-ink-2">Repeat</span>
+        <div role="group" aria-label="Repeat" className="flex flex-wrap gap-1">
+          {FREQUENCIES.map((f) => (
+            <ToggleChip key={f.value} pressed={frequency === f.value} onClick={() => onFrequency(f.value)}>
+              {f.label}
+            </ToggleChip>
+          ))}
+        </div>
+      </div>
       {frequency === "weekly" && (
-        <div role="group" aria-label="On these days" className="flex flex-wrap gap-1.5">
-          {WEEKDAYS.map(({ day, short, long }) => {
-            // The first date's weekday is always included.
+        <div role="group" aria-label="On these days" className="flex gap-1">
+          {WEEKDAYS.map(({ day, letter, long }) => {
             const fixed = day === first;
-            const pressed = fixed || weekdays.includes(day);
+            const pressed = chosen.includes(day);
             return (
-              <ToggleChip
+              <button
                 key={day}
-                pressed={pressed}
-                disabled={fixed}
-                ariaLabel={fixed ? `${long}, the first date's day, always included` : long}
-                onClick={() => onWeekdays(pressed ? weekdays.filter((d) => d !== day) : [...weekdays, day])}
+                type="button"
+                aria-pressed={pressed}
+                aria-label={fixed ? `${long}, the first date's day, always included` : long}
+                onClick={() => !fixed && onWeekdays(pressed ? weekdays.filter((d) => d !== day) : [...weekdays, day])}
+                className={`size-7 shrink-0 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 pointer-coarse:size-9 ${
+                  pressed ? "bg-ink text-surface" : "border border-line-subtle text-ink-2 hover:bg-raised"
+                } ${fixed ? "cursor-default" : ""}`}
               >
-                {short}
-              </ToggleChip>
+                {letter}
+              </button>
             );
           })}
         </div>
       )}
       {frequency !== "none" && (
-        <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-2">
-          <span className="pt-2 text-xs text-ink-2">Until</span>
-          <DateField label="Until" value={until} todayKey={todayKey} onChange={onUntil} />
-        </div>
+        <>
+          <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-2">
+            <span className="text-xs text-ink-2">Until</span>
+            <DateField label="Until" value={until} todayKey={todayKey} onChange={onUntil} />
+          </div>
+          <p className="text-xs text-ink-3">{repeatSummary(frequency, chosen, until)}</p>
+        </>
       )}
     </div>
   );
