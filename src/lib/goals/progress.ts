@@ -6,6 +6,8 @@
 // missed when it ended unmet, otherwise open. The week the goal was created is never missed.
 // R9: the strip runs from the week of creation to the week of the deadline; later weeks are not
 // judged. A week is met if all rules are met, missed if any is missed, else open.
+// R9 for a goal without an end date (spec 41): the strip runs from the week of creation to the current
+// week, at most the latest 12 weeks; the countdown says "No end date".
 // Weeks run Monday 00:00 to Sunday 24:00 in the user's time zone; an event belongs to the week it starts in (R2).
 import { addDays, localDateOf, mondayOf, startOfLocalDate, type LocalDate } from "@/lib/time/zoned";
 
@@ -18,8 +20,8 @@ export type DoneEvent = { startAt: Date; endAt: Date };
 
 export type GoalInput = {
   createdAt: Date;
-  /** The last day, "2027-03-14". */
-  deadline: LocalDate;
+  /** The last day, "2027-03-14", or null: the goal has no end date (spec 41). */
+  deadline: LocalDate | null;
   rules: Rule[];
   /** Only the goal's events with status done. */
   doneEvents: DoneEvent[];
@@ -30,6 +32,12 @@ export type StripWeek = { monday: LocalDate; status: WeekStatus; isCurrent: bool
 export type GoalProgress = { thisWeek: RuleProgress[]; weeks: StripWeek[]; countdown: string };
 
 const MINUTE = 60_000;
+
+/** The countdown of a goal without an end date. */
+export const NO_END_DATE = "No end date";
+
+/** How many weeks the strip of a goal without an end date shows at most (the latest ones). */
+export const OPEN_ENDED_WEEKS = 12;
 
 function minutesOf(event: DoneEvent): number {
   return Math.round((event.endAt.getTime() - event.startAt.getTime()) / MINUTE);
@@ -75,8 +83,11 @@ export function countdownText(deadline: LocalDate, today: LocalDate): string {
 export function goalProgress(goal: GoalInput, now: Date, timeZone: string): GoalProgress {
   const today = localDateOf(now, timeZone);
   const creationMonday = mondayOf(localDateOf(goal.createdAt, timeZone));
-  const deadlineMonday = mondayOf(goal.deadline);
   const currentMonday = mondayOf(today);
+  // Without an end date: up to the current week, and only the latest 12 weeks.
+  const lastMonday = goal.deadline === null ? currentMonday : mondayOf(goal.deadline);
+  const latestFirst = addDays(currentMonday, -7 * (OPEN_ENDED_WEEKS - 1));
+  const firstMonday = goal.deadline === null && creationMonday < latestFirst ? latestFirst : creationMonday;
 
   // Done events grouped by the Monday of the week they start in.
   const byWeek = new Map<LocalDate, DoneEvent[]>();
@@ -93,7 +104,7 @@ export function goalProgress(goal: GoalInput, now: Date, timeZone: string): Goal
   };
 
   const weeks: StripWeek[] = [];
-  for (let monday = creationMonday; monday <= deadlineMonday; monday = addDays(monday, 7)) {
+  for (let monday = firstMonday; monday <= lastMonday; monday = addDays(monday, 7)) {
     weeks.push({ monday, status: weekStatus(monday), isCurrent: monday === currentMonday });
   }
 
@@ -109,6 +120,6 @@ export function goalProgress(goal: GoalInput, now: Date, timeZone: string): Goal
       };
     }),
     weeks,
-    countdown: countdownText(goal.deadline, today),
+    countdown: goal.deadline === null ? NO_END_DATE : countdownText(goal.deadline, today),
   };
 }
