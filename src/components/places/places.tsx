@@ -129,6 +129,10 @@ export function PlaceList<T extends PlaceSuggestion>({
       >
         {suggestions.length === 0 ? "Look up" : "Not listed? Look up"} “{typed}”
       </li>
+      {/* Google's terms ask for this credit under its suggestions. */}
+      <li aria-hidden="true" className="px-3 pb-1.5 text-right text-[10px] text-ink-3">
+        Google Maps
+      </li>
     </ul>
   );
 }

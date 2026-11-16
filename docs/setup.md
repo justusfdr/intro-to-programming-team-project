@@ -123,8 +123,8 @@ Without it, everything else works; the pricing page then says "Payment is not av
 7. Run the migration `supabase/migrations/20261129000000_billing.sql` once in the SQL editor (it adds the customer id to the profile).
 8. After a leak: **Developers → API keys → Roll key**, put the new key in both places.
 
-## 12. Google Maps (places now, routes and the map later)
-Without the server key, address and city search say "Address search is not available right now"; the calendar, and an address typed by hand, still work. Google bills by use, so the account has a budget alert and daily limits.
+## 12. Google Maps (places and travel time; the map later)
+Without the server key, address and city search say "Address search is not available right now" and travel time says "Travel time not available"; the calendar, and an address typed by hand, still work. Google bills by use, so the account has a budget alert and daily limits.
 
 1. At **console.cloud.google.com** use one project (the team's is "Team Project"), linked to a billing account. A new account has a free trial credit.
 2. **Billing → Budgets & alerts:** a monthly budget (the team uses 10 €) with e-mail alerts at 50 %, 90 % and 100 %. A budget only warns; it stops nothing.
@@ -132,5 +132,5 @@ Without the server key, address and city search say "Address search is not avail
 4. **Quotas:** set a daily limit for each API (for example 300 requests a day). This is the real brake.
 5. **Credentials → Create credentials → API key**, named "LockedIn Server Key". Under **API restrictions** choose only **Places API (New)** and **Routes API**. No website restriction (our server on Vercel has no fixed address). Copy the key into `GOOGLE_MAPS_SERVER_KEY`. It is a secret: password manager, `.env.local` and Vercel only; never in the code, a chat or an issue.
 6. Put the same value into Vercel (**Settings → Environment Variables**) and deploy again.
-7. Try it: **Settings → Home address**, type "Rua Augusta 100 Lisboa"; suggestions appear. **Settings → Time zone**, type "Tokio" and press Confirm.
+7. Try it: **Settings → Home address**, type "Rua Augusta 100 Lisboa"; suggestions appear. **Settings → Time zone**, type "Tokio" and press Confirm. Give a timed event tomorrow a location such as "Avenida da Liberdade 1, Lisboa": the editor shows "Leave at …" for each way of getting there.
 8. After a leak: delete the key in the Console, create a new one with the same restrictions, put it in both places, and check **Metrics** for calls you did not make.

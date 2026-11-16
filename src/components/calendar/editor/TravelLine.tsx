@@ -4,7 +4,7 @@
 // It is asked from the server (travel_time) when the editor opens and after each save; nothing is saved.
 // The answers it can show: the time to leave; "Add your home address in settings"; "Address not found";
 // "Travel time not available". Changes that are not saved yet do not count until Save.
-// The OpenStreetMap credit the data licence asks for is shown once, in the settings' Travel card.
+// The "Google Maps" credit is shown in the settings' Travel card.
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Navigation } from "lucide-react";

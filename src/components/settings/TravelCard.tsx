@@ -97,7 +97,7 @@ export function TravelCard({ settings: serverSettings }: { settings: SettingsDat
 
   const unchanged = draft.text.trim() === settings.homeAddress;
   // The list under the field: the suggestions, and always a last row that looks up exactly what was typed
-  // (for an address the suggestions miss, such as a house number OpenStreetMap does not know).
+  // (for an address the suggestions miss).
   const listOpen = open && check.state === "idle" && typed.length >= 3 && typed !== settings.homeAddress && typed !== picked;
   const rows = suggestions.length + 1;
 
@@ -179,18 +179,8 @@ export function TravelCard({ settings: serverSettings }: { settings: SettingsDat
         </FieldRow>
       </div>
       {failure && <FormMessage tone="error" text={failure.message} />}
-      {/* The data licence (ODbL) asks for this credit wherever the data is used; here it is once for the whole app. */}
-      <p className="mt-3 text-[11px] text-ink-3">
-        Addresses and routes: ©{" "}
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink-2">
-          OpenStreetMap contributors
-        </a>
-        . Timetables:{" "}
-        <a href="https://transitous.org" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-ink-2">
-          Transitous
-        </a>
-        .
-      </p>
+      {/* Google's terms ask for this credit where its data is shown without a Google map. */}
+      <p className="mt-3 text-[11px] text-ink-3">Addresses, routes and timetables: Google Maps.</p>
     </Card>
   );
 }
