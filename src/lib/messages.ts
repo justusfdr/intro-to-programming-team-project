@@ -46,6 +46,16 @@ export const MESSAGES = {
   goalColor: "Choose a color from the list",
   goalIcon: "Choose an icon from the list",
   whyLength: "Why it matters can be at most 200 characters",
+  // ontology, section 5 (a goal's routine, spec 41, R44); "{n}" is filled in by src/lib/goals/routine.ts
+  goalCategory: "Choose a category from the list",
+  categoryOtherLength: "Your own category can be at most 30 characters",
+  categoryOtherForm: "Your own category must be on one line, without control characters",
+  sessionMinutes: "A session lasts 15 minutes to 4 hours, in steps of 15 minutes",
+  dayPart: "Choose morning, afternoon, evening or any time",
+  avoidDays: "Choose weekdays from the list",
+  avoidAllDays: "A goal needs at least one day of the week",
+  weekCountFit: "With these days ruled out, at most {n} events a week fit",
+  weekHoursFit: "With these days ruled out, at most {n} hours a week fit",
   // ontology, section 5 (demo week)
   demoLoaded: "The demo is already loaded",
   // ontology, section 5 (tasks); "Title must be 1 to 100 characters" and "Not possible in this state" are shared
