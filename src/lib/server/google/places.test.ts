@@ -2,6 +2,7 @@
 // or a real key.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CITY_TYPES, GoogleUnavailableError, lookUpPlace, lookupBody, placesFrom, suggestPlaces, suggestionBody, suggestionsFrom } from "./places";
+import { createDailyCounter } from "./daily-limit";
 
 const KEY = "test-key-not-a-real-one";
 const LISBON = { formattedAddress: "Rua Augusta 100, 1100-053 Lisboa, Portugal", location: { latitude: 38.7101406, longitude: -9.1373973 } };
@@ -183,5 +184,18 @@ describe("failures (both calls)", () => {
     expect(logged).toContain("403");
     expect(logged).not.toContain(KEY);
     expect(logged).not.toContain("Rua Augusta");
+  });
+});
+
+describe("our daily brake", () => {
+  it("asks Google no more once today's calls are used up, and says so", async () => {
+    const fake = google({ suggestions: [prediction("Lisbon, Portugal")] });
+    const search = { kind: "address" as const, key: KEY, fetchImpl: asFetch(fake), counter: createDailyCounter(2) };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await suggestPlaces("Lisb", search);
+    await lookUpPlace("Lisbon", search);
+    await expect(suggestPlaces("Lisb", search)).rejects.toThrow("daily limit");
+    await expect(lookUpPlace("Lisbon", search)).rejects.toBeInstanceOf(GoogleUnavailableError);
+    expect(fake).toHaveBeenCalledTimes(2);
   });
 });
