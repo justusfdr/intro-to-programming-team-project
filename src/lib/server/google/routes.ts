@@ -16,6 +16,7 @@ import { googleMapsServerKey } from "@/lib/server/config";
 import type { Point, Routing, Trip } from "@/lib/server/routing/types";
 import type { TravelMode } from "@/lib/settings/types";
 import { GoogleUnavailableError, lookUpPlace } from "./places";
+import { type DailyCounter, sharedDailyCounter } from "./daily-limit";
 
 const COMPUTE_ROUTES = "https://routes.googleapis.com/directions/v2:computeRoutes";
 const TIMEOUT_MS = 8000;
@@ -100,6 +101,8 @@ export type GoogleRoutingOptions = {
   /** Google's server key; by default the one in the environment. */
   key?: string | null;
   fetchImpl?: typeof fetch;
+  /** Our daily brake on Google calls (daily-limit.ts); the server's shared one when not given. */
+  counter?: DailyCounter;
   now?: () => Date;
   /** Answers kept for up to 6 hours (R27). Each test passes its own. */
   cache?: Map<string, { at: number; value: unknown }>;
@@ -108,7 +111,7 @@ export type GoogleRoutingOptions = {
 /** Answers kept for up to 6 hours, by question, shared by all requests on this server. */
 const shared = new Map<string, { at: number; value: unknown }>();
 
-export function googleRouting({ key = googleMapsServerKey(), fetchImpl = fetch, now = () => new Date(), cache = shared }: GoogleRoutingOptions = {}): Routing {
+export function googleRouting({ key = googleMapsServerKey(), fetchImpl = fetch, now = () => new Date(), cache = shared, counter = sharedDailyCounter }: GoogleRoutingOptions = {}): Routing {
   async function remember<T>(id: string, ask: () => Promise<T>): Promise<T> {
     const hit = cache.get(id);
     if (hit && now().getTime() - hit.at < KEEP_MS) return hit.value as T;
@@ -121,6 +124,7 @@ export function googleRouting({ key = googleMapsServerKey(), fetchImpl = fetch, 
   async function routes(fields: string, body: Record<string, unknown>): Promise<unknown> {
     if (!key) throw new GoogleUnavailableError("no key");
     try {
+      if (!counter.take(now())) throw new GoogleUnavailableError("daily limit");
       const response = await fetchImpl(COMPUTE_ROUTES, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key, "X-Goog-FieldMask": fields },
@@ -140,7 +144,7 @@ export function googleRouting({ key = googleMapsServerKey(), fetchImpl = fetch, 
     geocode(address) {
       const q = address.trim();
       return remember(`geo:${q.toLowerCase()}`, async () => {
-        const [place] = await lookUpPlace(q, { kind: "address", key, fetchImpl });
+        const [place] = await lookUpPlace(q, { kind: "address", key, fetchImpl, counter });
         return place && place.lat !== undefined && place.lon !== undefined ? { lat: place.lat, lon: place.lon } : null;
       });
     },

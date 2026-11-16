@@ -2,6 +2,7 @@
 // the shape of real ones (Lisbon, November 2026). No internet, no real key.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { googleRouting, minutesFromRoutes, routeBody, secondsOf, tripFromTransit } from "./routes";
+import { createDailyCounter } from "./daily-limit";
 
 const KEY = "test-key-not-a-real-one";
 const HOME = { lat: 38.7086889, lon: -9.1551195 };
@@ -193,5 +194,16 @@ describe("googleRouting", () => {
     expect(logged).toContain("403");
     expect(logged).not.toContain(KEY);
     expect(logged).not.toContain("38.70");
+  });
+});
+
+describe("our daily brake", () => {
+  it("asks Google no more once today's calls are used up; a failure is not kept in the cache", async () => {
+    const fake = google({ routes: [{ duration: "1273s" }] });
+    const r = googleRouting({ key: KEY, fetchImpl: asFetch(fake), now: () => NOW, cache: new Map(), counter: createDailyCounter(1) });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await r.trip("driving", HOME, THERE, ARRIVE))?.minutes).toBe(21);
+    await expect(r.trip("walking", HOME, THERE, ARRIVE)).rejects.toThrow("daily limit");
+    expect(fake).toHaveBeenCalledTimes(1);
   });
 });

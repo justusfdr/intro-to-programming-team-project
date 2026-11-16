@@ -13,6 +13,7 @@ import "server-only";
 // - the exact look-up ("Confirm", and the position of a chosen city): "Text Search (New)". It wants whole
 //   words, and answers with the position.
 import type { PlaceSuggestion } from "@/lib/places/places";
+import { type DailyCounter, sharedDailyCounter } from "./daily-limit";
 
 const AUTOCOMPLETE = "https://places.googleapis.com/v1/places:autocomplete";
 const SEARCH_TEXT = "https://places.googleapis.com/v1/places:searchText";
@@ -43,6 +44,8 @@ export type PlaceSearch = {
   /** Google's server key. Null when it is not set on this server. */
   key: string | null;
   fetchImpl?: typeof fetch;
+  /** Our daily brake on Google calls (daily-limit.ts); the server's shared one when not given. */
+  counter?: DailyCounter;
 };
 
 /** The suggestions in Google's answer: the text of each place suggestion, no repeats, at most `limit`. */
@@ -93,9 +96,10 @@ export function lookupBody(query: string, type?: string): Record<string, unknown
 }
 
 /** One call to Google. Throws GoogleUnavailableError when Google cannot be asked or does not answer. */
-async function post(url: string, fields: string, body: Record<string, unknown>, { key, fetchImpl = fetch }: Pick<PlaceSearch, "key" | "fetchImpl">): Promise<unknown> {
+async function post(url: string, fields: string, body: Record<string, unknown>, { key, fetchImpl = fetch, counter = sharedDailyCounter }: Pick<PlaceSearch, "key" | "fetchImpl" | "counter">): Promise<unknown> {
   if (!key) throw new GoogleUnavailableError("no key");
   try {
+    if (!counter.take(new Date())) throw new GoogleUnavailableError("daily limit");
     const response = await fetchImpl(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key, "X-Goog-FieldMask": fields },

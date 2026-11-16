@@ -142,3 +142,9 @@ export function googleMapsServerKey(): string | null {
 export function googleMapsBrowserKey(): string | null {
   return read("GOOGLE_MAPS_BROWSER_KEY") || null;
 }
+
+/** How many Google calls (places and routes) this server makes a day at most: GOOGLE_MAPS_DAILY_LIMIT, else 1000. */
+export function googleMapsDailyLimit(): number {
+  const value = Number(read("GOOGLE_MAPS_DAILY_LIMIT"));
+  return read("GOOGLE_MAPS_DAILY_LIMIT") !== "" && Number.isInteger(value) && value >= 0 ? value : 1000;
+}
