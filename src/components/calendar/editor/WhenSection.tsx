@@ -7,12 +7,13 @@
 // Start and end are chosen as in the "New event" card: a field to type "HH:MM", the scrolling wheel under
 // it. An end at or before the start is on the next day (an event may run past midnight).
 import { useState, type ReactNode } from "react";
+import { ChevronDown, Repeat2 } from "lucide-react";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent } from "@/lib/events/types";
 import { fmtDateShort, fmtMinutes, fmtRange, fmtTime } from "@/lib/time/display";
 import { endProblem } from "@/lib/time/wheel";
-import { DateField, Eyebrow, ToggleChip } from "../fields";
+import { DateField, Eyebrow } from "../fields";
 import { TimeField, TimeWheel } from "../TimeWheel";
 import { moveFirstDay, switchAllDay, type EventValues, type Repeat } from "./values";
 
@@ -160,19 +161,43 @@ const FREQUENCIES: { value: Frequency; label: string }[] = [
   { value: "monthly", label: "Monthly" },
 ];
 
+const MON_TO_FRI: Weekday[] = [1, 2, 3, 4, 5];
+
 export type Frequency = "none" | Repeat["frequency"];
 
-/** The repeat choice in words, as in Teams: "Every week on Mon, Wed until Dec 20". */
-export function repeatSummary(frequency: Frequency, days: Weekday[], until: string): string {
-  if (frequency === "none") return "";
-  const end = until ? ` until ${fmtDateShort(until)}` : "";
-  if (frequency === "daily") return `Every day${end}`;
-  if (frequency === "monthly") return `Every month${end}`;
-  const names = WEEKDAYS.filter((w) => days.includes(w.day)).map((w) => w.short);
-  return `Every week on ${names.join(", ")}${end}`;
+/** "1st", "2nd", "3rd", "17th". */
+function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 }
 
-/** The repeat choice of a new timed event (R28): how often, on which weekdays, until when. */
+/** "Tue & Thu", "Mon, Wed & Fri". */
+function dayList(days: Weekday[]): string {
+  const names = WEEKDAYS.filter((w) => days.includes(w.day)).map((w) => w.short);
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`;
+}
+
+/**
+ * The repeat in one sentence, as in Google Calendar: "Does not repeat", "Every day", "Every weekday",
+ * "Every Tue & Thu", "Every month on the 17th", each with "until Dec 20" when it repeats.
+ */
+export function repeatSentence(frequency: Frequency, days: Weekday[], date: string, until: string): string {
+  if (frequency === "none") return "Does not repeat";
+  const end = until ? ` · until ${fmtDateShort(until)}` : "";
+  if (frequency === "daily") return `Every day${end}`;
+  if (frequency === "monthly") return `Every month on the ${ordinal(Number(date.slice(8, 10)))}${end}`;
+  const sorted = [...new Set(days)].sort((a, b) => a - b);
+  if (sorted.length === 7) return `Every day${end}`;
+  if (sorted.join() === MON_TO_FRI.join()) return `Every weekday${end}`;
+  return `Every ${dayList(sorted)}${end}`;
+}
+
+/**
+ * The repeat choice of a new timed event (R28). Folded it is one line with the sentence
+ * ("Every Tue & Thu · until Dec 20"); opened: Never | Daily | Weekly | Monthly, the weekdays as round
+ * buttons (a tap on a day makes it weekly; the first date's day is always included), "Mon–Fri", and Until.
+ */
 export function RepeatFields({
   date,
   frequency,
@@ -192,51 +217,98 @@ export function RepeatFields({
   onWeekdays: (days: Weekday[]) => void;
   onUntil: (day: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const first = weekdayOf(date);
+  const weekly = frequency === "weekly";
   // The first date's weekday is always included.
   const chosen = weekdays.includes(first) ? weekdays : [...weekdays, first];
+
+  const tapDay = (day: Weekday) => {
+    if (!weekly) {
+      onFrequency("weekly");
+      return onWeekdays(day === first ? [] : [day]);
+    }
+    if (day === first) return;
+    onWeekdays(weekdays.includes(day) ? weekdays.filter((d) => d !== day) : [...weekdays, day]);
+  };
+
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-line-subtle p-2.5">
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-ink-2">Repeat</span>
-        <div role="group" aria-label="Repeat" className="flex flex-wrap gap-1">
-          {FREQUENCIES.map((f) => (
-            <ToggleChip key={f.value} pressed={frequency === f.value} onClick={() => onFrequency(f.value)}>
-              {f.label}
-            </ToggleChip>
-          ))}
-        </div>
-      </div>
-      {frequency === "weekly" && (
-        <div role="group" aria-label="On these days" className="flex gap-1">
-          {WEEKDAYS.map(({ day, letter, long }) => {
-            const fixed = day === first;
-            const pressed = chosen.includes(day);
-            return (
+    <div className="flex flex-col rounded-lg border border-line-subtle">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={`Repeat: ${repeatSentence(frequency, chosen, date, until)}`}
+        onClick={() => setOpen((o) => !o)}
+        className="flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+      >
+        <Repeat2 className="size-4 shrink-0 text-ink-3" strokeWidth={1.8} aria-hidden />
+        <span className="shrink-0 text-xs text-ink-2">Repeat</span>
+        <span className={`min-w-0 flex-1 truncate text-sm ${frequency === "none" ? "text-ink-3" : "font-medium text-ink"}`}>{repeatSentence(frequency, chosen, date, until)}</span>
+        <ChevronDown className={`size-4 shrink-0 text-ink-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+
+      {open && (
+        <div className="flex flex-col gap-3 border-t border-line-subtle px-2.5 pb-3 pt-2.5">
+          <div role="radiogroup" aria-label="How often" className="grid grid-cols-4 gap-0.5 rounded-full bg-raised p-0.5">
+            {FREQUENCIES.map((f) => (
               <button
-                key={day}
+                key={f.value}
                 type="button"
-                aria-pressed={pressed}
-                aria-label={fixed ? `${long}, the first date's day, always included` : long}
-                onClick={() => !fixed && onWeekdays(pressed ? weekdays.filter((d) => d !== day) : [...weekdays, day])}
-                className={`size-7 shrink-0 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 pointer-coarse:size-9 ${
-                  pressed ? "bg-ink text-surface" : "border border-line-subtle text-ink-2 hover:bg-raised"
-                } ${fixed ? "cursor-default" : ""}`}
+                role="radio"
+                aria-checked={frequency === f.value}
+                onClick={() => onFrequency(f.value)}
+                className={`h-7 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
+                  frequency === f.value ? "bg-surface text-ink shadow-sm" : "text-ink-2 hover:text-ink"
+                }`}
               >
-                {letter}
+                {f.label}
               </button>
-            );
-          })}
-        </div>
-      )}
-      {frequency !== "none" && (
-        <>
-          <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-2">
-            <span className="text-xs text-ink-2">Until</span>
-            <DateField label="Until" value={until} todayKey={todayKey} onChange={onUntil} />
+            ))}
           </div>
-          <p className="text-xs text-ink-3">{repeatSummary(frequency, chosen, until)}</p>
-        </>
+
+          <div className="flex flex-col gap-1.5">
+            <div role="group" aria-label="On these days" className="flex justify-between">
+              {WEEKDAYS.map(({ day, letter, long }) => {
+                const fixed = day === first;
+                const pressed = weekly && chosen.includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    aria-pressed={pressed}
+                    aria-label={fixed && weekly ? `${long}, the first date's day, always included` : long}
+                    onClick={() => tapDay(day)}
+                    className={`size-8 shrink-0 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 pointer-coarse:size-9 ${
+                      pressed ? "bg-ink text-surface" : weekly ? "border border-line-subtle text-ink-2 hover:bg-raised" : "border border-dashed border-line-subtle text-ink-3 hover:bg-raised hover:text-ink"
+                    } ${fixed && weekly ? "cursor-default" : ""}`}
+                  >
+                    {letter}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-ink-3">{weekly ? "Tap days to change them." : "Tap a day to repeat weekly."}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  onFrequency("weekly");
+                  onWeekdays(MON_TO_FRI.filter((d) => d !== first));
+                }}
+                className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium text-ink-2 hover:bg-raised hover:text-ink"
+              >
+                Mon–Fri
+              </button>
+            </div>
+          </div>
+
+          {frequency !== "none" && (
+            <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-2">
+              <span className="text-xs text-ink-2">Until</span>
+              <DateField label="Until" value={until} todayKey={todayKey} onChange={onUntil} />
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
