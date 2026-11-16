@@ -89,11 +89,8 @@ describe("event editor look", () => {
     expect(html).toContain("End · 4h · next day");
   });
 
-  it("offers the length chips of the New event card, with the event's length chosen", () => {
-    const html = render(EVENT);
-    expect(html).toMatch(/role="group" aria-label="Duration"/);
-    for (const label of ["30m", "1h", "1.5h", "2h"]) expect(html).toMatch(new RegExp(`aria-pressed="(true|false)"[^>]*>${label.replace(".", "\\.")}</button>`));
-    expect(html).toMatch(/aria-pressed="true"[^>]*>2h<\/button>/);
+  it("has no length chips: start and end are enough", () => {
+    expect(render(EVENT)).not.toContain('aria-label="Duration"');
   });
 
   it("names the done toggle 'Reopen' for a done event and 'Mark done' otherwise", () => {

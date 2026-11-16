@@ -5,7 +5,7 @@
 // event of a series, R29), first and last day for an all-day event, and the repeat choice for a new
 // timed event (R28). An Outlook event shows its time as text (R11).
 // Start and end are chosen as in the "New event" card: a field to type "HH:MM", the scrolling wheel under
-// it, and the length chips. An end at or before the start is on the next day (an event may run past midnight).
+// it. An end at or before the start is on the next day (an event may run past midnight).
 import { useState, type ReactNode } from "react";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
@@ -13,7 +13,6 @@ import type { CalendarEvent } from "@/lib/events/types";
 import { fmtDateShort, fmtMinutes, fmtRange, fmtTime } from "@/lib/time/display";
 import { endProblem } from "@/lib/time/wheel";
 import { DateField, Eyebrow, ToggleChip, inputClass } from "../fields";
-import { DURATIONS } from "../NewEventPopover";
 import { TimeField, TimeWheel } from "../TimeWheel";
 import { moveFirstDay, switchAllDay, type EventValues, type Repeat } from "./values";
 
@@ -125,14 +124,6 @@ export function WhenSection({ event, values, onChange, todayKey, children }: Pro
                 {timeProblem}
               </p>
             )}
-
-            <div role="group" aria-label="Duration" className="flex flex-wrap gap-1.5">
-              {DURATIONS.map((d) => (
-                <ToggleChip key={d.min} pressed={length === d.min} onClick={() => onChange({ endMin: values.startMin + d.min })} className="tabular">
-                  {d.label}
-                </ToggleChip>
-              ))}
-            </div>
           </div>
         </>
       )}
