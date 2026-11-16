@@ -122,3 +122,15 @@ Without it, everything else works; the pricing page then says "Payment is not av
 6. Try it: as a Free user open **Settings → Your account → See plans**, choose **Upgrade to Pro**, pay with the card `4242 4242 4242 4242`, any future date, any three digits. Back in the app the page becomes Pro within a few seconds, and the coach opens. A declined card is `4000 0000 0000 0002`. **Cancel Pro** keeps Pro until the paid month ends; to end it at once in a test, cancel the subscription in the Dashboard (**Subscriptions**), and the user is Free again.
 7. Run the migration `supabase/migrations/20261129000000_billing.sql` once in the SQL editor (it adds the customer id to the profile).
 8. After a leak: **Developers → API keys → Roll key**, put the new key in both places.
+
+## 12. Google Maps (places now, routes and the map later)
+Without the server key, address and city search say "Address search is not available right now"; the calendar, and an address typed by hand, still work. Google bills by use, so the account has a budget alert and daily limits.
+
+1. At **console.cloud.google.com** use one project (the team's is "Team Project"), linked to a billing account. A new account has a free trial credit.
+2. **Billing → Budgets & alerts:** a monthly budget (the team uses 10 €) with e-mail alerts at 50 %, 90 % and 100 %. A budget only warns; it stops nothing.
+3. **APIs & Services → Library:** enable **Places API (New)**, **Routes API** and **Maps JavaScript API**.
+4. **Quotas:** set a daily limit for each API (for example 300 requests a day). This is the real brake.
+5. **Credentials → Create credentials → API key**, named "LockedIn Server Key". Under **API restrictions** choose only **Places API (New)** and **Routes API**. No website restriction (our server on Vercel has no fixed address). Copy the key into `GOOGLE_MAPS_SERVER_KEY`. It is a secret: password manager, `.env.local` and Vercel only; never in the code, a chat or an issue.
+6. Put the same value into Vercel (**Settings → Environment Variables**) and deploy again.
+7. Try it: **Settings → Home address**, type "Rua Augusta 100 Lisboa"; suggestions appear. **Settings → Time zone**, type "Tokio" and press Confirm.
+8. After a leak: delete the key in the Console, create a new one with the same restrictions, put it in both places, and check **Metrics** for calls you did not make.

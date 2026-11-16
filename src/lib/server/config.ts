@@ -125,3 +125,11 @@ export function stripeConfig(): StripeConfig | null {
 export function chatProOnly(): boolean {
   return read("CHAT_PRO_ONLY").toLowerCase() === "true";
 }
+
+/**
+ * Google's server key for Places (and later Routes). A secret; it only ever lives on the server. Null when
+ * it is not set: address and city search then say they are not available.
+ */
+export function googleMapsServerKey(): string | null {
+  return read("GOOGLE_MAPS_SERVER_KEY") || null;
+}
