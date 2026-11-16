@@ -7,6 +7,8 @@
 
 ## While you work
 - Run the tests after every change and paste the output in your report.
+- Commit in small steps: one commit per finished step (for example the rule, then its test, then the screen), each with the tests passing and a message that says what changed. Never collect a whole feature in one commit.
+- Commit as the person you work for, with their own Git name and e-mail, so GitHub shows who did the work.
 - Never edit, delete or skip a test.
 - Secrets come only from environment variables. Never write a key in the code. The secrets file (`.env.local`) is never committed; `.env.example` holds names and placeholders only.
 - Calls to each external service (database, Claude, Outlook, routing, Stripe) live in one module per service.
