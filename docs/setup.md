@@ -135,3 +135,14 @@ Without the server key, address and city search say "Address search is not avail
 7. Put both values into Vercel (**Settings → Environment Variables**) and deploy again.
 8. Try it: **Settings → Home address**, type "Rua Augusta 100 Lisboa"; suggestions appear. **Settings → Time zone**, type "Tokio" and press Confirm. Give a timed event tomorrow a location such as "Avenida da Liberdade 1, Lisboa": the editor shows "Leave at …" for each way of getting there, and "Show map" opens the way on a Google map.
 9. After a leak: delete the key in the Console, create a new one with the same restrictions, put it in both places, and check **Metrics** for calls you did not make.
+
+## 13. Deploying from GitHub (so every teammate's push goes online)
+
+On Vercel's free plan, Vercel's own Git deploy only builds commits made by the owner of the Vercel account; a teammate's merge shows "Deployment was blocked". The workflow `.github/workflows/deploy.yml` deploys `main` with the owner's token instead, after every push. Set it up once, as the owner:
+
+1. **Vercel token:** vercel.com → avatar → **Account Settings → Tokens → Create**, name "GitHub deploy", scope your account, an expiry after the course ends. Copy it (shown only once).
+2. **The two IDs:** the project's **Settings → General → Project ID**, and the account's **Settings → General → Vercel ID** (on a team: Team ID).
+3. **GitHub:** the repository → **Settings → Secrets and variables → Actions → New repository secret**, three times: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+4. **Test:** **Actions → Deploy to Vercel → Run workflow**. After two to four minutes the run is green and Vercel shows a new production deployment.
+
+The app's own keys stay in Vercel's Environment Variables; the workflow fetches them for the build. Vercel's own Git deploy can stay on: for the owner's commits it builds a second time, which does no harm.
