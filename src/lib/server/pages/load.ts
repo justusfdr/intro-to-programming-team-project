@@ -39,6 +39,8 @@ import { readGoalViews } from "@/lib/server/goals/load";
 import { readOutlookState } from "@/lib/server/outlook/sync";
 import { readOwnCard, readOwnProfile } from "@/lib/server/profiles/own-profile";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
+import { readPlaces } from "@/lib/server/places/saved";
+import type { SavedPlace } from "@/lib/places/saved";
 import { readSettingsPage } from "@/lib/server/settings-page";
 import { readTasks } from "@/lib/server/tasks/rows";
 import { settleTasks } from "@/lib/server/tasks/settle";
@@ -54,7 +56,7 @@ function displayOf(settings: { timeFormat: Display["timeFormat"]; dayStartHour: 
   return { timeFormat: settings.timeFormat, dayStartHour: settings.dayStartHour, dayEndHour: settings.dayEndHour };
 }
 
-export type CalendarPageData = { display: Display; week: WeekData; goals: GoalView[]; tasks: TaskDto[]; showWelcome: boolean };
+export type CalendarPageData = { display: Display; week: WeekData; goals: GoalView[]; tasks: TaskDto[]; showWelcome: boolean; places: SavedPlace[] };
 
 /**
  * The calendar (specs 02 and 14): the days of the view (the address's, else the default view from the
@@ -70,14 +72,15 @@ export async function loadCalendarPage(deps: PageDeps, userId: string, requested
     const settingsRead = readSettings(query);
     const timeZone = settingsRead.then((settings) => settings.timeZone);
     const view = requestedView ?? readDefaultView(query);
-    const [settings, week, { goals, tasks }, showWelcome] = await Promise.all([
+    const [settings, week, { goals, tasks }, showWelcome, places] = await Promise.all([
       settingsRead,
       readCalendar(query, now, view, requestedDate, timeZone, readOutlookState(query)),
       readGoalsAndTasks(query, now, timeZone),
       // A new account (no goals, events or tasks, welcome never answered) sees the welcome (spec 13).
       welcomeDue(query),
+      readPlaces(query),
     ]);
-    return { display: displayOf(settings), week, goals, tasks, showWelcome };
+    return { display: displayOf(settings), week, goals, tasks, showWelcome, places };
   });
 }
 

@@ -242,10 +242,10 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
         eventId={event.id}
         savedAt={event.updatedAt}
         timeZone={timeZone}
-        unsaved={!fromOutlook && (values.location.trim() !== (event.location ?? "") || values.travelMode !== (event.travelMode ?? null))}
+        unsaved={!fromOutlook && (values.location.trim() !== (event.location ?? "") || values.travelMode !== (event.travelMode ?? null) || values.travelFrom !== (event.travelFrom ?? null))}
       />
     ),
-    !values.allDay && !fromOutlook && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => save.change({ travelMode })} />,
+    !values.allDay && !fromOutlook && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => save.change({ travelMode })} from={values.travelFrom} onFrom={(travelFrom) => save.change({ travelFrom })} />,
     // Issue #5: Outlook events have no notes (R11).
     !fromOutlook && <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => save.change({ notes })} />,
     <Refusal
@@ -412,7 +412,7 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
     />,
     !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => change({ goalId })} />,
     <LocationSection key="location" value={values.location} editable onType={(location) => change({ location })} onDone={() => {}} />,
-    !values.allDay && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => change({ travelMode })} />,
+    !values.allDay && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => change({ travelMode })} from={values.travelFrom} onFrom={(travelFrom) => change({ travelFrom })} />,
     <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => change({ notes })} />,
     <Refusal key="refusal" result={result} onReload={onClose} />,
   ];

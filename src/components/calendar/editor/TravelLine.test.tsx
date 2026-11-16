@@ -12,6 +12,7 @@ const view = (travel: Parameters<typeof TravelLineView>[0]["travel"], unsaved = 
 describe("travelText", () => {
   it("A9: Leave at 9:25am, 25m by car + 10m buffer, in the user's time format", () => {
     expect(travelText(A9, "Europe/Lisbon", "12h")).toEqual({ main: "Leave at 9:25am", detail: "25m by car + 10m buffer" });
+    expect(travelText({ ...A9, from: "Uni" }, "Europe/Lisbon", "12h").detail).toBe("25m by car from Uni + 10m buffer");
     expect(travelText(A9, "Europe/Lisbon", "24h").main).toBe("Leave at 9:25");
   });
 

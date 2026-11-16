@@ -7,6 +7,7 @@
 import { useState } from "react";
 import type { TravelMode } from "@/lib/settings/types";
 import { Eyebrow, ToggleChip } from "../fields";
+import { TravelFromField } from "./TravelFrom";
 
 const CHOICES: { mode: TravelMode; label: string }[] = [
   { mode: "driving", label: "Driving" },
@@ -18,7 +19,18 @@ const CHOICES: { mode: TravelMode; label: string }[] = [
 const switchClass =
   "relative h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-line transition-colors checked:bg-ink before:absolute before:top-0.5 before:left-0.5 before:size-4 before:rounded-full before:bg-white before:shadow-sm before:transition-transform checked:before:translate-x-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-1";
 
-export function TravelSection({ value, onChange }: { value: TravelMode | null; onChange: (mode: TravelMode | null) => void }) {
+export function TravelSection({
+  value,
+  onChange,
+  from = null,
+  onFrom,
+}: {
+  value: TravelMode | null;
+  onChange: (mode: TravelMode | null) => void;
+  /** Where the trip starts, as stored; null is the standard. */
+  from?: string | null;
+  onFrom?: (from: string | null) => void;
+}) {
   // Standard switched off but no way picked yet: the ways show until one is chosen.
   const [picking, setPicking] = useState(false);
   const standard = value === null && !picking;
@@ -51,6 +63,7 @@ export function TravelSection({ value, onChange }: { value: TravelMode | null; o
           ))}
         </div>
       )}
+      {onFrom && <TravelFromField value={from} onChange={onFrom} />}
     </section>
   );
 }
