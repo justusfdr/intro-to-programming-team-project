@@ -10,17 +10,22 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} 
 
 const pressed = (html: string) => [...html.matchAll(/aria-pressed="true"[^>]*>([^<]*)</g)].map((m) => m[1].trim());
 
+const labels = (html: string) => [...html.matchAll(/aria-pressed="(?:true|false)"[^>]*>([^<]*)</g)].map((m) => m[1].trim());
+const standardOn = (html: string) => /role="switch"[^>]*checked=""/.test(html);
+
 describe("the Getting there choice", () => {
-  it("offers the standard and the four ways, in this order", () => {
+  it("with the standard on, shows the switch and hides the other ways", () => {
     const html = renderToStaticMarkup(<TravelSection value={null} onChange={() => {}} />);
-    const labels = [...html.matchAll(/aria-pressed="(?:true|false)"[^>]*>([^<]*)</g)].map((m) => m[1].trim());
-    expect(labels).toEqual(["Standard", "Driving", "Cycling", "Walking", "Public transport"]);
+    expect(standardOn(html)).toBe(true);
+    expect(labels(html)).toEqual([]);
   });
 
-  it("marks the standard when no way was chosen, and exactly the chosen way otherwise", () => {
-    expect(pressed(renderToStaticMarkup(<TravelSection value={null} onChange={() => {}} />))).toEqual(["Standard"]);
+  it("with a way chosen, switches the standard off and shows the four ways, the chosen one marked", () => {
     for (const [mode, label] of [["driving", "Driving"], ["cycling", "Cycling"], ["walking", "Walking"], ["transit", "Public transport"]] as const) {
-      expect(pressed(renderToStaticMarkup(<TravelSection value={mode} onChange={() => {}} />))).toEqual([label]);
+      const html = renderToStaticMarkup(<TravelSection value={mode} onChange={() => {}} />);
+      expect(standardOn(html)).toBe(false);
+      expect(labels(html)).toEqual(["Driving", "Cycling", "Walking", "Public transport"]);
+      expect(pressed(html)).toEqual([label]);
     }
   });
 });
@@ -75,7 +80,7 @@ describe("the choice in the editor", () => {
   it("is there for a new event, with the standard marked", () => {
     const html = renderToStaticMarkup(<NewEventCard draft={{ start: "2026-11-17T09:00", end: "2026-11-17T10:00" }} {...COMMON} />);
     expect(html).toContain(">Getting there</p>");
-    expect(pressed(html.slice(html.indexOf(">Getting there</p>")))[0]).toBe("Standard");
+    expect(standardOn(html.slice(html.indexOf(">Getting there</p>")))).toBe(true);
   });
 
   it("is not there for an all-day event (R29) or an Outlook event (R11)", () => {

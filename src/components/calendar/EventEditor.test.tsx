@@ -107,7 +107,7 @@ describe("an existing event", () => {
   it("an event of a series is marked 'Repeating' and has no 'All day' switch", () => {
     const html = edit({ ...TIMED, seriesId: "s1" });
     expect(html).toContain(">Repeating</span>");
-    expect(html).not.toContain('role="switch"');
+    expect(html).not.toMatch(/All day<input[^>]*role="switch"/);
   });
 
   it("marks Done, Not sent to Outlook and an overlap as pills", () => {
