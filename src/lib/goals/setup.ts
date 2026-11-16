@@ -256,6 +256,9 @@ export function stepProblem(step: SetupStep, answers: SetupAnswers, today: Local
       if (answers.hasDate === null) return "Choose whether you are working towards a date.";
       if (answers.hasDate && answers.deadline === "") return "Choose the date.";
       if (answers.hasDate && answers.deadline < today) return MESSAGES.deadlinePast;
+      if (answers.hasDate && freeDaysUntil(answers, today) === 0) {
+        return `Every day until ${fmtDayMonth(answers.deadline)} is ruled out. Choose a later date, or free a day.`;
+      }
       return null;
   }
 }
@@ -265,6 +268,34 @@ const noRoutine = { category: null, categoryOther: null, sessionMinutes: null, d
 /** The first question whose answer does not pass yet, or null when the goal can be reviewed. */
 export function firstProblemStep(answers: SetupAnswers, today: LocalDate): SetupStep | null {
   return SETUP_STEPS.find((step) => stepProblem(step, answers, today) !== null) ?? null;
+}
+
+/** Monday = 1 to Sunday = 7, for a "YYYY-MM-DD". */
+function weekdayOf(date: LocalDate): Weekday {
+  const [y, m, d] = date.split("-").map(Number);
+  return (((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7) + 1) as Weekday;
+}
+
+/**
+ * The days from today to the date (both counted) that are not ruled out, counted up to 7 (after a
+ * week every weekday has come once). 0 when there is no date.
+ */
+export function freeDaysUntil(answers: Pick<SetupAnswers, "avoidDays" | "deadline">, today: LocalDate): number {
+  if (answers.deadline === "" || answers.deadline < today) return 0;
+  let free = 0;
+  for (let day = today, n = 0; day <= answers.deadline && n < 7; day = addDays(day, 1), n++) {
+    if (!answers.avoidDays.includes(weekdayOf(day))) free++;
+  }
+  return free;
+}
+
+/** A date less than a week away that leaves fewer free days than the sessions planned for a week (it never blocks). */
+export function dateHint(answers: SetupAnswers, today: LocalDate): string | null {
+  if (!answers.hasDate || answers.deadline === "" || answers.deadline < today) return null;
+  if (addDays(today, 6) <= answers.deadline) return null;
+  const free = freeDaysUntil(answers, today);
+  if (free === 0 || free >= answers.timesPerWeek) return null;
+  return `Until ${fmtDayMonth(answers.deadline)} there ${free === 1 ? "is 1 free day" : `are ${free} free days`} for ${plural(answers.timesPerWeek, "session", "sessions")}.`;
 }
 
 /** The quick dates: today plus 4, 8 or 12 weeks. */

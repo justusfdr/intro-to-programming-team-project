@@ -263,3 +263,14 @@ describe("the celebration", () => {
     expect(render("done", GYM)).toBe(html);
   });
 });
+
+describe("Q6 with the days ruled out", () => {
+  it("refuses a date before which every day is ruled out, and hints when a near date leaves too few days", () => {
+    const blocked = render("date", { ...GYM, deadline: "2026-11-17", avoidDays: [1, 2] });
+    expect(blocked).toContain("Every day until Nov 17 is ruled out. Choose a later date, or free a day.");
+    expect(continueButton(blocked)).toMatch(/disabled=""/);
+    const tight = render("date", { ...GYM, deadline: "2026-11-17", avoidDays: [] });
+    expect(tight).toContain("Until Nov 17 there are 2 free days for 3 sessions.");
+    expect(continueButton(tight)).not.toMatch(/disabled=""/);
+  });
+});

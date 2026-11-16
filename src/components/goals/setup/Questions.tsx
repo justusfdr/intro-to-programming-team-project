@@ -29,6 +29,7 @@ import {
   CATEGORY_LINES,
   chooseCategory,
   DATE_CHIPS,
+  dateHint,
   dateIn,
   dayPartTimes,
   daysLeft,
@@ -398,6 +399,9 @@ export function QuestionDays({
 // ---------- Q6: a date or none ----------
 
 export function QuestionDate({ answers, update, uid, today }: QuestionProps & { today: LocalDate }) {
+  // A chosen date that does not work (in the past, or every day before it ruled out) says why.
+  const problem = answers.hasDate && answers.deadline !== "" ? stepProblem("date", answers, today) : null;
+  const hint = dateHint(answers, today);
   const choices: Choice<"yes" | "no">[] = [
     { value: "yes", title: "Yes, there is a date", line: "An exam, a race, a launch", icon: <CalendarCheck className={icon} strokeWidth={1.8} /> },
     { value: "no", title: "No, it is ongoing", line: "No end date", icon: <Repeat className={icon} strokeWidth={1.8} /> },
@@ -445,6 +449,8 @@ export function QuestionDate({ answers, update, uid, today }: QuestionProps & { 
           </div>
         </div>
       )}
+      {problem && <p className="setup-rise mt-3 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">{problem}</p>}
+      {hint && <Hint>{hint}</Hint>}
     </div>
   );
 }

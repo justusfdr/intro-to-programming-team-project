@@ -10,6 +10,7 @@ import {
   canRuleOut,
   chooseCategory,
   createGoalBody,
+  dateHint,
   dateIn,
   dayPartTimes,
   daysProblem,
@@ -17,6 +18,7 @@ import {
   eveningHint,
   firstProblemStep,
   fmtWeekly,
+  freeDaysUntil,
   goalWeeklyMinutes,
   hasAnswers,
   LAST_DAY_MESSAGE,
@@ -367,5 +369,29 @@ describe("the tags and the sentence", () => {
 
   it("maps every tag to its question, for Change", () => {
     expect(STEP_OF_TAG).toEqual({ category: "category", often: "often", minutes: "often", dayPart: "when", days: "days", place: "place", date: "date" });
+  });
+});
+
+describe("Q6: the date and the days ruled out", () => {
+  // Monday 16 Nov 2026: Wednesday 18 Nov is two days later.
+  it("counts the free days from today to the date, at most a week", () => {
+    expect(freeDaysUntil({ deadline: "2026-11-18", avoidDays: [] }, TODAY)).toBe(3);
+    expect(freeDaysUntil({ deadline: "2026-11-18", avoidDays: [1, 3] }, TODAY)).toBe(1);
+    expect(freeDaysUntil({ deadline: "2027-06-01", avoidDays: [6, 7] }, TODAY)).toBe(5);
+    expect(freeDaysUntil({ deadline: "", avoidDays: [] }, TODAY)).toBe(0);
+  });
+
+  it("refuses a date before which every day is ruled out; accepts one free day", () => {
+    expect(stepProblem("date", gym({ deadline: "2026-11-17", avoidDays: [1, 2] }), TODAY)).toBe(
+      "Every day until Nov 17 is ruled out. Choose a later date, or free a day.",
+    );
+    expect(stepProblem("date", gym({ deadline: "2026-11-18", avoidDays: [1, 2] }), TODAY)).toBeNull();
+  });
+
+  it("hints when a date less than a week away leaves fewer free days than sessions, without blocking", () => {
+    expect(dateHint(gym({ deadline: "2026-11-17", avoidDays: [], timesPerWeek: 3 }), TODAY)).toBe("Until Nov 17 there are 2 free days for 3 sessions.");
+    expect(dateHint(gym({ deadline: "2026-11-18", avoidDays: [], timesPerWeek: 3 }), TODAY)).toBeNull();
+    expect(dateHint(gym({ deadline: "2026-11-22", avoidDays: [5], timesPerWeek: 6 }), TODAY)).toBeNull(); // a whole week
+    expect(dateHint(gym({ hasDate: false }), TODAY)).toBeNull();
   });
 });
