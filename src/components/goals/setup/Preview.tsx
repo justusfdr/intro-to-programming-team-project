@@ -4,6 +4,7 @@
 // tags that pop in one after the other as the answers come ("3× a week", "60 min", "Evenings", …).
 // Before a category is chosen, a grey placeholder tile and "Your new goal". A tag is a button that goes
 // back to its question. Also the progress bar of six segments and the faint tint of the frame.
+import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { goalColor } from "@/lib/goals/colors";
 import type { RoutineTag, SetupStep } from "@/lib/goals/setup";
@@ -51,26 +52,40 @@ export function GoalTakingShape({
         {tags.length > 0 && (
           <ul aria-label="Your goal so far" className="mt-1.5 flex flex-wrap gap-1.5">
             {tags.map((tag) => (
-              <li key={tag.key} className="setup-tag-in flex">
-                <button
-                  type="button"
-                  onClick={() => onTag(tag.step)}
-                  aria-label={`${tag.label}. Change`}
-                  title="Change"
-                  // The chip is 24 px high; the invisible area around it makes the target 44 px.
-                  className={`relative inline-flex h-6 max-w-56 items-center rounded-full bg-raised px-2.5 text-xs font-medium text-ink-2 transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] hover:bg-muted hover:text-ink ${focusRing}`}
-                >
-                  {/* A new value flips in instead of jumping. */}
-                  <span key={tag.text} className="setup-tag-flip inline-block truncate">
-                    {tag.text}
-                  </span>
-                </button>
-              </li>
+              <Tag key={tag.key} tag={tag} onTag={onTag} />
             ))}
           </ul>
         )}
       </div>
     </div>
+  );
+}
+
+/** How long a new tag pops in; after that, a changed value flips instead. */
+const TAG_IN_MS = 340;
+
+/** One tag: it pops in when it first appears; later a new value flips in instead of jumping. */
+function Tag({ tag, onTag }: { tag: RoutineTag; onTag: (step: SetupStep) => void }) {
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(true), TAG_IN_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <li className="setup-tag-in flex">
+      <button
+        type="button"
+        onClick={() => onTag(tag.step)}
+        aria-label={`${tag.label}. Change`}
+        title="Change"
+        // The chip is 24 px high; the invisible area around it makes the target 44 px.
+        className={`relative inline-flex h-6 max-w-56 items-center rounded-full bg-raised px-2.5 text-xs font-medium text-ink-2 transition-colors before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] hover:bg-muted hover:text-ink ${focusRing}`}
+      >
+        <span key={tag.text} className={`inline-block truncate ${settled ? "setup-tag-flip" : ""}`}>
+          {tag.text}
+        </span>
+      </button>
+    </li>
   );
 }
 

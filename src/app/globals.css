@@ -130,7 +130,7 @@ dialog.welcome::backdrop {
   which follows its content (see .setup-viewport). Without motion everything simply appears: the
   celebration's ring and pieces are invisible unless their animation runs.
 */
-dialog.goal-setup {
+:root {
   --setup-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -177,6 +177,11 @@ dialog.goal-setup::backdrop {
   }
   .setup-leave-back {
     animation: setup-out-right 200ms var(--setup-ease) forwards;
+  }
+  /* The leaving copy is drawn fresh: nothing inside it rises or pops again while it leaves. */
+  .setup-leave-forward *,
+  .setup-leave-back * {
+    animation: none !important;
   }
 
   /* Answer cards and fields rise in one after the other (--i is the card's place). */
