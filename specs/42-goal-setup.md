@@ -1,0 +1,33 @@
+# Spec 42: Setting up a goal through six questions
+Branch `42-goal-setup`, from `41-goal-plan`. Decided in the team meeting of 16 Nov 2026; the team confirms with the merge. Step 2 of 3: spec 41 saves and checks a goal's routine, spec 43 gives it to the coach. No change to the database or to the server's rules. Ontology: the user journey, the note on `create_goal`, A26.
+
+## Why
+A new goal is set up through a few guided questions, like a short onboarding, so the person says how often, how long, when and where without filling in a form; the coach (spec 43) later plans with these answers. The owner: the questions must make sense and never allow something impossible, and the animations should feel good.
+
+## What
+- [x] "New goal" on the Goals page opens the questions: a native dialog like the welcome (a sheet on phones, a centred card of 560 px on wider screens, the page dimmed and slightly blurred; focus stays inside and returns to the button). On the first question "Use the form instead" opens the goal editor for a new goal. Editing a goal still opens the editor.
+- [x] The frame: Back (not on the first question) and Close; six segments of progress in the goal's colour, said as "Question 2 of 6"; the goal taking shape (its tile and name, then one tag per answer that pops in; a tag goes back to its question); the question as the heading (it takes the focus), one helper line, and Continue ("Review" on the last). Closing with something answered asks "Discard this goal?" (Keep going, Discard) for Escape, Close and a click outside.
+- [x] Q1 "What is this goal about?": Sport, Uni, Work, Personal, Other as five cards; then the name (1 to 80 characters) with name ideas, and with Other "What kind? (optional)" (up to 30). The category suggests the icon (dumbbell, graduation cap, briefcase, heart, rocket); the colour is the next unused one. Continue needs a category and a name.
+- [x] Q2 "How often, and for how long?": 1 to 7 times a week (a stepper with seven dots; never more than the days left), 30, 45, 60, 90 or 120 minutes or Other (15 minutes to 4 hours in steps of 15). Starting values: sport 3 × 60, uni 4 × 90, work 3 × 90, personal 3 × 60, other 2 × 60. The sum ("3 × 60 min = 3 h a week"); above 20 hours a quiet hint.
+- [x] Q3 "Where does it happen?": at home or anywhere (the start), each saved place (its address is copied), or another address with the app's suggestions (the event editor's field, now shared). "The app uses this for travel time. It is not sent to the AI." Always possible; more than 200 characters is refused.
+- [x] Q4 "When does it suit you best?": Morning (before 12), Afternoon (12 to 5), Evening (after 5), Any time, in the person's time format; nothing chosen at first; a choice moves on by itself after a moment. An evening session that runs past the calendar's last visible hour gets a quiet hint.
+- [x] Q5 "Are there days you never want to do it?": seven day buttons ("Friday: never"). At most one session a day: with more sessions than days left, Continue is disabled with "You planned 5 sessions a week, but only 3 days are left. Free a day, or go back and plan fewer." The last free day cannot be ruled out ("At least one day has to stay").
+- [x] Q6 "Are you working towards a date?": a date (the app's date field from today, and "In 4/8/12 weeks") or "No, it is ongoing" (no end date, spec 41).
+- [x] The review: the tile, the name, the routine in one sentence, one line per answer with "Change" (Continue then returns to the review), the colours and icons, auto-block (off) and "Why it matters". Above 40 hours a week for all goals together a quiet hint. "Create goal" sends one `create_goal` with one rule `{ kind: "count", target, minMinutes: null }` and the routine; a refusal shows the server's message there. On success a short celebration, the page refreshes, and "Done" closes (room left for spec 43's second button).
+- [x] The goal editor has a section "Routine" between the rules and auto-block (open for a new goal, folded with a count when editing): category chips, the own word with Other, the session length, the time of day, the days, the place. It sends the routine with `create_goal` and `edit_goal`; the server's limits (R44) apply.
+- [x] The goal card shows the routine as one quiet line of tags under the title; a goal without one looks as before.
+- [x] One pure module, `src/lib/goals/setup.ts`, for the rules of each question, the hints, the body and the tags and sentence (shared with the card); `routine.ts` keeps the lists and limits.
+
+## Decisions
+- The questions are stricter than the server: one session a day at most, so the times a week never exceed the days left (the stepper stops there, Q5 blocks). The form keeps the server's R44.
+- Animations are CSS keyframes in `globals.css`, only inside `prefers-reduced-motion: no-preference`, one easing curve, transforms and opacity; the question area's height is the one layout property animated. Nothing is random: the celebration's pieces fly on fixed paths.
+- Q4 needs a choice ("Any time" included) before Continue, since a choice moves on by itself.
+- Dates show in the app's month-first form ("Until Dec 12"), as everywhere else in the app.
+- Screen-reader announcements of the dialog go to a live region inside the dialog (the page's announcer is outside the modal dialog and shows a visible bar); the page's announcer says "Goal saved." when Done closes the dialog.
+- The editor's Routine section is folded when editing (a test of spec 41 expects the editor's first view of an existing goal to show none of its routine; the card shows it).
+
+## Out of scope
+The coach receiving the routine and planning with it, and the second button after creating (spec 43); changing the demo week; the routine in the demo goals.
+
+## Done when
+`setup.test.ts`, `GoalSetup.test.tsx`, `GoalsPage-setup.test.tsx`, `GoalEditor-routine.test.tsx`, `GoalCard-routine.test.tsx`, `goals-load-places.test.ts` pass, and every existing test passes unchanged; `npm run check` and `npm audit --omit=dev` pass. Tried by hand in a browser at 375 px and 1280 px, with and without reduced motion. Reviewed by another member; merged only after the team confirms.
