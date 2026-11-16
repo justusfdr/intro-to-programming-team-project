@@ -50,7 +50,6 @@ import { LocationSection } from "./editor/LocationSection";
 import { NotesSection } from "./editor/NotesSection";
 import { TravelLine } from "./editor/TravelLine";
 import { TravelSection } from "./editor/TravelSection";
-import { OverlapSection } from "./editor/OverlapSection";
 import { TodoList } from "./editor/TodoList";
 import { useEventSave } from "./editor/useEventSave";
 import { createBody, eventFromAnswer, newValues, type EventValues } from "./editor/values";
@@ -249,7 +248,6 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
     !values.allDay && !fromOutlook && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => save.change({ travelMode })} />,
     // Issue #5: Outlook events have no notes (R11).
     !fromOutlook && <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => save.change({ notes })} />,
-    !values.allDay && !fromOutlook && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => save.change({ mayOverlap })} />,
     <Refusal
       key="refusal"
       result={save.result}
@@ -416,7 +414,6 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
     <LocationSection key="location" value={values.location} editable onType={(location) => change({ location })} onDone={() => {}} />,
     !values.allDay && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => change({ travelMode })} />,
     <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => change({ notes })} />,
-    !values.allDay && <OverlapSection key="overlap" value={values.mayOverlap} onChange={(mayOverlap) => change({ mayOverlap })} />,
     <Refusal key="refusal" result={result} onReload={onClose} />,
   ];
 

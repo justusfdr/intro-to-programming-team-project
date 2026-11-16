@@ -1,7 +1,7 @@
 // The event editor's markup as first rendered.
 // Rewritten for spec 16 (the prototype's frame) and spec 17 (the Save button): an existing event shows
 // no Save button until a field was changed; the sections come in the prototype's order (header, chips, When, Goal, Location, then
-// our Overlap); the all-day switch and the repeat choice sit in When; an event of a series still asks
+// no Overlap any more); the all-day switch and the repeat choice sit in When; an event of a series still asks
 // "This event" or "This and following events"; an Outlook event shows title, time and location as text
 // (R11). Kept from spec 07 and 12: the all-day switch, Repeat only for a new event, Mark done and Start
 // focus, the 12-hour times and month-first dates.
@@ -66,11 +66,12 @@ describe("an existing event", () => {
     expect(html).not.toMatch(/type="submit"/);
   });
 
-  it("shows the sections in the prototype's order: title, When, Goal, Location, then Overlap", () => {
+  it("shows the sections in the prototype's order: title, When, Goal, Location, and no Overlap", () => {
     const html = edit(TIMED);
-    const order = ['aria-label="Title"', ">When</p>", ">Goal</p>", ">Location</p>", ">Overlap</p>"].map((part) => html.indexOf(part));
+    const order = ['aria-label="Title"', ">When</p>", ">Goal</p>", ">Location</p>"].map((part) => html.indexOf(part));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html).not.toContain(">Overlap</p>");
   });
 
   it("has the date button, start and end with the length, the all-day switch, and no Repeat", () => {
