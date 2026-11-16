@@ -91,7 +91,7 @@ type Props = Common & {
 };
 
 /** The card width on wider screens, as in the prototype. */
-const WIDTH = 360;
+const WIDTH = 320;
 
 export function EventEditor({ state, shown, onDeleted, onRefused, onCreated, ...common }: Props) {
   if (!state) return null;
@@ -105,8 +105,8 @@ export function EventEditor({ state, shown, onDeleted, onRefused, onCreated, ...
 function Card({ sections, footer }: { sections: ReactNode; footer: ReactNode }) {
   return (
     <>
-      <div className="flex flex-col gap-4 p-4">{sections}</div>
-      {footer && <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-4 py-3">{footer}</div>}
+      <div className="flex flex-col gap-3 p-3.5">{sections}</div>
+      {footer && <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-3.5 py-2.5">{footer}</div>}
     </>
   );
 }
