@@ -18,7 +18,7 @@ import { handleAction } from "@/lib/server/errors";
 import { notFound } from "@/lib/server/events/own-event";
 import { EVENT_COLUMNS, type EventRow } from "@/lib/server/events/rows";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
-import { osmRouting } from "@/lib/server/routing/osm";
+import { googleRouting } from "@/lib/server/google/routes";
 import type { Routing } from "@/lib/server/routing/types";
 import { requireUser } from "@/lib/server/session";
 import { readSettings } from "@/lib/server/settings";
@@ -52,7 +52,7 @@ export async function travelOf(event: EventRow, settings: SettingsData, routing:
   }
 }
 
-export function travelTime(request: Request, deps: Pick<Deps, "auth" | "withUser">, id: string, routing: Routing = osmRouting()): Promise<Response> {
+export function travelTime(request: Request, deps: Pick<Deps, "auth" | "withUser">, id: string, routing: Routing = googleRouting()): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -78,7 +78,7 @@ const TravelBody = z.strictObject({ ids: z.array(z.string().max(40)).max(MAX_EVE
  * travel blocks (R27). Ids of other users' events or unknown ids are left out of the answer (R3), as are
  * events that can have no travel time. Nothing is saved.
  */
-export function travelTimes(request: Request, deps: Pick<Deps, "auth" | "withUser">, routing: Routing = osmRouting()): Promise<Response> {
+export function travelTimes(request: Request, deps: Pick<Deps, "auth" | "withUser">, routing: Routing = googleRouting()): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -92,7 +92,7 @@ export function travelTimes(request: Request, deps: Pick<Deps, "auth" | "withUse
       settings: await readSettings(query),
     }));
 
-    // One after the other: the address service answers one question per second, and most are kept.
+    // One after the other, so one week view does not send a burst of questions to Google; most are kept.
     const travel: Record<string, TravelAnswer> = {};
     for (const event of events) {
       const answer = await travelOf(event, settings, routing);

@@ -29,7 +29,7 @@ Needs Node.js 24 and npm.
 - **Chrome extension (JavaScript):** a website alone cannot block other websites. The teaching staff called the extension a suitable idea.
 - **Claude API:** the AI chat (plans days and answers questions about how the user spent their time), called only from our server.
 - **Microsoft calendar API:** Outlook is the only calendar we connect.
-- **openrouteservice (OpenStreetMap data):** travel time to events.
+- **Google Maps Platform (Places, Routes):** address suggestions, the time zone by city, and travel time to events.
 - **Stripe in test mode:** payment for Pro without real money.
 
 ## Build order

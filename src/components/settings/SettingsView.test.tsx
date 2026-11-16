@@ -93,9 +93,9 @@ describe("settings page", () => {
 
   it("names the map and timetable data once, as their licence asks (R27)", () => {
     const html = render();
-    expect(html).toContain('href="https://www.openstreetmap.org/copyright"');
-    expect(html).toContain("OpenStreetMap contributors");
-    expect(html).toContain("Transitous");
+    expect(html).toContain("Addresses, routes and timetables: Google Maps.");
+    expect(html).not.toContain("OpenStreetMap");
+    expect(html).not.toContain("Transitous");
   });
 
   it("offers the calendar's default view first in Preferences, Day, Week or Month, with the saved one chosen (spec 14)", () => {

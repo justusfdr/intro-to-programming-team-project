@@ -1,7 +1,7 @@
 import "server-only";
 
 // What the travel time (R27) needs from the outside world: finding where an address is, and how long the
-// trip takes. The real one asks OpenStreetMap-based services (osm.ts); tests use a stand-in (fake.ts).
+// trip takes. The real one asks Google (src/lib/server/google/routes.ts); tests use a stand-in (fake.ts).
 import type { TravelMode } from "@/lib/settings/types";
 
 export type Point = { lat: number; lon: number };
