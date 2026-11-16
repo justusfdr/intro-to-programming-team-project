@@ -48,7 +48,7 @@ const EditBody = EventFields.partial({ title: true }).extend({
 });
 
 /** Fields that Outlook owns for an imported event (R11). */
-const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "travelMode", "repeat", "guests", "notes"] as const;
+const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "travelMode", "travelFrom", "repeat", "guests", "notes"] as const;
 
 const badRequest = () => new ActionError(400, "bad_request", MESSAGES.badRequest);
 
@@ -101,6 +101,7 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
       // The travel mode works the same way: through its own narrow function, only when the body names it.
       const setTravelMode = async (eventId: string) => {
         if (!event.allDay && event.travelMode !== undefined) await query("select app.set_event_travel_mode($1, $2)", [eventId, event.travelMode]);
+        if (!event.allDay && event.travelFrom !== undefined) await query("select app.set_event_travel_from($1, $2)", [eventId, event.travelFrom]);
       };
 
       // Spec 24: the guests, only when the body names a list that differs from the saved one.
@@ -123,6 +124,7 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
         await setLocation(id);
         // An all-day event has no travel time (R29): a way of getting there kept from its timed days goes.
         if (row.travel_mode !== null) await query("select app.set_event_travel_mode($1, null)", [id]);
+        if (row.travel_from) await query("select app.set_event_travel_from($1, null)", [id]);
         const [updated] = await query<EventRow>(
           `update app.events
               set title = $2, all_day = true, start_at = null, end_at = null, first_day = $3, last_day = $4,

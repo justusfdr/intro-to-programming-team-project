@@ -1,5 +1,6 @@
 // The settings as the server sends them to the settings page (ontology section 3, settings).
 import type { View } from "@/lib/events/views";
+import type { SavedPlace } from "@/lib/places/saved";
 import type { TimeFormat } from "@/lib/time/display";
 
 export type TravelMode = "driving" | "cycling" | "walking" | "transit";
@@ -30,4 +31,6 @@ export type SettingsPageData = {
   hasDemo: boolean;
   /** The view the calendar opens with (spec 14). */
   defaultView: View;
+  /** The user's saved places besides the home address ("Uni", "Gym"). */
+  places: SavedPlace[];
 };

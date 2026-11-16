@@ -29,7 +29,7 @@ export function SettingsView({
         {profile && <ProfileRow profile={profile} />}
         <OutlookCard outlook={data.outlook} outlookAvailable={data.outlookAvailable} today={data.today} timeZone={data.settings.timeZone} />
         <PreferencesCard settings={data.settings} defaultView={data.defaultView} />
-        <TravelCard settings={data.settings} />
+        <TravelCard settings={data.settings} places={data.places} />
         <BlockerCard data={blocker} />
         <YourAccountCard hasDemo={data.hasDemo} plan={data.plan} />
       </div>

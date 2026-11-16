@@ -73,6 +73,7 @@ describe("values of an event", () => {
       mayOverlap: false,
       location: "Cafeteria",
       travelMode: null,
+      travelFrom: null,
     });
     expect(valuesOf({ ...EVENT, startLocal: "2026-11-17T22:00", endLocal: "2026-11-18T01:00" })).toMatchObject({ startMin: 1320, endMin: 1500 });
   });
@@ -110,6 +111,7 @@ describe("what is sent", () => {
       goalId: "g1",
       location: null,
       travelMode: null,
+      travelFrom: null,
       updatedAt: "2026-11-15T10:00:00.000Z",
     });
     // A way of getting there chosen for this event is sent with it; null means the standard from the settings.

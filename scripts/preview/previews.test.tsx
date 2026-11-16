@@ -289,6 +289,7 @@ it("writes the preview files", async () => {
     today: "2026-11-17",
     hasDemo: true,
     defaultView: "week",
+    places: [],
   };
   const settingsBlocker = {
     sites: ["youtube.com", "instagram.com", "tiktok.com", "x.com", "reddit.com", "facebook.com"].map((domain, i) => ({ id: String(i), domain })),

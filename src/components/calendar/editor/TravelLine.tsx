@@ -32,7 +32,8 @@ export function travelText(travel: TravelAnswer, timeZone: string, format: "12h"
   if (travel.status !== "ok") return { main: travel.message, detail: null };
   const leave = fmtTime(localTimeOf(new Date(travel.leaveAt), timeZone), format);
   const buffer = travel.bufferMinutes > 0 ? ` + ${fmtMinutes(travel.bufferMinutes)} buffer` : "";
-  return { main: `Leave at ${leave}`, detail: `${fmtMinutes(travel.minutes)} ${BY[travel.mode]}${buffer}` };
+  const from = travel.from ? ` from ${travel.from}` : "";
+  return { main: `Leave at ${leave}`, detail: `${fmtMinutes(travel.minutes)} ${BY[travel.mode]}${from}${buffer}` };
 }
 
 export function TravelLine({ eventId, savedAt, timeZone, unsaved }: Props) {

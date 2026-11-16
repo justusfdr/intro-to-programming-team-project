@@ -9,6 +9,7 @@
 // The travel line ("Leave at …", R27) is drawn below it by the editor (TravelLine).
 import { useEffect, useId, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
+import { useSavedPlaces, withSaved } from "@/components/places/SavedPlaces";
 import { PlaceList, checkClass, lookUpCurrent, nextRow, usePlaceSuggestions } from "@/components/places/places";
 import type { PlaceSuggestion } from "@/lib/places/places";
 import { Eyebrow, inputClass } from "../fields";
@@ -58,7 +59,10 @@ function LocationField({ value, onType, onDone }: Omit<Props, "editable">) {
 
   const typed = value.trim();
   const settled = typed === first.trim() || typed === picked;
-  const suggestions = usePlaceSuggestions(typed, settled);
+  const savedPlaces = useSavedPlaces();
+  const searched = usePlaceSuggestions(typed, settled);
+  // The saved places whose name fits come first (typing "Gym" offers the gym's address).
+  const suggestions = settled ? searched : withSaved(typed, savedPlaces, searched);
   const listOpen = open && check.state === "idle" && typed.length >= 3 && !settled;
   const rows = suggestions.length + 1;
 

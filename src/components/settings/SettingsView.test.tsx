@@ -25,6 +25,7 @@ const DATA: SettingsPageData = {
   today: "2026-11-17",
   hasDemo: false,
   defaultView: "week",
+  places: [],
 };
 
 const BLOCKER: BlockerData = { sites: [{ id: "1", domain: "youtube.com" }], connected: false, blockingOn: false, blockingUntil: null, timeZone: "Europe/Lisbon" };

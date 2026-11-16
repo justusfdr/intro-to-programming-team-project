@@ -38,6 +38,8 @@ export type EventValues = {
   guests?: string[];
   /** How to get there; null is the standard from the settings (R27). */
   travelMode: TravelMode | null;
+  /** Where the trip there starts, as stored (src/lib/places/saved.ts); null is the standard. */
+  travelFrom: string | null;
   /**
    * Issue #5: the notes as typed (saved with whitespace at the end trimmed; empty is none). Left out (or
    * empty) when the event has none. Never for an Outlook event (R11).
@@ -71,6 +73,7 @@ export function valuesOf(event: CalendarEvent): EventValues {
     mayOverlap: event.mayOverlap,
     location: event.location ?? "",
     travelMode: event.travelMode ?? null,
+    travelFrom: event.travelFrom ?? null,
     // Always named (also when undefined), so Discard and an answer put the saved guests back.
     guests: event.guests && event.guests.length > 0 ? [...event.guests] : undefined,
     // Issue #5: also always named, so Discard and an answer put the saved notes back.
@@ -106,6 +109,7 @@ export function newValues(draft: { start: string; end: string; title?: string; g
     mayOverlap: false,
     location: "",
     travelMode: null,
+    travelFrom: null,
   };
 }
 
@@ -133,6 +137,7 @@ function fieldsOf(values: EventValues) {
     goalId: values.goalId,
     location,
     travelMode: values.travelMode,
+    travelFrom: values.travelFrom,
   };
 }
 
@@ -191,6 +196,7 @@ export function editedChange(event: CalendarEvent, values: EventValues, timeZone
     source: event.source,
     location: event.source === "outlook" ? event.location : values.location.trim() || null,
     travelMode: event.source === "outlook" || values.allDay ? event.travelMode : values.travelMode,
+    travelFrom: event.source === "outlook" || values.allDay ? event.travelFrom : values.travelFrom,
     notSent: event.notSent,
     updatedAt: event.updatedAt,
     // A change of the event keeps its to-dos (spec 21).

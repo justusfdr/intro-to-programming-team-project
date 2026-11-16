@@ -1,3 +1,4 @@
+import { SavedPlacesProvider } from "@/components/places/SavedPlaces";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Announcer } from "@/components/calendar/Announcer";
@@ -30,7 +31,7 @@ export default async function CalendarPage({
   if (!userId) redirect("/sign-in");
 
   const address = readAddress(await searchParams);
-  const { display, week, goals, showWelcome } = await loadCalendarPage(deps, userId, address.date, address.view);
+  const { display, week, goals, showWelcome, places } = await loadCalendarPage(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
@@ -38,12 +39,14 @@ export default async function CalendarPage({
     <Announcer>
       <LiveProvider>
         <AppShell current="/" display={display}>
-          <CalendarView
-            week={week}
-            nowLocal={nowLocal}
-            goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
-            outlookAvailable={outlookConfigured()}
-          />
+          <SavedPlacesProvider places={places}>
+            <CalendarView
+              week={week}
+              nowLocal={nowLocal}
+              goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
+              outlookAvailable={outlookConfigured()}
+            />
+          </SavedPlacesProvider>
         </AppShell>
         {showWelcome && <Welcome timeFormat={display.timeFormat} />}
       </LiveProvider>
