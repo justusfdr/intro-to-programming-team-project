@@ -134,6 +134,12 @@ describe("Q2: how often and how long", () => {
     expect(html).toMatch(/<button type="button" aria-label="One more a week" disabled=""/);
   });
 
+  it("after going back from the days with too many sessions: says so and waits", () => {
+    const html = render("often", { ...GYM, avoidDays: [1, 2, 3, 4], timesPerWeek: 5 });
+    expect(html).toContain("You planned 5 sessions a week, but only 3 days are left. Free a day, or go back and plan fewer.");
+    expect(continueButton(html)).toMatch(/disabled=""/);
+  });
+
   it("opens 'Other' for a length that is not a chip, and hints above 20 hours", () => {
     const html = render("often", { ...GYM, avoidDays: [], timesPerWeek: 7, sessionMinutes: 195 });
     expect(checked(html).join("")).toContain('id="setup-often-minutes-other"');

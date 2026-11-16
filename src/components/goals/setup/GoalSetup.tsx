@@ -10,7 +10,7 @@
 // Moving between questions: the old question leaves (a copy of it, inert, for 200 ms) while the new one
 // comes in; the question area's height follows its content (measured, then animated in CSS).
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
@@ -68,7 +68,8 @@ export function GoalSetup({ open, onClose, onUseForm, goals, places, today, init
   // The flow's way to close: it asks "Discard this goal?" first when something is answered.
   const requestClose = useRef<() => void>(() => {});
 
-  useEffect(() => {
+  // A layout effect: the dialog closes in the same frame its content goes, so no empty sheet flashes.
+  useLayoutEffect(() => {
     const element = dialog.current;
     if (!element) return;
     if (open && !element.open) {
@@ -169,6 +170,9 @@ function SetupFlow({
   const autoNext = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextRef = useRef<() => void>(() => {});
   const [height, setHeight] = useState<number | null>(null);
+  // While the height moves, the area does not scroll (no scrollbar flashes for a moment).
+  const [settling, setSettling] = useState(false);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const update = (change: (a: SetupAnswers) => SetupAnswers) => {
     setAnswers(change);
@@ -298,13 +302,20 @@ function SetupFlow({
   useEffect(() => {
     const element = innerRef.current;
     if (!element || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => setHeight(element.offsetHeight));
+    const timers = { settle: settleTimer, next: autoNext };
+    const observer = new ResizeObserver(() => {
+      setHeight(element.offsetHeight);
+      if (prefersReducedMotion()) return;
+      setSettling(true);
+      if (timers.settle.current) clearTimeout(timers.settle.current);
+      timers.settle.current = setTimeout(() => setSettling(false), 320);
+    });
     observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => () => {
-    if (autoNext.current) clearTimeout(autoNext.current);
+    return () => {
+      observer.disconnect();
+      if (timers.settle.current) clearTimeout(timers.settle.current);
+      if (timers.next.current) clearTimeout(timers.next.current);
+    };
   }, []);
 
   /** Q4: choosing a time of day moves on by itself after a short moment. */
@@ -390,7 +401,7 @@ function SetupFlow({
       {/* The question area: its height follows the content; the leaving copy lies over it for a moment. */}
       <div
         ref={viewportRef}
-        className="setup-viewport scroll-thin relative min-h-0 shrink overflow-x-hidden overflow-y-auto overscroll-contain"
+        className={`setup-viewport scroll-thin relative min-h-0 shrink overflow-x-hidden overscroll-contain ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
         style={height === null ? undefined : { height }}
       >
         <div ref={innerRef} className="relative px-5 pt-5 pb-6 md:px-7" onKeyDown={onKeyDown}>

@@ -192,6 +192,8 @@ export function QuestionOften({ answers, update, uid }: QuestionProps) {
         {max < MAX_TIMES && (
           <p className="mt-2 text-[13px] text-ink-3">{`${max === 1 ? "1 day is" : `${max} days are`} left after the days you ruled out.`}</p>
         )}
+        {/* Only after going back from the days: more sessions than days left. */}
+        {answers.timesPerWeek > max && <p className="setup-rise mt-2 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">{daysProblem(answers)}</p>}
       </section>
 
       <section aria-labelledby={`${uid}-each`} className="setup-rise mt-6" style={stagger(1)}>
