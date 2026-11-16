@@ -42,3 +42,10 @@ describe("From", () => {
     expect(renderToStaticMarkup(<TravelSection value={null} onChange={() => {}} />)).not.toContain(">From<");
   });
 });
+
+describe("Save as place and the saved places as suggestions", () => {
+  it("offers Save as place under a typed start address", () => {
+    expect(render("address:Rua Augusta 1")).toContain(">Save as place</button>");
+    expect(render("home")).not.toContain("Save as place");
+  });
+});
