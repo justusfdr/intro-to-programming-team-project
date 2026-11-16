@@ -7,6 +7,8 @@
 // It creates a goal (create_goal) or edits one (edit_goal). In edit mode a rule that already exists
 // is removed at once (remove_rule), and the goal can be deleted after a confirmation (delete_goal).
 // It only collects the input and shows the server's answer; the server checks every rule.
+// Spec 42: a section "Routine" between the rules and auto-block (RoutineSection.tsx); its fields are sent
+// with create_goal and edit_goal.
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
@@ -15,6 +17,7 @@ import { DateField } from "@/components/calendar/fields";
 import { Button } from "@/components/ui/Button";
 import { Plus, Trash2, X } from "lucide-react";
 import { GOAL_ICONS } from "./GoalTile";
+import { RoutineSection, routineBody, routineValue } from "./RoutineSection";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { goalColor } from "@/lib/goals/colors";
 import {
@@ -27,6 +30,7 @@ import {
   type GoalIconName,
 } from "@/lib/goals/style";
 import type { GoalDto, GoalView } from "@/lib/goals/types";
+import type { SavedPlace } from "@/lib/places/saved";
 
 /** One rule row as the form holds it. `id` is set for a rule the server already has. */
 type RuleRow = { key: number; id?: string; kind: "count" | "hours"; target: string; minMinutes: string };
@@ -68,7 +72,7 @@ function ruleBody(rule: RuleRow) {
   };
 }
 
-export function GoalEditor({ state, onClose }: { state: GoalEditorState; onClose: () => void }) {
+export function GoalEditor({ state, onClose, places = [] }: { state: GoalEditorState; onClose: () => void; places?: SavedPlace[] }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const open = state !== null;
 
@@ -88,12 +92,12 @@ export function GoalEditor({ state, onClose }: { state: GoalEditorState; onClose
       className="event-editor m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-card bg-surface p-0 text-ink shadow-pop md:m-auto md:max-h-[calc(100dvh-3rem)] md:max-w-md md:rounded-card"
     >
       {/* A new key for every goal gives the form its own rows, fields and messages. */}
-      {state && <GoalForm key={state.mode === "edit" ? state.goal.id : "new"} state={state} onClose={onClose} />}
+      {state && <GoalForm key={state.mode === "edit" ? state.goal.id : "new"} state={state} onClose={onClose} places={places} />}
     </dialog>
   );
 }
 
-function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; onClose: () => void }) {
+function GoalForm({ state, onClose, places }: { state: Exclude<GoalEditorState, null>; onClose: () => void; places: SavedPlace[] }) {
   const router = useRouter();
   const announce = useAnnounce();
   const goal = state.mode === "edit" ? state.goal : null;
@@ -105,9 +109,10 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
   const [icon, setIcon] = useState<GoalIconName>(goal ? goal.look.icon : DEFAULT_GOAL_ICON);
   // The deadline as "YYYY-MM-DD" (empty until one is chosen); sent with the form by the date field.
   const [deadline, setDeadline] = useState(goal?.deadline ?? "");
-  // Spec 41: ticked, the goal has no end date and the body sends deadline null. The routine of a goal is
-  // not edited here yet (spec 42) and never sent, so an edit keeps it.
+  // Spec 41: ticked, the goal has no end date and the body sends deadline null.
   const [noEndDate, setNoEndDate] = useState(goal !== null && goal.deadline === null);
+  // Spec 42: the routine, sent in full with every save.
+  const [routine, setRoutine] = useState(() => routineValue(goal?.routine));
   const [result, setResult] = useState<PostResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -135,6 +140,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
       why: String(form.get("why") ?? ""),
       color,
       icon,
+      ...routineBody(routine),
     };
     setBusy(true);
     const answer = goal
@@ -366,6 +372,8 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
             Add rule
           </Button>
         </fieldset>
+
+        <RoutineSection value={routine} onChange={setRoutine} places={places} startOpen={goal === null} />
 
         <section className="flex flex-col gap-2">
           <p className={labelClass}>Blocker</p>
