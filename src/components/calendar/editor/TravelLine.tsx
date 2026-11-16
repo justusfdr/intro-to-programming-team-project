@@ -4,6 +4,7 @@
 // It is asked from the server (travel_time) when the editor opens and after each save; nothing is saved.
 // The answers it can show: the time to leave; "Add your home address in settings"; "Address not found";
 // "Travel time not available". Changes that are not saved yet do not count until Save.
+// With a time to leave, "Show map" opens Google's map of the way (only then is Google asked for it).
 // The "Google Maps" credit is shown in the settings' Travel card.
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -79,20 +80,50 @@ export function TravelLineView({
         ? { main: "Travel time not available", detail: null }
         : travelText(travel, timeZone, timeFormat);
   const ok = typeof travel === "object" && travel.status === "ok";
+  const map = typeof travel === "object" && travel.status === "ok" ? travel.map : undefined;
 
   return (
-    <div role="status" className="flex flex-col gap-0.5 rounded-lg bg-raised px-3 py-2">
-      <p className={`flex items-center gap-2 text-sm ${ok ? "font-medium text-ink" : "text-ink-2"}`}>
-        <Navigation aria-hidden className="size-3.5 shrink-0 text-ink-3" strokeWidth={1.8} />
-        <span>{text.main}</span>
-        {typeof travel === "object" && travel.status === "no_home" && (
-          <Link href="/settings" className="text-xs font-normal text-ink-2 underline underline-offset-2 hover:text-ink">
-            Settings
-          </Link>
-        )}
-      </p>
-      {text.detail && <p className="pl-5.5 text-xs text-ink-2">{text.detail}</p>}
-      {unsaved && <p className="pl-5.5 text-xs text-ink-3">Save to update the travel time.</p>}
+    <div className="flex flex-col gap-0.5 rounded-lg bg-raised px-3 py-2">
+      <div role="status" className="flex flex-col gap-0.5">
+        <p className={`flex items-center gap-2 text-sm ${ok ? "font-medium text-ink" : "text-ink-2"}`}>
+          <Navigation aria-hidden className="size-3.5 shrink-0 text-ink-3" strokeWidth={1.8} />
+          <span>{text.main}</span>
+          {typeof travel === "object" && travel.status === "no_home" && (
+            <Link href="/settings" className="text-xs font-normal text-ink-2 underline underline-offset-2 hover:text-ink">
+              Settings
+            </Link>
+          )}
+        </p>
+        {text.detail && <p className="pl-5.5 text-xs text-ink-2">{text.detail}</p>}
+        {unsaved && <p className="pl-5.5 text-xs text-ink-3">Save to update the travel time.</p>}
+      </div>
+      {map && <RouteMap src={map} />}
+    </div>
+  );
+}
+
+/** "Show map": Google's map of the way in a frame, loaded only when it is opened. */
+function RouteMap({ src }: { src: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="pl-5.5">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="text-xs text-ink-2 underline underline-offset-2 hover:text-ink"
+      >
+        {open ? "Hide map" : "Show map"}
+      </button>
+      {open && (
+        <iframe
+          title="Map of the way there"
+          src={src}
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
+          className="mt-2 h-56 w-full rounded-md border border-line"
+        />
+      )}
     </div>
   );
 }

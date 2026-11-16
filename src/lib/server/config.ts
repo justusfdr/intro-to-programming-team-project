@@ -133,3 +133,12 @@ export function chatProOnly(): boolean {
 export function googleMapsServerKey(): string | null {
   return read("GOOGLE_MAPS_SERVER_KEY") || null;
 }
+
+/**
+ * Google's browser key, for the map of the way to an event (the Maps Embed API). Public by design: it
+ * goes into the page, so it must be restricted in the Google Cloud Console to our addresses and to the
+ * maps. Null when it is not set: the editor then shows no map, and everything else works.
+ */
+export function googleMapsBrowserKey(): string | null {
+  return read("GOOGLE_MAPS_BROWSER_KEY") || null;
+}
