@@ -84,3 +84,17 @@ export function routineOf(row: Pick<GoalRow, "category" | "category_other" | "se
     location: row.location,
   };
 }
+
+/**
+ * Whether a goal has no end date, and its saved routine (spec 41), for edit_goal: the fields an edit
+ * leaves out keep these values. Call it after findOwnGoal, which locks the row and answers "Not found"
+ * for anything that is not the user's goal.
+ */
+export async function readSavedRoutine(query: Query, goalId: string): Promise<{ openEnded: boolean; routine: GoalRoutine }> {
+  const [row] = await query<Pick<GoalRow, "open_ended" | "category" | "category_other" | "session_minutes" | "day_part" | "avoid_days" | "location">>(
+    `select open_ended, category, category_other, session_minutes, day_part, avoid_days, location
+       from app.goals where id = $1::uuid`,
+    [goalId],
+  );
+  return { openEnded: row.open_ended, routine: routineOf(row) };
+}

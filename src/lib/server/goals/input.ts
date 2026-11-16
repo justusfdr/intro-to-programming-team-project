@@ -1,9 +1,11 @@
 import "server-only";
 
 // The checks shared by create_goal and edit_goal (ontology section 5, R7), in the ontology's order:
-// title, at least one rule, the deadline, then each rule, then the look (colour, icon, why it matters).
-// Each throws the ontology's message.
+// title, at least one rule, the deadline, then each rule, then the look (colour, icon, why it matters),
+// then the routine (spec 41, R44: category, own word, session length, part of the day, avoided days,
+// location, and whether the week still fits). Each throws the ontology's message.
 import { z } from "zod";
+import { cleanRoutine, EMPTY_ROUTINE, routineProblem, type GoalRoutine, type RoutineInput } from "@/lib/goals/routine";
 import { isGoalColor, isGoalIcon, type GoalColorName, type GoalIconName } from "@/lib/goals/style";
 import { MESSAGES } from "@/lib/messages";
 import { ActionError } from "@/lib/server/errors";
@@ -21,16 +23,31 @@ const RuleFields = z.object({
  * The body shape. At most 10 rules: more makes no sense for a weekly goal and keeps the body small.
  * Colour, icon and why are optional: left out, a new goal gets the defaults and an edit keeps them.
  * A colour of null means "calculated from the goal's place in the list".
+ * A deadline of null means "no end date" (spec 41). The routine's fields (spec 41) are optional in the
+ * same way: left out, a new goal gets none and an edit keeps the saved value; null (or an empty list of
+ * days) clears it. The strings are capped generously; the checks below give the exact limits.
  */
 export const GoalFields = z.object({
   title: z.string().max(1000),
-  deadline: z.string().max(10),
+  deadline: z.string().max(10).nullable(),
   autoBlock: z.boolean().optional(),
   rules: z.array(RuleFields).max(10),
   color: z.string().max(40).nullable().optional(),
   icon: z.string().max(40).optional(),
   why: z.string().max(2000).optional(),
+  category: z.string().max(40).nullable().optional(),
+  categoryOther: z.string().max(1000).nullable().optional(),
+  sessionMinutes: z.number().nullable().optional(),
+  dayPart: z.string().max(40).nullable().optional(),
+  avoidDays: z.array(z.number()).max(7).nullable().optional(),
+  location: z.string().max(1000).nullable().optional(),
 });
+
+/**
+ * Spec 41: an open-ended goal keeps a placeholder in the deadline column (it stays "not null" for older
+ * versions of the app): the user's today plus this many days, written when the goal becomes open-ended.
+ */
+export const OPEN_ENDED_PLACEHOLDER_DAYS = 364;
 
 /** R35: "Why it matters" is at most 200 characters. */
 const MAX_WHY = 200;
@@ -38,13 +55,23 @@ const MAX_WHY = 200;
 export type CheckedRule = { id?: string; kind: "count" | "hours"; target: number; minMinutes: number | null };
 export type CheckedGoal = {
   title: string;
-  deadline: LocalDate;
+  /** null: no end date (the action writes the placeholder, spec 41). */
+  deadline: LocalDate | null;
   autoBlock: boolean;
   rules: CheckedRule[];
   /** undefined: not sent (an edit keeps the saved value, a new goal gets the default). */
   color: GoalColorName | null | undefined;
   icon: GoalIconName | undefined;
   why: string | undefined;
+  /** The routine as it will be saved: the sent fields over the kept (or empty) ones, cleaned. */
+  routine: GoalRoutine;
+};
+
+/** What an edit keeps when the body leaves something out. */
+export type KeptGoal = {
+  /** The current deadline; undefined for an open-ended goal (its placeholder is not a deadline). */
+  deadline: LocalDate | undefined;
+  routine: GoalRoutine;
 };
 
 function checkRule(rule: z.infer<typeof RuleFields>): CheckedRule {
@@ -68,23 +95,23 @@ function checkRule(rule: z.infer<typeof RuleFields>): CheckedRule {
 }
 
 /**
- * Checks the fields. `today` is the user's local date. When editing, `keptDeadline` is the goal's
- * current deadline: it may stay as it is even if it has passed ("not past when set or changed").
+ * Checks the fields. `today` is the user's local date. When editing, `kept` holds the goal's current
+ * deadline (it may stay as it is even if it has passed: "not past when set or changed") and its saved
+ * routine (the fields the body leaves out keep their values).
  */
-export function checkGoalFields(
-  fields: z.infer<typeof GoalFields>,
-  today: LocalDate,
-  keptDeadline?: LocalDate,
-): CheckedGoal {
+export function checkGoalFields(fields: z.infer<typeof GoalFields>, today: LocalDate, kept?: KeptGoal): CheckedGoal {
   const title = fields.title.trim();
   const titleLength = [...title].length;
   if (titleLength < 1 || titleLength > 80) throw new ActionError(400, "title_length", MESSAGES.goalTitleLength);
 
   if (fields.rules.length === 0) throw new ActionError(400, "no_rule", MESSAGES.addRule);
 
-  if (!isLocalDate(fields.deadline)) throw new ActionError(400, "bad_request", MESSAGES.badRequest);
-  if (fields.deadline < today && fields.deadline !== keptDeadline) {
-    throw new ActionError(400, "deadline_past", MESSAGES.deadlinePast);
+  // null: no end date (spec 41). A date is checked as before.
+  if (fields.deadline !== null) {
+    if (!isLocalDate(fields.deadline)) throw new ActionError(400, "bad_request", MESSAGES.badRequest);
+    if (fields.deadline < today && fields.deadline !== kept?.deadline) {
+      throw new ActionError(400, "deadline_past", MESSAGES.deadlinePast);
+    }
   }
 
   const rules = fields.rules.map(checkRule);
@@ -96,6 +123,20 @@ export function checkGoalFields(
   const why = fields.why?.trim();
   if (why !== undefined && [...why].length > MAX_WHY) throw new ActionError(400, "why_length", MESSAGES.whyLength);
 
+  // The routine as it will be after the action: what the body sends, else what is kept (R44 checks
+  // the goal's new rules against the days it will have).
+  const base = kept?.routine ?? EMPTY_ROUTINE;
+  const routineInput: RoutineInput = {
+    category: fields.category !== undefined ? fields.category : base.category,
+    categoryOther: fields.categoryOther !== undefined ? fields.categoryOther : base.categoryOther,
+    sessionMinutes: fields.sessionMinutes !== undefined ? fields.sessionMinutes : base.sessionMinutes,
+    dayPart: fields.dayPart !== undefined ? fields.dayPart : base.dayPart,
+    avoidDays: fields.avoidDays !== undefined ? fields.avoidDays : base.avoidDays,
+    location: fields.location !== undefined ? fields.location : base.location,
+  };
+  const problem = routineProblem(routineInput, rules);
+  if (problem) throw new ActionError(400, problem.error, problem.message);
+
   return {
     title,
     deadline: fields.deadline,
@@ -104,5 +145,6 @@ export function checkGoalFields(
     color: fields.color as GoalColorName | null | undefined,
     icon: fields.icon as GoalIconName | undefined,
     why,
+    routine: cleanRoutine(routineInput),
   };
 }
