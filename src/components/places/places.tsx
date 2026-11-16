@@ -2,7 +2,7 @@
 
 // Address search for the browser, shared by the home address in the settings and an event's location:
 // asking our server (/api/places), the suggestions while typing, and the list under the field.
-// The server does the actual asking of the OpenStreetMap-based services (src/lib/server/actions/search-places.ts).
+// The server does the actual asking of Google's Places API (src/lib/server/actions/search-places.ts).
 import { useEffect, useState } from "react";
 import type { CitySuggestion, PlaceSuggestion } from "@/lib/places/places";
 
@@ -14,9 +14,14 @@ export async function lookUp(query: string, signal?: AbortSignal, exact = false)
   return ask<PlaceSuggestion>(`/api/places?q=${encodeURIComponent(query)}${exact ? "&mode=confirm" : ""}`, signal);
 }
 
-/** Cities for what is typed, each with its time zone (for the settings), or null when the search is not available. */
-export function lookUpCities(query: string, signal?: AbortSignal): Promise<CitySuggestion[] | null> {
-  return ask<CitySuggestion>(`/api/places?q=${encodeURIComponent(query)}&kind=city`, signal);
+/** Cities that fit what is typed (for the time zone in the settings), or null when the search is not available. */
+export function lookUpCities(query: string, signal?: AbortSignal): Promise<PlaceSuggestion[] | null> {
+  return ask<PlaceSuggestion>(`/api/places?q=${encodeURIComponent(query)}&kind=city`, signal);
+}
+
+/** The one city that fits what is typed, with its time zone, or null when the search is not available (an empty list: no such city). */
+export function lookUpCity(query: string, signal?: AbortSignal): Promise<CitySuggestion[] | null> {
+  return ask<CitySuggestion>(`/api/places?q=${encodeURIComponent(query)}&kind=city&mode=confirm`, signal);
 }
 
 async function ask<T>(url: string, signal?: AbortSignal): Promise<T[] | null> {
@@ -48,7 +53,7 @@ export function usePlaceSuggestions(typed: string, skip: boolean): PlaceSuggesti
 }
 
 /** The same for cities (the time zone in the settings). */
-export function useCitySuggestions(typed: string, skip: boolean): CitySuggestion[] {
+export function useCitySuggestions(typed: string, skip: boolean): PlaceSuggestion[] {
   return useSuggestions(typed, skip, lookUpCities);
 }
 
@@ -71,7 +76,7 @@ function useSuggestions<T>(typed: string, skip: boolean, find: (query: string, s
 
 /**
  * The list under an address field: the suggestions, and always a last row that looks up exactly what was
- * typed (for an address the suggestions miss, such as a house number OpenStreetMap does not know).
+ * typed (for an address the suggestions miss).
  * `active` is the row chosen with the arrow keys; the last row has the index `suggestions.length`.
  */
 export function PlaceList<T extends PlaceSuggestion>({

@@ -1,13 +1,14 @@
 "use client";
 
 // The time zone in the settings, chosen by city instead of from a long list: type where you are, pick the
-// city, Confirm. The server finds the city's time zone (src/lib/server/places/time-zone.ts) and the
-// settings save it as before. Found → the field flashes green; not found → it flashes red and shakes and
+// city, Confirm. Picking only fills in the city's name; Confirm asks the server for the city with its
+// position, and the server finds the time zone there (src/lib/server/places/time-zone.ts); the settings
+// save it as before. Found → the field flashes green; not found → it flashes red and shakes and
 // nothing is saved. "Use this device's time zone" takes the one the browser already knows.
 import { useEffect, useRef, useState } from "react";
-import { PlaceList, checkClass, lookUpCities, nextRow, useCitySuggestions } from "@/components/places/places";
+import { PlaceList, checkClass, lookUpCity, nextRow, useCitySuggestions } from "@/components/places/places";
 import { Button } from "@/components/ui/Button";
-import type { CitySuggestion } from "@/lib/places/places";
+import type { PlaceSuggestion } from "@/lib/places/places";
 import type { SettingsData } from "@/lib/settings/types";
 import { INPUT_CLASS } from "./fields";
 
@@ -39,8 +40,8 @@ export function TimeZoneField({
   save: (patch: Partial<SettingsData>) => Promise<boolean>;
 }) {
   const [text, setText] = useState("");
-  // A city the person clicked: its time zone is known, so Confirm needs no new look-up.
-  const [picked, setPicked] = useState<CitySuggestion | null>(null);
+  // The name of a city the person clicked, so its suggestions are not asked for again.
+  const [picked, setPicked] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [check, setCheck] = useState<Check>({ state: "idle", round: 0 });
@@ -52,10 +53,10 @@ export function TimeZoneField({
   }, [text]);
 
   const typed = text.trim();
-  const suggestions = useCitySuggestions(typed, typed === picked?.label);
+  const suggestions = useCitySuggestions(typed, typed === picked);
 
-  const choose = (city: CitySuggestion) => {
-    setPicked(city);
+  const choose = (city: PlaceSuggestion) => {
+    setPicked(city.label);
     setText(city.label);
     setActive(-1);
     setCheck((c) => ({ state: "idle", round: c.round }));
@@ -70,16 +71,13 @@ export function TimeZoneField({
   const confirm = async () => {
     if (typed === "") return;
     setCheck((c) => ({ state: "checking", round: c.round }));
-    let city = picked?.label === typed ? picked : null;
-    if (!city) {
-      const found = await lookUpCities(typed);
-      if (latest.current.trim() !== typed) return setCheck((c) => ({ state: "idle", round: c.round })); // typed on meanwhile
-      if (found === null) return setCheck((c) => ({ state: "missing", message: "City search is not available right now", round: c.round + 1 }));
-      if (found.length === 0) return setCheck((c) => ({ state: "missing", message: "City not found", round: c.round + 1 }));
-      city = found[0];
-      setPicked(city);
-      setText(city.label);
-    }
+    const found = await lookUpCity(typed);
+    if (latest.current.trim() !== typed) return setCheck((c) => ({ state: "idle", round: c.round })); // typed on meanwhile
+    if (found === null) return setCheck((c) => ({ state: "missing", message: "City search is not available right now", round: c.round + 1 }));
+    if (found.length === 0) return setCheck((c) => ({ state: "missing", message: "City not found", round: c.round + 1 }));
+    const city = found[0];
+    setPicked(city.label);
+    setText(city.label);
     await setZone(city.timeZone);
   };
 
@@ -98,7 +96,7 @@ export function TimeZoneField({
     return () => clearTimeout(timer);
   }, [check.state, check.round]);
 
-  const listOpen = open && check.state === "idle" && typed.length >= 3 && typed !== picked?.label;
+  const listOpen = open && check.state === "idle" && typed.length >= 3 && typed !== picked;
   const rows = suggestions.length + 1;
 
   return (

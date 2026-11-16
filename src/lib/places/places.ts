@@ -1,7 +1,8 @@
 // Address suggestions from OpenStreetMap data (the Photon search service). This file only turns the
 // service's answer into short lines for a list; asking the service is done in the server action.
 
-export type PlaceSuggestion = { label: string; lat: number; lon: number };
+/** A place for a list: its address line, and its position when it was looked up exactly (suggestions while typing have none). */
+export type PlaceSuggestion = { label: string; lat?: number; lon?: number };
 
 type PhotonFeature = {
   geometry?: { coordinates?: unknown };
@@ -41,7 +42,7 @@ export function suggestionsFrom(answer: unknown, limit = 5): PlaceSuggestion[] {
 }
 
 /** A city for the time zone in the settings: where it is, and the time zone the server found there. */
-export type CitySuggestion = PlaceSuggestion & { timeZone: string };
+export type CitySuggestion = { label: string; lat: number; lon: number; timeZone: string };
 
 /** "Lisbon, Portugal" or "Paris, Texas, United States": the city, its region when that has another name, the country. */
 export function cityLabelOf(p: Record<string, unknown>): string {
