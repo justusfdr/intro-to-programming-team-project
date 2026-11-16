@@ -58,7 +58,7 @@ describe("the editor of our own event", () => {
     expect(at(">When</p>")).toBeGreaterThan(-1);
     expect(at(">Guests</p>")).toBeGreaterThan(at(">When</p>"));
     expect(at(">Location</p>")).toBeGreaterThan(at(">Guests</p>"));
-    expect(at(">Overlap</p>")).toBeGreaterThan(at(">Guests</p>"));
+    expect(html).not.toContain(">Overlap</p>");
     expect(html).toContain('aria-label="Remove lea@example.com"');
     expect(html).toContain('aria-label="Remove tom@uni.example.org"');
     expect(html).toContain('placeholder="Add a guest&#x27;s e-mail"');
