@@ -56,3 +56,21 @@ describe("the line", () => {
     expect(view(null)).toBe("");
   });
 });
+
+describe("the map of the way", () => {
+  const MAP = "https://www.google.com/maps/embed/v1/directions?key=k&origin=A&destination=B&mode=driving&language=en";
+
+  it("offers \"Show map\" when the answer has a map, and loads nothing from Google before it is opened", () => {
+    const html = view({ ...A9, map: MAP });
+    expect(html).toContain("Show map");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("<iframe");
+    expect(html).not.toContain("google.com");
+  });
+
+  it("offers no map without one, and none for a message", () => {
+    expect(view(A9)).not.toContain("Show map");
+    expect(view({ status: "unavailable", mode: "driving", message: "Travel time not available" })).not.toContain("Show map");
+    expect(view("loading")).not.toContain("Show map");
+  });
+});

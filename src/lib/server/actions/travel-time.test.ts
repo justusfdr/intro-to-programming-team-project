@@ -1,7 +1,7 @@
 // Tests for travel_time (R27, scenario A9): when to leave for an event. The routing services are replaced by
 // a stand-in (FakeRouting), so the tests need no internet. Nothing is ever saved, so every case also checks
 // that the database is unchanged.
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
 import { seedAllDay, seedEvent } from "@test/support/events";
 import { FakeRouting } from "@/lib/server/routing/fake";
@@ -196,5 +196,70 @@ describe("travel_times (the calendar's travel blocks)", () => {
     expect((await many([id], { origin: "https://evil.example", "sec-fetch-site": "cross-site" })).status).toBe(403);
     await app.reset();
     expect((await many([id])).status).toBe(401);
+  });
+});
+
+describe("travel_time: the map of the way", () => {
+  const MAP = "https://www.google.com/maps/embed/v1/directions";
+
+  it("adds Google's map of the way from home to the event, with the event's way of getting there, when the server has a browser key", async () => {
+    vi.stubEnv("GOOGLE_MAPS_BROWSER_KEY", "browser-key-for-tests");
+    vi.stubEnv("GOOGLE_MAPS_SERVER_KEY", "server-key-never-in-the-browser");
+    try {
+      const id = await lecture(await alice(), "Nova SBE, Carcavelos", "transit");
+      const before = await app.snapshot();
+      const { body } = await read(await ask(id));
+      const travel = body.travel as { status: string; map: string; minutes: number };
+      expect(travel).toMatchObject({ status: "ok", mode: "transit", minutes: 35 });
+      const url = new URL(travel.map);
+      expect(url.origin + url.pathname).toBe(MAP);
+      expect(Object.fromEntries(url.searchParams)).toEqual({ key: "browser-key-for-tests", origin: "Rua das Madres 66, Lisboa", destination: "Nova SBE, Carcavelos", mode: "transit", language: "en" });
+      expect(JSON.stringify(body)).not.toContain("server-key-never-in-the-browser");
+      expect(await app.snapshot()).toEqual(before);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("has no map without a browser key", async () => {
+    vi.stubEnv("GOOGLE_MAPS_BROWSER_KEY", "");
+    try {
+      const id = await lecture(await alice());
+      const { body } = await read(await ask(id));
+      expect(body.travel).toEqual({ status: "ok", mode: "driving", minutes: 25, bufferMinutes: 10, leaveAt: "2026-11-17T09:25:00.000Z" });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("has no map when there is no time to leave (no home address, address not found, routing down)", async () => {
+    vi.stubEnv("GOOGLE_MAPS_BROWSER_KEY", "browser-key-for-tests");
+    try {
+      const noHome = await lecture(await alice({ home: "" }));
+      expect(JSON.stringify((await read(await ask(noHome))).body)).not.toContain(MAP);
+
+      await app.reset();
+      const unknown = await lecture(await alice(), "Somewhere nobody knows 99");
+      expect((await read(await ask(unknown))).body.travel).toEqual({ status: "not_found", mode: "driving", message: "Address not found" });
+
+      await app.reset();
+      const down = await lecture(await alice());
+      routing.down = true;
+      expect((await read(await ask(down))).body.travel).toEqual({ status: "unavailable", mode: "driving", message: "Travel time not available" });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("the calendar's many travel times carry no map (only the editor shows one)", async () => {
+    vi.stubEnv("GOOGLE_MAPS_BROWSER_KEY", "browser-key-for-tests");
+    try {
+      const user = await alice();
+      const id = await lecture(user);
+      const response = await travelTimes(postJson("/api/travel", { ids: [id] }), app.deps, routing);
+      expect(JSON.stringify((await read(response)).body)).not.toContain(MAP);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

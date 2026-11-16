@@ -18,6 +18,8 @@ import { handleAction } from "@/lib/server/errors";
 import { notFound } from "@/lib/server/events/own-event";
 import { EVENT_COLUMNS, type EventRow } from "@/lib/server/events/rows";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
+import { googleMapsBrowserKey } from "@/lib/server/config";
+import { routeMapUrl } from "@/lib/server/google/map";
 import { googleRouting } from "@/lib/server/google/routes";
 import type { Routing } from "@/lib/server/routing/types";
 import { requireUser } from "@/lib/server/session";
@@ -65,7 +67,10 @@ export function travelTime(request: Request, deps: Pick<Deps, "auth" | "withUser
       if (!row) throw notFound();
       return { event: row, settings: await readSettings(query) };
     });
-    return jsonOk({ travel: await travelOf(event, settings, routing) });
+    const travel = await travelOf(event, settings, routing);
+    // For one event (the editor), the map of the way too, when there is a time to leave.
+    const map = travel?.status === "ok" ? routeMapUrl(settings.homeAddress, event.location ?? "", travel.mode, googleMapsBrowserKey()) : null;
+    return jsonOk({ travel: travel && map && travel.status === "ok" ? { ...travel, map } : travel });
   });
 }
 
