@@ -122,3 +122,265 @@ dialog.welcome::backdrop {
     transform: translateX(6px);
   }
 }
+
+/*
+  The guided setup of a new goal (spec 42): a native dialog like the welcome (a sheet on phones, a
+  centred card on wider screens, the page behind dimmed and slightly blurred). Every move uses one
+  easing curve and only transform and opacity; the one exception is the height of the question area,
+  which follows its content (see .setup-viewport). Without motion everything simply appears: the
+  celebration's ring and pieces are invisible unless their animation runs.
+*/
+dialog.goal-setup {
+  --setup-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+dialog.goal-setup::backdrop {
+  background: rgb(16 16 16 / 0.3);
+  backdrop-filter: blur(2px);
+}
+
+/* The check mark of a chosen card is drawn with a path of length 1. */
+.setup-check-path {
+  stroke-dasharray: 1;
+}
+
+/* A ruled-out day: a line drawn diagonally through the chip. */
+.setup-strike {
+  transform: rotate(-24deg);
+}
+
+/* Only visible while the celebration runs. */
+.setup-ring,
+.setup-piece {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  dialog.goal-setup[open] {
+    animation: setup-sheet-in 320ms var(--setup-ease);
+  }
+
+  /* The question area follows its content's height instead of jumping (the only layout property animated). */
+  .setup-viewport {
+    transition: height 280ms var(--setup-ease);
+  }
+
+  /* Between questions: forward, the new one comes in from the right and the old leaves to the left; back, mirrored. */
+  .setup-enter-forward {
+    animation: setup-in-right 300ms var(--setup-ease) backwards;
+  }
+  .setup-enter-back {
+    animation: setup-in-left 300ms var(--setup-ease) backwards;
+  }
+  .setup-leave-forward {
+    animation: setup-out-left 200ms var(--setup-ease) forwards;
+  }
+  .setup-leave-back {
+    animation: setup-out-right 200ms var(--setup-ease) forwards;
+  }
+
+  /* Answer cards and fields rise in one after the other (--i is the card's place). */
+  .setup-rise {
+    animation: setup-rise 280ms var(--setup-ease) backwards;
+    animation-delay: calc(80ms + var(--i, 0) * 45ms);
+  }
+
+  /* A chosen card: a small press and release, and its check mark draws itself. */
+  .setup-press {
+    animation: setup-press 260ms var(--setup-ease);
+  }
+  .setup-check-path {
+    animation: setup-draw 260ms var(--setup-ease) 80ms backwards;
+  }
+
+  /* The goal taking shape: the tile turns and pops, new tags pop in, a changed value flips. */
+  .setup-tile-pop {
+    animation: setup-tile-pop 380ms var(--setup-ease);
+  }
+  .setup-tag-in {
+    animation: setup-tag-in 320ms var(--setup-ease) backwards;
+  }
+  .setup-tag-flip {
+    animation: setup-tag-flip 260ms var(--setup-ease);
+  }
+
+  /* The progress bar fills segment by segment; the frame's tint fades in. */
+  .setup-segment {
+    transition:
+      transform 320ms var(--setup-ease),
+      background-color 320ms var(--setup-ease);
+  }
+  .setup-tint {
+    transition: opacity 320ms var(--setup-ease);
+  }
+
+  /* Q2: the dots fill and empty with a little bounce. */
+  .setup-dot-on {
+    animation: setup-dot-on 300ms var(--setup-ease);
+  }
+  .setup-dot-off {
+    animation: setup-dot-off 240ms var(--setup-ease);
+  }
+
+  /* Q5: the strike through a ruled-out day draws itself. */
+  .setup-strike {
+    animation: setup-strike 240ms var(--setup-ease) backwards;
+  }
+
+  /* The celebration, once: the tile lands, a ring expands and fades, pieces fly out, then the text rises. */
+  .setup-land {
+    animation: setup-land 560ms var(--setup-ease) backwards;
+  }
+  .setup-ring {
+    animation: setup-ring 760ms var(--setup-ease) 160ms;
+  }
+  .setup-piece {
+    animation: setup-burst 860ms var(--setup-ease) 180ms;
+  }
+  .setup-rise-late {
+    animation: setup-rise 320ms var(--setup-ease) 460ms backwards;
+  }
+}
+
+@keyframes setup-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes setup-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+
+@keyframes setup-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
+}
+
+@keyframes setup-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
+}
+
+@keyframes setup-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+
+@keyframes setup-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes setup-press {
+  40% {
+    transform: scale(0.97);
+  }
+}
+
+@keyframes setup-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes setup-tile-pop {
+  from {
+    opacity: 0.4;
+    transform: scale(0.6) rotate(-16deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.1) rotate(4deg);
+  }
+}
+
+@keyframes setup-tag-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes setup-tag-flip {
+  from {
+    opacity: 0;
+    transform: perspective(240px) rotateX(-80deg);
+  }
+}
+
+@keyframes setup-dot-on {
+  from {
+    transform: scale(0.4);
+  }
+  60% {
+    transform: scale(1.3);
+  }
+}
+
+@keyframes setup-dot-off {
+  from {
+    transform: scale(1.25);
+  }
+}
+
+@keyframes setup-strike {
+  from {
+    transform: rotate(-24deg) scaleX(0);
+  }
+}
+
+@keyframes setup-land {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes setup-ring {
+  from {
+    opacity: 0.55;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+@keyframes setup-burst {
+  from {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.4) rotate(0deg);
+  }
+  70% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(1) rotate(var(--r));
+  }
+}
