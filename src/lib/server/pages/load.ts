@@ -100,14 +100,34 @@ export type GoalsPageData = { display: Display; goals: GoalView[]; tasks: TaskDt
  * from removing old done tasks first (R33), as the calendar does.
  */
 export async function loadGoalsPage(deps: PageDeps, userId: string): Promise<GoalsPageData> {
+  const { display, goals, tasks, today } = await readGoalsPage(deps, userId, false);
+  return { display, goals, tasks, today };
+}
+
+export type GoalsPageWithPlacesData = GoalsPageData & { places: SavedPlace[] };
+
+/**
+ * The Goals page with the user's saved places as well (spec 42: the guided questions and the goal
+ * editor offer them as a goal's place). The same two transactions as loadGoalsPage; the places are read
+ * in the same round as the settings.
+ */
+export function loadGoalsPageWithPlaces(deps: PageDeps, userId: string): Promise<GoalsPageWithPlacesData> {
+  return readGoalsPage(deps, userId, true);
+}
+
+async function readGoalsPage(deps: PageDeps, userId: string, withPlaces: boolean): Promise<GoalsPageWithPlacesData> {
   // By itself: done tasks older than 7 days go first, saved on their own (R33).
   await settleTasks(deps, userId);
   const now = deps.now();
   return deps.withUser(userId, async (query) => {
     const settingsRead = readSettings(query);
     const timeZone = settingsRead.then((settings) => settings.timeZone);
-    const [settings, { goals, tasks }] = await Promise.all([settingsRead, readGoalsAndTasks(query, now, timeZone)]);
-    return { display: displayOf(settings), goals, tasks, today: localDateOf(now, settings.timeZone) };
+    const [settings, places, { goals, tasks }] = await Promise.all([
+      settingsRead,
+      withPlaces ? readPlaces(query) : Promise.resolve([]),
+      readGoalsAndTasks(query, now, timeZone),
+    ]);
+    return { display: displayOf(settings), goals, tasks, today: localDateOf(now, settings.timeZone), places };
   });
 }
 
