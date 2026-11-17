@@ -136,7 +136,7 @@ export function WeatherWidget({ size, answer, clock, onLocate }: { size: WidgetS
   const label = skyLabel(w.sky, w.isDay);
   const title = `${w.place}: ${w.temp} degrees, ${label}, high ${w.high}, low ${w.low}`;
   if (size === "1x1") {
-    return <Small title={title} picture={<SkyIcon sky={w.sky} isDay={w.isDay} className="size-[18px]" />} value={`${w.temp}°`} label={label} />;
+    return <Small title={title} picture={<SkyIcon sky={w.sky} isDay={w.isDay} className="size-[18px]" />} value={`${w.temp}°`} label={`${w.high}° / ${w.low}°`} />;
   }
   const source = SOURCE_ICON[w.source];
   const SourceIcon = source.icon;

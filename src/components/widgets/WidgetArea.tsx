@@ -8,7 +8,7 @@
 // keys) to move; "Add" opens the gallery; "Done" saves the list with save_widgets (R46). A refusal shows
 // its message and puts the saved list back (R1).
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, X } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
 import { getJson, postJson } from "@/lib/client/post-json";
 import { msToNextMinute } from "@/lib/time/next-minute";
@@ -310,10 +310,22 @@ export function WidgetArea() {
   return (
     <section aria-label="Widgets" className="mt-5 mb-3 flex min-h-0 flex-1 flex-col">
       <div className="flex h-7 shrink-0 items-center gap-1.5 pl-[9px] text-xs font-medium text-ink-3">
-        <span className="mr-auto flex items-baseline gap-1.5">
-          Widgets
-          {editing && <span className="text-[11px] font-normal">{freeNow === 0 ? "· full" : `· ${freeNow} free`}</span>}
-        </span>
+        {/* While editing, the label says how much room this screen has left, or what does not fit. */}
+        {!editing ? (
+          <span className="mr-auto">Widgets</span>
+        ) : hidden.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setDraft((list) => list.filter((_, i) => !hidden.includes(i)))}
+            title={`${hidden.map((i) => WIDGET_NAMES[layout[i].kind]).join(", ")} ${hidden.length === 1 ? "does" : "do"} not fit on this screen. Click to remove ${hidden.length === 1 ? "it" : "them"}, or make the window taller.`}
+            className="mr-auto inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2 text-[11px] font-semibold text-amber-800 hover:bg-amber-100"
+          >
+            {hidden.length} hidden
+            <X aria-hidden className="size-3" strokeWidth={2.4} />
+          </button>
+        ) : (
+          <span className="mr-auto whitespace-nowrap">{freeNow === 0 ? "Full" : `${freeNow} free`}</span>
+        )}
         {editing ? (
           <>
             <button type="button" onClick={() => setAdding(true)} className={buttonClass("secondary", "sm", "h-7 gap-1 px-2.5")}>
@@ -388,20 +400,6 @@ export function WidgetArea() {
               </button>
             ))}
         </div>
-        {editing && hidden.length > 0 && (
-          <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800 shadow-float">
-            <span className="min-w-0 flex-1">
-              {hidden.length === 1 ? `${WIDGET_NAMES[layout[hidden[0]].kind]} does not fit on this screen` : `${hidden.length} widgets do not fit on this screen`}
-            </span>
-            <button
-              type="button"
-              onClick={() => setDraft((list) => list.filter((_, i) => !hidden.includes(i)))}
-              className="shrink-0 font-semibold underline-offset-2 hover:underline"
-            >
-              Remove
-            </button>
-          </div>
-        )}
       </div>
 
       <Gallery
