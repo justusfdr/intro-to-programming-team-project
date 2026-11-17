@@ -8,9 +8,10 @@
 // "Create goal" sends one create_goal (the body is built in src/lib/goals/setup.ts); the server checks
 // everything again and its message shows on the review when it refuses.
 // Moving between questions: the old question leaves (a copy of it, inert, for 200 ms) while the new one
-// comes in; the question area's height follows its content (measured, then animated in CSS).
+// comes in. The frame keeps its size from question to question: on a phone the sheet has one height; on
+// wider screens the question area follows its content (measured, then animated in CSS) above a shared floor.
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
@@ -96,7 +97,7 @@ export function GoalSetup({ open, onClose, onUseForm, goals, places, today, init
         requestClose.current();
       }}
       onClick={(event) => event.target === dialog.current && requestClose.current()}
-      className="goal-setup m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-panel bg-surface p-0 text-ink shadow-pop md:m-auto md:max-h-[min(780px,calc(100dvh-3rem))] md:max-w-[560px] md:rounded-panel"
+      className="goal-setup m-0 mt-auto h-[92dvh] max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-panel bg-surface p-0 text-ink shadow-pop md:m-auto md:h-fit md:max-h-[min(780px,calc(100dvh-3rem))] md:max-w-[560px] md:rounded-panel"
     >
       <span id="goal-setup-name" className="sr-only">
         New goal
@@ -364,11 +365,11 @@ function SetupFlow({
   const nextIsReview = screen === "date" || (returnToReview && isQuestion(screen));
 
   return (
-    <div className="relative flex max-h-[inherit] flex-col">
+    <div className="relative flex h-full max-h-[inherit] flex-col">
       <FrameTint color={categoryKnown ? answers.color : null} />
 
       {/* Back, Close, the progress and the goal taking shape. */}
-      <div className="relative shrink-0 px-5 pt-3 md:px-7 md:pt-5">
+      <div className="relative shrink-0 px-5 pt-3 pb-2 md:px-7 md:pt-5">
         <div className="flex h-11 items-center justify-between">
           {screen !== "category" && screen !== "done" ? (
             <Button variant="ghost" className="-ml-3 h-11 px-3" onClick={back}>
@@ -398,13 +399,19 @@ function SetupFlow({
         )}
       </div>
 
-      {/* The question area: its height follows the content; the leaving copy lies over it for a moment. */}
+      {/*
+        The question area; the leaving copy lies over it for a moment. On a phone the sheet has one
+        height and the area fills it, so Back, the progress and Continue never move. On wider screens
+        the area follows its content's height (--setup-h, see globals.css), but never below a floor the
+        six questions share, so the card keeps its size from question to question.
+      */}
       <div
         ref={viewportRef}
-        className={`setup-viewport scroll-thin relative min-h-0 shrink overflow-x-hidden overscroll-contain ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
-        style={height === null ? undefined : { height }}
+        className={`setup-viewport scroll-thin relative flex min-h-0 flex-col overflow-x-hidden overscroll-contain ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
+        style={height === null ? undefined : ({ "--setup-h": `${height}px` } as CSSProperties)}
       >
-        <div ref={innerRef} className="relative px-5 pt-5 pb-6 md:px-7" onKeyDown={onKeyDown}>
+        {/* The celebration sits in the middle of the area; a question starts at its top. */}
+        <div ref={innerRef} className={`relative shrink-0 px-5 pt-4 pb-6 md:px-7 ${screen === "done" ? "my-auto" : ""}`} onKeyDown={onKeyDown}>
           <div key={screen} ref={enterRef} className={moved ? `setup-enter-${direction}` : ""}>
             {panel(screen, `setup-${screen}`)}
           </div>
@@ -413,7 +420,7 @@ function SetupFlow({
               key={`leaving-${leaving.round}`}
               aria-hidden
               inert
-              className={`setup-leave-${leaving.direction} pointer-events-none absolute inset-x-5 top-5 max-h-full overflow-hidden md:inset-x-7`}
+              className={`setup-leave-${leaving.direction} pointer-events-none absolute inset-x-5 top-4 max-h-full overflow-hidden md:inset-x-7`}
               onAnimationEnd={(event) => event.target === event.currentTarget && setLeaving(null)}
             >
               {panel(leaving.screen, `leaving-${leaving.screen}`)}

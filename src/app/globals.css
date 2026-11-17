@@ -149,6 +149,23 @@ dialog.goal-setup::backdrop {
   transform: rotate(-24deg);
 }
 
+/*
+  The question area. Phones: it fills the sheet, which has one height. Wider screens: it is as high as
+  its content (--setup-h is measured by GoalSetup.tsx), but never lower than a floor the six questions
+  share (less on a low window, so the card always fits).
+*/
+.setup-viewport {
+  flex: 1 1 0%;
+}
+
+@media (min-width: 768px) {
+  .setup-viewport {
+    flex: 0 1 auto;
+    height: var(--setup-h, auto);
+    min-height: clamp(0px, calc(100dvh - 19rem), 420px);
+  }
+}
+
 /* Only visible while the celebration runs. */
 .setup-ring,
 .setup-piece {
