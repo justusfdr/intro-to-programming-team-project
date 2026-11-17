@@ -177,7 +177,7 @@ describe("which events take to-dos from the coach", () => {
       { title: "Started", todo: "Finish" },
     ]);
 
-    // The Outlook event: the whole answer fails, nothing saved, the message counted.
+    // The Outlook event: the whole answer fails, nothing saved (spec 44: nothing counted).
     const before = await draftsOf(app.db, alice);
     app.assistant.answerJson({ kind: "draft", text: "Added.", events: [], changes: [], addTodos: [{ ref: "e4", todos: ["Agenda"] }] });
     expect(await read(await send("Add an agenda to the team call"))).toEqual({
@@ -185,7 +185,8 @@ describe("which events take to-dos from the coach", () => {
       body: { error: "answer_failed_checks", message: "The assistant's answer failed our checks. Please try again" },
     });
     expect(await draftsOf(app.db, alice)).toEqual(before);
-    expect(await sentToday(app.db, alice)).toBe(3);
+    // Spec 44: nothing is counted.
+    expect(await sentToday(app.db, alice)).toBe(0);
   });
 
   it("an answer that would make the list longer than 20 fails the checks; 18 + 2 passes", async () => {

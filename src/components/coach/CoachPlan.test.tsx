@@ -22,11 +22,12 @@ const GYM = { id: "0b9c8d7e-6f5a-4b3c-9d2e-1f0a9b8c7d6e", title: "Gym", look: { 
 const DATA: ChatPageData = {
   display: { timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
   timeZone: "Europe/Lisbon",
+  chats: [],
+  chatId: null,
   messages: [],
   draftDayEvents: [],
   draftDays: [],
   goals: [GYM],
-  messagesLeft: 17,
   chatAllowed: true,
   assistantConfigured: true,
 };
