@@ -41,6 +41,8 @@ export const GoalFields = z.object({
   dayPart: z.string().max(40).nullable().optional(),
   avoidDays: z.array(z.number()).max(7).nullable().optional(),
   mustDays: z.array(z.number()).max(7).nullable().optional(),
+  dayFrom: z.number().nullable().optional(),
+  dayUntil: z.number().nullable().optional(),
   location: z.string().max(1000).nullable().optional(),
 });
 
@@ -137,6 +139,12 @@ export function checkGoalFields(fields: z.infer<typeof GoalFields>, today: Local
     // and with fewer times a week the last ones go (the goal editor does not show the sure days).
     mustDays: fields.mustDays !== undefined ? fields.mustDays : keptMustDays(base.mustDays, fields.avoidDays ?? base.avoidDays, rules),
     location: fields.location !== undefined ? fields.location : base.location,
+    // The own window: as sent; else kept, unless a part of the day (or Any time) was sent instead.
+    ...(fields.dayFrom !== undefined || fields.dayUntil !== undefined
+      ? { dayFrom: fields.dayFrom ?? null, dayUntil: fields.dayUntil ?? null }
+      : fields.dayPart !== undefined
+        ? { dayFrom: null, dayUntil: null }
+        : { dayFrom: base.dayFrom, dayUntil: base.dayUntil }),
   };
   const problem = routineProblem(routineInput, rules);
   if (problem) throw new ActionError(400, problem.error, problem.message);

@@ -455,6 +455,8 @@ export function answersRoutine(answers: SetupAnswers): GoalRoutine {
     dayPart: body.dayPart,
     avoidDays: body.avoidDays,
     mustDays: body.mustDays,
+    dayFrom: null,
+    dayUntil: null,
     location: body.location,
   };
 }

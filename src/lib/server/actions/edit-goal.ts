@@ -96,7 +96,8 @@ export function editGoal(request: Request, deps: Pick<Deps, "auth" | "withUser" 
                 why = coalesce($8::text, why),
                 open_ended = $9::boolean,
                 category = $10::text, category_other = $11::text, session_minutes = $12::integer,
-                day_part = $13::text, avoid_days = $14::text, location = $15::text, must_days = $16::text
+                day_part = $13::text, avoid_days = $14::text, location = $15::text, must_days = $16::text,
+                day_from_min = $17::integer, day_until_min = $18::integer
           where id = $1::uuid`,
         [
           goal.id,
@@ -115,6 +116,8 @@ export function editGoal(request: Request, deps: Pick<Deps, "auth" | "withUser" 
           avoidDaysToText(routine.avoidDays),
           routine.location,
           avoidDaysToText(routine.mustDays),
+          routine.dayFrom,
+          routine.dayUntil,
         ],
       );
       const [after] = await readGoals(query, goal.id);

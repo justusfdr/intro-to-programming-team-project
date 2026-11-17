@@ -55,6 +55,8 @@ export const MESSAGES = {
   avoidDays: "Choose weekdays from the list",
   avoidAllDays: "A goal needs at least one day of the week",
   mustDays: "Choose weekdays from the list",
+  dayWindow: "Choose a time window within one day, the end after the start",
+  dayWindowShort: "The time window is shorter than one session",
   mustAvoidDay: "A day cannot be both a sure day and a day off",
   mustDaysCount: "You can choose at most {n} sure days, one for each session a week",
   weekCountFit: "With these days ruled out, at most {n} events a week fit",
