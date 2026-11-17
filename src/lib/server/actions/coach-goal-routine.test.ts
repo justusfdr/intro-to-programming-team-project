@@ -286,3 +286,47 @@ describe("edit_draft with a never day", () => {
     expect((await read(await drag())).status).toBe(200);
   });
 });
+
+describe("A27 as the ontology tells it", () => {
+  it("the data block, an accepted session with the goal's place, undo; then an answer on a Friday refused", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const gym = await seedGoal(app.db, alice, { title: "Gym", deadline: "2027-03-14", rules: [{ kind: "count", target: 3 }] });
+    await app.db.admin(
+      "update app.goals set category = 'sport', session_minutes = 90, day_part = 'evening', avoid_days = '5', location = 'Fitness Park, Rua Augusta 12' where id = $1",
+      [gym.id],
+    );
+    await seedEvent(app.db, alice, { title: "Gym", start: "2026-11-16T07:00:00Z", end: "2026-11-16T08:30:00Z", goalId: gym.id, status: "done" });
+    await seedEvent(app.db, alice, { title: "Gym", start: "2026-11-17T18:00:00Z", end: "2026-11-17T19:30:00Z", goalId: gym.id });
+
+    const draftId = await draftFromAnswer(gymAnswer(gym.id, "2026-11-19"));
+    const [goal] = app.assistant.lastData().goals as Record<string, unknown>[];
+    expect(goal).toMatchObject({
+      category: "sport",
+      sessionMinutes: 90,
+      dayPart: "evening",
+      never: ["Friday"],
+      neverDates: ["2026-11-20", "2026-11-27"],
+      away: true,
+      weeks: [
+        { from: "2026-11-16", to: "2026-11-22", left: 1 },
+        { from: "2026-11-23", to: "2026-11-29", left: 3 },
+      ],
+    });
+    expect(app.assistant.requests[0].data).not.toMatch(/Fitness Park|Rua Augusta/);
+
+    expect((await read(await accept(draftId))).status).toBe(201);
+    const created = await app.db.admin<{ location: string | null }>(
+      "select location from app.events where user_id = $1 and source = 'assistant'",
+      [alice],
+    );
+    expect(created).toEqual([{ location: "Fitness Park, Rua Augusta 12" }]);
+    expect((await read(await undo(draftId))).status).toBe(200);
+    expect(await app.db.admin("select 1 from app.events where user_id = $1 and source = 'assistant'", [alice])).toEqual([]);
+
+    app.assistant.answerJson(gymAnswer(gym.id, "2026-11-20"));
+    const refused = await read(await send("Plan the gym into my week"));
+    expect(refused.body.message).toBe("The assistant's answer failed our checks. Please try again");
+    expect(await sentToday(app.db, alice)).toBe(2);
+    expect((await chatOf(app.db, alice)).length).toBe(2);
+  });
+});
