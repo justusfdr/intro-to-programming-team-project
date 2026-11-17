@@ -6,8 +6,8 @@ function event(id: string, start: string, end: string, mayOverlap = false): Time
 }
 
 describe("conflict mark (R10)", () => {
-  it("marks only the overlapping events that were not accepted (That's fine)", () => {
-    expect(conflictIds([event("a", "09:00", "11:00"), event("b", "10:00", "12:00", true)])).toEqual(new Set(["a"]));
+  it("That's fine on one event settles the pair: neither is marked", () => {
+    expect(conflictIds([event("a", "09:00", "11:00"), event("b", "10:00", "12:00", true)])).toEqual(new Set());
     expect(conflictIds([event("a", "09:00", "11:00"), event("b", "10:00", "12:00")])).toEqual(new Set(["a", "b"]));
   });
 
@@ -26,7 +26,7 @@ describe("conflict mark (R10)", () => {
 
   it("finds an overlap with an event that started earlier and is still running", () => {
     const events = [event("a", "08:00", "12:00"), event("b", "09:00", "09:30", true), event("c", "11:00", "13:00", true)];
-    expect(conflictIds(events)).toEqual(new Set(["a"]));
+    expect(conflictIds(events)).toEqual(new Set());
   });
 
   it("does not depend on the order of the input", () => {
@@ -55,9 +55,10 @@ describe("the overlap notice (issue #106)", () => {
     expect(overlapOf(gym, [lunch, gym], null)).toBeNull();
   });
 
-  it("says nothing for an event that was accepted", () => {
+  it("says nothing for an event that was accepted, or when the other one was", () => {
     const gym = named("Gym", "14:45", "16:45", true);
     expect(overlapOf(gym, [named("Lunch", "13:15", "15:00")], at("14:00"))).toBeNull();
+    expect(overlapOf(named("Gym", "14:45", "16:45"), [named("Lunch", "13:15", "15:00", true)], at("14:00"))).toBeNull();
   });
 
   it("marks the events whose trip runs into another one", () => {
