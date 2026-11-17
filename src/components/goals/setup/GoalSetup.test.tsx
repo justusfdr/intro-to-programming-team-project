@@ -176,12 +176,26 @@ describe("Q3: where", () => {
 });
 
 describe("Q4: when", () => {
-  it("offers four cards with the times in 12 hours, none chosen at first", () => {
+  it("offers Any time, Morning, Afternoon, Evening and Custom in that order, none chosen at first", () => {
     const html = render("when", { ...GYM, dayPart: null });
     expect(html).toContain("When does it suit you best?");
-    expect(radios(html)).toHaveLength(4);
+    expect(radios(html)).toHaveLength(5);
     expect(checked(html)).toHaveLength(0);
-    for (const text of ["Before 12pm", "12 – 5pm", "After 5pm", "Whenever it fits"]) expect(html).toContain(text);
+    const order = ["-any\"", "-morning\"", "-afternoon\"", "-evening\"", "-custom\""].map((id) => html.indexOf(id));
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    for (const text of ["Before 12pm", "12 – 5pm", "After 5pm", "Whenever it fits", "Choose your own time"]) expect(html).toContain(text);
+  });
+
+  it("Custom shows From and Until with the visible hours only; a bad window waits for Continue", () => {
+    const html = render("when", { ...GYM, dayPart: "custom", customFrom: 390, customUntil: 480 }, { display: { timeFormat: "24h", dayStartHour: 6, dayEndHour: 22 } });
+    expect(html).toContain('aria-label="From time"');
+    expect(html).toContain('aria-label="Until time"');
+    const hours = /aria-label="From hour"(.*?)<\/div><\/div>/s.exec(html)![1];
+    expect(hours.match(/role="option"/g)).toHaveLength(17);
+    expect(html).toContain("6:30 – 8:00");
+    const bad = render("when", { ...GYM, dayPart: "custom", customFrom: 480, customUntil: 420 });
+    expect(bad).not.toMatch(/text-danger">The end has to be after the start\./);
+    expect(continueButton(bad)).not.toMatch(/disabled=""/);
   });
 
   it("writes the times in 24 hours, and hints when an evening session runs past the visible day", () => {

@@ -18,13 +18,14 @@ import {
   Moon,
   Repeat,
   Shapes,
+  SlidersHorizontal,
   Sun,
   Sunrise,
 } from "lucide-react";
 import { DateField, inputClass } from "@/components/calendar/fields";
 import { AddressField } from "@/components/places/AddressField";
 import { goalColor } from "@/lib/goals/colors";
-import { DAY_PARTS, GOAL_CATEGORIES, GOAL_CATEGORY_LABELS, MAX_CATEGORY_OTHER, WEEKDAYS, type DayPart, type GoalCategory, type Weekday } from "@/lib/goals/routine";
+import { GOAL_CATEGORIES, GOAL_CATEGORY_LABELS, MAX_CATEGORY_OTHER, WEEKDAYS, type DayPart, type GoalCategory, type Weekday } from "@/lib/goals/routine";
 import {
   CATEGORY_LINES,
   chooseCategory,
@@ -44,12 +45,15 @@ import {
   SESSION_CHIPS,
   chipLength,
   sessionLengthProblem,
+  customWindowProblem,
+  startCustom,
   setSessionMinutes,
   setTimesPerWeek,
   stepProblem,
   type DisplayLike,
   type SetupAnswers,
 } from "@/lib/goals/setup";
+import { fmtRange } from "@/lib/time/display";
 import { ROW, SIDE, WheelColumn } from "@/components/calendar/TimeWheel";
 import { MINUTES, withHour, withMinute } from "@/lib/time/wheel";
 import type { SavedPlace } from "@/lib/places/saved";
@@ -354,15 +358,44 @@ export function QuestionPlace({ answers, update, uid, places, today }: QuestionP
 
 const DAY_PART_ICONS: Record<DayPart, typeof Sun> = { morning: Sunrise, afternoon: Sun, evening: Moon };
 
-export function QuestionWhen({ answers, update, uid, display, onChosen }: QuestionProps & { display: DisplayLike; onChosen: () => void }) {
-  const choices: Choice<DayPart | "any">[] = [
-    ...DAY_PARTS.map((part) => {
-      const Icon = DAY_PART_ICONS[part];
-      return { value: part, title: `${part[0].toUpperCase()}${part.slice(1)}`, line: dayPartTimes(part, display.timeFormat), icon: <Icon className={icon} strokeWidth={1.8} /> };
-    }),
-    { value: "any" as const, title: "Any time", line: "Whenever it fits", icon: <Clock3 className={icon} strokeWidth={1.8} /> },
+export function QuestionWhen({
+  answers,
+  update,
+  uid,
+  display,
+  onChosen,
+  showWindowProblem = false,
+}: QuestionProps & {
+  display: DisplayLike & { dayStartHour: number };
+  onChosen: () => void;
+  /** Continue was pressed with a window that does not work: show why. */
+  showWindowProblem?: boolean;
+}) {
+  const part = (p: DayPart): Choice<DayPart> => {
+    const Icon = DAY_PART_ICONS[p];
+    return { value: p, title: `${p[0].toUpperCase()}${p.slice(1)}`, line: dayPartTimes(p, display.timeFormat), icon: <Icon className={icon} strokeWidth={1.8} /> };
+  };
+  // Any time top left, Morning top right, Afternoon and Evening below, Custom across the whole width.
+  const custom = answers.dayPart === "custom";
+  const choices: Choice<DayPart | "any" | "custom">[] = [
+    { value: "any", title: "Any time", line: "Whenever it fits", icon: <Clock3 className={icon} strokeWidth={1.8} /> },
+    part("morning"),
+    part("afternoon"),
+    part("evening"),
+    {
+      value: "custom",
+      title: "Custom",
+      line: custom ? fmtRange(answers.customFrom, answers.customUntil, display.timeFormat) : "Choose your own time",
+      icon: <SlidersHorizontal className={icon} strokeWidth={1.8} />,
+    },
   ];
   const hint = eveningHint(answers, display);
+  const problem = custom && showWindowProblem ? customWindowProblem(answers) : null;
+  // The sentence sits under the wheels: bring it into view when it comes.
+  const problemRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (problem) problemRef.current?.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }, [problem]);
   return (
     <div>
       <QuestionTitle id={`${uid}-title`} sub="A preference for planning. You can still plan it at other times.">
@@ -372,15 +405,64 @@ export function QuestionWhen({ answers, update, uid, display, onChosen }: Questi
         <ChoiceGroup
           labelledBy={`${uid}-title`}
           idPrefix={`${uid}-when`}
+          layout="grid gap-2 sm:grid-cols-2 sm:[&>*:last-child]:col-span-2"
           choices={choices}
           value={answers.dayPart}
           onChoose={(dayPart) => {
+            if (dayPart === "custom") {
+              // Custom stays open to set the times; the question does not go on by itself.
+              if (!custom) update((a) => startCustom(a, display));
+              return;
+            }
             update((a) => ({ ...a, dayPart }));
             onChosen();
           }}
         />
       </div>
+      {custom && (
+        <div className="setup-rise mt-4 grid grid-cols-2 gap-3">
+          <WindowWheel label="From" value={answers.customFrom} display={display} onChange={(customFrom) => update((a) => ({ ...a, customFrom }))} />
+          <WindowWheel label="Until" value={answers.customUntil} display={display} onChange={(customUntil) => update((a) => ({ ...a, customUntil }))} />
+        </div>
+      )}
+      {problem && (
+        <p ref={problemRef} className="setup-rise mt-3 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">
+          {problem}
+        </p>
+      )}
       {hint && <Hint>{hint}</Hint>}
+    </div>
+  );
+}
+
+/**
+ * One end of the own window: hours and minutes as scrolling columns, the hours only those of the visible
+ * day (the settings' first to last hour; the last one only as :00).
+ */
+function WindowWheel({ label, value, display, onChange }: { label: string; value: number; display: { dayStartHour: number; dayEndHour: number }; onChange: (minutes: number) => void }) {
+  const first = display.dayStartHour;
+  const last = display.dayEndHour;
+  const hours = Array.from({ length: last - first + 1 }, (_, i) => first + i);
+  const clamp = (m: number) => Math.min(last * 60, Math.max(first * 60, m));
+  const [reset, setReset] = useState(0);
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <span className={labelClass}>{label}</span>
+      <div role="group" aria-label={`${label} time`} className="relative flex items-center justify-center gap-1 select-none">
+        <div aria-hidden className="pointer-events-none absolute -inset-x-2 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
+        <WheelColumn label={`${label} hour`} items={hours} selected={Math.floor(value / 60)} onPick={(h) => onChange(clamp(withHour(value, h)))} />
+        <span aria-hidden className="relative text-lg font-medium text-ink">
+          :
+        </span>
+        <WheelColumn
+          key={reset}
+          label={`${label} minute`}
+          items={MINUTES}
+          selected={value % 60}
+          // At the last hour only :00 (the day ends there); another minute puts the column back.
+          onPick={(m) => (Math.floor(value / 60) >= last && m !== 0 ? setReset((r) => r + 1) : onChange(clamp(withMinute(value, m))))}
+        />
+      </div>
     </div>
   );
 }
