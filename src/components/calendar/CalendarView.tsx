@@ -38,11 +38,12 @@ import {
   visibleDays,
   type View,
 } from "@/lib/events/views";
-import { leadInto } from "@/lib/events/week-view";
-import { overlapOf, tripConflictIds, type NamedEvent } from "@/lib/events/conflicts";
+import { leadInto, withEventChange } from "@/lib/events/week-view";
+import { overlapOf, tripConflictIds, type NamedEvent, type Overlap } from "@/lib/events/conflicts";
+import { OverlapNotice } from "./editor/OverlapNotice";
 import { fmtDateLong, fmtWeekday } from "@/lib/time/display";
 import { msToNextMinute } from "@/lib/time/next-minute";
-import { localDateTimeOf } from "@/lib/time/zoned";
+import { localDateTimeOf, parseLocalDateTime } from "@/lib/time/zoned";
 import type { NewTodo } from "@/lib/todos/types";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { useDisplay } from "@/components/shell/DisplayProvider";
@@ -103,6 +104,7 @@ function useNowLocal(initial: string, timeZone: string): string {
 type Pop =
   | { kind: "new"; date: string; span: Span; anchor: Anchor }
   | { kind: "series"; event: WeekEvent; start: string; end: string; anchor: Anchor }
+  | { kind: "overlap"; event: WeekEvent; start: string; end: string; overlap: Overlap; saving: Promise<PostResult>; anchor: Anchor }
   | null;
 
 /** The toast at the bottom, as in the prototype: a line and, for 8 seconds, "Undo". */
@@ -178,20 +180,29 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
     [live, markPending, showToast, sendToOutlook, week.timeZone],
   );
 
+  /** Puts a dropped event back where it was, once its move is saved. */
+  const moveBack = useCallback(
+    (event: WeekEvent, start: string, end: string, saving: Promise<PostResult>, scope?: Scope) =>
+      void saving.then((answer) => {
+        const saved = savedEvent(answer);
+        if (!answer.ok || !saved) return;
+        void saveTimes({ ...event, startLocal: start, endLocal: end }, event.startLocal, event.endLocal, saved.updatedAt, scope);
+      }),
+    [saveTimes],
+  );
+
   /** A drop: move or resize, with Undo for 8 seconds (the undo edits the event back). */
   const moveEvent = useCallback(
     (event: WeekEvent, start: string, end: string, scope?: Scope) => {
       const saving = saveTimes(event, start, end, event.updatedAt, scope);
-      showToast(dropText(event, start, end, timeFormat, scope), () => {
-        void saving.then((answer) => {
-          const saved = savedEvent(answer);
-          if (!answer.ok || !saved) return;
-          void saveTimes({ ...event, startLocal: start, endLocal: end }, event.startLocal, event.endLocal, saved.updatedAt, scope);
-        });
-      });
+      showToast(dropText(event, start, end, timeFormat, scope), () => moveBack(event, start, end, saving, scope));
+      return saving;
     },
-    [saveTimes, showToast, timeFormat],
+    [saveTimes, showToast, timeFormat, moveBack],
   );
+
+  // Issue #106: what an event would overlap at new times (set below, once the week's events are known).
+  const overlapAt = useRef<(event: WeekEvent, start: string, end: string) => Overlap | null>(() => null);
 
   const onDrop = useCallback(
     (event: WeekEvent, day: string, span: Span, anchor: Anchor) => {
@@ -199,8 +210,11 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
       const end = localAt(day, span.endMin);
       if (start === event.startLocal && end === event.endLocal) return;
       // An event of a series: ask first (R28).
-      if (event.seriesId) setPop({ kind: "series", event, start, end, anchor });
-      else moveEvent(event, start, end);
+      if (event.seriesId) return setPop({ kind: "series", event, start, end, anchor });
+      const saving = moveEvent(event, start, end);
+      // Issue #106: it overlaps another event (or its trip does): ask right there.
+      const overlap = overlapAt.current(event, start, end);
+      if (overlap) setPop({ kind: "overlap", event, start, end, overlap, saving, anchor });
     },
     [moveEvent],
   );
@@ -263,11 +277,50 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
     [travel],
   );
   const tripWarned = useMemo(() => tripConflictIds(timed, leaveOf), [timed, leaveOf]);
-  const editedOverlap = useMemo(() => {
-    if (editor?.mode !== "edit") return null;
-    const own = timed.find((e) => e.id === editor.event.id);
-    return own ? overlapOf(own, timed, leaveOf(own.id)) : null;
-  }, [editor, timed, leaveOf]);
+  useEffect(() => {
+    overlapAt.current = (event, start, end) => {
+      const startAt = parseLocalDateTime(start, week.timeZone);
+      const endAt = parseLocalDateTime(end, week.timeZone);
+      if (!startAt || !endAt) return null;
+      // The trip keeps its length: it starts as much earlier as before.
+      const leave = leaveOf(event.id);
+      const shifted = leave ? new Date(startAt.getTime() - (new Date(event.startAt).getTime() - leave.getTime())) : null;
+      return overlapOf({ id: event.id, startAt, endAt, mayOverlap: event.mayOverlap }, timed, shifted);
+    };
+  }, [timed, leaveOf, week.timeZone]);
+
+  /** "That's fine": the moved event may overlap from now on. */
+  const acceptOverlap = useCallback(
+    (event: WeekEvent, start: string, end: string, saving: Promise<PostResult>) =>
+      void saving.then(async (answer) => {
+        const saved = savedEvent(answer);
+        if (!answer.ok || !saved) return;
+        const accepted = await live.run({
+          send: () => postJson(`/api/events/${event.id}/edit`, { ...timesBody(event, start, end, saved.updatedAt), mayOverlap: true }),
+          fromAnswer: savedEventChange,
+        });
+        if (!accepted.ok) showToast(accepted.message);
+      }),
+    [live, showToast],
+  );
+
+  /** "Discard": the moved event goes, with Undo in the toast. */
+  const discardMoved = useCallback(
+    (event: WeekEvent, start: string, end: string, saving: Promise<PostResult>) =>
+      void saving.then(async (answer) => {
+        const saved = savedEvent(answer);
+        if (!answer.ok || !saved) return;
+        const deleted = await live.run({
+          send: () => postJson(`/api/events/${event.id}/delete`, { updatedAt: saved.updatedAt }),
+          fromAnswer: () => ({ week: (w) => withEventChange(w, { removed: event.id }) }),
+        });
+        if (!deleted.ok) return showToast(deleted.message);
+        sendToOutlook();
+        // Undo brings it back at the times it was dropped to.
+        onDeleted({ ...event, startAt: saved.startAt ?? event.startAt, endAt: saved.endAt ?? event.endAt, startLocal: start, endLocal: end, updatedAt: saved.updatedAt }, []);
+      }),
+    [live, showToast, sendToOutlook, onDeleted],
+  );
   const range = useMemo(
     () => gridRange(placed, { startMin: dayStartHour * 60, endMin: dayEndHour * 60 }),
     [placed, dayStartHour, dayEndHour],
@@ -410,7 +463,6 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
       <EventEditor
         state={editor}
         shown={editor?.mode === "edit" ? findEvent(week, editor.event.id) : null}
-        overlap={editedOverlap}
         goals={goals}
         timeZone={week.timeZone}
         today={today}
@@ -451,6 +503,27 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               onCancel={closePop}
             />
           </div>
+        </FloatingPanel>
+      )}
+      {pop?.kind === "overlap" && (
+        <FloatingPanel anchor={pop.anchor} label={`'${pop.event.title}' overlaps another event`} width={320} onClose={closePop}>
+          <OverlapNotice
+            overlap={pop.overlap}
+            timeZone={week.timeZone}
+            onFine={() => {
+              setPop(null);
+              acceptOverlap(pop.event, pop.start, pop.end, pop.saving);
+            }}
+            onMove={() => {
+              setPop(null);
+              setToast(null);
+              moveBack(pop.event, pop.start, pop.end, pop.saving);
+            }}
+            onDiscard={() => {
+              setPop(null);
+              discardMoved(pop.event, pop.start, pop.end, pop.saving);
+            }}
+          />
         </FloatingPanel>
       )}
       {toast && <ToastBar key={toast.id} toast={toast} onDone={() => setToast(null)} />}
