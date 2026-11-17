@@ -120,25 +120,28 @@ describe("Q1: what it is about and its name", () => {
 });
 
 describe("Q2: how often and how long", () => {
-  it("keeps the times between 1 and 7 and the minutes between 15 and 240 in steps of 15", () => {
+  it("keeps the times between 1 and 7 and the minutes to the minute, as the wheel shows them (0:00 to 12:00)", () => {
     const a = gym();
     expect(setTimesPerWeek(a, 0).timesPerWeek).toBe(1);
     expect(setTimesPerWeek(a, 9).timesPerWeek).toBe(6); // Friday is ruled out
     expect(setTimesPerWeek({ ...a, avoidDays: [] }, 9).timesPerWeek).toBe(7);
-    expect(setSessionMinutes(a, 0).sessionMinutes).toBe(15);
-    expect(setSessionMinutes(a, 300).sessionMinutes).toBe(240);
-    expect(setSessionMinutes(a, 50).sessionMinutes).toBe(45);
+    expect(setSessionMinutes(a, 0).sessionMinutes).toBe(0);
+    expect(setSessionMinutes(a, 360).sessionMinutes).toBe(360);
+    expect(setSessionMinutes(a, 50).sessionMinutes).toBe(50);
+    expect(setSessionMinutes(a, 2000).sessionMinutes).toBe(720);
+    expect(setSessionMinutes(a, 750).sessionMinutes).toBe(720);
     expect(setSessionMinutes(a, 75).oftenTouched).toBe(true);
   });
 
-  it("accepts 1 and 7, 15 and 240 minutes; refuses 0, 8, 10 and 255 minutes", () => {
+  it("accepts 1 and 7 times, 1 minute to 12 hours; refuses 0 and 8 times, 0 minutes and more than 12 hours", () => {
     const q2 = (change: Partial<SetupAnswers>) => stepProblem("often", gym({ avoidDays: [], ...change }), TODAY);
-    expect(q2({ timesPerWeek: 1, sessionMinutes: 15 })).toBeNull();
-    expect(q2({ timesPerWeek: 7, sessionMinutes: 240 })).toBeNull();
+    expect(q2({ timesPerWeek: 1, sessionMinutes: 1 })).toBeNull();
+    expect(q2({ timesPerWeek: 7, sessionMinutes: 720 })).toBeNull();
+    expect(q2({ sessionMinutes: 360 })).toBeNull();
     expect(q2({ timesPerWeek: 0 })).toBe("Choose 1 to 7 times a week.");
     expect(q2({ timesPerWeek: 8 })).toBe("Choose 1 to 7 times a week.");
-    expect(q2({ sessionMinutes: 10 })).toBe(MESSAGES.sessionMinutes);
-    expect(q2({ sessionMinutes: 255 })).toBe(MESSAGES.sessionMinutes);
+    expect(q2({ sessionMinutes: 0 })).toBe("Choose at least 1 minute.");
+    expect(q2({ sessionMinutes: 721 })).toBe("A session can be at most 12 hours.");
   });
 
   it("refuses more times than the days left after going back from the days", () => {
@@ -431,5 +434,14 @@ describe("the sure days", () => {
     expect(summaryLines(a).find((l) => l.step === "days")?.text).toBe("Always on Mondays and Wednesdays, never on Fridays");
     expect(answersSentence(a)).toContain("always on Mondays and Wednesdays, never on Fridays");
     expect(hasAnswers({ ...emptyAnswers("amber"), mustDays: [2] })).toBe(true);
+  });
+});
+
+describe("long sessions", () => {
+  it("show as hours in the tag above two hours", () => {
+    const tag = (m: number) => previewTags(gym({ sessionMinutes: m }), "often", "12h").find((t) => t.key === "minutes")?.text;
+    expect(tag(90)).toBe("90 min");
+    expect(tag(360)).toBe("6 h");
+    expect(tag(395)).toBe("6 h 35 min");
   });
 });

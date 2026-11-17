@@ -20,7 +20,6 @@ import {
   MAX_CATEGORY_OTHER,
   MAX_SESSION_MINUTES,
   MIN_SESSION_MINUTES,
-  SESSION_STEP_MINUTES,
   WEEKDAYS,
   type DayPart,
   type GoalCategory,
@@ -67,7 +66,12 @@ export function routineBody(value: RoutineValue) {
   };
 }
 
-const SESSION_OPTIONS = Array.from({ length: (MAX_SESSION_MINUTES - MIN_SESSION_MINUTES) / SESSION_STEP_MINUTES + 1 }, (_, i) => MIN_SESSION_MINUTES + i * SESSION_STEP_MINUTES);
+/** The lengths the editor offers: every 15 minutes up to the most a session may last (plus a saved length in between). */
+const SESSION_OPTIONS = Array.from({ length: MAX_SESSION_MINUTES / 15 }, (_, i) => (i + 1) * 15);
+const sessionOptions = (saved: string) => {
+  const n = Number(saved);
+  return saved === "" || SESSION_OPTIONS.includes(n) || n < MIN_SESSION_MINUTES ? SESSION_OPTIONS : [...SESSION_OPTIONS, n].sort((a, b) => a - b);
+};
 
 const labelClass = "text-xs font-medium text-ink-2";
 const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/50";
@@ -157,7 +161,7 @@ function RoutineFields({ id, value, set, places }: { id: string; value: RoutineV
           </label>
           <select id="goal-session" value={value.sessionMinutes} onChange={(e) => set({ sessionMinutes: e.target.value })} className={inputClass}>
             <option value="">None</option>
-            {SESSION_OPTIONS.map((minutes) => (
+            {sessionOptions(value.sessionMinutes).map((minutes) => (
               <option key={minutes} value={String(minutes)}>
                 {fmtWeekly(minutes)}
               </option>

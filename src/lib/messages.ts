@@ -50,7 +50,7 @@ export const MESSAGES = {
   goalCategory: "Choose a category from the list",
   categoryOtherLength: "Your own category can be at most 30 characters",
   categoryOtherForm: "Your own category must be on one line, without control characters",
-  sessionMinutes: "A session lasts 15 minutes to 4 hours, in steps of 15 minutes",
+  sessionMinutes: "A session lasts 1 minute to 12 hours",
   dayPart: "Choose morning, afternoon, evening or any time",
   avoidDays: "Choose weekdays from the list",
   avoidAllDays: "A goal needs at least one day of the week",
