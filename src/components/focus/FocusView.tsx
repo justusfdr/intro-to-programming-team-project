@@ -28,6 +28,8 @@ import { fmtDateShort } from "@/lib/time/display";
 import { localDateOf } from "@/lib/time/zoned";
 import { GOAL_ICONS, GoalTile } from "@/components/goals/GoalTile";
 import { goalColor } from "@/lib/goals/colors";
+import { LibraryTeaser } from "@/components/library/LibraryTeaser";
+import type { Teaser } from "@/lib/library/types";
 import { BlockerChip } from "./BlockerChip";
 import { FocusRing } from "./FocusRing";
 import { ROW, SIDE, WheelColumn } from "@/components/calendar/TimeWheel";
@@ -392,7 +394,11 @@ function RecentSessions({ sessions, timeZone }: { sessions: FocusData["recent"];
   );
 }
 
-export function FocusView({ data, blocker }: { data: FocusData; blocker: BlockerData }) {
+/**
+ * `library`: three articles of the Focus library for today (spec 29), next to the start card.
+ * Not shown while a session is running or paused: then the page is for the session only.
+ */
+export function FocusView({ data, blocker, library = [] }: { data: FocusData; blocker: BlockerData; library?: Teaser[] }) {
   const { timeFormat } = useDisplay();
   const goalById = (id: string | null) => (id ? (data.goals.find((goal) => goal.id === id) ?? null) : null);
   // The rating card appears for the newest finished session if it ended in the last 12 hours.
@@ -408,13 +414,21 @@ export function FocusView({ data, blocker }: { data: FocusData; blocker: Blocker
       <div className="mt-4">
         <BlockerChip data={blocker} format={timeFormat} />
       </div>
-      <div className="mt-6 flex max-w-xl flex-col gap-6">
-        {data.active ? (
-          <RunningCard session={data.active} serverNow={data.now} goal={goalById(data.active.eventGoalId)} />
-        ) : (
-          <StartCard forEvent={data.forEvent} goal={goalById(data.forEventGoalId)} />
+      {/* Wide screens: the library's three articles to the right of the cards; below them otherwise. */}
+      <div className="mt-6 flex flex-col gap-10 lg:flex-row lg:items-start">
+        <div className="flex w-full max-w-xl flex-col gap-6 lg:shrink-0">
+          {data.active ? (
+            <RunningCard session={data.active} serverNow={data.now} goal={goalById(data.active.eventGoalId)} />
+          ) : (
+            <StartCard forEvent={data.forEvent} goal={goalById(data.forEventGoalId)} />
+          )}
+          {rateLatest && <RatingCard session={latest} />}
+        </div>
+        {!data.active && library.length > 0 && (
+          <div className="w-full max-w-xl lg:max-w-md lg:flex-1">
+            <LibraryTeaser teasers={library} />
+          </div>
         )}
-        {rateLatest && <RatingCard session={latest} />}
       </div>
       <RecentSessions sessions={data.recent} timeZone={blocker.timeZone} />
     </div>
