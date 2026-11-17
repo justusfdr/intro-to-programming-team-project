@@ -1,13 +1,14 @@
 "use client";
 
-// The coach's input (spec 19): one rounded field that grows from one to about eight lines, the round
-// black send button, and, in browsers with speech recognition, the microphone with the language
-// switch (R24). Enter sends, Shift+Enter makes a new line (never while an input method is composing).
-// Under it one line on what the coach sees, with "What is sent?" opening the list of R22.
-import { useId, useLayoutEffect, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from "react";
+// The coach's input (spec 19): one rounded field that grows from one to about eight lines, then on the
+// right, in browsers with speech recognition, the microphone (R24, English only; spec 44), and the
+// round black send button. While listening, a wave next to the microphone follows the voice (spec 44).
+// Enter sends, Shift+Enter makes a new line (never while an input method is composing). Under it one
+// line on what the coach sees, with "What is sent?" opening the list of R22.
+import { useEffect, useId, useLayoutEffect, useState, type KeyboardEvent, type RefObject } from "react";
 import { ArrowUp, Mic } from "lucide-react";
-import { startLanguage, VOICE_LANGUAGE_KEY, VOICE_LANGUAGES, type VoiceLanguage } from "@/lib/chat/voice";
 import { useSpeech } from "./useSpeech";
+import { VoiceWave } from "./VoiceWave";
 
 const LINE_PX = 24;
 const MAX_LINES = 8;
@@ -16,42 +17,6 @@ const PAD_PX = 16;
 
 export const SPEECH_NOTE =
   "Speech is turned into text by your browser, which may use an online service of the browser's maker. We receive only the text.";
-
-// The chosen speech language, remembered in this browser (in memory when storage is blocked).
-const LANGUAGE_CHANGED = "coach-voice-language-changed";
-let languageInMemory: string | null = null;
-
-function readLanguage(): string {
-  try {
-    return window.localStorage.getItem(VOICE_LANGUAGE_KEY) ?? languageInMemory ?? "";
-  } catch {
-    return languageInMemory ?? "";
-  }
-}
-
-function subscribeLanguage(onChange: () => void) {
-  window.addEventListener(LANGUAGE_CHANGED, onChange);
-  window.addEventListener("storage", onChange);
-  return () => {
-    window.removeEventListener(LANGUAGE_CHANGED, onChange);
-    window.removeEventListener("storage", onChange);
-  };
-}
-
-function useVoiceLanguage(): [VoiceLanguage, (language: VoiceLanguage) => void] {
-  const stored = useSyncExternalStore(subscribeLanguage, readLanguage, () => null);
-  const language = stored === null ? "en-US" : startLanguage(stored || null, navigator.languages ?? [navigator.language]);
-  const choose = (next: VoiceLanguage) => {
-    languageInMemory = next;
-    try {
-      window.localStorage.setItem(VOICE_LANGUAGE_KEY, next);
-    } catch {
-      // Storage blocked: the choice lasts until the page reloads.
-    }
-    window.dispatchEvent(new Event(LANGUAGE_CHANGED));
-  };
-  return [language, choose];
-}
 
 /** What is sent with every message (R22) and what is not, in words. */
 export function WhatIsSent() {
@@ -84,7 +49,7 @@ type Props = {
   value: string;
   onChange: (text: string) => void;
   onSend: () => void;
-  /** The field is off (not allowed, not set up, no messages left). */
+  /** The field is off (not allowed, not set up). */
   disabled: boolean;
   /** A message is on its way: the send button is off. */
   sending: boolean;
@@ -93,14 +58,21 @@ type Props = {
   inputRef: RefObject<HTMLTextAreaElement | null>;
   /** Opens "What is sent?" at once (previews only). */
   defaultShowSent?: boolean;
+  /** Spec 44: the chat on the screen; moving to another chat ends listening. */
+  chatKey?: string;
 };
 
-export function Composer({ value, onChange, onSend, disabled, sending, onVoiceError, inputRef, defaultShowSent = false }: Props) {
+export function Composer({ value, onChange, onSend, disabled, sending, onVoiceError, inputRef, defaultShowSent = false, chatKey = "" }: Props) {
   const uid = useId();
   const [showSent, setShowSent] = useState(defaultShowSent);
-  const [language, setLanguage] = useVoiceLanguage();
-  const speech = useSpeech({ language, onText: onChange, onError: onVoiceError });
+  const speech = useSpeech({ onText: onChange, onError: onVoiceError });
   const canSend = !disabled && !sending && value.trim() !== "";
+
+  // Spec 44: what is heard belongs to the chat it was said in.
+  const discardSpeech = speech.discard;
+  useEffect(() => {
+    discardSpeech();
+  }, [chatKey, discardSpeech]);
 
   // Grow with the text, up to about eight lines; then the field scrolls.
   useLayoutEffect(() => {
@@ -112,7 +84,8 @@ export function Composer({ value, onChange, onSend, disabled, sending, onVoiceEr
 
   function send() {
     if (!canSend) return;
-    speech.stop();
+    // Spec 44: drop what the browser still delivers, so the sent text does not come back into the field.
+    speech.discard();
     onSend();
   }
 
@@ -137,40 +110,6 @@ export function Composer({ value, onChange, onSend, disabled, sending, onVoiceEr
           disabled ? "opacity-60" : ""
         }`}
       >
-        {speech.supported && (
-          <div className="flex shrink-0 items-center gap-1 self-end">
-            <button
-              type="button"
-              aria-label={speech.listening ? "Stop listening" : "Speak"}
-              aria-pressed={speech.listening}
-              disabled={disabled}
-              onClick={() => (speech.listening ? speech.stop() : speech.start(value))}
-              className={`relative flex size-9 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 disabled:pointer-events-none ${
-                speech.listening ? "bg-danger text-white" : "text-ink-2 hover:bg-raised hover:text-ink"
-              }`}
-            >
-              {speech.listening && <span aria-hidden className="absolute inset-0 rounded-full bg-danger/40 motion-safe:animate-ping" />}
-              <Mic className="relative size-[18px]" />
-            </button>
-            <div role="group" aria-label="Speech language" className="flex h-7 items-center rounded-full bg-raised p-0.5 text-[10px] font-semibold">
-              {VOICE_LANGUAGES.map((l) => (
-                <button
-                  key={l.code}
-                  type="button"
-                  aria-label={l.name}
-                  aria-pressed={language === l.code}
-                  disabled={speech.listening}
-                  onClick={() => setLanguage(l.code)}
-                  className={`h-6 rounded-full px-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 ${
-                    language === l.code ? "bg-surface text-ink shadow-sm" : "text-ink-3 hover:text-ink"
-                  }`}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
         <label htmlFor={`${uid}-text`} className="sr-only">
           Message to the coach
         </label>
@@ -182,13 +121,28 @@ export function Composer({ value, onChange, onSend, disabled, sending, onVoiceEr
           disabled={disabled}
           placeholder="Tell the coach about your day…"
           onChange={(event) => {
-            // Typing takes over from listening; the text so far stays.
-            if (speech.listening) speech.stop();
+            // Typing takes over from listening; the text so far stays, and nothing heard later overwrites it.
+            if (speech.listening) speech.discard();
             onChange(event.target.value);
           }}
           onKeyDown={onKeyDown}
           className="scroll-thin min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-6 text-ink outline-none placeholder:text-ink-3 disabled:cursor-not-allowed"
         />
+        {speech.listening && <VoiceWave hearing={speech.hearing} />}
+        {speech.supported && (
+          <button
+            type="button"
+            aria-label={speech.listening ? "Stop listening" : "Speak"}
+            aria-pressed={speech.listening}
+            disabled={disabled}
+            onClick={() => (speech.listening ? speech.stop() : speech.start(value))}
+            className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 disabled:pointer-events-none ${
+              speech.listening ? "bg-danger-soft text-danger" : "text-ink-2 hover:bg-raised hover:text-ink"
+            }`}
+          >
+            <Mic className="size-[18px]" />
+          </button>
+        )}
         <button
           type="submit"
           aria-label="Send"
