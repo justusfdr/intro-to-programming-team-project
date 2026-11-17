@@ -146,8 +146,9 @@ function LengthWheel({
   );
 }
 
-function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: FocusGoal | null }) {
-  const initial = forEvent?.suggestedMinutes ?? 60;
+function StartCard({ forEvent, goal, startMinutes }: { forEvent: FocusData["forEvent"]; goal: FocusGoal | null; startMinutes?: number }) {
+  // Spec 45: from "Free time" in the sidebar, the length of the free stretch.
+  const initial = forEvent?.suggestedMinutes ?? startMinutes ?? 60;
   // A suggested length is one of the chips; any other length starts on the custom wheel (R12).
   const [chosen, setChosen] = useState<number | "custom">(isSuggested(initial) ? initial : "custom");
   const [customMinutes, setCustomMinutes] = useState(initial);
@@ -392,7 +393,7 @@ function RecentSessions({ sessions, timeZone }: { sessions: FocusData["recent"];
   );
 }
 
-export function FocusView({ data, blocker }: { data: FocusData; blocker: BlockerData }) {
+export function FocusView({ data, blocker, startMinutes }: { data: FocusData; blocker: BlockerData; startMinutes?: number }) {
   const { timeFormat } = useDisplay();
   const goalById = (id: string | null) => (id ? (data.goals.find((goal) => goal.id === id) ?? null) : null);
   // The rating card appears for the newest finished session if it ended in the last 12 hours.
@@ -412,7 +413,7 @@ export function FocusView({ data, blocker }: { data: FocusData; blocker: Blocker
         {data.active ? (
           <RunningCard session={data.active} serverNow={data.now} goal={goalById(data.active.eventGoalId)} />
         ) : (
-          <StartCard forEvent={data.forEvent} goal={goalById(data.forEventGoalId)} />
+          <StartCard forEvent={data.forEvent} goal={goalById(data.forEventGoalId)} startMinutes={startMinutes} />
         )}
         {rateLatest && <RatingCard session={latest} />}
       </div>

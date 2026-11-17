@@ -8,7 +8,7 @@
 // Ticking, adding and editing tasks show at once; the page re-reads in the background (Live.tsx).
 // Spec 42: "New goal" opens the guided questions (setup/GoalSetup.tsx); their first question offers
 // "Use the form instead", which opens the goal editor for a new goal. Editing a goal opens the editor.
-import { useId, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { useLiveTasks } from "@/components/live/Live";
 import { Button } from "@/components/ui/Button";
@@ -32,6 +32,8 @@ type Props = {
   places?: SavedPlace[];
   /** Previews and tests only: open with the questions or the form for a new goal. */
   openOn?: "setup" | "form";
+  /** Spec 45: the goal a widget in the sidebar was clicked for; the page scrolls to it and marks it. */
+  focusGoalId?: string;
 };
 
 /** The key under which the Inbox card's collapsed state is remembered (next to goal ids). */
@@ -52,7 +54,7 @@ function groupTasks(goals: GoalView[], tasks: TaskDto[]): { byGoal: Map<string, 
   return { byGoal, inbox };
 }
 
-export function GoalsPage({ goals, tasks: serverTasks, today, places = [], openOn }: Props) {
+export function GoalsPage({ goals, tasks: serverTasks, today, places = [], openOn, focusGoalId }: Props) {
   // The tasks with the changes of actions whose re-read has not arrived yet (components/live/Live.tsx).
   const tasks = useLiveTasks(serverTasks);
   const newGoalState = (): GoalEditorState => ({ mode: "create", today, color: nextGoalColor(goals.map((goal) => goal.look.color)) });
@@ -61,6 +63,19 @@ export function GoalsPage({ goals, tasks: serverTasks, today, places = [], openO
   const [collapsed, toggle] = useCollapsed([...goals.map((goal) => goal.id), INBOX_KEY]);
   const { byGoal, inbox } = groupTasks(goals, tasks);
   const goalOptions: GoalOption[] = goals.map(({ id, title }) => ({ id, title }));
+  // Spec 45: opened from a goal widget. The goal's card opens if it was folded, comes into view and is
+  // marked for a moment.
+  const [marked, setMarked] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusGoalId || !goals.some((goal) => goal.id === focusGoalId)) return;
+    if (collapsed.includes(focusGoalId)) toggle(focusGoalId);
+    document.getElementById(`goal-${focusGoalId}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    setMarked(focusGoalId);
+    const id = window.setTimeout(() => setMarked(null), 2400);
+    return () => window.clearTimeout(id);
+    // Only when the page opens for a goal, not on every change of the list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusGoalId]);
 
 
   return (
@@ -79,7 +94,11 @@ export function GoalsPage({ goals, tasks: serverTasks, today, places = [], openO
         {goals.map((goal) => {
           const own = byGoal.get(goal.id) ?? [];
           return (
-            <div key={goal.id} className={CARD}>
+            <div
+              key={goal.id}
+              className={`${CARD} scroll-mt-6 transition-shadow duration-500 ${marked === goal.id ? "ring-2 ring-ink/25 ring-offset-2 ring-offset-canvas" : ""}`}
+              id={`goal-${goal.id}`}
+            >
               <GoalCard
                 goal={goal}
                 onOpen={() => setEditor({ mode: "edit", goal, today })}

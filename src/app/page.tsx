@@ -20,17 +20,22 @@ export const metadata: Metadata = { title: "Calendar" };
 // the screen shows the answer at once and router.refresh() runs this page again in the background.
 // The goals are read for their names and colours (event blocks, the editor's goal chips); their
 // progress and tasks have a page of their own since spec 39 (src/app/goals/page.tsx).
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string | string[]; date?: string | string[]; week?: string | string[] }>;
+  searchParams: Promise<{ view?: string | string[]; date?: string | string[]; week?: string | string[]; event?: string | string[] }>;
 }) {
   const deps = await pageDeps();
   // The proxy already sends signed-out visitors away; the page checks again (R3).
   const userId = await deps.auth.currentUserId();
   if (!userId) redirect("/sign-in");
 
-  const address = readAddress(await searchParams);
+  const params = await searchParams;
+  const address = readAddress(params);
+  // Spec 45: `&event=<id>` from "Next up" in the sidebar opens that event's editor.
+  const openEventId = typeof params.event === "string" && UUID.test(params.event) ? params.event : undefined;
   const { display, week, goals, showWelcome, places, home, travelMode } = await loadCalendarPage(deps, userId, address.date, address.view);
 
   const now = deps.now();
@@ -45,6 +50,7 @@ export default async function CalendarPage({
               nowLocal={nowLocal}
               goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
               outlookAvailable={outlookConfigured()}
+              openEventId={openEventId}
             />
           </SavedPlacesProvider>
         </AppShell>
