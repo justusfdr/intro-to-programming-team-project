@@ -6,7 +6,7 @@
 // right-click; remove, change size, drag (or arrow keys) to move, "Add" for the list; "Done" saves the
 // list with save_widgets (R46). A refusal shows its message and puts the saved list back (R1).
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { ChevronLeft, Minus, Pencil, Plus, RotateCcw } from "lucide-react";
+import { ChevronLeft, Pencil, Plus, RotateCcw } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
 import { getJson, postJson } from "@/lib/client/post-json";
 import { msToNextMinute } from "@/lib/time/next-minute";
@@ -15,7 +15,6 @@ import {
   CELL_PX,
   DEFAULT_LAYOUT,
   GAP_PX,
-  GRID_COLUMNS,
   SIZES_OF,
   WIDGET_KINDS,
   WIDGET_NAMES,
@@ -25,7 +24,8 @@ import {
 } from "@/lib/widgets/types";
 import type { WeatherAnswer } from "@/lib/widgets/weather";
 import type { TravelAnswer } from "@/lib/travel/types";
-import { FocusWidget, FreeWidget, GoalWidget, LeaveWidget, NextWidget, WeatherWidget, type Clock, type TripTravel } from "./tiles";
+import { GRID_STYLE, renderWidget, WidgetCell, type WidgetContext } from "./grid";
+import type { TripTravel } from "./tiles";
 
 const MINUTE = 60_000;
 const WEATHER_EVERY = 30 * MINUTE;
@@ -151,7 +151,6 @@ function useTrip(tripId: string | null): TripTravel {
 }
 
 const same = (a: WidgetItem[], b: WidgetItem[]) => JSON.stringify(a) === JSON.stringify(b);
-const label = (item: WidgetItem) => `${WIDGET_NAMES[item.kind]}, ${item.size.replace("x", " by ")}`;
 
 function move<T>(list: T[], from: number, to: number): T[] {
   const next = [...list];
@@ -242,33 +241,12 @@ export function WidgetArea() {
 
   if (off || !data) return <div className="min-h-0 flex-1" aria-hidden />;
 
-  const clock: Clock = { now, timeZone: data.timeZone, timeFormat: data.timeFormat };
-  const firstGoal = data.goals[0] ?? null;
-
-  const render = (item: WidgetItem) => {
-    switch (item.kind) {
-      case "weather":
-        return <WeatherWidget size={item.size} answer={weather.answer} clock={clock} onLocate={editing ? undefined : weather.onLocate} />;
-      case "next":
-        return (
-          <NextWidget
-            size={item.size}
-            next={data.next}
-            after={data.after}
-            tomorrow={data.tomorrow}
-            travel={data.next && data.trip && data.next.id === data.trip.id ? travel : null}
-            clock={clock}
-          />
-        );
-      case "leave":
-        return <LeaveWidget size={item.size} trip={data.trip} travel={travel} clock={clock} />;
-      case "goal":
-        return <GoalWidget goal={item.goalId ? (data.goals.find((g) => g.id === item.goalId) ?? null) : firstGoal} />;
-      case "focus":
-        return <FocusWidget minutes={data.focusMinutes} />;
-      case "free":
-        return <FreeWidget free={data.free} clock={clock} />;
-    }
+  const ctx: WidgetContext = {
+    data,
+    weather: weather.answer,
+    onLocate: weather.onLocate,
+    travel,
+    clock: { now, timeZone: data.timeZone, timeFormat: data.timeFormat },
   };
 
   const remove = (index: number) => setDraft((list) => list.filter((_, i) => i !== index));
@@ -345,57 +323,32 @@ export function WidgetArea() {
         ) : (
           <div
             className="grid"
-            style={{ gridTemplateColumns: `repeat(${GRID_COLUMNS}, ${CELL_PX}px)`, gridAutoRows: `${CELL_PX}px`, gap: `${GAP_PX}px` }}
+            style={GRID_STYLE}
             onContextMenu={(event) => {
               if (editing) return;
               event.preventDefault();
               startEditing();
             }}
           >
-            {placed.map(({ index, row, col, w, h }) => {
+            {placed.map((place) => {
+              const { index } = place;
               const item = layout[index];
-              const sizes = SIZES_OF[item.kind];
               return (
-                <div
+                <WidgetCell
                   key={`${index}-${item.kind}-${item.goalId ?? ""}`}
-                  style={{ gridRow: `${row + 1} / span ${h}`, gridColumn: `${col + 1} / span ${w}`, animationDelay: index % 2 ? "-0.15s" : undefined }}
-                  className={`relative min-w-0 ${editing ? "widget-wiggle cursor-grab rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30" : ""} ${dragFrom === index ? "opacity-40" : ""}`}
-                  draggable={editing}
-                  tabIndex={editing ? 0 : undefined}
-                  aria-label={editing ? `${label(item)}. Arrow keys move it, Delete removes it` : undefined}
-                  onDragStart={(event) => {
-                    event.dataTransfer.effectAllowed = "move";
-                    setDragFrom(index);
-                  }}
+                  item={item}
+                  place={place}
+                  editing={editing}
+                  dragging={dragFrom === index}
+                  onRemove={() => remove(index)}
+                  onCycleSize={() => cycleSize(index)}
+                  onDragStart={() => setDragFrom(index)}
                   onDragEnd={() => setDragFrom(null)}
-                  onDragOver={(event) => editing && event.preventDefault()}
                   onDrop={(event) => onDrop(event, index)}
-                  onKeyDown={(event) => editing && onTileKey(event, index)}
+                  onKeyDown={(event) => onTileKey(event, index)}
                 >
-                  <div className={`h-full ${editing ? "pointer-events-none select-none" : ""}`}>{render(item)}</div>
-                  {editing && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => remove(index)}
-                        aria-label={`Remove ${WIDGET_NAMES[item.kind]}`}
-                        className="absolute -left-1.5 -top-1.5 z-10 grid size-5 place-items-center rounded-full bg-ink text-white shadow-float"
-                      >
-                        <Minus aria-hidden className="size-3" strokeWidth={2.6} />
-                      </button>
-                      {sizes.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => cycleSize(index)}
-                          aria-label={`Size ${item.size.replace("x", " by ")}. Change size`}
-                          className="tabular absolute bottom-1.5 right-1.5 z-10 rounded-full bg-ink px-1.5 text-[10.5px] font-semibold leading-[18px] text-white"
-                        >
-                          {item.size.replace("x", "×")}
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
+                  {renderWidget(item, ctx, editing)}
+                </WidgetCell>
               );
             })}
           </div>

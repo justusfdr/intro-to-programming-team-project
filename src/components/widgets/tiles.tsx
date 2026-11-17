@@ -453,7 +453,7 @@ export function FocusWidget({ minutes }: { minutes: number }) {
         title={`Focused ${durationText(minutes)} today`}
         picture={<Timer aria-hidden className="size-4 text-ink" strokeWidth={1.8} />}
         value={durationText(minutes)}
-        label="focus today"
+        label="today"
       />
     </Link>
   );
