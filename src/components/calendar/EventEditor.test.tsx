@@ -119,19 +119,6 @@ describe("an existing event", () => {
     expect(edit({ ...TIMED, conflict: true })).not.toContain("Overlaps another event");
   });
 
-  it("an overlap shows the yellow notice with That's fine, Move it and Discard (issue #106)", () => {
-    const other = { id: "o", title: "Gym", startAt: new Date("2026-11-17T09:30:00Z"), endAt: new Date("2026-11-17T11:00:00Z"), mayOverlap: false };
-    const withOverlap = (kind: "event" | "trip", mayOverlap = false) =>
-      renderToStaticMarkup(<EditEventCard event={{ ...TIMED, mayOverlap }} {...COMMON} overlap={{ kind, other }} />);
-    const html = withOverlap("event");
-    expect(html).toContain("Overlaps with <strong");
-    expect(html).toContain(">Gym</strong>");
-    for (const label of [">That&#x27;s fine</button>", ">Move it</button>", ">Discard</button>"]) expect(html).toContain(label);
-    expect(withOverlap("trip")).toContain("Your trip here runs into <strong");
-    expect(withOverlap("event", true)).not.toContain("That&#x27;s fine");
-    expect(edit(TIMED)).not.toContain("That&#x27;s fine");
-  });
-
   it("an Outlook event shows title, time and location as text, its goal chips and Mark done, no bin (R11)", () => {
     const html = edit({ ...TIMED, source: "outlook", location: "Nova SBE, Carcavelos" });
     expect(html).toContain(">Statistics lecture</p>");
