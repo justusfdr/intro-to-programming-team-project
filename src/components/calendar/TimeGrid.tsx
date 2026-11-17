@@ -531,34 +531,37 @@ export function TimeGrid({
           dismissClickRef.current = false;
         }}
       >
-        {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip). */}
-        {dayHref && (
-          <div className="sticky top-0 z-20 hidden border-b border-line-subtle bg-surface md:flex">
-            <div className="w-[52px] shrink-0" />
-            {days.map((day) => {
-              const parts = dayParts(day.date);
-              return (
-                <Link
-                  key={day.date}
-                  href={dayHref(day.date)}
-                  aria-label={`Open ${fmtDateLong(day.date)}`}
-                  className="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md py-2 transition hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
-                >
-                  <span className="text-[11px] font-medium text-ink-3">{parts.weekday}</span>
-                  <span
-                    className={`flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular ${
-                      day.isToday ? "bg-today text-white" : "text-ink"
-                    }`}
+        {/* The dates and the all-day events stay at the top while the hours scroll beneath them. */}
+        <div data-grid-head className="sticky top-0 z-20 bg-surface">
+          {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip). */}
+          {dayHref && (
+            <div className="hidden border-b border-line-subtle bg-surface md:flex">
+              <div className="w-[52px] shrink-0" />
+              {days.map((day) => {
+                const parts = dayParts(day.date);
+                return (
+                  <Link
+                    key={day.date}
+                    href={dayHref(day.date)}
+                    aria-label={`Open ${fmtDateLong(day.date)}`}
+                    className="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md py-2 transition hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
                   >
-                    {parts.day}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                    <span className="text-[11px] font-medium text-ink-3">{parts.weekday}</span>
+                    <span
+                      className={`flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular ${
+                        day.isToday ? "bg-today text-white" : "text-ink"
+                      }`}
+                    >
+                      {parts.day}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
 
-        <AllDayRow days={days} selectedDay={selectedDay} onOpenEvent={onOpenEvent} />
+          <AllDayRow days={days} selectedDay={selectedDay} onOpenEvent={onOpenEvent} />
+        </div>
 
         {hasEarly && (
           // Mouse only and not read out: each of these events is already listed on the day it starts.
