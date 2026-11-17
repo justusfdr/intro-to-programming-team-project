@@ -5,7 +5,7 @@ import { GoalsPage } from "@/components/goals/GoalsPage";
 import { LiveProvider } from "@/components/live/Live";
 import { AppShell } from "@/components/shell/AppShell";
 import { pageDeps } from "@/lib/server/deps";
-import { loadGoalsPage } from "@/lib/server/pages/load";
+import { loadGoalsPageWithPlaces } from "@/lib/server/pages/load";
 
 export const metadata: Metadata = { title: "Goals" };
 
@@ -19,13 +19,14 @@ export default async function GoalsRoute() {
   const userId = await deps.auth.currentUserId();
   if (!userId) redirect("/sign-in");
 
-  const { display, goals, tasks, today } = await loadGoalsPage(deps, userId);
+  // Spec 42: the saved places too, offered as a goal's place in the questions and the goal editor.
+  const { display, goals, tasks, today, places } = await loadGoalsPageWithPlaces(deps, userId);
 
   return (
     <Announcer>
       <LiveProvider>
         <AppShell current="/goals" display={display}>
-          <GoalsPage goals={goals} tasks={tasks} today={today} />
+          <GoalsPage goals={goals} tasks={tasks} today={today} places={places} />
         </AppShell>
       </LiveProvider>
     </Announcer>

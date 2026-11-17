@@ -401,6 +401,46 @@ dialog.event-editor[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:n
     phoneFrame("Goal editor", page("Goal editor", `${calendar()}<div class="preview-dim"></div>${goalEditMarkup}`, styles, centred)),
   );
 
+  // Spec 42: the guided setup of a new goal over the Goals page, on each question, the review and the
+  // celebration (its animations run once when the file opens). Static, like the welcome: `open` and a
+  // dimmed, blurred layer behind it.
+  const { GoalSetup } = await import("@/components/goals/setup/GoalSetup");
+  const { chooseCategory, emptyAnswers } = await import("@/lib/goals/setup");
+  const setupCss = `.preview-dim{position:fixed;inset:0;background:rgb(16 16 16/.3);backdrop-filter:blur(2px);z-index:65}
+dialog.goal-setup[open]{position:fixed;inset:auto 0 0 0;z-index:70}
+@media (min-width:768px){dialog.goal-setup[open]{inset:0;margin:auto;height:fit-content}}`;
+  const gymPlace = { id: "p1", name: "Gym", address: "FitnessHut Lisboa, Av. da Liberdade 144" };
+  type SetupAnswers = import("@/lib/goals/setup").SetupAnswers;
+  const gymAnswers: Partial<SetupAnswers> = {
+    ...chooseCategory(emptyAnswers("teal"), "sport"),
+    title: "Gym",
+    place: { kind: "saved", ...gymPlace },
+    dayPart: "evening",
+    avoidDays: [5],
+    hasDate: true,
+    deadline: "2026-12-12",
+  };
+  const setupScreens: [string, Parameters<typeof GoalSetup>[0]["initialScreen"], Partial<SetupAnswers>][] = [
+    ["goal-setup-1.html", "category", {}],
+    ["goal-setup-1-named.html", "category", gymAnswers],
+    ["goal-setup-2.html", "often", gymAnswers],
+    ["goal-setup-3.html", "place", gymAnswers],
+    ["goal-setup-4.html", "when", { ...gymAnswers, dayPart: null }],
+    ["goal-setup-5.html", "days", gymAnswers],
+    ["goal-setup-5-blocked.html", "days", { ...gymAnswers, timesPerWeek: 5, avoidDays: [1, 2, 3, 4] }],
+    ["goal-setup-6.html", "date", gymAnswers],
+    ["goal-setup-review.html", "review", gymAnswers],
+    ["goal-setup-done.html", "done", gymAnswers],
+  ];
+  for (const [file, screen, answers] of setupScreens) {
+    const setup = renderToStaticMarkup(
+      <GoalSetup open onClose={() => {}} onUseForm={() => {}} goals={goals} places={[gymPlace]} today="2026-11-17" initialScreen={screen} initialAnswers={answers} />,
+    ).replace("<dialog", "<dialog open");
+    const html = page("New goal", `${goalsPageMarkup}<div class="preview-dim"></div>${setup}`, styles, setupCss);
+    writeFileSync(join(OUT, file), html);
+    if (file === "goal-setup-2.html" || file === "goal-setup-done.html") writeFileSync(join(OUT, file.replace(".html", "-phone.html")), phoneFrame("New goal", html));
+  }
+
   // Spec 13: the demo week. A new account chooses "Explore the demo" on Wednesday 18 November at 13:00 in
   // Lisbon; the calendar, the Goals page and the Focus page then show what load_demo created.
   const { loadDemo } = await import("@/lib/server/actions/load-demo");

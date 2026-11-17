@@ -37,6 +37,8 @@ const SIZES = {
   sm: { box: "size-6 rounded-md", icon: "size-3.5" },
   md: { box: "size-7 rounded-lg", icon: "size-4" },
   lg: { box: "size-8 rounded-lg", icon: "size-[18px]" },
+  /** The goal setup's review and celebration (spec 42). */
+  xl: { box: "size-14 rounded-2xl", icon: "size-7" },
 } as const;
 
 export function GoalTile({
