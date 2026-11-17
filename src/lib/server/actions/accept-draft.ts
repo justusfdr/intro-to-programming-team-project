@@ -19,6 +19,12 @@ import "server-only";
 // unchanged); otherwise "This draft is out of date. Ask again". app.chat_apply_draft_todos then does
 // everything app.chat_apply_draft does and also writes these to-dos at the end of each event's list,
 // remembering their ids for undo.
+// Spec 43 (R23, R45): a new event that names a goal must not start on a weekday the goal is never done
+// on, checked against the goal's routine as it is now ("This draft is out of date. Ask again"). Every
+// event the draft creates for a goal that has a place gets that place as its location: right after
+// app.chat_apply_draft_todos, app.chat_place_created_events writes it through app.set_event_location
+// and keeps undo possible. Both run in this one transaction, so if anything fails, nothing of the draft
+// is applied and it stays open. Events the draft moves keep their location.
 import { chatAllowed } from "@/lib/chat/access";
 import { checkDraft } from "@/lib/chat/checks";
 import { MESSAGES } from "@/lib/messages";
@@ -31,6 +37,7 @@ import {
   proposalsOf,
   readCalendar,
   readChatAccount,
+  readGoalRoutines,
 } from "@/lib/server/chat/rows";
 import { chatProOnly } from "@/lib/server/config";
 import type { Deps } from "@/lib/server/deps";
@@ -57,24 +64,26 @@ export function acceptDraft(request: Request, deps: Pick<Deps, "auth" | "withUse
 
         const now = deps.now();
         const timeZone = await readTimeZone(query);
-        const [calendar, goals] = await Promise.all([
-          readCalendar(query, now, timeZone),
-          query<{ id: string }>("select id from app.goals"),
-        ]);
+        const [calendar, goals] = await Promise.all([readCalendar(query, now, timeZone), readGoalRoutines(query)]);
         const outOfDate = () => new ActionError(409, "draft_out_of_date", MESSAGES.draftOutOfDate);
         const changes = currentChanges(draft.changes, calendar, now);
         if (changes === null) throw outOfDate();
         const additions = currentAdditions(draft.added_todos, calendar, now, timeZone);
         if (additions === null) throw outOfDate();
+        const proposals = proposalsOf(draft.proposed_events);
         const checked = checkDraft(
-          proposalsOf(draft.proposed_events),
+          proposals,
           changes,
-          { now, timeZone, goalIds: new Set(goals.map((g) => g.id)), calendar: blocksOf(calendar) },
+          { now, timeZone, goalIds: goals.goalIds, calendar: blocksOf(calendar), neverDays: goals.neverDays },
           additions,
         );
         if (!checked.ok) throw outOfDate();
 
         const created = await query<{ id: string }>("select id from app.chat_apply_draft_todos($1::uuid) as id", [draft.id]);
+        // Spec 43: the goal's place for the sessions it created; in this transaction, so all or nothing.
+        if (proposals.some((p) => p.goalId !== null && goals.places.has(p.goalId))) {
+          await query("select app.chat_place_created_events($1::uuid)", [draft.id]);
+        }
         const rows = await query<EventRow>(
           `select ${EVENT_COLUMNS} from app.events where id = any($1::uuid[]) order by start_at, id`,
           [created.map((c) => c.id)],
