@@ -89,7 +89,9 @@ export const MESSAGES = {
   checkoutAlreadyOpen: "You already have Pro, or a payment is still open. Reload this page in a minute.",
   // ontology, section 5 (AI chat, spec 19)
   chatProOnly: "The AI chat is part of Pro",
-  chatLimit: "Today's 20 messages are used",
+  // spec 44: a chat deleted on another device (or in another tab)
+  chatGone: "This chat no longer exists",
+  chatSearchLength: "A search can be at most 100 characters",
   chatFailedChecks: "The assistant's answer failed our checks. Please try again",
   chatUnavailable: "The assistant is not available right now. Your calendar is unchanged",
   draftNotOpen: "This draft is no longer open",
@@ -138,6 +140,7 @@ export const MESSAGES = {
   draftRejected: "Draft rejected.",
   draftEdited: "Draft changed.",
   chatCleared: "Chat cleared.",
+  chatDeleted: "Chat deleted.",
   taskDone: "Task done.",
   taskReopened: "Task reopened.",
   taskDeleted: "Task deleted.",

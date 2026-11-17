@@ -406,3 +406,54 @@ dialog.goal-setup::backdrop {
     transform: translate(var(--x), var(--y)) scale(1) rotate(var(--r));
   }
 }
+
+/* The coach's voice wave (spec 44). Each bar follows the microphone (its height is set by the page);
+   when the microphone cannot be read, the bars breathe one after another to show it is listening. */
+.voice-bar {
+  transition: height 90ms ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .voice-idle .voice-bar {
+    animation: voice-idle 1.2s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * 60ms);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-bar {
+    transition: none;
+  }
+}
+
+@keyframes voice-idle {
+  0%,
+  100% {
+    height: 3px;
+    opacity: 0.45;
+  }
+  50% {
+    height: 9px;
+    opacity: 1;
+  }
+}
+
+/* A message the chat search found (spec 44): a soft yellow glow that fades, so the eye finds it. */
+.search-hit {
+  border-radius: 16px;
+  box-shadow: 0 0 0 6px rgb(253 230 138 / 0.55);
+  background: rgb(253 230 138 / 0.55);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .search-hit {
+    animation: search-hit 2.6s ease-out 0.3s forwards;
+  }
+}
+
+@keyframes search-hit {
+  to {
+    box-shadow: 0 0 0 6px rgb(253 230 138 / 0);
+    background: rgb(253 230 138 / 0);
+  }
+}

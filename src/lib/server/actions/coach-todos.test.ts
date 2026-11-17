@@ -98,7 +98,7 @@ describe("the coach writes the to-dos down", () => {
     expect(JSON.stringify(app.assistant.lastData().events)).not.toContain("todos");
   });
 
-  it("an answer with 21 to-dos or an empty one fails the checks: nothing saved, the message counted (A6's rule)", async () => {
+  it("an answer with 21 to-dos or an empty one fails the checks: nothing saved, nothing counted (A6's rule, spec 44)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     for (const todos of [Array.from({ length: 21 }, (_, i) => `To-do ${i}`), ["Fine", ""]]) {
       app.assistant.answerJson({ kind: "draft", text: "Here.", events: [{ ...STUDY, todos }], changes: [] });
@@ -108,7 +108,8 @@ describe("the coach writes the to-dos down", () => {
       });
     }
     expect(await draftsOf(app.db, alice)).toEqual([]);
-    expect(await sentToday(app.db, alice)).toBe(2);
+    // Spec 44: nothing is counted.
+    expect(await sentToday(app.db, alice)).toBe(0);
   });
 
   it("an event the coach deletes comes back on undo with its to-dos", async () => {

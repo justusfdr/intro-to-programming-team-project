@@ -1,9 +1,10 @@
 // The coach's page loader (spec 19): one read transaction, the messages with their drafts, the events
-// of the days the open draft touches, the goals with their look, messages left today, whether the chat
-// is allowed and whether Claude is set up. Nothing is changed.
+// of the days the open draft touches, the goals with their look, whether the chat is allowed and
+// whether Claude is set up. Nothing is changed. Spec 44: the chats for the list, the chat shown (the
+// latest by default), and no messages-left counter any more.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApp, type TestApp } from "@test/support/app";
-import { A5_PROPOSALS, seedDraft, setPlan, setSentToday } from "@test/support/chat";
+import { A5_PROPOSALS, seedDraft, setPlan } from "@test/support/chat";
 import { countingWithUser, heldBack } from "@test/support/counting";
 import { seedAllDay, seedEvent } from "@test/support/events";
 import { seedGoal } from "@test/support/goals";
@@ -28,16 +29,18 @@ afterEach(() => {
 });
 
 describe("loadChatPage", () => {
-  it("an empty chat: no messages, 20 left, allowed, Claude set up (the fake)", async () => {
+  it("an empty chat: no chats, no messages, allowed, Claude set up (the fake)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     expect(await loadChatPage(app.deps, alice)).toEqual({
       display: { timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
       timeZone: "Europe/Lisbon",
+      chats: [],
+      chatId: null,
+      now: "2026-11-16T09:00:00.000Z",
       messages: [],
       draftDayEvents: [],
       draftDays: [],
       goals: [],
-      messagesLeft: 20,
       chatAllowed: true,
       assistantConfigured: true,
     });
@@ -52,7 +55,6 @@ describe("loadChatPage", () => {
     await seedEvent(app.db, alice, { title: "Wednesday", start: "2026-11-18T15:00:00Z", end: "2026-11-18T16:00:00Z" });
     await seedEvent(app.db, alice, { title: "Friday", start: "2026-11-20T08:00:00Z", end: "2026-11-20T09:00:00Z" });
     await seedAllDay(app.db, alice, { title: "Exam week", firstDay: "2026-11-16", lastDay: "2026-11-17" });
-    await setSentToday(app.db, alice, 3);
 
     const page = await loadChatPage(app.deps, alice);
 
@@ -72,7 +74,6 @@ describe("loadChatPage", () => {
     expect(page.draftDays).toEqual(["2026-11-17", "2026-11-19", "2026-11-20"]);
     expect(page.draftDayEvents.map((e) => e.title)).toEqual(["Exam week", "Lecture", "Friday"]);
     expect(page.goals).toEqual([{ id: goal.id, title: "Statistics exam", look: { color: "rose", icon: "rocket" } }]);
-    expect(page.messagesLeft).toBe(17);
   });
 
   it("says whether the chat is allowed (Pro only both ways) and whether Claude is set up", async () => {

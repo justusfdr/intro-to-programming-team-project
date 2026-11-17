@@ -654,11 +654,19 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
   const coachData = (fields: Partial<ChatPageData>): ChatPageData => ({
     display: { timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
     timeZone: "Europe/Lisbon",
+    // Spec 44: a few chats for the list, the open one first.
+    chats: [
+      { id: "chat-wed", title: "Tomorrow I want to study about 2 hours in the morning", updatedAt: "2026-11-17T20:00:30.000Z" },
+      { id: "chat-gym", title: "Plan the gym into my week", updatedAt: "2026-11-17T09:12:00.000Z" },
+      { id: "chat-mon", title: "How much time did I spend on my goals last week?", updatedAt: "2026-11-16T18:40:00.000Z" },
+      { id: "chat-fri", title: "Plan my Saturday: a long run in the morning", updatedAt: "2026-11-13T16:05:00.000Z" },
+    ],
+    chatId: "chat-wed",
+    now: "2026-11-17T21:00:00.000Z",
     messages: [],
     draftDayEvents: [],
     draftDays: [],
     goals: goalLabels,
-    messagesLeft: 17,
     chatAllowed: true,
     assistantConfigured: true,
     ...fields,
@@ -694,7 +702,6 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
     draftDays: ["2026-11-18"],
   });
   const addedDraft = coachData({
-    messagesLeft: 15,
     messages: [
       chat("m1", "user", "Plane meinen Tag morgen: 4 Stunden lernen, abends Fußball schauen"),
       chat("m2", "assistant", "Hier ist ein Entwurf für Dienstag: zwei Lernblöcke um deine Termine herum (3,5 Stunden, mehr passt nicht), Fußball ab 20 Uhr.", {
@@ -764,12 +771,12 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
       </Announcer>,
     );
   const coachOpenHtml = page("Coach", coachPage(openDraft), styles);
-  writeFileSync(join(OUT, "coach-empty.html"), page("Coach", coachPage(coachData({ messagesLeft: 20 })), styles));
+  writeFileSync(join(OUT, "coach-empty.html"), page("Coach", coachPage(coachData({ chatId: null })), styles));
   writeFileSync(join(OUT, "coach-draft.html"), coachOpenHtml);
   writeFileSync(join(OUT, "coach-added.html"), page("Coach", coachPage(addedDraft), styles));
   writeFileSync(join(OUT, "coach-changes.html"), page("Coach", coachPage(changesDraft), styles));
   writeFileSync(join(OUT, "coach-phone.html"), phoneFrame("Coach", coachOpenHtml));
-  writeFileSync(join(OUT, "coach-empty-phone.html"), phoneFrame("Coach", page("Coach", coachPage(coachData({ messagesLeft: 20 })), styles)));
+  writeFileSync(join(OUT, "coach-empty-phone.html"), phoneFrame("Coach", page("Coach", coachPage(coachData({ chatId: null })), styles)));
 
   writeFileSync(join(OUT, "sign-in.html"), page("Sign in", renderToStaticMarkup(<SignInPage />), styles));
   writeFileSync(join(OUT, "sign-up.html"), page("Sign up", renderToStaticMarkup(<SignUpPage />), styles));

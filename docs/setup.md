@@ -106,7 +106,7 @@ Without it, everything else works; the coach then answers every message with "Th
 4. Optional: `ANTHROPIC_MODEL`. Leave it unset for the default `claude-opus-5-5`. To save money set `claude-haiku-5-5` (cheaper and faster, plans a little less carefully). Use the exact model name; the app sends refusal fallbacks only to models that take them.
 5. Optional: `CHAT_PRO_ONLY`. Leave it unset while Free and Pro are not built: every signed-in user may use the coach. Set it to `true` to allow only Pro users (ontology R21).
 6. Put the same values into Vercel (**Settings → Environment Variables**) and deploy again.
-7. Try it: open the coach, write "Tomorrow I want to study 4 hours and watch football in the evening" (and once in German); a draft appears; "Add to calendar" puts the events in the calendar. Each user has 20 messages a day.
+7. Try it: open the coach, write "Tomorrow I want to study 4 hours and watch football in the evening"; a draft appears; "Add to calendar" puts the events in the calendar. "New chat" starts a fresh conversation; the chats are listed by day. There is no daily message limit (spec 44), so set a monthly spending limit in the Console (**Limits**) to cap the costs.
 8. After a leak: delete the key in the Console (**API Keys**), create a new one, put it in both places, and check **Usage** for calls you did not make.
 
 ## 11. Stripe in test mode (Pro, €4.99 per month)

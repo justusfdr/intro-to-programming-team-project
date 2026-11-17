@@ -68,6 +68,12 @@ export type ChatMessageDto = {
   draft: DraftDto | null;
 };
 
+/**
+ * One chat in the list next to the conversation (spec 44). `updatedAt` is the time of its latest
+ * message (ISO string in UTC); the list groups chats by its day.
+ */
+export type ChatSummaryDto = { id: string; title: string; updatedAt: string };
+
 /** A goal as the chat shows it next to a proposed event: title, colour and icon. */
 export type ChatGoal = { id: string; title: string; look: GoalLook };
 
@@ -75,7 +81,13 @@ export type ChatGoal = { id: string; title: string; look: GoalLook };
 export type ChatPageData = {
   display: Display;
   timeZone: string;
-  /** Oldest first; at most the latest 100. */
+  /** Spec 44: the user's chats, newest first (at most the latest 200), for the list. */
+  chats: ChatSummaryDto[];
+  /** Spec 44: the chat on the screen; null for a new chat, which starts with its first message. */
+  chatId: string | null;
+  /** Spec 44: when the page was read (ISO, UTC), so the list's "Today" is the same on server and screen. */
+  now?: string;
+  /** The chat's messages, oldest first; at most the latest 100. Empty for a new chat. */
   messages: ChatMessageDto[];
   /**
    * The events of the days the open draft touches (also the old day of a moved event), to draw the
@@ -85,8 +97,6 @@ export type ChatPageData = {
   /** The local days the open draft touches ("2026-11-17"), in order; empty without an open draft. */
   draftDays: string[];
   goals: ChatGoal[];
-  /** Messages left today (R21): 0 to 20. */
-  messagesLeft: number;
   /** Whether this user may use the chat (R21, CHAT_PRO_ONLY). */
   chatAllowed: boolean;
   /** Whether the Claude API key is set on this server; without it every message gets "not available". */
