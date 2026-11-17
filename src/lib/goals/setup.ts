@@ -53,7 +53,10 @@ export type SetupAnswers = {
   /** The typed address, used with { kind: "address" }. */
   address: string;
   /** null: not answered yet; "any": any time. */
-  dayPart: DayPart | "any" | null;
+  dayPart: DayPart | "any" | "custom" | null;
+  /** The own window ("Custom"): minutes after midnight, used with dayPart "custom". */
+  customFrom: number;
+  customUntil: number;
   /** Sorted, Monday = 1. */
   avoidDays: Weekday[];
   /** The days it happens on for sure: sorted, at most one per session a week, never a day off. */
@@ -135,6 +138,8 @@ export function emptyAnswers(color: GoalColorName): SetupAnswers {
     place: { kind: "home" },
     address: "",
     dayPart: null,
+    customFrom: 7 * 60,
+    customUntil: 8 * 60,
     avoidDays: [],
     mustDays: [],
     hasDate: null,
@@ -297,7 +302,8 @@ export function stepProblem(step: SetupStep, answers: SetupAnswers, today: Local
       return location !== null && [...location].length > MAX_LOCATION ? MESSAGES.locationLength : null;
     }
     case "when":
-      return answers.dayPart === null ? "Choose a time of day, or Any time." : null;
+      if (answers.dayPart === null) return "Choose a time of day, or Any time.";
+      return answers.dayPart === "custom" ? customWindowProblem(answers) : null;
     case "days":
       return daysProblem(answers);
     case "date":
@@ -344,6 +350,27 @@ export function dateHint(answers: SetupAnswers, today: LocalDate): string | null
   const free = freeDaysUntil(answers, today);
   if (free === 0 || free >= answers.timesPerWeek) return null;
   return `Until ${fmtDayMonth(answers.deadline)} there ${free === 1 ? "is 1 free day" : `are ${free} free days`} for ${plural(answers.timesPerWeek, "session", "sessions")}.`;
+}
+
+/** Why the own window ("Custom") cannot be taken, or null: the end after the start, room for one session. */
+export function customWindowProblem(answers: Pick<SetupAnswers, "customFrom" | "customUntil" | "sessionMinutes">): string | null {
+  if (answers.customUntil <= answers.customFrom) return "The end has to be after the start.";
+  if (answers.customUntil - answers.customFrom < answers.sessionMinutes) {
+    return `The time window is shorter than one session (${fmtWeekly(answers.sessionMinutes)}).`;
+  }
+  return null;
+}
+
+/**
+ * Opens "Custom" with a window inside the visible hours: from the day's first hour (or 7:00 when the
+ * day starts earlier), as long as one session and at least an hour, never past the day's end.
+ */
+export function startCustom(answers: SetupAnswers, display: DisplayLike & { dayStartHour: number }): SetupAnswers {
+  const first = display.dayStartHour * 60;
+  const last = display.dayEndHour * 60;
+  const from = Math.min(Math.max(first, 7 * 60), last - 60);
+  const until = Math.min(last, from + Math.max(60, answers.sessionMinutes));
+  return { ...answers, dayPart: "custom", customFrom: from, customUntil: until };
 }
 
 /** The quick dates: today plus 4, 8 or 12 weeks. */
@@ -420,6 +447,8 @@ export type CreateGoalBody = {
   categoryOther: string | null;
   sessionMinutes: number;
   dayPart: DayPart | null;
+  dayFrom: number | null;
+  dayUntil: number | null;
   avoidDays: Weekday[];
   mustDays: Weekday[];
   location: string | null;
@@ -438,7 +467,9 @@ export function createGoalBody(answers: SetupAnswers): CreateGoalBody {
     category: answers.category,
     categoryOther: answers.category === "other" && other !== "" ? other : null,
     sessionMinutes: answers.sessionMinutes,
-    dayPart: answers.dayPart === "any" ? null : answers.dayPart,
+    dayPart: answers.dayPart === "any" || answers.dayPart === "custom" ? null : answers.dayPart,
+    dayFrom: answers.dayPart === "custom" ? answers.customFrom : null,
+    dayUntil: answers.dayPart === "custom" ? answers.customUntil : null,
     avoidDays: [...answers.avoidDays].sort((a, b) => a - b),
     mustDays: [...answers.mustDays].sort((a, b) => a - b),
     location: locationOf(answers),
@@ -455,8 +486,8 @@ export function answersRoutine(answers: SetupAnswers): GoalRoutine {
     dayPart: body.dayPart,
     avoidDays: body.avoidDays,
     mustDays: body.mustDays,
-    dayFrom: null,
-    dayUntil: null,
+    dayFrom: body.dayFrom,
+    dayUntil: body.dayUntil,
     location: body.location,
   };
 }
@@ -518,6 +549,8 @@ export type TagInput = {
   deadline?: LocalDate | null;
   /** The category's name as the first tag (the goal card). */
   withCategory?: boolean;
+  /** How times are shown (an own window); left out: 12-hour. */
+  format?: TimeFormat;
 };
 
 /** The tags of a routine, only what is set: how often, how long, when, the days, the place, the date. */
@@ -529,6 +562,10 @@ export function routineTags(input: TagInput, format: TimeFormat): RoutineTag[] {
   if (input.withCategory && category !== null) add("category", category, `Category: ${category}`);
   if (input.timesPerWeek) add("often", `${input.timesPerWeek}× a week`, `${timesWords(input.timesPerWeek)} a week`);
   if (routine.sessionMinutes !== null) add("minutes", routine.sessionMinutes > 120 ? fmtWeekly(routine.sessionMinutes) : `${routine.sessionMinutes} min`, `${routine.sessionMinutes} minutes each`);
+  if (routine.dayFrom !== null && routine.dayUntil !== null) {
+    const window = fmtRange(routine.dayFrom, routine.dayUntil, format);
+    add("dayPart", window, `Between ${window}`);
+  }
   if (routine.dayPart !== null) {
     add("dayPart", DAY_PART_PLURAL[routine.dayPart], `${DAY_PART_PLURAL[routine.dayPart]}, ${dayPartTimes(routine.dayPart, format).toLowerCase()}`);
   }
@@ -555,6 +592,8 @@ export function previewTags(answers: SetupAnswers, reached: SetupStep, format: T
     sessionMinutes: upTo >= 1 ? routine.sessionMinutes : null,
     location: upTo >= 2 ? routine.location : null,
     dayPart: upTo >= 3 ? routine.dayPart : null,
+    dayFrom: upTo >= 3 ? routine.dayFrom : null,
+    dayUntil: upTo >= 3 ? routine.dayUntil : null,
     avoidDays: upTo >= 4 ? routine.avoidDays : [],
     mustDays: upTo >= 4 ? routine.mustDays : [],
   };
@@ -579,7 +618,7 @@ const DAY_PART_WORDS: Record<DayPart, string> = { morning: "in the morning", aft
 export type SummaryLine = { step: SetupStep; label: string; text: string };
 
 /** The review's lines: how often, where, when, the days and the date (the name sits above them). */
-export function summaryLines(answers: SetupAnswers): SummaryLine[] {
+export function summaryLines(answers: SetupAnswers, format: TimeFormat = "12h"): SummaryLine[] {
   const routine = answersRoutine(answers);
   const days = answers.avoidDays;
   const sure = answers.mustDays;
@@ -590,7 +629,16 @@ export function summaryLines(answers: SetupAnswers): SummaryLine[] {
   return [
     { step: "often", label: "How often", text: `${timesWords(answers.timesPerWeek)} a week, ${sessionWords(answers.sessionMinutes)} each` },
     { step: "place", label: "Where", text: routine.location ?? "At home or anywhere" },
-    { step: "when", label: "When", text: routine.dayPart === null ? "Any time of day" : capitalise(DAY_PART_WORDS[routine.dayPart]) },
+    {
+      step: "when",
+      label: "When",
+      text:
+        routine.dayFrom !== null && routine.dayUntil !== null
+          ? fmtRange(routine.dayFrom, routine.dayUntil, format)
+          : routine.dayPart === null
+            ? "Any time of day"
+            : capitalise(DAY_PART_WORDS[routine.dayPart]),
+    },
     { step: "days", label: "Days", text: dayParts.length === 0 ? "Every day works" : dayParts.join(", ") },
     { step: "date", label: "Until", text: answers.hasDate && answers.deadline ? fmtDateWithYear(answers.deadline) : "No end date" },
   ];
@@ -608,6 +656,7 @@ export function routineSentence(input: TagInput): string {
   if (input.timesPerWeek) parts.push(`${timesWords(input.timesPerWeek)} a week`);
   if (routine.sessionMinutes !== null) parts.push(input.timesPerWeek ? `${sessionWords(routine.sessionMinutes)} each` : `${sessionWords(routine.sessionMinutes)} a session`);
   if (routine.dayPart !== null) parts.push(DAY_PART_WORDS[routine.dayPart]);
+  if (routine.dayFrom !== null && routine.dayUntil !== null) parts.push(`between ${fmtRange(routine.dayFrom, routine.dayUntil, input.format ?? "12h")}`);
   if (routine.mustDays.length > 0) parts.push(`always on ${listOf(routine.mustDays.map((d) => `${dayLong(d)}s`))}`);
   if (routine.avoidDays.length > 0) parts.push(`never on ${listOf(routine.avoidDays.map((d) => `${dayLong(d)}s`), "or")}`);
   if (routine.location !== null) parts.push(`at ${routine.location}`);
@@ -616,8 +665,9 @@ export function routineSentence(input: TagInput): string {
 }
 
 /** The review's sentence for the answers. */
-export function answersSentence(answers: SetupAnswers): string {
+export function answersSentence(answers: SetupAnswers, format: TimeFormat = "12h"): string {
   return routineSentence({
+    format,
     routine: answersRoutine(answers),
     timesPerWeek: answers.timesPerWeek,
     deadline: answers.hasDate ? answers.deadline || undefined : null,
