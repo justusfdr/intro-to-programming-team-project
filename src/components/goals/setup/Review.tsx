@@ -187,15 +187,19 @@ export function Celebration({ answers, onDone, goalId = null }: { answers: Setup
       </h2>
       <p className="setup-rise-late mt-2 max-w-sm text-sm text-ink-2">{`${answersSentence(answers)}.`}</p>
       <div className="setup-rise-late mt-7 flex w-full flex-col-reverse items-stretch gap-2 sm:w-auto sm:flex-row sm:justify-center">
-        {/* Spec 43: the coach opens with "Plan "<title>" into my week." in the field; nothing is sent yet. */}
+        {/*
+          Spec 43: the coach opens with "Plan "<title>" into my week." in the field; nothing is sent yet.
+          Planning the new goal is the natural next step, so it is the main button (on the right, and on
+          top on a phone); "Done" is the main one only when there is no id to plan with.
+        */}
+        <Button variant={goalId ? "secondary" : "primary"} size="lg" onClick={onDone}>
+          Done
+        </Button>
         {goalId && (
-          <LinkButton href={planGoalHref(goalId)} variant="secondary" size="lg">
+          <LinkButton href={planGoalHref(goalId)} size="lg">
             Let the coach plan it into my week
           </LinkButton>
         )}
-        <Button size="lg" onClick={onDone}>
-          Done
-        </Button>
       </div>
     </div>
   );
