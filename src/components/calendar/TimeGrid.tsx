@@ -64,6 +64,8 @@ type Props = {
   onDrop?: (event: WeekEvent, date: string, span: Span, anchor: Anchor) => void;
   /** R27: the travel answers by event id; an event with a time to leave gets a dashed block before it. */
   travel?: Readonly<Record<string, TravelAnswer>>;
+  /** Issue #106: events whose trip runs into another event (they get the overlap mark too). */
+  tripWarned?: ReadonlySet<string>;
 };
 
 type Gesture =
@@ -159,13 +161,13 @@ function OutlookMark({ event }: { event: CalendarEvent }) {
 }
 
 /** The block's accessible name: everything the block shows, in words. */
-function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined, format: TimeFormat): string {
+function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined, format: TimeFormat, warned: boolean): string {
   const { event } = block;
   const endTime = fmtTime(event.endTime, format);
   const end = event.endDay ? `${endTime} the next day` : endTime;
   const parts = [`${event.title}, ${dayLong}, ${fmtTime(event.startTime, format)} to ${end}`];
   if (goal) parts.push(`goal ${goal.title}`);
-  if (event.conflict) parts.push("overlaps another event");
+  if (warned) parts.push("overlaps another event");
   if (event.status === "done") parts.push("done");
   if (event.todoCount) parts.push(`${event.todosDone ?? 0} of ${event.todoCount} to-dos done`);
   if (event.guests?.length) parts.push(guestCountText(event.guests.length));
@@ -181,6 +183,8 @@ type BlockProps = {
   goal: GoalLabel | undefined;
   draggable: boolean;
   dimmed: boolean;
+  /** The overlap mark: a yellow edge and icon (issue #106). */
+  warned: boolean;
   onOpen: (detail: number, anchor: Anchor) => void;
   onMoveStart: (e: ReactPointerEvent<HTMLButtonElement>, block: Placed, dayIndex: number) => void;
   onResizeStart: (e: ReactPointerEvent<HTMLSpanElement>, block: Placed, dayIndex: number) => void;
@@ -191,10 +195,10 @@ type BlockProps = {
  * Outlook event the calendar icon. Kept from our rules: the conflict edge and icon (R10) and "not sent
  * to Outlook" (R26). A block that may be dragged moves with the pointer; its bottom edge resizes it.
  */
-function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, onOpen, onMoveStart, onResizeStart }: BlockProps) {
+function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, warned, onOpen, onMoveStart, onResizeStart }: BlockProps) {
   const { event } = block;
   const { timeFormat } = useDisplay();
-  // Events of a goal take the goal's colour; others stay neutral. A conflict adds a red edge and an icon.
+  // Events of a goal take the goal's colour; others stay neutral. An overlap adds a yellow edge and an icon.
   const colors = goal ? goalColor(goal.look.color).block : "bg-raised border-line-subtle text-ink";
   const { top, height } = blockBox(block, range);
   const done = event.status === "done";
@@ -213,7 +217,7 @@ function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, 
         e.stopPropagation();
         onOpen(e.detail, anchorOf(e.currentTarget));
       }}
-      aria-label={blockLabel(block, dayLong, goal, timeFormat)}
+      aria-label={blockLabel(block, dayLong, goal, timeFormat, warned)}
       // The part after midnight repeats an event already in the list: mouse only, not a second tab stop.
       tabIndex={block.continuesBefore ? -1 : undefined}
       aria-hidden={block.continuesBefore || undefined}
@@ -225,7 +229,7 @@ function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, 
       }}
       className={`pointer-events-auto absolute z-[2] overflow-hidden rounded-lg border px-1.5 py-1 text-left transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40 ${
         colors
-      } ${event.conflict ? "border-l-[3px] border-l-danger" : ""} ${draggable ? "cursor-grab" : ""} ${dimmed ? "opacity-40" : ""}`}
+      } ${warned ? "border-l-[3px] border-l-warning" : ""} ${draggable ? "cursor-grab" : ""} ${dimmed ? "opacity-40" : ""}`}
     >
       <span
         // Whole words only: two lines when there is room, otherwise one line cut with an ellipsis.
@@ -236,10 +240,10 @@ function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, 
       </span>
       {height >= 44 && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{time}</span>}
       {height >= 72 && event.location && <span className="block truncate pr-3 text-[10px] opacity-80">{event.location}</span>}
-      {(event.conflict || event.source === "outlook" || event.notSent) && (
+      {(warned || event.source === "outlook" || event.notSent) && (
         <span className="absolute right-1 top-1 flex items-center gap-0.5">
           <OutlookMark event={event} />
-          {event.conflict && <TriangleAlert className="size-3 text-danger" />}
+          {warned && <TriangleAlert className="size-3 text-warning" />}
         </span>
       )}
       {/* As in the prototype: the to-dos' count ("2/3") when the block has room under title and time, else the done dot. */}
@@ -383,6 +387,7 @@ export function TimeGrid({
   onCreate,
   onDrop,
   travel,
+  tripWarned,
 }: Props) {
   const { timeFormat } = useDisplay();
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
@@ -679,6 +684,7 @@ export function TimeGrid({
                         goal={goalOf(block.event.goalId)}
                         draggable={onDrop !== undefined && canDrag(block, pending)}
                         dimmed={movingId === block.event.id}
+                        warned={block.event.conflict || (tripWarned?.has(block.event.id) ?? false)}
                         onOpen={(detail, anchor) => openBlock(block.event, detail, anchor)}
                         onMoveStart={beginMove}
                         onResizeStart={beginResize}
