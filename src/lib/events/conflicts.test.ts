@@ -61,6 +61,14 @@ describe("the overlap notice (issue #106)", () => {
     expect(overlapOf(named("Gym", "14:45", "16:45"), [named("Lunch", "13:15", "15:00", true)], at("14:00"))).toBeNull();
   });
 
+  it("after a change it asks again, even when one of them was accepted before", () => {
+    const gym = named("Gym", "14:45", "16:45", true);
+    const lunch = named("Lunch", "13:15", "15:00", true);
+    expect(overlapOf(gym, [lunch], null)).toBeNull();
+    expect(overlapOf(gym, [lunch], null, true)).toEqual({ kind: "event", other: lunch });
+    expect(overlapOf(named("Gym", "14:45", "16:45"), [named("Lunch", "13:15", "14:15", true)], at("14:00"), true)?.kind).toBe("trip");
+  });
+
   it("marks the events whose trip runs into another one", () => {
     const events = [event("lunch", "13:15", "14:15"), event("gym", "14:45", "16:45"), event("ok", "17:30", "18:30", true)];
     const leave: Record<string, Date> = { gym: at("14:00"), ok: at("16:00") };

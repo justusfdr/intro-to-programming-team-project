@@ -137,7 +137,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   const [editor, setEditor] = useState<EditorState>(null);
   const editorRef = useRef<EditorState>(null);
   // Issue #106: whether an event asks about its overlap now (set further down, once the week's events are known).
-  const askAfterEditor = useRef<(id: string) => boolean>(() => false);
+  const askAfterEditor = useRef<(id: string, changedFrom?: { start: string; end: string }) => boolean>(() => false);
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
@@ -149,19 +149,23 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   const live = useLive();
   const outlookConnected = week.outlook.status === "connected";
   const closePop = useCallback(() => setPop(null), []);
-  /** Issue #106: ask about an overlap of this event once the calendar shows it saved (looks for up to 3 seconds). */
-  const watchOverlap = useCallback((id: string) => {
+  /**
+   * Issue #106: ask about an overlap of this event once the calendar shows it saved. It looks for up to
+   * 8 seconds, as the time to leave (the trip) may come a little later. `changedFrom`: the times when
+   * the editor opened (left out for a new event).
+   */
+  const watchOverlap = useCallback((id: string, changedFrom?: { start: string; end: string }) => {
     let tries = 0;
     const look = () => {
-      if (askAfterEditor.current(id) || ++tries >= 12) return;
+      if (askAfterEditor.current(id, changedFrom) || ++tries >= 32) return;
       window.setTimeout(look, 250);
     };
     window.setTimeout(look, 250);
   }, []);
   const closeEditor = useCallback(() => {
-    const id = editorRef.current?.mode === "edit" ? editorRef.current.event.id : null;
+    const open = editorRef.current?.mode === "edit" ? editorRef.current.event : null;
     setEditor(null);
-    if (id) watchOverlap(id);
+    if (open) watchOverlap(open.id, open.allDay ? undefined : { start: open.startLocal, end: open.endLocal });
   }, [watchOverlap]);
 
   // The toast goes after 8 seconds.
@@ -312,7 +316,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
       // The trip keeps its length: it starts as much earlier as before.
       const leave = leaveOf(event.id);
       const shifted = leave ? new Date(startAt.getTime() - (new Date(event.startAt).getTime() - leave.getTime())) : null;
-      return overlapOf({ id: event.id, startAt, endAt, mayOverlap: event.mayOverlap }, timed, shifted);
+      return overlapOf({ id: event.id, startAt, endAt, mayOverlap: event.mayOverlap }, timed, shifted, true);
     };
   }, [timed, leaveOf, week.timeZone]);
 
@@ -384,16 +388,19 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
    * there. Its save may still be on its way, so the calendar looks a few times in the next seconds.
    */
   useEffect(() => {
-    askAfterEditor.current = (id) => {
+    askAfterEditor.current = (id, changedFrom) => {
       const own = timed.find((e) => e.id === id);
-      const overlap = own ? overlapOf(own, timed, leaveOf(id)) : null;
+      const shown = shownEvents.find((e) => e.id === id && !e.allDay);
+      // A new event, or one whose times changed in the editor: ask again even if it was accepted before.
+      const fresh = changedFrom === undefined || (shown !== undefined && (shown.startLocal !== changedFrom.start || shown.endLocal !== changedFrom.end));
+      const overlap = own ? overlapOf(own, timed, leaveOf(id), fresh) : null;
       if (!overlap) return false;
       const block = document.querySelector(`[data-event-id="${id}"]`);
       if (!block) return false;
       setPop({ kind: "overlap", id, overlap, anchor: anchorOf(block) });
       return true;
     };
-  }, [timed, leaveOf]);
+  }, [timed, leaveOf, shownEvents]);
 
   const range = useMemo(
     () => gridRange(placed, { startMin: dayStartHour * 60, endMin: dayEndHour * 60 }),
@@ -557,7 +564,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
           goals={goals}
           outlookConnected={outlookConnected}
           onClose={closePop}
-          onCreated={watchOverlap}
+          onCreated={(id) => watchOverlap(id)}
           onOpenEditor={(draft) => {
             setPop(null);
             setEditor({ mode: "create", ...draft, anchor: pop.anchor });

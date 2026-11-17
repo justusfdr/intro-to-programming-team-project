@@ -37,11 +37,12 @@ export type Overlap = { kind: "event" | "trip"; other: NamedEvent };
 /**
  * The first overlap of this event (by the other event's start), or null: first with another event,
  * then with its trip there ([leaveAt, start)). Null as well when the event was accepted (may_overlap).
+ * `fresh`: the event was just changed (moved, added, edited), so every overlap asks again, accepted or not.
  */
-export function overlapOf(event: TimedEvent, others: readonly NamedEvent[], leaveAt?: Date | null): Overlap | null {
-  if (event.mayOverlap) return null;
-  // An event that was accepted settles every overlap with it.
-  const rest = others.filter((o) => o.id !== event.id && !o.mayOverlap).sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+export function overlapOf(event: TimedEvent, others: readonly NamedEvent[], leaveAt?: Date | null, fresh = false): Overlap | null {
+  if (event.mayOverlap && !fresh) return null;
+  // An event that was accepted settles every overlap with it (unless this one was just changed).
+  const rest = others.filter((o) => o.id !== event.id && (fresh || !o.mayOverlap)).sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
   const hit = rest.find((o) => overlaps(event, o));
   if (hit) return { kind: "event", other: hit };
   if (leaveAt && leaveAt < event.startAt) {
