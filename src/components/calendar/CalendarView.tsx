@@ -39,6 +39,7 @@ import {
   type View,
 } from "@/lib/events/views";
 import { leadInto } from "@/lib/events/week-view";
+import { overlapOf, tripConflictIds, type NamedEvent } from "@/lib/events/conflicts";
 import { fmtDateLong, fmtWeekday } from "@/lib/time/display";
 import { msToNextMinute } from "@/lib/time/next-minute";
 import { localDateTimeOf } from "@/lib/time/zoned";
@@ -242,6 +243,31 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   // R27: when to leave for the shown events with a location (dashed blocks before them).
   const shownEvents = useMemo(() => placed.flat().map((b) => b.event), [placed]);
   const travel = useTravelTimes(shownEvents);
+  // Issue #106: the timed events with their times as dates, and when to leave for each one.
+  const timed = useMemo<NamedEvent[]>(
+    () =>
+      [...new Map(shownEvents.filter((e) => !e.allDay).map((e) => [e.id, e])).values()].map((e) => ({
+        id: e.id,
+        title: e.title,
+        startAt: new Date(e.startAt),
+        endAt: new Date(e.endAt),
+        mayOverlap: e.mayOverlap,
+      })),
+    [shownEvents],
+  );
+  const leaveOf = useCallback(
+    (id: string) => {
+      const answer = travel[id];
+      return answer?.status === "ok" ? new Date(answer.leaveAt) : null;
+    },
+    [travel],
+  );
+  const tripWarned = useMemo(() => tripConflictIds(timed, leaveOf), [timed, leaveOf]);
+  const editedOverlap = useMemo(() => {
+    if (editor?.mode !== "edit") return null;
+    const own = timed.find((e) => e.id === editor.event.id);
+    return own ? overlapOf(own, timed, leaveOf(own.id)) : null;
+  }, [editor, timed, leaveOf]);
   const range = useMemo(
     () => gridRange(placed, { startMin: dayStartHour * 60, endMin: dayEndHour * 60 }),
     [placed, dayStartHour, dayEndHour],
@@ -376,6 +402,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               onCreate={(day, span, anchor) => setPop({ kind: "new", date: day, span, anchor })}
               onDrop={onDrop}
               travel={travel}
+              tripWarned={tripWarned}
             />
           )}
         </div>
@@ -383,6 +410,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
       <EventEditor
         state={editor}
         shown={editor?.mode === "edit" ? findEvent(week, editor.event.id) : null}
+        overlap={editedOverlap}
         goals={goals}
         timeZone={week.timeZone}
         today={today}
