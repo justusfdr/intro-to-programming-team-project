@@ -1,4 +1,4 @@
-// Tests for weather (spec 45, R47): the device's place, else the event on now or the last one that ended
+// Tests for weather (spec 45, R47): a city the widget names, else the device's place, else the event on now or the last one that ended
 // today, else home, else "Add your home address"; only rounded coordinates reach the weather service;
 // nothing is saved. The clock starts on Monday 16 November 2026, 09:00 UTC (10:00 in Berlin).
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -223,6 +223,64 @@ describe("weather: home, no place, service down", () => {
   });
 });
 
+describe("weather: a city the widget names", () => {
+  it("is turned into coordinates by the routing service; the place is the text before the first comma", async () => {
+    await berlin();
+    routing.places.set("porto, portugal", { lat: 41.1496, lon: -8.611 });
+    expect(await read(await send({ city: "  Porto, Portugal " }))).toEqual(OK("Porto", "city"));
+    expect(service.asked).toEqual([{ lat: 41.15, lon: -8.61 }]);
+  });
+
+  it("a long name is cut to 30 characters", async () => {
+    await berlin();
+    const name = "B".repeat(60);
+    routing.places.set(name.toLowerCase(), { lat: 1, lon: 1 });
+    expect((await read(await send({ city: name }))).body).toMatchObject({ weather: { place: "B".repeat(30), source: "city" } });
+  });
+
+  it("beats the device's place, the event and home, which are not even asked for", async () => {
+    const alice = await berlin();
+    await setHome(alice, "Rua A 1, Lisbon");
+    await seedAt(alice, "Rua B 2, Lisbon", day("08:30"), day("09:30"));
+    routing.places.set("rua a 1, lisbon", { lat: 1, lon: 1 });
+    routing.places.set("rua b 2, lisbon", { lat: 2, lon: 2 });
+    routing.places.set("madrid", { lat: 40.4168, lon: -3.7038 });
+    expect((await read(await send({ city: "Madrid" }))).body).toMatchObject({ status: "ok", weather: { place: "Madrid", source: "city" } });
+    expect(service.asked).toEqual([{ lat: 40.42, lon: -3.7 }]);
+    expect(routing.asked).toEqual([]);
+  });
+
+  it("a city that cannot be found: 'City not found', with no fall back to home, and the weather service is not asked", async () => {
+    const alice = await berlin();
+    await setHome(alice, "Rua A 1, Lisbon");
+    routing.places.set("rua a 1, lisbon", { lat: 1, lon: 1 });
+    expect(await read(await send({ city: "Atlantis" }))).toEqual({ status: 200, body: { status: "no_place", message: "City not found" } });
+    expect(service.asked).toEqual([]);
+  });
+
+  it("the routing service down: 'Weather not available'", async () => {
+    await berlin();
+    routing.down = true;
+    expect((await read(await send({ city: "Porto" }))).body).toEqual({ status: "unavailable", message: "Weather not available" });
+    expect(service.asked).toEqual([]);
+  });
+
+  it("the weather service down: 'Weather not available'", async () => {
+    await berlin();
+    routing.places.set("porto", { lat: 1, lon: 1 });
+    service.answer = null;
+    expect((await read(await send({ city: "Porto" }))).body).toEqual({ status: "unavailable", message: "Weather not available" });
+  });
+
+  it("saves nothing", async () => {
+    await berlin();
+    routing.places.set("porto", { lat: 1, lon: 1 });
+    const before = await app.snapshot();
+    await send({ city: "Porto" });
+    expect(await app.snapshot()).toEqual(before);
+  });
+});
+
 describe("weather rejected", () => {
   async function expectRefused(body: unknown, status: number, headers?: Record<string, string>) {
     await berlin();
@@ -243,6 +301,16 @@ describe("weather rejected", () => {
     [{ lat: null, lon: null }],
     [{ lat: 38.7, lon: -9.1, accuracy: 10 }],
     [{ place: "Lisbon" }],
+    [{ city: "" }],
+    [{ city: "   " }],
+    [{ city: "A".repeat(81) }],
+    [{ city: "Lis\nbon" }],
+    [{ city: "Lis\tbon" }],
+    [{ city: 5 }],
+    [{ city: null }],
+    [{ city: "Porto", lat: 38.7, lon: -9.1 }],
+    [{ city: "Porto", lat: 38.7 }],
+    [{ city: "Porto", extra: 1 }],
     [[]],
     ["not json"],
   ])("refuses the body %j with 400", async (body) => {

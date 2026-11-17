@@ -51,7 +51,9 @@ every 30 minutes; the trip with the existing `travel_times` for the one event to
   timed event happening now or the last one that ended today (not a web link); else the home address;
   else "Add your home address". Only the rounded coordinates go to the weather service (Open-Meteo); the
   addresses are turned into coordinates by the routing service already used for R27. The browser asks for
-  the location only when the user clicks the location sign in the widget, never on its own.
+  the location only when the user clicks the location sign in the widget, never on its own. A weather widget
+  may instead name a city it always shows (chosen in the widget's settings); its weather comes first, and
+  the answer is "City not found" if it cannot be found.
 
 ## Not in this spec
 

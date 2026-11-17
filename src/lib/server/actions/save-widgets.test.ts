@@ -70,6 +70,14 @@ describe("save_widgets accepted", () => {
     expect(await savedOf(alice)).toEqual([{ kind: "goal", size: "1x1", goalId: GOAL_ID }, { kind: "goal", size: "1x1", goalId: null }]);
   });
 
+  it("saves a weather widget with a city (trimmed), or with none (it follows the user)", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const layout = [{ kind: "weather", size: "3x2", city: "  Porto, Portugal  " }, { kind: "weather", size: "1x1" }, { kind: "weather", size: "1x1", city: "B".repeat(80) }];
+    const saved = [{ kind: "weather", size: "3x2", city: "Porto, Portugal" }, { kind: "weather", size: "1x1" }, { kind: "weather", size: "1x1", city: "B".repeat(80) }];
+    expect((await read(await send({ layout }))).body).toEqual({ layout: saved, isDefault: false });
+    expect(await savedOf(alice)).toEqual(saved);
+  });
+
   it("reset brings back the standard list: nothing is saved any more", async () => {
     const alice = await withSaved();
     const answer = await read(await send({ reset: true }));
@@ -120,6 +128,20 @@ describe("save_widgets rejected (R46): nothing changes", () => {
 
   it("a goal id on a weather widget", async () => {
     await expectRefused({ layout: [{ kind: "weather", size: "3x2", goalId: GOAL_ID }] }, 400, "Choose one of your goals");
+  });
+
+  it("a city on a widget that is not a weather widget", async () => {
+    await expectRefused({ layout: [{ kind: "focus", size: "1x1", city: "Porto" }] }, 400, "A city must be 1 to 80 characters on one line");
+    await expectRefused({ layout: [{ kind: "goal", size: "1x1", city: "Porto" }] }, 400, "A city must be 1 to 80 characters on one line");
+  });
+
+  it("an empty city, or one of 81 characters, or one on two lines, on a weather widget", async () => {
+    const message = "A city must be 1 to 80 characters on one line";
+    await expectRefused({ layout: [{ kind: "weather", size: "3x2", city: "" }] }, 400, message);
+    await expectRefused({ layout: [{ kind: "weather", size: "3x2", city: "   " }] }, 400, message);
+    await expectRefused({ layout: [{ kind: "weather", size: "3x2", city: "A".repeat(81) }] }, 400, message);
+    await expectRefused({ layout: [{ kind: "weather", size: "3x2", city: "Lis\nbon" }] }, 400, message);
+    await expectRefused({ layout: [{ kind: "weather", size: "3x2", city: 5 }] }, 400, message);
   });
 
   it("a goal widget with something that is not a goal id", async () => {

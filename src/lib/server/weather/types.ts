@@ -4,7 +4,7 @@ import "server-only";
 // one asks Open-Meteo (open-meteo.ts); tests use a stand-in (fake.ts).
 import type { WeatherDto } from "@/lib/widgets/weather";
 
-/** The weather without its place: whole degrees, the sky as a word, the next four full hours. */
+/** The weather without its place: whole degrees, the sky as a word, the next 24 full hours, wind and rain amounts, and 7 days. */
 export type Forecast = Omit<WeatherDto, "place" | "source">;
 
 export interface WeatherService {

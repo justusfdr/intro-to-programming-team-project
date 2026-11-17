@@ -21,6 +21,7 @@ import { openMeteo } from "@/lib/server/weather/open-meteo";
 import type { WeatherService } from "@/lib/server/weather/types";
 import { startOfLocalDate, localDateOf } from "@/lib/time/zoned";
 import { isWebLink } from "@/lib/travel/web-link";
+import { MAX_CITY_LENGTH } from "@/lib/widgets/types";
 import { roundCoordinate, type WeatherAnswer, type WeatherSource } from "@/lib/widgets/weather";
 
 const MAX_LABEL = 30;
@@ -28,11 +29,23 @@ const MAX_LABEL = 30;
 /** The two answers without a weather (R47). */
 export const WEATHER_NO_PLACE = "Add your home address";
 export const WEATHER_UNAVAILABLE = "Weather not available";
+export const WEATHER_CITY_NOT_FOUND = "City not found";
 
+// Exactly one of: nothing, both coordinates, or a city (1 to 80 characters on one line).
 const WeatherBody = z
-  .strictObject({ lat: z.number().min(-90).max(90), lon: z.number().min(-180).max(180) })
+  .strictObject({
+    lat: z.number().min(-90).max(90),
+    lon: z.number().min(-180).max(180),
+    city: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_CITY_LENGTH)
+      .refine((name) => !/[\u0000-\u001f\u007f]/.test(name)),
+  })
   .partial()
-  .refine((body) => (body.lat === undefined) === (body.lon === undefined));
+  .refine((body) => (body.lat === undefined) === (body.lon === undefined))
+  .refine((body) => body.city === undefined || body.lat === undefined);
 
 /** "Library, Campus Carcavelos" → "Library": the text before the first comma, at most 30 characters. */
 export function eventPlaceLabel(location: string): string {
@@ -56,13 +69,23 @@ export function weather(
 
     const body = await readJson(request, WeatherBody);
     if (!body.ok) return body.response;
-    const { lat, lon } = body.data;
+    const { lat, lon, city } = body.data;
 
     let point: Point | null = null;
     let source: WeatherSource = "device";
     let label = "Your location";
 
-    if (lat !== undefined && lon !== undefined) {
+    if (city !== undefined) {
+      // A city the widget names beats everything else.
+      try {
+        point = await routing.geocode(city);
+      } catch {
+        return jsonOk({ status: "unavailable", message: WEATHER_UNAVAILABLE } satisfies WeatherAnswer);
+      }
+      if (!point) return jsonOk({ status: "no_place", message: WEATHER_CITY_NOT_FOUND } satisfies WeatherAnswer);
+      source = "city";
+      label = eventPlaceLabel(city);
+    } else if (lat !== undefined && lon !== undefined) {
       point = { lat, lon };
     } else {
       // Only reading, and the database is left before the slow questions to the routing service.
