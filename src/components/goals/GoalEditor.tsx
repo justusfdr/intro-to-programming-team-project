@@ -2,7 +2,7 @@
 
 // The goal editor, laid out like the prototype's goal dialog: name, why it matters, colour dots and
 // icon grid (R35); then what our goals have and the prototype's did not: deadline (the event editor's
-// date field with its small month calendar, spec 39), the weekly rules (R7) and auto-block. A native <dialog> like the event editor: focus stays inside, Escape closes it,
+// date field with its small month calendar, spec 39, or "No end date", spec 41), the weekly rules (R7) and auto-block. A native <dialog> like the event editor: focus stays inside, Escape closes it,
 // focus returns afterwards.
 // It creates a goal (create_goal) or edits one (edit_goal). In edit mode a rule that already exists
 // is removed at once (remove_rule), and the goal can be deleted after a confirmation (delete_goal).
@@ -105,6 +105,9 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
   const [icon, setIcon] = useState<GoalIconName>(goal ? goal.look.icon : DEFAULT_GOAL_ICON);
   // The deadline as "YYYY-MM-DD" (empty until one is chosen); sent with the form by the date field.
   const [deadline, setDeadline] = useState(goal?.deadline ?? "");
+  // Spec 41: ticked, the goal has no end date and the body sends deadline null. The routine of a goal is
+  // not edited here yet (spec 42) and never sent, so an edit keeps it.
+  const [noEndDate, setNoEndDate] = useState(goal !== null && goal.deadline === null);
   const [result, setResult] = useState<PostResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -115,7 +118,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
   }, [confirmingDelete]);
 
   // An unchanged past deadline stays allowed when editing; the server checks it as well.
-  const minDeadline = goal && goal.deadline < state.today ? goal.deadline : state.today;
+  const minDeadline = goal && goal.deadline !== null && goal.deadline < state.today ? goal.deadline : state.today;
 
   function updateRule(key: number, change: Partial<RuleRow>) {
     setRules((current) => current.map((rule) => (rule.key === key ? { ...rule, ...change } : rule)));
@@ -126,7 +129,7 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
     const form = new FormData(event.currentTarget);
     const fields = {
       title: String(form.get("title") ?? ""),
-      deadline: String(form.get("deadline") ?? ""),
+      deadline: noEndDate ? null : String(form.get("deadline") ?? ""),
       autoBlock: form.get("autoBlock") === "on",
       rules: rules.map(ruleBody),
       why: String(form.get("why") ?? ""),
@@ -280,8 +283,19 @@ function GoalForm({ state, onClose }: { state: Exclude<GoalEditorState, null>; o
             todayKey={state.today}
             onChange={setDeadline}
             placeholder="Choose a deadline"
+            disabled={noEndDate}
             tall
           />
+          <label htmlFor="goal-no-end-date" className="flex w-fit cursor-pointer items-center gap-2 text-sm text-ink">
+            <input
+              id="goal-no-end-date"
+              type="checkbox"
+              checked={noEndDate}
+              onChange={(e) => setNoEndDate(e.target.checked)}
+              className="size-4 cursor-pointer accent-ink"
+            />
+            No end date
+          </label>
         </div>
 
         <fieldset className="flex flex-col gap-2">

@@ -43,7 +43,8 @@ export type HistoryInput = {
 export type GoalInput = {
   id: string;
   title: string;
-  deadline: string;
+  /** null: the goal has no end date (spec 41). A goal's routine is not sent (that is spec 43). */
+  deadline: string | null;
   rules: { kind: "count" | "hours"; target: number; minMinutes: number | null }[];
 };
 

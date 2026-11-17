@@ -6,18 +6,22 @@ import "server-only";
 //      the device last saw it (R4), check the fields, write the goal and its rules   5. one answer per outcome.
 // Rules are updated and added before any is deleted, so the goal always keeps a rule while the
 // transaction runs (the database checks this when a rule is deleted).
+// Spec 41: the routine's fields the body leaves out keep their saved values. A deadline of null makes
+// the goal open-ended: the placeholder (today plus 364 days) is written when it becomes open-ended and
+// left alone by later edits; a date ends that.
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
 import { handleAction } from "@/lib/server/errors";
 import { assertUnchangedSince, notFound } from "@/lib/server/events/own-event";
-import { checkGoalFields, GoalFields } from "@/lib/server/goals/input";
+import { checkGoalFields, GoalFields, OPEN_ENDED_PLACEHOLDER_DAYS } from "@/lib/server/goals/input";
 import { findOwnGoal, findOwnRule } from "@/lib/server/goals/own-goal";
-import { readGoals } from "@/lib/server/goals/rows";
+import { readGoals, readSavedRoutine } from "@/lib/server/goals/rows";
+import { avoidDaysToText } from "@/lib/goals/routine";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { readTimeZone } from "@/lib/server/settings";
-import { localDateOf } from "@/lib/time/zoned";
+import { addDays, localDateOf } from "@/lib/time/zoned";
 
 /** The editor's fields, plus the updated_at the device last saw (R4). */
 const EditGoalBody = GoalFields.extend({ updatedAt: z.string().max(40) });
@@ -38,8 +42,15 @@ export function editGoal(request: Request, deps: Pick<Deps, "auth" | "withUser" 
       assertUnchangedSince(goal, body.data.updatedAt);
 
       const today = localDateOf(deps.now(), await readTimeZone(query));
-      // The goal's current deadline may stay even if it has passed (spec 03, R7).
-      const checked = checkGoalFields(body.data, today, goal.deadline);
+      const saved = await readSavedRoutine(query, goal.id);
+      // The goal's current deadline may stay even if it has passed (spec 03, R7); an open-ended goal's
+      // placeholder is not a deadline.
+      const checked = checkGoalFields(body.data, today, {
+        deadline: saved.openEnded ? undefined : goal.deadline,
+        routine: saved.routine,
+      });
+      // Open-ended: keep the placeholder it has, or write a new one when it becomes open-ended now.
+      const deadline = checked.deadline ?? (saved.openEnded ? goal.deadline : addDays(today, OPEN_ENDED_PLACEHOLDER_DAYS));
 
       // Rules that already exist: each must be a rule of this goal, else "Not found" (R3).
       const kept = new Set<string>();
@@ -73,27 +84,40 @@ export function editGoal(request: Request, deps: Pick<Deps, "auth" | "withUser" 
       }
 
       // Also gives the goal a new updated_at, so the other devices see the change (R4).
-      // Colour, icon and why stay as they are when the body leaves them out.
+      // Colour, icon and why stay as they are when the body leaves them out. The routine is written
+      // whole: checkGoalFields already put the kept values where the body left a field out (the row is
+      // locked, so nothing changed them in between).
+      const { routine } = checked;
       await query(
         `update app.goals
-            set title = $2, deadline = $3, auto_block = $4,
-                color = case when $5::boolean then $6 else color end,
-                icon = coalesce($7, icon),
-                why = coalesce($8, why)
-          where id = $1`,
+            set title = $2::text, deadline = $3::date, auto_block = $4::boolean,
+                color = case when $5::boolean then $6::text else color end,
+                icon = coalesce($7::text, icon),
+                why = coalesce($8::text, why),
+                open_ended = $9::boolean,
+                category = $10::text, category_other = $11::text, session_minutes = $12::integer,
+                day_part = $13::text, avoid_days = $14::text, location = $15::text
+          where id = $1::uuid`,
         [
           goal.id,
           checked.title,
-          checked.deadline,
+          deadline,
           checked.autoBlock,
           checked.color !== undefined,
           checked.color ?? null,
           checked.icon ?? null,
           checked.why ?? null,
+          checked.deadline === null,
+          routine.category,
+          routine.categoryOther,
+          routine.sessionMinutes,
+          routine.dayPart,
+          avoidDaysToText(routine.avoidDays),
+          routine.location,
         ],
       );
-      const [saved] = await readGoals(query, goal.id);
-      return jsonOk({ message: MESSAGES.goalSaved, goal: saved.goal });
+      const [after] = await readGoals(query, goal.id);
+      return jsonOk({ message: MESSAGES.goalSaved, goal: after.goal });
     });
   });
 }

@@ -6,15 +6,18 @@ import "server-only";
 //      write the goal and its rules   5. one answer per outcome.
 // Goal and rules are written in one transaction, so they are saved together or not at all (R1);
 // the database also refuses a goal without a rule when the transaction ends.
+// Spec 41: the goal's routine is saved with it; a deadline of null makes the goal open-ended, with the
+// placeholder deadline (today plus 364 days) that only older versions of the app ever read.
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
 import { handleAction } from "@/lib/server/errors";
-import { checkGoalFields, GoalFields } from "@/lib/server/goals/input";
+import { checkGoalFields, GoalFields, OPEN_ENDED_PLACEHOLDER_DAYS } from "@/lib/server/goals/input";
 import { readGoals } from "@/lib/server/goals/rows";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { readTimeZone } from "@/lib/server/settings";
-import { localDateOf } from "@/lib/time/zoned";
+import { avoidDaysToText } from "@/lib/goals/routine";
+import { addDays, localDateOf } from "@/lib/time/zoned";
 
 export function createGoal(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now">): Promise<Response> {
   return handleAction(async () => {
@@ -33,10 +36,27 @@ export function createGoal(request: Request, deps: Pick<Deps, "auth" | "withUser
 
       // user_id, created_at and updated_at are filled in by the database. Without a colour the goal
       // takes the one calculated from its place in the list; without an icon the default (rocket).
+      const { routine } = goal;
       const [{ id }] = await query<{ id: string }>(
-        `insert into app.goals (title, deadline, auto_block, color, icon, why)
-         values ($1, $2, $3, $4, coalesce($5, 'rocket'), $6) returning id`,
-        [goal.title, goal.deadline, goal.autoBlock, goal.color ?? null, goal.icon ?? null, goal.why ?? ""],
+        `insert into app.goals (title, deadline, auto_block, color, icon, why,
+                                open_ended, category, category_other, session_minutes, day_part, avoid_days, location)
+         values ($1::text, $2::date, $3::boolean, $4::text, coalesce($5::text, 'rocket'), $6::text,
+                 $7::boolean, $8::text, $9::text, $10::integer, $11::text, $12::text, $13::text) returning id`,
+        [
+          goal.title,
+          goal.deadline ?? addDays(today, OPEN_ENDED_PLACEHOLDER_DAYS),
+          goal.autoBlock,
+          goal.color ?? null,
+          goal.icon ?? null,
+          goal.why ?? "",
+          goal.deadline === null,
+          routine.category,
+          routine.categoryOther,
+          routine.sessionMinutes,
+          routine.dayPart,
+          avoidDaysToText(routine.avoidDays),
+          routine.location,
+        ],
       );
       for (const rule of goal.rules) {
         await query("insert into app.rules (goal_id, kind, target, min_minutes) values ($1, $2, $3, $4)", [

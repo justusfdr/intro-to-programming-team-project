@@ -1,5 +1,6 @@
 // The shape of a goal as the server sends it to the page.
 import type { GoalProgress, RuleKind } from "./progress";
+import type { GoalRoutine } from "./routine";
 import type { GoalColorName, GoalIconName, GoalLook } from "./style";
 
 export type RuleDto = { id: string; kind: RuleKind; target: number; minMinutes: number | null };
@@ -7,8 +8,8 @@ export type RuleDto = { id: string; kind: RuleKind; target: number; minMinutes: 
 export type GoalDto = {
   id: string;
   title: string;
-  /** The last day, "2027-03-14". */
-  deadline: string;
+  /** The last day, "2027-03-14", or null: the goal has no end date (spec 41). */
+  deadline: string | null;
   autoBlock: boolean;
   /** The saved colour, or null: then the colour comes from the goal's place in the list (`look`). */
   color: GoalColorName | null;
@@ -18,6 +19,11 @@ export type GoalDto = {
   /** Sent back with every edit and delete, so the server can see whether the goal changed since (R4). */
   updatedAt: string;
   rules: RuleDto[];
+  /**
+   * What the goal says about itself (spec 41): present only when something of it is set, so a goal
+   * without a routine looks exactly as before.
+   */
+  routine?: GoalRoutine;
 };
 
 /** A goal as the panel shows it: the goal, its look and its calculated progress. */
