@@ -15,7 +15,7 @@ Six kinds of widget, each in its sizes (columns × rows):
 | Kind | Sizes | Shows |
 | --- | --- | --- |
 | Weather | 3x2, 1x1 | Place with a small sign of where it comes from (R47), temperature, sky in words with its icon, high and low, the next four hours (time, icon, temperature, chance of rain from 30 %). 1x1: icon, temperature, sky. No animation. |
-| Next up | 3x2, 3x4 | The event happening now or next today: goal icon, "Next up · in 34 min" (or "Now · 20 min left" with a progress bar), title, time and place, the leave line. 3x4 adds guests, to-dos (count and the first two), the weather where it is, and "Then …" for the event after it. With nothing left today: "Nothing else today" and tomorrow's first event. |
+| Next up | 3x2, 3x4 | The event happening now or next today: goal icon, "Next up · in 34 min" (or "Now · 20 min left" with a progress bar), title, time and place, the leave line. 3x4 adds the end time, the full address, guests, to-dos ("1 of 3 to-dos done"), and "Then …" for the event after it. With nothing left today: "Nothing else today" and tomorrow's first event. |
 | Time to leave | 1x1, 3x1 | For the next event today with an address that has not started: the travel icon, "12 min", "to leave"; 3x1: "Leave in 12 min", time and trip length. Colour by `leaveLevel` (src/lib/widgets/leave.ts): >30 min soft green, 21–30 soft amber, 11–20 soft orange, 1–10 full red, 0 red and pulsing, late dark red. Without a trip: "No trip" in grey. |
 | Goal | 1x1 | A ring in the goal's colour with its icon in the middle and "2 of 4" (its first rule, this week). Met: full ring with a check and "Done". |
 | Focus today | 1x1 | Timer icon, minutes focused today, "focus today". |

@@ -406,3 +406,30 @@ dialog.goal-setup::backdrop {
     transform: translate(var(--x), var(--y)) scale(1) rotate(var(--r));
   }
 }
+
+/* Sidebar widgets (spec 45): while editing they wiggle; "Leave now" pulses. Both stay still with reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .widget-wiggle {
+    animation: widget-wiggle 0.3s ease-in-out infinite;
+  }
+  .widget-pulse {
+    animation: widget-pulse 1.4s ease-out infinite;
+  }
+}
+@keyframes widget-wiggle {
+  0%,
+  100% {
+    transform: rotate(-1deg);
+  }
+  50% {
+    transform: rotate(1deg);
+  }
+}
+@keyframes widget-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(220 38 38 / 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgb(220 38 38 / 0);
+  }
+}
