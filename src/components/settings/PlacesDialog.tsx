@@ -15,9 +15,9 @@ import { MAX_PLACE_NAME, MAX_PLACES, type SavedPlace } from "@/lib/places/saved"
 import type { PlaceSuggestion } from "@/lib/places/places";
 import { INPUT_CLASS } from "./fields";
 
-/** "Home, Uni, Gym": what the row says under its label. */
+/** "Uni, Gym": what the row says under its label (the home address has its own row). */
 export function placesHint(places: SavedPlace[]): string {
-  return ["Home", ...places.map((p) => p.name)].join(", ");
+  return places.length === 0 ? "No places yet" : places.map((p) => p.name).join(", ");
 }
 
 export function PlacesRow({ homeAddress, places: initial }: { homeAddress: string; places: SavedPlace[] }) {

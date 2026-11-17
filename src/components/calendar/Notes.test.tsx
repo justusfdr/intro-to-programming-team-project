@@ -69,7 +69,8 @@ describe("the NOTES section", () => {
     const html = edit(event({ notes: NOTE }));
     expect(html).toMatch(/<p class="text-\[11px\] font-medium uppercase tracking-\[0\.06em\] text-ink-3">Notes<\/p>/);
     expect(html).toMatch(/<textarea[^>]*aria-label="Notes"[^>]*placeholder="Add notes"[^>]*>Ask Ana about the exam\.<\/textarea>/);
-    expect(html.indexOf(">Notes</p>")).toBeGreaterThan(html.indexOf(">Location</p>"));
+    expect(html.indexOf(">Notes</p>")).toBeGreaterThan(html.indexOf(">Route</p>"));
+    expect(html.indexOf(">Route</p>")).toBeGreaterThan(-1);
     expect(html).not.toContain(">Overlap</p>");
     // A short note shows no count.
     expect(html).not.toMatch(/\/ 2,000/);

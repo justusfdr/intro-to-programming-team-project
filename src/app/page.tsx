@@ -31,7 +31,7 @@ export default async function CalendarPage({
   if (!userId) redirect("/sign-in");
 
   const address = readAddress(await searchParams);
-  const { display, week, goals, showWelcome, places } = await loadCalendarPage(deps, userId, address.date, address.view);
+  const { display, week, goals, showWelcome, places, home, travelMode } = await loadCalendarPage(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
@@ -39,7 +39,7 @@ export default async function CalendarPage({
     <Announcer>
       <LiveProvider>
         <AppShell current="/" display={display}>
-          <SavedPlacesProvider places={places}>
+          <SavedPlacesProvider places={places} home={home} travelMode={travelMode}>
             <CalendarView
               week={week}
               nowLocal={nowLocal}

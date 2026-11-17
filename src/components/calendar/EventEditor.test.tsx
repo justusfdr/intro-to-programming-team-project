@@ -66,9 +66,9 @@ describe("an existing event", () => {
     expect(html).not.toMatch(/type="submit"/);
   });
 
-  it("shows the sections in the prototype's order: title, When, Goal, Location, and no Overlap", () => {
+  it("shows the sections in the prototype's order: title, When, Goal, Route, and no Overlap", () => {
     const html = edit(TIMED);
-    const order = ['aria-label="Title"', ">When</p>", ">Goal</p>", ">Location</p>"].map((part) => html.indexOf(part));
+    const order = ['aria-label="Title"', ">When</p>", ">Goal</p>", ">Route</p>"].map((part) => html.indexOf(part));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).not.toContain(">Overlap</p>");
@@ -81,12 +81,13 @@ describe("an existing event", () => {
     expect(html).toMatch(/<input[^>]*aria-label="End time"[^>]*value="10:00"/);
     expect(html).toContain("End · 1h");
     expect(html).toMatch(/<label[^>]*>All day<input type="checkbox" role="switch"/);
-    expect(html).not.toContain('aria-label="Repeat"');
+    expect(html).not.toContain('aria-label="Repeat: ');
   });
 
-  it("has the location field with the pin and 'Add location', filled with the event's location", () => {
-    expect(edit(TIMED)).toMatch(/<svg[^>]*lucide-map-pin[^>]*>.*<input aria-label="Location" placeholder="Add location" maxLength="200"[^>]*value=""/s);
-    expect(edit({ ...TIMED, location: "Nova SBE, Carcavelos" })).toMatch(/<input aria-label="Location"[^>]*value="Nova SBE, Carcavelos"/);
+  it("has the route: From (Last event when nothing is chosen) and To with the event's location", () => {
+    expect(edit(TIMED)).toContain('aria-label="From: Last event"');
+    expect(edit(TIMED)).toContain('aria-label="To: Add destination"');
+    expect(edit({ ...TIMED, location: "Nova SBE, Carcavelos" })).toContain('aria-label="To: Nova SBE, Carcavelos"');
   });
 
   it("has the footer: black Start focus, Mark done, the bin", () => {
@@ -145,11 +146,9 @@ describe("a new event from 'Add details'", () => {
     expect(html).toMatch(/<input aria-label="Title"[^>]*value="Read chapter 4"/);
     expect(html).toMatch(/aria-pressed="true"[^>]*>.*Run a half marathon/s);
     expect(html).toMatch(/<label[^>]*>All day<input type="checkbox" role="switch"/);
-    expect(html).toContain('role="group" aria-label="Repeat"');
-    for (const option of ["Never", "Daily", "Weekly", "Monthly"]) expect(html).toMatch(new RegExp(`aria-pressed="(true|false)"[^>]*>${option}</button>`));
-    expect(html).toMatch(/aria-pressed="true"[^>]*>Never<\/button>/);
-    expect(html.indexOf(">When</p>")).toBeLessThan(html.indexOf('aria-label="Repeat"'));
-    expect(html.indexOf('aria-label="Repeat"')).toBeLessThan(html.indexOf(">Goal</p>"));
+    expect(html).toMatch(/<button[^>]*aria-expanded="false"[^>]*aria-label="Repeat: Does not repeat"/);
+    expect(html.indexOf(">When</p>")).toBeLessThan(html.indexOf('aria-label="Repeat: '));
+    expect(html.indexOf('aria-label="Repeat: ')).toBeLessThan(html.indexOf(">Goal</p>"));
     expect(html).toContain(">Add event</button>");
     expect(html).not.toContain("Mark done");
   });

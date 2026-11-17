@@ -41,6 +41,7 @@ import { readOwnCard, readOwnProfile } from "@/lib/server/profiles/own-profile";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readPlaces } from "@/lib/server/places/saved";
 import type { SavedPlace } from "@/lib/places/saved";
+import type { TravelMode } from "@/lib/settings/types";
 import { readSettingsPage } from "@/lib/server/settings-page";
 import { readTasks } from "@/lib/server/tasks/rows";
 import { settleTasks } from "@/lib/server/tasks/settle";
@@ -56,7 +57,7 @@ function displayOf(settings: { timeFormat: Display["timeFormat"]; dayStartHour: 
   return { timeFormat: settings.timeFormat, dayStartHour: settings.dayStartHour, dayEndHour: settings.dayEndHour };
 }
 
-export type CalendarPageData = { display: Display; week: WeekData; goals: GoalView[]; tasks: TaskDto[]; showWelcome: boolean; places: SavedPlace[] };
+export type CalendarPageData = { display: Display; week: WeekData; goals: GoalView[]; tasks: TaskDto[]; showWelcome: boolean; places: SavedPlace[]; home: string; travelMode: TravelMode };
 
 /**
  * The calendar (specs 02 and 14): the days of the view (the address's, else the default view from the
@@ -80,7 +81,7 @@ export async function loadCalendarPage(deps: PageDeps, userId: string, requested
       welcomeDue(query),
       readPlaces(query),
     ]);
-    return { display: displayOf(settings), week, goals, tasks, showWelcome, places };
+    return { display: displayOf(settings), week, goals, tasks, showWelcome, places, home: settings.homeAddress, travelMode: settings.travelMode };
   });
 }
 
