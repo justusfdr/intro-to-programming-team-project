@@ -98,7 +98,7 @@ export function GoalSetup({ open, onClose, onUseForm, goals, places, today, init
         requestClose.current();
       }}
       onClick={(event) => event.target === dialog.current && requestClose.current()}
-      className="goal-setup m-0 mt-auto h-[92dvh] max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-panel bg-surface p-0 text-ink shadow-pop md:m-auto md:h-fit md:max-h-[min(780px,calc(100dvh-3rem))] md:max-w-[560px] md:rounded-panel"
+      className="goal-setup m-0 mt-auto h-[92dvh] max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-panel bg-surface p-0 text-ink shadow-pop md:m-auto md:h-[min(720px,calc(100dvh-3rem))] md:max-h-[min(720px,calc(100dvh-3rem))] md:max-w-[560px] md:rounded-panel"
     >
       <span id="goal-setup-name" className="sr-only">
         New goal
