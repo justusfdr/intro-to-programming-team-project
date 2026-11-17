@@ -23,7 +23,8 @@ describe("JSON parameters", () => {
         readFileSync(path, "utf8")
           .split("\n")
           .map((line, i) => ({ line, at: `${relative(ROOT, path)}:${i + 1}` }))
-          .filter(({ line }) => /\$\d+::jsonb\b/.test(line)),
+          // Comments may name the wrong form to warn about it.
+          .filter(({ line }) => !/^\s*(\/\/|\*)/.test(line) && /\$\d+::jsonb\b/.test(line)),
       )
       .map(({ at }) => at);
     expect(offenders).toEqual([]);
