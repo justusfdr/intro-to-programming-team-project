@@ -54,9 +54,11 @@ type Props = {
   /** Previews only: text already in the field, and the "Clear chat" question open. */
   defaultText?: string;
   defaultConfirmingClear?: boolean;
+  /** Spec 43: the field takes the focus when the page opens (with `defaultText` from a goal's "Plan with coach"). */
+  focusField?: boolean;
 };
 
-export function CoachView({ data, defaultText = "", defaultConfirmingClear = false }: Props) {
+export function CoachView({ data, defaultText = "", defaultConfirmingClear = false, focusField = false }: Props) {
   const router = useRouter();
   const announce = useAnnounce();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -101,6 +103,15 @@ export function CoachView({ data, defaultText = "", defaultConfirmingClear = fal
     endRef.current?.scrollIntoView({ block: "end", behavior: seen.current ? "smooth" : "auto" });
     seen.current = true;
   }, [messages.length, pending]);
+
+  // Spec 43: opened from a goal, the field has the focus with the cursor after the sentence. Nothing is sent.
+  useEffect(() => {
+    if (!focusField) return;
+    const field = inputRef.current;
+    if (!field || field.disabled) return;
+    field.focus();
+    field.setSelectionRange(field.value.length, field.value.length);
+  }, [focusField]);
 
   // "Still working" after 15 seconds of waiting.
   useEffect(() => {

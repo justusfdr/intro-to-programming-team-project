@@ -62,6 +62,10 @@ export function WhatIsSent() {
         <li>The last 10 messages of this chat, with the events (and their to-dos), the changes and the to-dos for events in your calendar of their drafts</li>
         <li>Your goals with their deadlines and rules</li>
         <li>
+          For a goal with a routine: its category, how long one session is, the time of day, the days it is never done on,
+          whether it happens away from home, and how many sessions are left this week and next
+        </li>
+        <li>
           Your events from today to 14 days ahead: title, start, end, whether they may overlap, all day, and a short
           reference for this one message with whether the coach may change the event and add to-dos to it, and how many
           to-dos it has
@@ -70,7 +74,7 @@ export function WhatIsSent() {
         <li>Your time zone, the current date and time, and the hours your calendar shows</li>
       </ul>
       <p className="mt-2 font-semibold text-ink">Not sent</p>
-      <p>Your e-mail address, your password, the locations of events, your block list, your tasks, the titles of the to-dos of the events in your calendar.</p>
+      <p>Your e-mail address, your password, the locations of events, the places of your goals, your block list, your tasks, the titles of the to-dos of the events in your calendar.</p>
       <p className="mt-2">{SPEECH_NOTE}</p>
     </div>
   );
