@@ -159,6 +159,8 @@ function SetupFlow({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState("");
+  /** Spec 43: the created goal's id, for the coach button on the success screen. */
+  const [createdId, setCreatedId] = useState<string | null>(null);
   const [live, setLive] = useState("");
   const [shake, setShake] = useState<{ day: Weekday | null; round: number }>({ day: null, round: 0 });
   // The focus moves to the question's heading only after the person moved (opening focuses it once).
@@ -257,6 +259,8 @@ function SetupFlow({
       return;
     }
     setSavedMessage(answer.message);
+    const created = (answer.data as { goal?: { id?: unknown } } | undefined)?.goal?.id;
+    setCreatedId(typeof created === "string" ? created : null);
     goTo("done", "forward");
     router.refresh();
   }
@@ -357,7 +361,7 @@ function SetupFlow({
       case "review":
         return <Review {...common} onChange={change} hint={allGoalsHint(answers, otherGoals)} />;
       case "done":
-        return <Celebration answers={answers} onDone={finish} />;
+        return <Celebration answers={answers} onDone={finish} goalId={createdId} />;
     }
   };
 
