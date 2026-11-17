@@ -42,6 +42,8 @@ import type { NewTodo } from "@/lib/todos/types";
 import { addDays } from "@/lib/time/zoned";
 import { useAnnounce } from "./Announcer";
 import { EditorChips } from "./editor/EditorChips";
+import { OverlapNotice } from "./editor/OverlapNotice";
+import type { Overlap } from "@/lib/events/conflicts";
 import { EditorHeader } from "./editor/EditorHeader";
 import { EventTodos } from "./editor/EventTodos";
 import { GoalSection } from "./editor/GoalSection";
@@ -81,6 +83,8 @@ type Props = Common & {
   state: EditorState;
   /** The event as the calendar shows it now (with the latest re-read), or null. */
   shown?: CalendarEvent | null;
+  /** What the event (or the trip to it) overlaps, from the calendar; null when nothing. */
+  overlap?: Overlap | null;
   /** One event was deleted (not "this and following"): the calendar offers Undo, with its to-dos. */
   onDeleted?: (event: CalendarEvent, todos: NewTodo[]) => void;
   /** A change was refused after the editor closed: the calendar shows the message. */
@@ -92,10 +96,10 @@ type Props = Common & {
 /** The card width on wider screens, as in the prototype. */
 const WIDTH = 320;
 
-export function EventEditor({ state, shown, onDeleted, onRefused, onCreated, ...common }: Props) {
+export function EventEditor({ state, shown, overlap, onDeleted, onRefused, onCreated, ...common }: Props) {
   if (!state) return null;
   if (state.mode === "edit") {
-    return <EditEventCard key={state.event.id} event={state.event} anchor={state.anchor} shown={shown} onDeleted={onDeleted} onRefused={onRefused} {...common} />;
+    return <EditEventCard key={state.event.id} event={state.event} anchor={state.anchor} shown={shown} overlap={overlap} onDeleted={onDeleted} onRefused={onRefused} {...common} />;
   }
   return <NewEventCard key={`${state.start}-${state.end}`} draft={state} anchor={state.anchor} onCreated={onCreated} {...common} />;
 }
@@ -114,14 +118,16 @@ function Card({ sections, footer }: { sections: ReactNode; footer: ReactNode }) 
 function Frame({ anchor, label, onClose, children }: { anchor: Anchor | null; label: string; onClose: () => void; children: ReactNode }) {
   if (!anchor) {
     return (
-      <div role="dialog" aria-label={label}>
+      <div role="dialog" aria-label={label} data-event-editor>
         {children}
       </div>
     );
   }
   return (
     <FloatingPanel anchor={anchor} label={label} width={WIDTH} onClose={onClose}>
-      {children}
+      <div data-event-editor className="contents">
+        {children}
+      </div>
     </FloatingPanel>
   );
 }
@@ -175,12 +181,14 @@ type EditProps = Common & {
   /** Null: drawn without the floating panel (previews, markup tests). */
   anchor: Anchor | null;
   shown?: CalendarEvent | null;
+  /** What the event (or the trip to it) overlaps, from the calendar; null when nothing. */
+  overlap?: Overlap | null;
   onDeleted?: (event: CalendarEvent, todos: NewTodo[]) => void;
   onRefused?: (message: string) => void;
 };
 
 /** An existing event: changes wait for the Save button. */
-export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, today, outlookConnected = false, onClose, onDeleted, onRefused }: EditProps) {
+export function EditEventCard({ event: initial, anchor, shown, overlap = null, goals, timeZone, today, outlookConnected = false, onClose, onDeleted, onRefused }: EditProps) {
   const router = useRouter();
   const save = useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose });
   const { event, values } = save;
@@ -207,6 +215,20 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
       onClose={save.close}
     />,
     <EditorChips key="chips" event={event} />,
+    overlap && !values.mayOverlap && (
+      <OverlapNotice
+        key="overlap"
+        overlap={overlap}
+        timeZone={timeZone}
+        busy={save.busy || save.saving}
+        onFine={() => {
+          save.change({ mayOverlap: true });
+          save.saveNow();
+        }}
+        onMove={() => document.querySelector<HTMLInputElement>('[data-event-editor] input[aria-label="Start time"]')?.focus()}
+        onDiscard={!fromOutlook && (event.guests?.length ?? 0) > 0 ? () => setAskDelete(true) : save.remove}
+      />
+    ),
     <WhenSection key="when" event={event} values={values} onChange={(patch) => save.change(patch)} todayKey={today} />,
     // Spec 24: right under the time. An Outlook event shows its people read-only (R11); a demo event
     // and an event of a series cannot have guests and say so.

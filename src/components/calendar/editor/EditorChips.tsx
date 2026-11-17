@@ -1,9 +1,10 @@
 "use client";
 
 // The small pills under the title, as in the prototype (its Badge): Done, and ours: Repeating (R28),
-// From Outlook (R11), Not sent to Outlook (R26), Overlaps another event (R10). Nothing when none applies.
+// From Outlook (R11), Not sent to Outlook (R26). Nothing when none applies. Overlaps have their own notice
+// (OverlapNotice).
 import type { ReactNode } from "react";
-import { CalendarDays, TriangleAlert } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { NotSentIcon } from "@/components/ui/icons";
 import type { CalendarEvent } from "@/lib/events/types";
 
@@ -15,8 +16,7 @@ export function EditorChips({ event }: { event: CalendarEvent }) {
   const done = event.status === "done";
   const repeating = event.seriesId !== null;
   const fromOutlook = event.source === "outlook";
-  const conflict = !event.allDay && event.conflict;
-  if (!done && !repeating && !fromOutlook && !event.notSent && !conflict) return null;
+  if (!done && !repeating && !fromOutlook && !event.notSent) return null;
 
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -32,12 +32,6 @@ export function EditorChips({ event }: { event: CalendarEvent }) {
         <Badge className="bg-danger-soft text-danger">
           <NotSentIcon className="size-3" />
           Not sent to Outlook
-        </Badge>
-      )}
-      {conflict && (
-        <Badge className="bg-danger-soft text-danger">
-          <TriangleAlert className="size-3" strokeWidth={2} />
-          Overlaps another event
         </Badge>
       )}
     </div>
