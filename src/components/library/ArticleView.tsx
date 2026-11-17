@@ -1,5 +1,6 @@
 // One article of the library (spec 29): a header on the shelf's tint, the text with its pictures,
 // what the study cannot show, what to do with it, then the studies themselves and what to read next.
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeft, Play } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
@@ -11,14 +12,19 @@ import { BarsFigure, StatRow, StepsFigure } from "./Figures";
 import { TOPIC_LOOK, TopicMotif } from "./look";
 import { StudyCard } from "./StudyCard";
 
-const sectionTitle = "text-[20px] leading-7 font-semibold tracking-heading text-ink";
+export const sectionTitle = "text-[20px] leading-7 font-semibold tracking-heading text-ink";
 
-function BodyBlock({ block, guide }: { block: Block; guide: boolean }) {
+/**
+ * One piece of an article's text. `action`: what stands under "Try it"; inside the app the way
+ * to a session, on the landing page the way to an account (spec 47). `heading`: the level of a
+ * heading inside the text, one below the article's own title.
+ */
+export function BodyBlock({ block, guide, action, heading: Heading = "h2" }: { block: Block; guide: boolean; action?: ReactNode; heading?: "h2" | "h3" }) {
   switch (block.kind) {
     case "p":
       return <p className="text-[16px] leading-7 text-ink">{block.text}</p>;
     case "h":
-      return <h2 className={`${sectionTitle} pt-3`}>{block.text}</h2>;
+      return <Heading className={`${sectionTitle} pt-3`}>{block.text}</Heading>;
     case "stats":
       return <StatRow stats={block.stats} />;
     case "bars":
@@ -37,10 +43,12 @@ function BodyBlock({ block, guide }: { block: Block; guide: boolean }) {
         <aside className="rounded-card bg-raised p-5">
           <p className={eyebrow}>Try it</p>
           <p className="mt-1.5 text-[15px] leading-6 text-ink">{block.text}</p>
-          <Link href="/focus" className={buttonClass("primary", "md", "mt-4")}>
-            <Play className="size-4" aria-hidden="true" />
-            Start a session
-          </Link>
+          {action ?? (
+            <Link href="/focus" className={buttonClass("primary", "md", "mt-4")}>
+              <Play className="size-4" aria-hidden="true" />
+              Start a session
+            </Link>
+          )}
         </aside>
       );
   }

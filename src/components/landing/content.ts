@@ -10,6 +10,7 @@ export const LEGAL_PATH = "/legal";
 /** The sections the navigation jumps to. Full addresses, so they also work from the legal notes. */
 export const SECTION_LINKS = [
   { href: `${LANDING_PATH}#how`, label: "How it works" },
+  { href: `${LANDING_PATH}#research`, label: "The research" },
   { href: `${LANDING_PATH}#pricing`, label: "Pricing" },
   { href: `${LANDING_PATH}#faq`, label: "FAQ" },
 ] as const;
