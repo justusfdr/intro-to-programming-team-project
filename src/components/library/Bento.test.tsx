@@ -39,8 +39,8 @@ describe("the tiles as links", () => {
   it("give the large tile two columns and two rows, the tall one two rows, the wide one two columns", () => {
     const items = tilesIn(html);
     expect(items).toHaveLength(5);
-    expect(items[0]).toContain("@lg:col-span-2 @4xl:row-span-2");
-    expect(items[1]).toContain("@4xl:row-span-2");
+    expect(items[0]).toContain("@lg:col-span-2 @lg:row-span-2");
+    expect(items[1]).toContain("@lg:row-span-2");
     expect(items[1]).not.toContain("@lg:col-span-2");
     expect(items[4]).toContain("@lg:col-span-2");
     expect(items[4]).not.toContain("row-span-2");
@@ -100,7 +100,8 @@ describe("any article in any size", () => {
 
   it("shows a guide's title instead of a number on a square tile", () => {
     const html = renderToStaticMarkup(<StudyBento tiles={tilesOf(["set-up-a-session"])} pattern={["square"]} label="Articles" />);
-    expect(html).toMatch(/<h3 class="line-clamp-2[^"]*">Set up a session in a minute<\/h3>/);
+    expect(html).toMatch(/<h3 class="mt-2\.5[^"]*">Set up a session in a minute<\/h3>/);
+    expect(html.split("Set up a session in a minute").length - 1).toBe(2); // the title, and the link's name
     const number = renderToStaticMarkup(<StudyBento tiles={tilesOf(["2-8-seconds"])} pattern={["square"]} label="Articles" />);
     expect(number).toMatch(/<h3 class="sr-only">2\.8 seconds<\/h3>/);
   });

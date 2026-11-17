@@ -27,9 +27,10 @@ const frame = "relative flex rounded-card transition-[box-shadow,transform] dura
 const cover =
   "absolute inset-0 cursor-pointer rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas";
 
+// From two columns on, every row has the same height, so a tall tile is exactly two square ones.
 const SPAN: Record<TileSize, string> = {
-  hero: "@lg:col-span-2 @4xl:row-span-2",
-  tall: "@4xl:row-span-2",
+  hero: "@lg:col-span-2 @lg:row-span-2",
+  tall: "@lg:row-span-2",
   wide: "@lg:col-span-2",
   square: "",
 };
@@ -104,10 +105,20 @@ function Picture({ picture }: { picture: TilePicture }) {
   return <MiniStats picture={picture} />;
 }
 
-/** The tile's number and what it counts; a guide has none and shows its shelf's icon instead. */
+/**
+ * The tile's number and what it counts. A guide has no number: it shows its shelf's icon and its
+ * title here instead, so the title is not repeated at the foot.
+ */
 function Lead({ tile, size }: { tile: Tile; size: "lg" | "md" }) {
   const Icon = TOPIC_LOOK[tile.topic].icon;
-  if (!tile.figure) return <Icon className="size-7 text-ink" strokeWidth={1.8} aria-hidden="true" />;
+  if (!tile.figure) {
+    return (
+      <div>
+        <Icon className="size-6 text-ink" strokeWidth={1.8} aria-hidden="true" />
+        <h3 className="mt-2.5 text-[17px] leading-[22px] font-semibold tracking-snug text-ink">{tile.title}</h3>
+      </div>
+    );
+  }
   return (
     <div>
       <p className={`font-semibold tracking-display tabular text-ink ${size === "lg" ? "text-[40px] leading-[44px]" : "text-[30px] leading-9"}`}>{tile.figure}</p>
@@ -116,11 +127,15 @@ function Lead({ tile, size }: { tile: Tile; size: "lg" | "md" }) {
   );
 }
 
-/** The article's title and how long it takes, at the foot of a tile. */
-function Foot({ tile, showTitle = true }: { tile: Tile; showTitle?: boolean }) {
+/**
+ * How long the article takes, at the foot of a tile, under its title. `title`: "show" on tiles
+ * with room for it, "hide" where the number says enough (it stays for screen readers). A guide's
+ * title already stands at the top and is not repeated here.
+ */
+function Foot({ tile, title }: { tile: Tile; title: "show" | "hide" }) {
   return (
     <div className="mt-auto pt-3">
-      <h3 className={showTitle ? "line-clamp-2 text-[13px] leading-[18px] font-semibold text-ink" : "sr-only"}>{tile.title}</h3>
+      {tile.figure && <h3 className={title === "show" ? "line-clamp-2 text-[13px] leading-[18px] font-semibold text-ink" : "sr-only"}>{tile.title}</h3>}
       <p className="mt-0.5 text-xs leading-4 text-ink-3">{tile.meta}</p>
     </div>
   );
@@ -162,7 +177,7 @@ function Tall({ tile }: { tile: Tile }) {
           <Picture picture={tile.picture} />
         </div>
       )}
-      <Foot tile={tile} />
+      <Foot tile={tile} title="show" />
     </div>
   );
 }
@@ -173,10 +188,10 @@ function Wide({ tile }: { tile: Tile }) {
       <div className="flex flex-col @lg:w-[42%] @lg:shrink-0">
         <p className={`${eyebrow} mb-1.5`}>{topicLabel(tile.topic)}</p>
         <Lead tile={tile} size="md" />
-        <Foot tile={tile} />
+        <Foot tile={tile} title="show" />
       </div>
       {tile.picture && (
-        <div className="min-w-0 flex-1 self-center">
+        <div className="min-w-0 flex-1 @lg:self-center">
           <Picture picture={tile.picture} />
         </div>
       )}
@@ -191,8 +206,7 @@ function Square({ tile, tinted }: { tile: Tile; tinted: boolean }) {
     <div className={`relative flex min-h-44 w-full flex-col rounded-card p-[18px] ${tinted ? look.tint : "border border-line-subtle bg-surface"}`}>
       {tile.figure && <Icon className={`absolute top-[18px] right-[18px] size-4 ${tinted ? "text-ink/40" : look.mark}`} strokeWidth={2} aria-hidden="true" />}
       <Lead tile={tile} size="md" />
-      {/* A guide has no number, so its title is what the tile says. */}
-      <Foot tile={tile} showTitle={!tile.figure} />
+      <Foot tile={tile} title="hide" />
     </div>
   );
 }
@@ -224,7 +238,7 @@ export function StudyBento({
   let squares = 0;
   return (
     <div className="@container">
-      <ul aria-label={label} className="grid grid-flow-dense grid-cols-1 gap-4 @lg:grid-cols-2 @4xl:auto-rows-[208px] @4xl:grid-cols-4">
+      <ul aria-label={label} className="grid grid-flow-dense grid-cols-1 gap-4 @lg:auto-rows-[208px] @lg:grid-cols-2 @4xl:grid-cols-4">
         {tiles.map((item, index) => {
           const tile = asTile(item);
           const size = pattern[index] ?? "square";
