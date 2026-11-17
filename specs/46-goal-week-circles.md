@@ -1,4 +1,4 @@
-# Spec 44: This week's circles on a goal
+# Spec 46: This week's circles on a goal
 Asked for by Emily on 17 Nov 2026; the team confirms with the merge. Plan: `docs/ontology.md` (R9: circles added and the days of a goal without an end date, both 17 Nov 2026). Branch: `goal-week-sessions`.
 
 ## Why
