@@ -148,10 +148,15 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   useEffect(() => {
     if (!openEventId) return;
     const event = [...week.lead, ...week.days.flatMap((day) => [...day.events, ...day.allDay])].find((e) => e.id === openEventId);
-    const block = document.querySelector(`[data-event-id="${CSS.escape(openEventId)}"]`);
-    if (!event || !block) return;
-    block.scrollIntoView({ block: "center" });
-    setEditor({ mode: "edit", event, anchor: anchorOf(block) });
+    if (!event) return;
+    // After the first paint, when the block has its place on the screen.
+    const frame = window.requestAnimationFrame(() => {
+      const block = document.querySelector(`[data-event-id="${CSS.escape(openEventId)}"]`);
+      if (!block) return;
+      block.scrollIntoView({ block: "center" });
+      setEditor({ mode: "edit", event, anchor: anchorOf(block) });
+    });
+    return () => window.cancelAnimationFrame(frame);
     // Only when the page opens for an event.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openEventId]);

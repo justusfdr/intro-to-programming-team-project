@@ -69,10 +69,17 @@ export function GoalsPage({ goals, tasks: serverTasks, today, places = [], openO
   useEffect(() => {
     if (!focusGoalId || !goals.some((goal) => goal.id === focusGoalId)) return;
     if (collapsed.includes(focusGoalId)) toggle(focusGoalId);
-    document.getElementById(`goal-${focusGoalId}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
-    setMarked(focusGoalId);
-    const id = window.setTimeout(() => setMarked(null), 2400);
-    return () => window.clearTimeout(id);
+    // After the first paint, when the card has its place on the screen.
+    let unmark = 0;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`goal-${focusGoalId}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      setMarked(focusGoalId);
+      unmark = window.setTimeout(() => setMarked(null), 2400);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(unmark);
+    };
     // Only when the page opens for a goal, not on every change of the list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusGoalId]);
