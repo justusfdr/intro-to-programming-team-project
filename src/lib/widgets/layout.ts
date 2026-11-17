@@ -2,7 +2,7 @@
 // The grid fills from the top: each widget takes the first place where it fits, so a small widget
 // after a wide one fills the hole beside an earlier small one. There are never gaps the user did not
 // make, and the same list always lands in the same places.
-import { GRID_COLUMNS, GRID_ROWS, SIZES_OF, WIDGET_KINDS, WIDGET_SIZES, type WidgetItem, type WidgetKind, type WidgetSize } from "./types";
+import { GRID_COLUMNS, GRID_ROWS, MAX_CITY_LENGTH, SIZES_OF, WIDGET_KINDS, WIDGET_SIZES, type WidgetItem, type WidgetKind, type WidgetSize } from "./types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -55,12 +55,14 @@ export const LAYOUT_MESSAGES = {
   wrongSize: "This widget does not come in that size",
   badGoal: "Choose one of your goals",
   tooMany: "The widgets do not fit. Remove one first",
+  badCity: "A city must be 1 to 80 characters on one line",
 } as const;
 
 /**
  * R46: a list of widgets may be saved when every widget is one of the six kinds, in one of its sizes,
- * only a goal widget names a goal (an id, or none for "the first goal"), and all of them fit in the
- * 3 × 6 grid together. Anything else is refused as a whole.
+ * only a goal widget names a goal (an id, or none for "the first goal"), only a weather widget names a
+ * city (1 to 80 characters on one line, or none: it follows the user), and all of them fit in the 3 × 6
+ * grid together. Anything else is refused as a whole.
  */
 export function checkLayout(value: unknown): LayoutCheck {
   if (!Array.isArray(value) || value.length > GRID_COLUMNS * GRID_ROWS) {
@@ -69,14 +71,24 @@ export function checkLayout(value: unknown): LayoutCheck {
   const layout: WidgetItem[] = [];
   for (const entry of value) {
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return { ok: false, message: LAYOUT_MESSAGES.notAList };
-    const { kind, size, goalId, ...rest } = entry as Record<string, unknown>;
+    const { kind, size, goalId, city, ...rest } = entry as Record<string, unknown>;
     if (Object.keys(rest).length > 0) return { ok: false, message: LAYOUT_MESSAGES.notAList };
     if (!(WIDGET_KINDS as readonly unknown[]).includes(kind)) return { ok: false, message: LAYOUT_MESSAGES.unknownKind };
     const k = kind as WidgetKind;
     if (!(WIDGET_SIZES as readonly unknown[]).includes(size) || !SIZES_OF[k].includes(size as WidgetSize)) {
       return { ok: false, message: LAYOUT_MESSAGES.wrongSize };
     }
-    if (k === "goal") {
+    if (k !== "weather" && city !== undefined && city !== null) return { ok: false, message: LAYOUT_MESSAGES.badCity };
+    if (k === "weather") {
+      if (goalId !== undefined && goalId !== null) return { ok: false, message: LAYOUT_MESSAGES.badGoal };
+      if (city === undefined || city === null) {
+        layout.push({ kind: k, size: size as WidgetSize });
+        continue;
+      }
+      const name = typeof city === "string" ? city.trim() : "";
+      if (name === "" || name.length > MAX_CITY_LENGTH || /[\u0000-\u001f\u007f]/.test(name)) return { ok: false, message: LAYOUT_MESSAGES.badCity };
+      layout.push({ kind: k, size: size as WidgetSize, city: name });
+    } else if (k === "goal") {
       if (goalId !== undefined && goalId !== null && !(typeof goalId === "string" && UUID.test(goalId))) {
         return { ok: false, message: LAYOUT_MESSAGES.badGoal };
       }

@@ -93,6 +93,7 @@ function SkyIcon({ sky, isDay, className, tinted = true }: { sky: Sky; isDay: bo
 }
 
 const SOURCE_ICON: Record<WeatherSource, { icon: LucideIcon; label: string }> = {
+  city: { icon: MapPin, label: "The city you chose" },
   device: { icon: Navigation, label: "Your location" },
   event: { icon: CalendarDays, label: "Place of your event" },
   home: { icon: House, label: "Your home address" },

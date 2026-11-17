@@ -94,11 +94,13 @@ describe("weather", () => {
       isDay: true,
       high: 19,
       low: 13,
+      wind: 14,
+      days: [],
       hours: [
-        { time: "2026-11-17T14:00:00Z", temp: 17, sky: "rain", isDay: true, rain: 80 },
-        { time: "2026-11-17T15:00:00Z", temp: 16, sky: "cloudy", isDay: true, rain: 20 },
-        { time: "2026-11-17T16:00:00Z", temp: 16, sky: "cloudy", isDay: true, rain: 0 },
-        { time: "2026-11-17T17:00:00Z", temp: 15, sky: "clear", isDay: false, rain: 0 },
+        { time: "2026-11-17T14:00:00Z", temp: 17, sky: "rain", isDay: true, rain: 80, precip: 1.2, wind: 14, windDir: 220 },
+        { time: "2026-11-17T15:00:00Z", temp: 16, sky: "cloudy", isDay: true, rain: 20, precip: 0, wind: 12, windDir: 230 },
+        { time: "2026-11-17T16:00:00Z", temp: 16, sky: "cloudy", isDay: true, rain: 0, precip: 0, wind: 10, windDir: 240 },
+        { time: "2026-11-17T17:00:00Z", temp: 15, sky: "clear", isDay: false, rain: 0, precip: 0, wind: 8, windDir: 250 },
       ],
     },
   };

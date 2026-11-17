@@ -3,10 +3,20 @@
 
 export type Sky = "clear" | "partly" | "cloudy" | "fog" | "drizzle" | "rain" | "snow" | "storm";
 
-/** Where the weather is for (R47): the device's place, the place of the event now or just before, or home. */
-export type WeatherSource = "device" | "event" | "home";
+/**
+ * Where the weather is for (R47): a city the widget always shows, the device's place, the place of the
+ * event now or just before, or home.
+ */
+export type WeatherSource = "city" | "device" | "event" | "home";
 
-export type WeatherHour = { time: string; temp: number; sky: Sky; isDay: boolean; rain: number };
+/**
+ * One full hour. `time` is an ISO string in UTC; `rain` the chance of rain in percent; `precip` the
+ * rain or snow in mm; `wind` the wind speed in km/h; `windDir` where the wind comes from, in degrees.
+ */
+export type WeatherHour = { time: string; temp: number; sky: Sky; isDay: boolean; rain: number; precip: number; wind: number; windDir: number };
+
+/** One day: its local date ("2026-11-17"), sky, high and low, and the highest chance of rain. */
+export type WeatherDay = { date: string; sky: Sky; high: number; low: number; rain: number };
 
 export type WeatherDto = {
   place: string;
@@ -16,8 +26,12 @@ export type WeatherDto = {
   isDay: boolean;
   high: number;
   low: number;
-  /** The next four full hours. `time` is an ISO string in UTC; `rain` the chance in percent. */
+  /** Wind now, in km/h. */
+  wind: number;
+  /** The next 24 full hours. */
   hours: WeatherHour[];
+  /** Today and the next 6 days. */
+  days: WeatherDay[];
 };
 
 /** What the weather action answers. */

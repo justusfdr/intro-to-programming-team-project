@@ -10,8 +10,14 @@ export type WidgetKind = (typeof WIDGET_KINDS)[number];
 export const WIDGET_SIZES = ["1x1", "3x1", "3x2", "3x4"] as const;
 export type WidgetSize = (typeof WIDGET_SIZES)[number];
 
-/** One widget in the user's list. A goal widget names its goal; without one it shows the first goal. */
-export type WidgetItem = { kind: WidgetKind; size: WidgetSize; goalId?: string | null };
+/**
+ * One widget in the user's list. A goal widget names its goal; without one it shows the first goal.
+ * A weather widget may name a city to always show; without one it follows the user (R47).
+ */
+export type WidgetItem = { kind: WidgetKind; size: WidgetSize; goalId?: string | null; city?: string | null };
+
+/** A weather widget's city: 1 to 80 characters after trimming, on one line. */
+export const MAX_CITY_LENGTH = 80;
 
 /** The sizes each kind comes in, the usual one first. */
 export const SIZES_OF: Record<WidgetKind, readonly WidgetSize[]> = {
