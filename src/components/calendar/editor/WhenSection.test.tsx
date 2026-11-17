@@ -1,7 +1,7 @@
 // The end picked on the wheel or typed in the editor: a time of day (00:00 to 23:59), on the start's day
 // when it is after the start, on the next day when it is at or before the start (an event past midnight).
 import { describe, expect, it } from "vitest";
-import { endFromPicked, repeatSummary } from "./WhenSection";
+import { endFromPicked, repeatSentence } from "./WhenSection";
 
 const at = (h: number, m = 0) => h * 60 + m;
 
@@ -20,11 +20,19 @@ describe("endFromPicked", () => {
   });
 });
 
-describe("repeatSummary", () => {
-  it("says the repeat in words, as in Teams", () => {
-    expect(repeatSummary("none", [], "")).toBe("");
-    expect(repeatSummary("daily", [], "")).toBe("Every day");
-    expect(repeatSummary("weekly", [3, 1], "")).toBe("Every week on Mon, Wed");
-    expect(repeatSummary("monthly", [], "2026-12-20")).toMatch(/^Every month until .*20/);
+describe("repeatSentence", () => {
+  it("says the repeat in one sentence, as in Google Calendar", () => {
+    expect(repeatSentence("none", [], "2026-11-17", "2026-12-20")).toBe("Does not repeat");
+    expect(repeatSentence("daily", [], "2026-11-17", "")).toBe("Every day");
+    expect(repeatSentence("weekly", [4, 2], "2026-11-17", "")).toBe("Every Tue & Thu");
+    expect(repeatSentence("weekly", [1, 3, 5], "2026-11-17", "")).toBe("Every Mon, Wed & Fri");
+    expect(repeatSentence("weekly", [2], "2026-11-17", "")).toBe("Every Tue");
+    expect(repeatSentence("weekly", [1, 2, 3, 4, 5], "2026-11-17", "")).toBe("Every weekday");
+    expect(repeatSentence("weekly", [1, 2, 3, 4, 5, 6, 7], "2026-11-17", "")).toBe("Every day");
+    expect(repeatSentence("monthly", [], "2026-11-17", "")).toBe("Every month on the 17th");
+    for (const [day, word] of [["01", "1st"], ["02", "2nd"], ["03", "3rd"], ["11", "11th"], ["12", "12th"], ["21", "21st"], ["22", "22nd"], ["31", "31st"]]) {
+      expect(repeatSentence("monthly", [], `2026-12-${day}`, "")).toBe(`Every month on the ${word}`);
+    }
+    expect(repeatSentence("daily", [], "2026-11-17", "2026-12-20")).toMatch(/^Every day · until .*20/);
   });
 });
