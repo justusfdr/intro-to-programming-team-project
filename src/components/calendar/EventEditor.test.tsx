@@ -112,11 +112,11 @@ describe("an existing event", () => {
     expect(html).not.toMatch(/All day<input[^>]*role="switch"/);
   });
 
-  it("marks Done, Not sent to Outlook and an overlap as pills", () => {
+  it("marks Done and Not sent to Outlook as pills; an overlap is no red pill any more", () => {
     expect(edit({ ...TIMED, status: "done" })).toMatch(/bg-success-soft text-success">Done<\/span>/);
     expect(edit({ ...TIMED, status: "done" })).toContain(">Reopen</button>");
     expect(edit({ ...TIMED, notSent: true })).toContain("Not sent to Outlook</span>");
-    expect(edit({ ...TIMED, conflict: true })).toContain("Overlaps another event</span>");
+    expect(edit({ ...TIMED, conflict: true })).not.toContain("Overlaps another event");
   });
 
   it("an Outlook event shows title, time and location as text, its goal chips and Mark done, no bin (R11)", () => {
