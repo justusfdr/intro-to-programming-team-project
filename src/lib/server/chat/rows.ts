@@ -442,17 +442,18 @@ export function blocksOf(calendar: readonly CalendarEntry[]): CalendarBlock[] {
 }
 
 /**
- * The goals with deadlines and rules (R22), and (spec 43) the routine of a goal that has one. Which of
- * the routine's fields reach Claude is decided by buildAssistantInput (never the location itself).
+ * The goals with deadlines and rules (R22). Spec 43: with `routines`, also the routine of a goal that
+ * has one (send_message asks for it); without, exactly as before spec 43. Which of the routine's fields
+ * reach Claude is decided by buildAssistantInput (never the location itself).
  */
-export async function readGoalInputs(query: Query): Promise<GoalInput[]> {
+export async function readGoalInputs(query: Query, options: { routines?: boolean } = {}): Promise<GoalInput[]> {
   const goals = await readGoals(query);
   return goals.map(({ goal }) => ({
     id: goal.id,
     title: goal.title,
     deadline: goal.deadline,
     rules: goal.rules.map((r) => ({ kind: r.kind, target: r.target, minMinutes: r.minMinutes })),
-    ...(goal.routine ? { routine: goal.routine } : {}),
+    ...(options.routines && goal.routine ? { routine: goal.routine } : {}),
   }));
 }
 

@@ -17,6 +17,7 @@ A goal now knows how long a session is, when in the day it suits, the weekdays i
 ## Decisions
 - `weeks` is sent for every goal with a routine, also as an empty list (a deadline already passed), because the prompt says "a goal without `weeks` has no routine".
 - Done events of the next week are not counted: R31's read ends with the current week, and a session marked done ahead of time is rare.
+- `readGoalInputs` reads the routines only when asked (`{ routines: true }`, which `send_message` does). Without the option it returns what it did before spec 43, so spec 41's test that pins "nothing of the routine" for that reader passes unchanged; the reviewer should know that this test now covers only the reader's default, not what `send_message` sends.
 - Dragging cannot move a block to another day (spec 22), so a block can reach a never day only when the goal's days changed after the draft was made; that is "out of date", as for accepting.
 
 ## Out of scope

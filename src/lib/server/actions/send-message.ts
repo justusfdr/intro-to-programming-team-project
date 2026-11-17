@@ -88,7 +88,8 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       await finishDueSessions(query, now);
       const settings = await readSettings(query);
       const [goals, calendar, totalsInput, messages] = await Promise.all([
-        readGoalInputs(query),
+        // Spec 43: with each goal's routine, for the keys of R22 and the sessions left (R45).
+        readGoalInputs(query, { routines: true }),
         readCalendar(query, now, settings.timeZone),
         readTotalsInput(query, now, settings.timeZone),
         readMessages(query, HISTORY_LENGTH),
