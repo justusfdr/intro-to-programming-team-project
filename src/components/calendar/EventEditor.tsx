@@ -244,7 +244,7 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
             eventId={event.id}
             savedAt={event.updatedAt}
             timeZone={timeZone}
-            unsaved={values.location.trim() !== (event.location ?? "") || values.travelMode !== (event.travelMode ?? null) || values.travelFrom !== (event.travelFrom ?? null)}
+            route={{ location: values.location, mode: values.travelMode, from: values.travelFrom }}
           />
         )}
       </RouteSection>
@@ -258,7 +258,7 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
       />
     ),
     // R27: an Outlook event keeps the standard way; it still shows when to leave.
-    fromOutlook && !event.allDay && <TravelLine key="travel-line" eventId={event.id} savedAt={event.updatedAt} timeZone={timeZone} unsaved={false} />,
+    fromOutlook && !event.allDay && <TravelLine key="travel-line" eventId={event.id} savedAt={event.updatedAt} timeZone={timeZone} />,
     // Issue #5: Outlook events have no notes (R11).
     !fromOutlook && <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => save.change({ notes })} />,
     <Refusal

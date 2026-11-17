@@ -1,9 +1,11 @@
 "use client";
 
 // The travel line under the location (R27): "Leave at 9:25am", with how long the trip takes and the buffer.
-// It is asked from the server (travel_time) when the editor opens and after each save; nothing is saved.
-// The answers it can show: the time to leave; "Add your home address in settings"; "Address not found";
-// "Travel time not available". Changes that are not saved yet do not count until Save.
+// It is asked from the server (travel_time) when the editor opens, after each save, and while the route
+// is being changed (where from, the way, the address), before Save: then the changed values go with the
+// question, count for the answer only and are not saved. A typed address waits a moment, so not every
+// key press asks Google. The answers it can show: the time to leave; "Add your home address in settings";
+// "Address not found"; "Travel time not available".
 // With a time to leave, "Show map" opens Google's map of the way (only then is Google asked for it).
 // The "Google Maps" credit is shown in the settings' Travel card.
 import Link from "next/link";
@@ -18,14 +20,27 @@ import type { TravelAnswer } from "@/lib/travel/types";
 
 const BY: Record<TravelMode, string> = { driving: "by car", cycling: "by bike", walking: "on foot", transit: "by public transport" };
 
+/** The route as the editor shows it now, also when it is not saved yet. */
+export type RoutePreview = { location: string; mode: TravelMode | null; from: string | null };
+
+/** How long a changed route waits before it is asked about. */
+const TYPING_PAUSE_MS = 400;
+
 type Props = {
   eventId: string;
   /** The saved event's updated_at: a new value (after a save) asks again. */
   savedAt: string;
   timeZone: string;
-  /** The location and the way of getting there differ from the saved ones (not saved yet). */
-  unsaved: boolean;
+  /** The route in the editor; left out for events whose route cannot be changed here (Outlook). */
+  route?: RoutePreview;
 };
+
+/** The question's address: the event's travel answer, with the route as it is in the editor. */
+export function travelUrl(eventId: string, route?: RoutePreview): string {
+  if (!route) return `/api/events/${eventId}/travel`;
+  const params = new URLSearchParams({ location: route.location, mode: route.mode ?? "", from: route.from ?? "" });
+  return `/api/events/${eventId}/travel?${params.toString()}`;
+}
 
 /** The line as text, for the screen and the tests. */
 export function travelText(travel: TravelAnswer, timeZone: string, format: "12h" | "24h"): { main: string; detail: string | null } {
@@ -36,14 +51,22 @@ export function travelText(travel: TravelAnswer, timeZone: string, format: "12h"
   return { main: `Leave at ${leave}`, detail: `${fmtMinutes(travel.minutes)} ${BY[travel.mode]}${from}${buffer}` };
 }
 
-export function TravelLine({ eventId, savedAt, timeZone, unsaved }: Props) {
+export function TravelLine({ eventId, savedAt, timeZone, route }: Props) {
   const { timeFormat } = useDisplay();
   const [answer, setAnswer] = useState<{ for: string; travel: TravelAnswer | null; failed: boolean } | null>(null);
-  const key = `${eventId}@${savedAt}`;
+  // A changed route is asked about after a short pause, so typing an address does not ask at every key.
+  const wanted = travelUrl(eventId, route);
+  const [url, setUrl] = useState(wanted);
+  useEffect(() => {
+    if (wanted === url) return;
+    const timer = setTimeout(() => setUrl(wanted), TYPING_PAUSE_MS);
+    return () => clearTimeout(timer);
+  }, [wanted, url]);
+  const key = `${url}@${savedAt}`;
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/events/${eventId}/travel`, { signal: controller.signal })
+    fetch(url, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(String(response.status));
         const body = (await response.json()) as { travel: TravelAnswer | null };
@@ -53,12 +76,13 @@ export function TravelLine({ eventId, savedAt, timeZone, unsaved }: Props) {
         if (!controller.signal.aborted) setAnswer({ for: key, travel: null, failed: true });
       });
     return () => controller.abort();
-  }, [eventId, key]);
+  }, [url, key]);
 
-  const current = answer?.for === key ? answer : null;
+  // While a new answer is on its way, the last one stays (it does not flicker to "Working out…").
+  const current = answer;
   if (current && !current.failed && current.travel === null) return null;
 
-  return <TravelLineView travel={current ? (current.failed ? "failed" : current.travel) : "loading"} timeZone={timeZone} timeFormat={timeFormat} unsaved={unsaved} />;
+  return <TravelLineView travel={current ? (current.failed ? "failed" : current.travel) : "loading"} timeZone={timeZone} timeFormat={timeFormat} />;
 }
 
 /** What the line shows, without the asking (also drawn on its own in the tests). */
@@ -66,12 +90,13 @@ export function TravelLineView({
   travel,
   timeZone,
   timeFormat,
-  unsaved,
+  unsaved = false,
 }: {
   travel: TravelAnswer | null | "loading" | "failed";
   timeZone: string;
   timeFormat: "12h" | "24h";
-  unsaved: boolean;
+  /** Only for a line that cannot ask with the editor's route; the editor's own line always can. */
+  unsaved?: boolean;
 }) {
   if (travel === null) return null;
   const text =
