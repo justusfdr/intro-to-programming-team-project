@@ -26,11 +26,16 @@ type Props = {
   placeholder?: string;
   /** An id, for a visible label elsewhere. */
   id?: string;
+  /**
+   * Only where the field sits inside a scrolling area (the goal setup and the goal editor): the open
+   * list of suggestions scrolls into view instead of staying cut off. The event editor does not ask for it.
+   */
+  revealList?: boolean;
 };
 
 type Check = { state: "idle" | "checking" | "found" | "missing"; message?: string; round: number };
 
-export function AddressField({ value, onType, onDone, savedPlaces, label = "Location", placeholder = "Add location", id }: Props) {
+export function AddressField({ value, onType, onDone, savedPlaces, label = "Location", placeholder = "Add location", id, revealList = false }: Props) {
   const uid = useId();
   // The text the field had when the editor opened: no suggestions for it until it is changed.
   const [first] = useState(value);
@@ -76,6 +81,14 @@ export function AddressField({ value, onType, onDone, savedPlaces, label = "Loca
     setCheck((c) => ({ state: "found", round: c.round + 1 }));
   };
 
+  // Inside a scrolling area the list can open below what is visible: bring it into view.
+  const frame = useRef<HTMLDivElement>(null);
+  const shownRows = listOpen ? rows : 0;
+  useEffect(() => {
+    if (!revealList || shownRows === 0) return;
+    frame.current?.querySelector('[role="listbox"]')?.scrollIntoView({ block: "nearest" });
+  }, [revealList, shownRows]);
+
   // The green or red colour fades after a moment.
   useEffect(() => {
     if (check.state !== "found" && check.state !== "missing") return;
@@ -84,7 +97,7 @@ export function AddressField({ value, onType, onDone, savedPlaces, label = "Loca
   }, [check.state, check.round]);
 
   return (
-    <div className="relative flex flex-col gap-1">
+    <div ref={frame} className="relative flex flex-col gap-1">
       <div className="relative">
         <MapPin aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" strokeWidth={1.8} />
         <input

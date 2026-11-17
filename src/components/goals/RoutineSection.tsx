@@ -218,6 +218,7 @@ function RoutineFields({ id, value, set, places }: { id: string; value: RoutineV
           savedPlaces={places}
           onType={(location) => set({ location })}
           onDone={() => {}}
+          revealList
         />
         {places.length > 0 && (
           <div role="group" aria-label="Saved places" className="flex flex-wrap gap-1.5">

@@ -4,7 +4,7 @@
 // line and the answer controls; the frame (GoalSetup.tsx) adds Back, Close, the progress, the goal taking
 // shape and "Continue". The rules (what may be chosen, the sentences, the hints) are in
 // src/lib/goals/setup.ts; the controls only offer what passes.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Briefcase,
   CalendarCheck,
@@ -51,7 +51,7 @@ import {
 import { MAX_SESSION_MINUTES, MIN_SESSION_MINUTES, SESSION_STEP_MINUTES } from "@/lib/goals/routine";
 import type { SavedPlace } from "@/lib/places/saved";
 import type { LocalDate } from "@/lib/time/zoned";
-import { ChoiceGroup, chipClass, focusRing, QuestionTitle, Stepper, stagger, useCountUp, type Choice } from "./parts";
+import { ChoiceGroup, chipClass, focusRing, prefersReducedMotion, QuestionTitle, Stepper, stagger, useCountUp, type Choice } from "./parts";
 
 export type QuestionProps = {
   answers: SetupAnswers;
@@ -85,6 +85,16 @@ export function QuestionCategory({ answers, update, uid }: QuestionProps) {
     return { value: category, title: GOAL_CATEGORY_LABELS[category], line: CATEGORY_LINES[category], icon: <Icon className={icon} strokeWidth={1.8} /> };
   });
   const ideas = answers.category ? NAME_IDEAS[answers.category] : [];
+  // The name field appears under the cards, on a phone below what is visible: once a category is
+  // chosen it scrolls into view. Not when the question opens with a category already chosen.
+  const nameRef = useRef<HTMLDivElement>(null);
+  const category = answers.category;
+  const before = useRef(category);
+  useEffect(() => {
+    if (before.current === category) return;
+    before.current = category;
+    nameRef.current?.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }, [category]);
   return (
     <div>
       <QuestionTitle id={`${uid}-title`} sub="Pick the closest fit. The name is yours.">
@@ -100,7 +110,7 @@ export function QuestionCategory({ answers, update, uid }: QuestionProps) {
         />
       </div>
       {answers.category !== null && (
-        <div className="setup-rise mt-5 flex flex-col gap-1.5" style={stagger(2)}>
+        <div ref={nameRef} className="setup-rise mt-5 flex scroll-mb-4 flex-col gap-1.5" style={stagger(2)}>
           <label htmlFor={`${uid}-name`} className={labelClass}>
             Give it a name
           </label>
@@ -298,6 +308,7 @@ export function QuestionPlace({ answers, update, uid, places, today }: QuestionP
             savedPlaces={places}
             onType={(address) => update((a) => ({ ...a, address }))}
             onDone={() => {}}
+            revealList
           />
         </div>
       )}
