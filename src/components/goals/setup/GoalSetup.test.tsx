@@ -186,12 +186,22 @@ describe("Q4: when", () => {
 describe("Q5: the days", () => {
   it("has seven day buttons with their state in words, a strike through the ruled-out ones", () => {
     const html = render("days", GYM);
-    expect(html).toContain("Tap the days that are off limits. Leave them all if every day works.");
+    expect(html).toContain("Which days work for you?");
     expect(html).toContain('aria-label="Friday: never"');
     expect(html).toContain('aria-label="Monday: possible"');
     expect(html.match(/aria-label="[A-Za-z]+day: (never|possible)"/g)).toHaveLength(7);
     expect(html.match(/setup-strike/g)).toHaveLength(1);
     expect(html).toContain("6 days left · 3 sessions planned");
+    expect(continueButton(html)).not.toMatch(/disabled=""/);
+  });
+
+  it("has a row of days for sure above; a sure day is greyed out below and a day off greyed out above", () => {
+    const html = render("days", { ...GYM, mustDays: [1] });
+    expect(html.indexOf("Days for sure")).toBeLessThan(html.indexOf("Never on these days"));
+    expect(html).toContain("Up to 3 days");
+    expect(html).toMatch(/aria-label="Monday: for sure" aria-pressed="true"/);
+    expect(html).toMatch(/aria-label="Monday: a day for sure" aria-pressed="false" disabled=""/);
+    expect(html).toMatch(/aria-label="Friday: off limits" aria-pressed="false" disabled=""/);
     expect(continueButton(html)).not.toMatch(/disabled=""/);
   });
 
