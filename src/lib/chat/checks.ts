@@ -14,10 +14,17 @@
 // new ones at most 20. An event the draft deletes gets nothing else; each event at most once per kind.
 // Each "to-dos for an event" counts as one of the draft's 30 things.
 //
+// Spec 43 (R23 extended): a new event of a draft that names a goal must not start on a weekday the goal
+// is never done on (its start's weekday in the person's time zone; the start decides, so an event from
+// 23:30 on an allowed day into a never day passes). Moves of existing events and events without a goal
+// are not affected; the person's own events in the calendar are never checked against it. The part of
+// the day and the time for the way there are wishes for the coach, not checked.
+//
 // The assistant answers with local date-times ("2026-11-14T09:00") in the user's time zone. They are
 // turned into instants with the project's own helpers; a time that does not exist in the zone (the
 // hour skipped when clocks go forward) fails the check.
 import { z } from "zod";
+import { weekdayOfDate, type Weekday } from "@/lib/goals/routine";
 import { MAX_TODO_TITLE, MAX_TODOS } from "@/lib/todos/types";
 import {
   addDays,
@@ -193,6 +200,11 @@ export type CheckContext = {
    * no to-dos from the coach. Without it, no to-dos can be added to existing events.
    */
   todoTargets?: ReadonlyMap<string, TodoTarget | null>;
+  /**
+   * Spec 43: goal id -> the weekdays the goal is never done on (Monday = 1), as the goal is now. A goal
+   * not in here (or without it at all) has no such days.
+   */
+  neverDays?: ReadonlyMap<string, readonly Weekday[]>;
 };
 
 /** `additions` (spec 23) is left out when the draft adds no to-dos to existing events. */
@@ -226,7 +238,8 @@ export type CheckFailure =
   | "todos_twice"
   | "todos_on_deleted"
   | "no_todos"
-  | "todo_list_full";
+  | "todo_list_full"
+  | "never_day";
 
 export type CheckResult<T> = { ok: true; value: T } | { ok: false; failure: CheckFailure };
 
@@ -312,6 +325,9 @@ export function checkDraft(
     if (length < MIN_LENGTH_MS) return fail("too_short");
     if (length > MAX_LENGTH_MS) return fail("too_long");
     if (proposal.goalId !== null && !context.goalIds.has(proposal.goalId)) return fail("unknown_goal");
+    // Spec 43: never on a weekday the goal is never done on; the start's weekday in the person's zone.
+    const never = proposal.goalId === null ? undefined : context.neverDays?.get(proposal.goalId);
+    if (never && never.includes(weekdayOfDate(localDateOf(proposal.startAt, context.timeZone)))) return fail("never_day");
     // Spec 21: at most 20 to-dos, each 1 to 100 characters after trimming.
     const todos = (proposal.todos ?? []).map((todo) => todo.trim());
     if (todos.length > MAX_TODOS) return fail("too_many_todos");

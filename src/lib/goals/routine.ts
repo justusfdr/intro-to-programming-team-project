@@ -81,6 +81,12 @@ export function isWeekday(value: unknown): value is Weekday {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 7;
 }
 
+/** The weekday of a local date ("2026-11-20"), Monday = 1 to Sunday = 7, as a routine saves its days. */
+export function weekdayOfDate(date: string): Weekday {
+  const [y, m, d] = date.split("-").map(Number);
+  return (((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7) + 1) as Weekday;
+}
+
 /** The avoided days as saved: their digits in rising order ("" none, "5" Fridays, "67" weekends). */
 export function avoidDaysToText(days: readonly Weekday[]): string {
   return [...new Set(days)].sort((a, b) => a - b).join("");

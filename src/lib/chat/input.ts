@@ -23,7 +23,7 @@
 // worked out by the server). A goal without a routine is sent exactly as before.
 import type { ChatTotals } from "./totals";
 import type { WeekLeft } from "./goal-weeks";
-import { WEEKDAYS as ROUTINE_WEEKDAYS, type GoalRoutine, type Weekday } from "@/lib/goals/routine";
+import { WEEKDAYS as ROUTINE_WEEKDAYS, weekdayOfDate, type GoalRoutine } from "@/lib/goals/routine";
 import { isWebLink } from "@/lib/travel/web-link";
 import { addDays, localDateOf, localDateTimeOf, startOfLocalDate, type LocalDate } from "@/lib/time/zoned";
 import type { ChatRole, DraftStatus } from "./types";
@@ -94,12 +94,6 @@ function weekdayOf(date: string): string {
   return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 }
 
-/** Monday = 1 to Sunday = 7, as a goal's routine saves its days. */
-function weekdayNumberOf(date: LocalDate): Weekday {
-  const [y, m, d] = date.split("-").map(Number);
-  return (((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7) + 1) as Weekday;
-}
-
 /**
  * One goal as Claude sees it. Without a routine exactly the four keys of R22; with one (spec 43) also
  * the routine's keys that have a value and the weeks. Copied by name, so nothing else can slip through.
@@ -126,7 +120,7 @@ function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate) {
     ...(never.size > 0
       ? {
           never: ROUTINE_WEEKDAYS.filter((w) => never.has(w.day)).map((w) => w.long),
-          neverDates: days.filter((day) => never.has(weekdayNumberOf(day))),
+          neverDates: days.filter((day) => never.has(weekdayOfDate(day))),
         }
       : {}),
     ...(location !== "" && !isWebLink(location) ? { away: true as const } : {}),
