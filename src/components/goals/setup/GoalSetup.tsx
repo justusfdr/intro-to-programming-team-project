@@ -335,8 +335,14 @@ function SetupFlow({
     const element = innerRef.current;
     if (!element || typeof ResizeObserver === "undefined") return;
     const timers = { settle: settleTimer, next: autoNext };
+    let last = -1;
     const observer = new ResizeObserver(() => {
-      setHeight(element.offsetHeight);
+      // Only a real change of height counts. Hiding the scroll bar while the height glides changes the
+      // width, which calls this again: reacting to that made the question shake on every pick of a wheel.
+      const height = element.offsetHeight;
+      if (height === last) return;
+      last = height;
+      setHeight(height);
       if (prefersReducedMotion()) return;
       setSettling(true);
       if (timers.settle.current) clearTimeout(timers.settle.current);
@@ -438,7 +444,7 @@ function SetupFlow({
       */}
       <div
         ref={viewportRef}
-        className={`setup-viewport scroll-thin relative flex min-h-0 flex-col overflow-x-hidden overscroll-contain ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
+        className={`setup-viewport scroll-thin relative flex min-h-0 flex-col overflow-x-hidden overscroll-contain [scrollbar-gutter:stable] ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
         style={height === null ? undefined : ({ "--setup-h": `${height}px` } as CSSProperties)}
       >
         {/* The celebration sits in the middle of the area; a question starts at its top. */}
