@@ -3,7 +3,7 @@
 // fixed content in ./articles.ts and ./studies.ts; nothing is saved.
 import { ARTICLES } from "./articles";
 import { STUDIES } from "./studies";
-import type { Article, Block, Study, Teaser, Topic } from "./types";
+import type { Article, Block, Study, Teaser, Tile, TilePicture, Topic } from "./types";
 
 /** The shelves, in the order of the filter. */
 export const TOPICS: { id: Topic; label: string }[] = [
@@ -87,4 +87,47 @@ export function teasersFor(localDate: string): Teaser[] {
     const article = ARTICLES[(start + step) % ARTICLES.length];
     return { slug: article.slug, topic: article.topic, title: article.title, figure: article.figure?.value ?? null, meta: metaLine(article) };
   });
+}
+
+/** The first picture in an article's text, as a tile can draw it: at most four bars or steps. */
+function pictureOf(article: Article): TilePicture | null {
+  for (const block of article.body) {
+    if (block.kind === "bars") return { kind: "bars", title: block.title, bars: block.bars.slice(0, 4) };
+    if (block.kind === "steps") return { kind: "steps", steps: block.steps.slice(0, 4).map((step) => step.label) };
+    if (block.kind === "stats") return { kind: "stats", stats: block.stats.slice(0, 3) };
+  }
+  return null;
+}
+
+/** An article as a tile (spec 47): what the teaser has, plus its line, its number's label and one picture. */
+export function tileOf(article: Article): Tile {
+  return {
+    slug: article.slug,
+    topic: article.topic,
+    title: article.title,
+    figure: article.figure?.value ?? null,
+    meta: metaLine(article),
+    dek: article.dek,
+    label: article.figure?.label ?? null,
+    picture: pictureOf(article),
+  };
+}
+
+/** The tiles of the articles with these addresses, in the order given. An unknown address is left out. */
+export function tilesOf(slugs: readonly string[]): Tile[] {
+  return slugs.flatMap((slug) => {
+    const article = articleBySlug(slug);
+    return article ? [tileOf(article)] : [];
+  });
+}
+
+/**
+ * The tiles the Focus page shows on a day (spec 47): `count` articles in a row, starting with the
+ * three of `teasersFor`, so they move on by one each day as well.
+ */
+export function tilesFor(localDate: string, count = 7): Tile[] {
+  const first = teasersFor(localDate)[0].slug;
+  const start = ARTICLES.findIndex((article) => article.slug === first);
+  const size = Math.min(Math.max(0, count), ARTICLES.length);
+  return Array.from({ length: size }, (_, step) => tileOf(ARTICLES[(start + step) % ARTICLES.length]));
 }

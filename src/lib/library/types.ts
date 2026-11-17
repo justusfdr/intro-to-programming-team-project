@@ -56,3 +56,31 @@ export type Article = {
 
 /** What the Focus page needs of an article: enough for a row, not the text. */
 export type Teaser = { slug: string; topic: Topic; title: string; figure: string | null; meta: string };
+
+/** The one picture a tile can draw, taken from the article's own text. */
+export type TilePicture =
+  | { kind: "bars"; title: string; bars: Bar[] }
+  | { kind: "steps"; steps: string[] }
+  | { kind: "stats"; stats: Stat[] };
+
+/**
+ * What a tile needs of an article (spec 47): the teaser, the line under the title, what the
+ * tile's number counts, and the first picture of the article. Still not the text.
+ */
+export type Tile = Teaser & { dek: string; label: string | null; picture: TilePicture | null };
+
+/** One step of "Before you start" on the Focus page (spec 47). */
+export type StartStep = {
+  id: "phone" | "first-step" | "banners";
+  title: string;
+  /** One sentence from the study, with numbers the article has. */
+  text: string;
+  /** The study the sentence rests on, and the article that tells it in full. */
+  study: string;
+  slug: string;
+  /** This step has a field to type into. */
+  field?: { label: string; placeholder: string };
+};
+
+/** A popular claim and what the studies leave of it (spec 47), for the landing page. */
+export type Claim = { quote: string; verdict: "Half true" | "Not confirmed" | "Not shown"; slug: string };
