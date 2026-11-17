@@ -30,6 +30,7 @@ import {
   addDays,
   localDateOf,
   localDateTimeOf,
+  localTimeOf,
   parseLocalDateTime,
   startOfLocalDate,
 } from "@/lib/time/zoned";
@@ -205,7 +206,27 @@ export type CheckContext = {
    * not in here (or without it at all) has no such days.
    */
   neverDays?: ReadonlyMap<string, readonly Weekday[]>;
+  /**
+   * The person's visible hours (Settings), e.g. 7 and 22: new and moved events must start and end inside
+   * them, on one day. Left out: no such check.
+   */
+  visibleHours?: { startHour: number; endHour: number };
 };
+
+/** Whether an event lies inside the visible hours of its day, in the person's time zone. */
+export function insideVisibleHours(startAt: Date, endAt: Date, timeZone: string, hours: { startHour: number; endHour: number }): boolean {
+  const minute = (instant: Date) => {
+    const [h, m] = localTimeOf(instant, timeZone).split(":").map(Number);
+    return h * 60 + m;
+  };
+  const startDay = localDateOf(startAt, timeZone);
+  const start = minute(startAt);
+  // Ending exactly at midnight counts as the end of the start's day.
+  const endsAtMidnight = localDateOf(endAt, timeZone) === addDays(startDay, 1) && minute(endAt) === 0;
+  if (localDateOf(endAt, timeZone) !== startDay && !endsAtMidnight) return false;
+  const end = endsAtMidnight ? 24 * 60 : minute(endAt);
+  return start >= hours.startHour * 60 && end <= hours.endHour * 60;
+}
 
 /** `additions` (spec 23) is left out when the draft adds no to-dos to existing events. */
 export type CheckedAnswer =
@@ -239,7 +260,8 @@ export type CheckFailure =
   | "todos_on_deleted"
   | "no_todos"
   | "todo_list_full"
-  | "never_day";
+  | "never_day"
+  | "outside_hours";
 
 export type CheckResult<T> = { ok: true; value: T } | { ok: false; failure: CheckFailure };
 
@@ -328,6 +350,8 @@ export function checkDraft(
     // Spec 43: never on a weekday the goal is never done on; the start's weekday in the person's zone.
     const never = proposal.goalId === null ? undefined : context.neverDays?.get(proposal.goalId);
     if (never && never.includes(weekdayOfDate(localDateOf(proposal.startAt, context.timeZone)))) return fail("never_day");
+    // Never outside the visible hours (Settings), also when the person asked for it.
+    if (context.visibleHours && !insideVisibleHours(proposal.startAt, proposal.endAt, context.timeZone, context.visibleHours)) return fail("outside_hours");
     // Spec 21: at most 20 to-dos, each 1 to 100 characters after trimming.
     const todos = (proposal.todos ?? []).map((todo) => todo.trim());
     if (todos.length > MAX_TODOS) return fail("too_many_todos");
@@ -347,6 +371,7 @@ export function checkDraft(
     if (change.startAt >= latest) return fail("start_too_late");
     if (change.endAt <= change.startAt) return fail("end_before_start");
     if (change.endAt.getTime() - change.startAt.getTime() > MAX_MOVE_MS) return fail("too_long");
+    if (context.visibleHours && !insideVisibleHours(change.startAt, change.endAt, context.timeZone, context.visibleHours)) return fail("outside_hours");
     const moved = { startAt: change.startAt, endAt: change.endAt, mayOverlap: change.target.mayOverlap };
     // A new event never may overlap, so it always blocks a moved one.
     if (checked.some((proposal) => overlaps(proposal, moved))) return fail("overlaps_proposal");

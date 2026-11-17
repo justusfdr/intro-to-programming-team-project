@@ -131,6 +131,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       targets: targetsOf(calendar),
       todoTargets: todoTargetsOf(calendar),
       neverDays: neverDaysOf(goals),
+      visibleHours: { startHour: settings.dayStartHour, endHour: settings.dayEndHour },
     });
     if (!checked.ok) {
       console.error("Assistant answer failed a check:", checked.failure);
