@@ -431,6 +431,8 @@ dialog.goal-setup::backdrop {
   }
   100% {
     box-shadow: 0 0 0 8px rgb(220 38 38 / 0);
+  }
+}
 
 /* The coach's voice wave (spec 44). Each bar follows the microphone (its height is set by the page);
    when the microphone cannot be read, the bars breathe one after another to show it is listening. */
