@@ -1,7 +1,8 @@
 // One goal on the Goals page (R9; spec 39, before in the goals column): a chevron that
 // collapses it, the goal's tile and title, a thin bar for how far this week's rules
-// are, one row per rule ("This week: 1 of 2 done"), the strip of weeks, and a caption with the
-// countdown and "Auto-block on".
+// are, one line per rule ("This week: 1 of 2 done") with a circle per session or hour (at the right
+// of the title when the goal has one rule), the strip of weeks, and a caption with the countdown and
+// "Auto-block on".
 // Every status is said in words and shown with a symbol, so nothing depends on colour alone.
 // Spec 42: a goal with a routine shows it as one quiet line of tags under the title (only what is set,
 // its category's name first); a goal without one looks exactly as before.
@@ -12,22 +13,22 @@ import { Check, ChevronRight, X } from "lucide-react";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { planGoalHref } from "@/lib/chat/plan-goal";
 import { goalColor } from "@/lib/goals/colors";
-import type { StripWeek, WeekStatus } from "@/lib/goals/progress";
+import type { StripDay, StripWeek, WeekStatus } from "@/lib/goals/progress";
 import { routineTags } from "@/lib/goals/setup";
-import { weekShare } from "@/lib/goals/share";
+import { ruleCircles, weekShare } from "@/lib/goals/share";
 import type { GoalView } from "@/lib/goals/types";
 import { fmtDayMonth } from "@/lib/time/display";
-import { GoalRow } from "./GoalRow";
 import { GoalTile } from "./GoalTile";
 
 const STATUS_WORD: Record<WeekStatus, string> = { met: "met", missed: "missed", open: "open" };
 
 function StatusMark({ status }: { status: WeekStatus }) {
-  if (status === "met") return <Check className="size-2.5 text-success" strokeWidth={3} />;
-  if (status === "missed") return <X className="size-2.5 text-danger" strokeWidth={3} />;
-  return <span aria-hidden className="block size-1.5 rounded-full border border-ink-3" />;
+  if (status === "met") return <Check className="size-3 text-success" strokeWidth={3} />;
+  if (status === "missed") return <X className="size-3 text-danger" strokeWidth={3} />;
+  return <span aria-hidden className="block size-[7px] rounded-full border-[1.5px] border-ink-3" />;
 }
 
+/** One week of the strip (R9): a rounded box with a check, a cross or a small ring; this week framed. */
 function WeekCell({ week }: { week: StripWeek }) {
   const date = fmtDayMonth(week.monday);
   const box =
@@ -38,11 +39,76 @@ function WeekCell({ week }: { week: StripWeek }) {
         : "border-line bg-surface";
   return (
     <li
-      className={`flex size-4 items-center justify-center rounded-[4px] border ${box} ${week.isCurrent ? "ring-[1.5px] ring-ink/70 ring-offset-1" : ""}`}
+      className={`flex size-[22px] items-center justify-center rounded-md border ${box} ${week.isCurrent ? "ring-2 ring-ink/70 ring-offset-1" : ""}`}
       title={`Week of ${date}: ${STATUS_WORD[week.status]}`}
     >
       <span className="sr-only">{`Week of ${date}${week.isCurrent ? " (this week)" : ""}: ${STATUS_WORD[week.status]}`}</span>
       <StatusMark status={week.status} />
+    </li>
+  );
+}
+
+const DAY_LETTER = ["M", "T", "W", "T", "F", "S", "S"];
+const DAY_NAME = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+/**
+ * One day of this week (R9, a goal without an end date): its letter over a box with a check when a
+ * session was done that day; today framed. A day without a session stays empty, never a cross.
+ */
+function DayCell({ day, index }: { day: StripDay; index: number }) {
+  const said = `${DAY_NAME[index]}, ${fmtDayMonth(day.date)}${day.isToday ? " (today)" : ""}: ${day.done ? "done" : "no session"}`;
+  return (
+    <li className="flex flex-col items-center gap-1" title={said}>
+      <span aria-hidden className={`text-[10px] font-medium ${day.isToday ? "text-ink" : "text-ink-3"}`}>
+        {DAY_LETTER[index]}
+      </span>
+      <span
+        className={`flex size-[22px] items-center justify-center rounded-md border ${day.done ? "border-success/40 bg-success-soft" : "border-line bg-surface"} ${day.isToday ? "ring-2 ring-ink/70 ring-offset-1" : ""}`}
+      >
+        <span className="sr-only">{said}</span>
+        {day.done && <Check aria-hidden className="size-3 text-success" strokeWidth={3} />}
+      </span>
+    </li>
+  );
+}
+
+type CircleColor = { dot: string; ring: string; text: string };
+
+/**
+ * This week's circles of one rule (R9): one per session or per hour. A done one is filled in the
+ * goal's colour with a white check; a part of an hour fills its circle partly; an open one is a ring.
+ * Only a picture: the rule's words say the same, and screen readers read those.
+ */
+function Circles({ text, status, color, className = "" }: { text: string; status: WeekStatus; color: CircleColor; className?: string }) {
+  const circles = ruleCircles({ text, status });
+  if (!circles) return null;
+  const unit = /\bh$/.test(text) ? "hour" : "session";
+  return (
+    <span aria-hidden title={`1 circle = 1 ${unit}`} className={`flex flex-wrap gap-1 ${className}`}>
+      {circles.map((full, i) => (
+        <span key={i} className={`relative flex size-[18px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[1.5px] ${color.ring}`}>
+          <span className={`absolute inset-y-0 left-0 ${color.dot}`} style={{ width: `${Math.round(full * 100)}%` }} />
+          {full === 1 && <Check className="relative size-2.5 text-white" strokeWidth={3.5} />}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * One rule this week (R9): its words ("This week: 2 of 6 done"), with its circles under them unless
+ * the header already shows them. A met rule is struck through with a check; screen readers hear "met".
+ */
+function RuleLine({ text, status, color, circles }: { text: string; status: WeekStatus; color: CircleColor; circles: boolean }) {
+  const met = status === "met";
+  return (
+    <li className="flex flex-col gap-1.5 py-0.5">
+      <span className={`flex items-center gap-1.5 text-[13px] ${met ? "text-ink-3" : "text-ink-2"}`}>
+        <span className={met ? "line-through" : undefined}>{text}</span>
+        {met && <span className="sr-only">, met</span>}
+        {met && <Check aria-hidden className={`size-3 ${color.text}`} strokeWidth={3} />}
+      </span>
+      {circles && <Circles text={text} status={status} color={color} />}
     </li>
   );
 }
@@ -65,6 +131,7 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks,
   const color = goalColor(goal.look.color);
   const passed = goal.progress.countdown === "Deadline passed";
   const share = weekShare(goal.progress.thisWeek);
+  const onlyRule = goal.progress.thisWeek.length === 1 ? goal.progress.thisWeek[0] : null;
   const bodyId = useId();
   const { timeFormat } = useDisplay();
   const tags = goal.routine ? routineTags({ routine: goal.routine, withCategory: true }, timeFormat) : [];
@@ -99,6 +166,8 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks,
         ) : (
           <h3 className="ml-1 min-w-0 flex-1">{title}</h3>
         )}
+        {/* A goal with one rule shows its circles at the right of the title, also while collapsed. */}
+        {onlyRule && <Circles text={onlyRule.text} status={onlyRule.status} color={color} className="shrink-0 justify-end" />}
         {openTasks !== undefined && <OpenTaskCount count={openTasks} />}
       </div>
 
@@ -116,26 +185,33 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks,
       )}
 
       {/* The bar repeats the rows below in one line; screen readers read the rows. */}
-      <div aria-hidden className="mt-1.5 h-[3px] rounded-full bg-muted">
+      <div aria-hidden className="mt-2 h-1 rounded-full bg-muted">
         <div className={`h-full rounded-full ${color.dot}`} style={{ width: `${Math.round(share * 100)}%` }} />
       </div>
 
       {!collapsed && (
         <div id={bodyId} className="mt-2">
-          {/* This week: the rule rows and the strip of weeks, one block. */}
-          <ul className="flex flex-col">
+          {/* This week: one line per rule (its circles at the title, or under it), then the strip of weeks. */}
+          <ul aria-label="This week" className="mb-2 flex flex-col gap-1.5">
             {goal.progress.thisWeek.map((rule) => (
-              <GoalRow key={rule.ruleId} color={goal.look.color} done={rule.status === "met"} struck={rule.status === "met"} doneLabel="met" compact>
-                {rule.text}
-              </GoalRow>
+              <RuleLine key={rule.ruleId} text={rule.text} status={rule.status} color={color} circles={!onlyRule} />
             ))}
           </ul>
 
-          <ol aria-label="Weeks" className="mt-2 flex flex-wrap gap-[5px] pl-[1px]">
-            {goal.progress.weeks.map((week) => (
-              <WeekCell key={week.monday} week={week} />
-            ))}
-          </ol>
+          {goal.deadline === null && goal.progress.days ? (
+            // No end date: this week's days, Monday to Sunday (R9).
+            <ol aria-label="Days this week" className="mb-3 flex gap-2 pl-[2px]">
+              {goal.progress.days.map((day, i) => (
+                <DayCell key={day.date} day={day} index={i} />
+              ))}
+            </ol>
+          ) : (
+            <ol aria-label="Weeks" className="mb-3 flex flex-wrap gap-2 pl-[2px] pt-0.5">
+              {goal.progress.weeks.map((week) => (
+                <WeekCell key={week.monday} week={week} />
+              ))}
+            </ol>
+          )}
 
           {children}
         </div>
