@@ -146,6 +146,7 @@ describe("next up and free time", () => {
     expect(html).toContain("Then Gym at 5pm");
   });
 
+  // Rewritten for spec 45 v2: "Focus" now starts with the free stretch's length (/focus?minutes=90).
   it("says Nothing else today with tomorrow's first event, and shows the free stretch", () => {
     const html = renderToStaticMarkup(
       <NextWidget size="3x2" next={null} after={null} tomorrow={{ title: "Statistics", start: "2026-11-18T09:00:00Z" }} travel={null} clock={clock} />,
@@ -155,6 +156,6 @@ describe("next up and free time", () => {
     const free = renderToStaticMarkup(<FreeWidget free={{ start: "2026-11-17T15:30:00Z", end: "2026-11-17T17:00:00Z" }} clock={clock} />);
     expect(free).toContain("Free · 1 h 30 min");
     expect(free).toContain("3:30 – 5pm");
-    expect(free).toContain('href="/focus"');
+    expect(free).toContain('href="/focus?minutes=90"');
   });
 });

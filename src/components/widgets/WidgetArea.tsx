@@ -2,30 +2,26 @@
 
 // The widgets under the sidebar's navigation (spec 45): reads widgets_data on opening and every minute
 // while the page is visible, the weather every 30 minutes (R47) and the trip to leave for (R27), and
-// lays the widgets out in the 3 × 6 grid, as many rows as fit (layout.ts). Editing: the pencil or a
-// right-click; remove, change size, drag (or arrow keys) to move, "Add" for the list; "Done" saves the
-// list with save_widgets (R46). A refusal shows its message and puts the saved list back (R1).
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { ChevronLeft, Pencil, Plus, RotateCcw } from "lucide-react";
+// lays the widgets out in the 3 × 6 grid, as many rows as fit (layout.ts). A click on a widget does what
+// grid.tsx says (the weather opens in detail). Editing: the pencil or a right-click; the free fields of
+// this screen show as "+"; a click on a widget opens its settings; remove, change size, drag (or arrow
+// keys) to move; "Add" opens the gallery; "Done" saves the list with save_widgets (R46). A refusal shows
+// its message and puts the saved list back (R1).
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { Pencil, Plus } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
 import { getJson, postJson } from "@/lib/client/post-json";
 import { msToNextMinute } from "@/lib/time/next-minute";
-import { fitsWith, pack, rowsFor, sizeOf } from "@/lib/widgets/layout";
-import {
-  CELL_PX,
-  DEFAULT_LAYOUT,
-  GAP_PX,
-  SIZES_OF,
-  WIDGET_KINDS,
-  WIDGET_NAMES,
-  type WidgetItem,
-  type WidgetKind,
-  type WidgetsData,
-} from "@/lib/widgets/types";
+import { pack, rowsFor } from "@/lib/widgets/layout";
+import { CELL_PX, DEFAULT_LAYOUT, GAP_PX, GRID_COLUMNS, SIZES_OF, WIDGET_NAMES, type WidgetItem, type WidgetsData } from "@/lib/widgets/types";
 import type { WeatherAnswer } from "@/lib/widgets/weather";
 import type { TravelAnswer } from "@/lib/travel/types";
+import { WidgetDialog } from "./Dialog";
+import { freeFields, Gallery } from "./Gallery";
 import { GRID_STYLE, renderWidget, WidgetCell, type WidgetContext } from "./grid";
 import type { TripTravel } from "./tiles";
+import { WeatherDetail } from "./WeatherDetail";
+import { WidgetSettings } from "./WidgetSettings";
 
 const MINUTE = 60_000;
 const WEATHER_EVERY = 30 * MINUTE;
@@ -150,6 +146,26 @@ function useTrip(tripId: string | null): TripTravel {
   return trip && trip.id === tripId ? trip.answer : undefined;
 }
 
+/** The weather of the cities that widgets name, each asked every 30 minutes (R47). */
+function useCityWeather(cities: string[], enabled: boolean): Record<string, WeatherAnswer> {
+  const [answers, setAnswers] = useState<Record<string, WeatherAnswer>>({});
+  const key = [...new Set(cities)].sort().join("\n");
+  const load = useCallback(async () => {
+    const list = key === "" ? [] : key.split("\n");
+    const pairs = await Promise.all(
+      list.map(async (city): Promise<[string, WeatherAnswer] | null> => {
+        const result = await postJson("/api/weather", { city });
+        const data = result.data as Partial<WeatherAnswer> | undefined;
+        if (result.ok && data && typeof data.status === "string") return [city, data as WeatherAnswer];
+        return result.status === 401 ? null : [city, { status: "unavailable", message: result.message || "Weather not available" }];
+      }),
+    );
+    setAnswers((old) => ({ ...old, ...Object.fromEntries(pairs.filter((p) => p !== null)) }));
+  }, [key]);
+  useVisibleInterval(load, WEATHER_EVERY, enabled && key !== "", key);
+  return answers;
+}
+
 const same = (a: WidgetItem[], b: WidgetItem[]) => JSON.stringify(a) === JSON.stringify(b);
 
 function move<T>(list: T[], from: number, to: number): T[] {
@@ -159,11 +175,22 @@ function move<T>(list: T[], from: number, to: number): T[] {
   return next;
 }
 
+/** The fields of the first `rows` rows that no widget takes, top to bottom. */
+function freeCells(layout: WidgetItem[], rows: number): { row: number; col: number }[] {
+  const taken = new Set<string>();
+  for (const p of pack(layout, rows).placed) for (let r = p.row; r < p.row + p.h; r++) for (let c = p.col; c < p.col + p.w; c++) taken.add(`${r},${c}`);
+  const cells: { row: number; col: number }[] = [];
+  for (let row = 0; row < rows; row++) for (let col = 0; col < GRID_COLUMNS; col++) if (!taken.has(`${row},${col}`)) cells.push({ row, col });
+  return cells;
+}
+
 export function WidgetArea() {
   const [data, setData] = useState<WidgetsData | null>(null);
   const [off, setOff] = useState(false);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [settingsOf, setSettingsOf] = useState<number | null>(null);
+  const [detail, setDetail] = useState<WidgetItem | null>(null);
   const [draft, setDraft] = useState<WidgetItem[]>([]);
   const [resetAsked, setResetAsked] = useState(false);
   const [message, setMessage] = useState("");
@@ -171,6 +198,7 @@ export function WidgetArea() {
   const [rows, setRows] = useState(0);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const gridBox = useRef<HTMLDivElement>(null);
+  const detailTitle = useId();
   const now = useMinuteClock();
 
   const loadData = useCallback(async () => {
@@ -201,6 +229,8 @@ export function WidgetArea() {
   const saved = useMemo(() => (data ? shown(data.layout) : []), [data, shown]);
   const layout = editing ? draft : saved;
   const { placed, hidden } = useMemo(() => pack(layout, rows), [layout, rows]);
+  const cities = useMemo(() => layout.flatMap((w) => (w.kind === "weather" && w.city ? [w.city] : [])), [layout]);
+  const cityWeather = useCityWeather(cities, !off && ready);
 
   const startEditing = useCallback(() => {
     setDraft(saved);
@@ -212,6 +242,7 @@ export function WidgetArea() {
 
   const finish = useCallback(async () => {
     setAdding(false);
+    setSettingsOf(null);
     if (!data) return setEditing(false);
     const reset = resetAsked && same(draft, DEFAULT_LAYOUT);
     if (!reset && same(draft, saved)) return setEditing(false);
@@ -231,23 +262,27 @@ export function WidgetArea() {
   }, [data, draft, resetAsked, saved]);
 
   useEffect(() => {
-    if (!editing) return;
+    // Escape inside a dialog closes the dialog only.
+    if (!editing || adding || settingsOf !== null) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") void finish();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editing, finish]);
+  }, [editing, adding, settingsOf, finish]);
 
   if (off || !data) return <div className="min-h-0 flex-1" aria-hidden />;
 
   const ctx: WidgetContext = {
     data,
-    weather: weather.answer,
+    weatherFor: (city) => (city ? (cityWeather[city] ?? null) : weather.answer),
     onLocate: weather.onLocate,
+    onOpenWeather: setDetail,
     travel,
     clock: { now, timeZone: data.timeZone, timeFormat: data.timeFormat },
   };
+  const detailAnswer = detail ? ctx.weatherFor(detail.city) : null;
+  const free = freeCells(layout, rows);
 
   const remove = (index: number) => setDraft((list) => list.filter((_, i) => i !== index));
   const cycleSize = (index: number) =>
@@ -270,19 +305,21 @@ export function WidgetArea() {
     else return;
     event.preventDefault();
   };
+  const freeNow = freeFields(layout, rows);
 
   return (
     <section aria-label="Widgets" className="mt-5 mb-3 flex min-h-0 flex-1 flex-col">
       <div className="flex h-7 shrink-0 items-center gap-1.5 pl-[9px] text-xs font-medium text-ink-3">
-        <span className="mr-auto">Widgets</span>
+        <span className="mr-auto flex items-baseline gap-1.5">
+          Widgets
+          {editing && <span className="text-[11px] font-normal">{freeNow === 0 ? "· full" : `· ${freeNow} free`}</span>}
+        </span>
         {editing ? (
           <>
-            {!adding && (
-              <button type="button" onClick={() => setAdding(true)} className={buttonClass("secondary", "sm", "h-7 gap-1 px-2.5")}>
-                <Plus aria-hidden className="size-3.5" strokeWidth={2} />
-                Add
-              </button>
-            )}
+            <button type="button" onClick={() => setAdding(true)} className={buttonClass("secondary", "sm", "h-7 gap-1 px-2.5")}>
+              <Plus aria-hidden className="size-3.5" strokeWidth={2} />
+              Add
+            </button>
             <button type="button" onClick={() => void finish()} disabled={saving} className={buttonClass("primary", "sm", "h-7 px-3")}>
               Done
             </button>
@@ -305,121 +342,99 @@ export function WidgetArea() {
         </p>
       )}
       <div ref={gridBox} className="relative mt-2 min-h-0 flex-1">
-        {adding ? (
-          <Gallery
-            draft={draft}
-            goals={data.goals}
-            onAdd={(item) => {
-              setDraft((list) => [...list, item]);
-              setAdding(false);
-            }}
-            onReset={() => {
-              setDraft(DEFAULT_LAYOUT);
-              setResetAsked(true);
-              setAdding(false);
-            }}
-            onBack={() => setAdding(false)}
-          />
-        ) : (
-          <div
-            className="grid"
-            style={GRID_STYLE}
-            onContextMenu={(event) => {
-              if (editing) return;
-              event.preventDefault();
-              startEditing();
-            }}
-          >
-            {placed.map((place) => {
-              const { index } = place;
-              const item = layout[index];
-              return (
-                <WidgetCell
-                  key={`${index}-${item.kind}-${item.goalId ?? ""}`}
-                  item={item}
-                  place={place}
-                  editing={editing}
-                  dragging={dragFrom === index}
-                  onRemove={() => remove(index)}
-                  onCycleSize={() => cycleSize(index)}
-                  onDragStart={() => setDragFrom(index)}
-                  onDragEnd={() => setDragFrom(null)}
-                  onDrop={(event) => onDrop(event, index)}
-                  onKeyDown={(event) => onTileKey(event, index)}
-                >
-                  {renderWidget(item, ctx, editing)}
-                </WidgetCell>
-              );
-            })}
+        <div
+          className="grid"
+          style={GRID_STYLE}
+          onContextMenu={(event) => {
+            if (editing) return;
+            event.preventDefault();
+            startEditing();
+          }}
+        >
+          {placed.map((place) => {
+            const { index } = place;
+            const item = layout[index];
+            return (
+              <WidgetCell
+                key={`${index}-${item.kind}-${item.goalId ?? ""}-${item.city ?? ""}`}
+                item={item}
+                place={place}
+                editing={editing}
+                dragging={dragFrom === index}
+                onRemove={() => remove(index)}
+                onCycleSize={() => cycleSize(index)}
+                onOpen={() => setSettingsOf(index)}
+                onDragStart={() => setDragFrom(index)}
+                onDragEnd={() => setDragFrom(null)}
+                onDrop={(event) => onDrop(event, index)}
+                onKeyDown={(event) => onTileKey(event, index)}
+              >
+                {renderWidget(item, ctx, editing)}
+              </WidgetCell>
+            );
+          })}
+          {/* While editing, every field still free on this screen is a "+" that opens the gallery. */}
+          {editing &&
+            free.map(({ row, col }) => (
+              <button
+                key={`free-${row}-${col}`}
+                type="button"
+                onClick={() => setAdding(true)}
+                aria-label="Add a widget"
+                style={{ gridRow: row + 1, gridColumn: col + 1 }}
+                className="grid place-items-center rounded-card border-[1.5px] border-dashed border-line text-ink-3 transition-colors hover:border-ink-3 hover:bg-raised hover:text-ink"
+              >
+                <Plus aria-hidden className="size-4" strokeWidth={1.8} />
+              </button>
+            ))}
+        </div>
+        {editing && hidden.length > 0 && (
+          <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800 shadow-float">
+            <span className="min-w-0 flex-1">
+              {hidden.length === 1 ? `${WIDGET_NAMES[layout[hidden[0]].kind]} does not fit on this screen` : `${hidden.length} widgets do not fit on this screen`}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDraft((list) => list.filter((_, i) => !hidden.includes(i)))}
+              className="shrink-0 font-semibold underline-offset-2 hover:underline"
+            >
+              Remove
+            </button>
           </div>
         )}
-        {editing && !adding && hidden.length > 0 && (
-          <p className="absolute inset-x-0 bottom-0 bg-canvas pl-[9px] pt-1 text-[11px] text-ink-3">
-            {hidden.length === 1 ? "1 widget does not fit on this screen" : `${hidden.length} widgets do not fit on this screen`}
-          </p>
-        )}
       </div>
-    </section>
-  );
-}
 
-/** The list of widgets to add, each in its sizes; a size with no room left is greyed out. */
-function Gallery({
-  draft,
-  goals,
-  onAdd,
-  onReset,
-  onBack,
-}: {
-  draft: WidgetItem[];
-  goals: WidgetsData["goals"];
-  onAdd: (item: WidgetItem) => void;
-  onReset: () => void;
-  onBack: () => void;
-}) {
-  type Entry = { kind: WidgetKind; name: string; goalId?: string | null };
-  const entries: Entry[] = WIDGET_KINDS.flatMap((kind): Entry[] =>
-    kind === "goal"
-      ? goals.length > 0
-        ? goals.map((g) => ({ kind, name: g.title, goalId: g.id }))
-        : [{ kind, name: "Goal", goalId: null }]
-      : [{ kind, name: WIDGET_NAMES[kind] }],
-  );
-  return (
-    <div className="scroll-thin absolute inset-0 flex flex-col overflow-y-auto rounded-card border border-line-subtle bg-surface p-2">
-      <button type="button" onClick={onBack} className="mb-1 flex h-7 items-center gap-1 rounded-lg px-1.5 text-xs font-semibold text-ink hover:bg-raised">
-        <ChevronLeft aria-hidden className="size-3.5" strokeWidth={2} />
-        Add a widget
-      </button>
-      <ul className="flex flex-col">
-        {entries.map((entry) => (
-          <li key={`${entry.kind}-${entry.goalId ?? ""}`} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5">
-            <span className="min-w-0 flex-1 truncate text-xs text-ink">{entry.name}</span>
-            {SIZES_OF[entry.kind].map((size) => {
-              const item: WidgetItem = entry.kind === "goal" ? { kind: entry.kind, size, goalId: entry.goalId ?? null } : { kind: entry.kind, size };
-              const room = fitsWith(draft, item);
-              const { w, h } = sizeOf(size);
-              return (
-                <button
-                  key={size}
-                  type="button"
-                  disabled={!room}
-                  onClick={() => onAdd(item)}
-                  title={room ? `Add ${entry.name}, ${w} by ${h}` : "No room. Remove a widget first"}
-                  aria-label={`Add ${entry.name}, ${w} by ${h}`}
-                  className={buttonClass("secondary", "sm", "tabular h-6 px-2 text-[11px]")}
-                >
-                  {size.replace("x", "×")}
-                </button>
-              );
-            })}
-          </li>
-        ))}
-      </ul>
-      <button type="button" onClick={onReset} className={buttonClass("ghost", "sm", "mt-auto h-7 gap-1 self-start px-2 text-[11px]")}>
-        <RotateCcw aria-hidden className="size-3" strokeWidth={2} />
-        Reset to standard
-      </button>
-    </div>
+      <Gallery
+        open={adding}
+        onClose={() => setAdding(false)}
+        draft={draft}
+        rows={rows}
+        ctx={ctx}
+        onAdd={(item) => {
+          setDraft((list) => [...list, item]);
+          setAdding(false);
+        }}
+        onReset={() => {
+          setDraft(DEFAULT_LAYOUT);
+          setResetAsked(true);
+          setAdding(false);
+        }}
+      />
+      <WidgetSettings
+        draft={draft}
+        index={editing ? settingsOf : null}
+        rows={rows}
+        ctx={ctx}
+        onChange={(item) => setDraft((list) => list.map((w, i) => (i === settingsOf ? item : w)))}
+        onRemove={() => {
+          if (settingsOf !== null) remove(settingsOf);
+          setSettingsOf(null);
+        }}
+        onClose={() => setSettingsOf(null)}
+      />
+      <WidgetDialog open={detailAnswer?.status === "ok"} onClose={() => setDetail(null)} titleId={detailTitle} title="Weather" width="md:max-w-xl">
+        {detailAnswer?.status === "ok" && <WeatherDetail weather={detailAnswer.weather} clock={ctx.clock} />}
+      </WidgetDialog>
+    </section>
   );
 }

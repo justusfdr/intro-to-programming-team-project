@@ -36,6 +36,7 @@ import { buttonClass } from "@/components/ui/Button";
 import { GOAL_ICONS, GoalTile } from "@/components/goals/GoalTile";
 import { goalColor } from "@/lib/goals/colors";
 import type { TravelMode } from "@/lib/settings/types";
+import { lengthForEvent } from "@/lib/focus/session-time";
 import { fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { localTimeOf } from "@/lib/time/zoned";
 import type { TravelAnswer } from "@/lib/travel/types";
@@ -85,14 +86,14 @@ const SKY_ICON: Record<Sky, { day: LucideIcon; night: LucideIcon; tint: string }
   storm: { day: CloudLightning, night: CloudLightning, tint: "text-indigo-500" },
 };
 
-function SkyIcon({ sky, isDay, className, tinted = true }: { sky: Sky; isDay: boolean; className: string; tinted?: boolean }) {
+export function SkyIcon({ sky, isDay, className, tinted = true }: { sky: Sky; isDay: boolean; className: string; tinted?: boolean }) {
   const s = SKY_ICON[sky];
   const Icon = isDay ? s.day : s.night;
   const tint = sky === "clear" && !isDay ? "text-indigo-400" : s.tint;
   return <Icon aria-hidden className={`${className} ${tinted ? tint : "text-ink-2"}`} strokeWidth={1.8} />;
 }
 
-const SOURCE_ICON: Record<WeatherSource, { icon: LucideIcon; label: string }> = {
+export const SOURCE_ICON: Record<WeatherSource, { icon: LucideIcon; label: string }> = {
   city: { icon: MapPin, label: "The city you chose" },
   device: { icon: Navigation, label: "Your location" },
   event: { icon: CalendarDays, label: "Place of your event" },
@@ -112,8 +113,10 @@ export function WeatherWidget({ size, answer, clock, onLocate }: { size: WidgetS
     );
   }
   if (answer.status !== "ok") {
-    const missingHome = answer.status === "no_place";
-    if (size === "1x1") return <Small title={answer.message} picture={<Cloud aria-hidden className="size-4 text-ink-3" strokeWidth={1.8} />} value="–" label={missingHome ? "No place" : "Offline"} />;
+    const cityMissing = answer.message === "City not found";
+    const missingHome = answer.status === "no_place" && !cityMissing;
+    const short = cityMissing ? "Not found" : missingHome ? "No place" : "Offline";
+    if (size === "1x1") return <Small title={answer.message} picture={<Cloud aria-hidden className="size-4 text-ink-3" strokeWidth={1.8} />} value="–" label={short} />;
     return (
       <Tile>
         <div className="flex h-full flex-col items-start justify-center gap-1 p-3">
@@ -157,9 +160,16 @@ export function WeatherWidget({ size, answer, clock, onLocate }: { size: WidgetS
             </span>
           </span>
         </div>
-        <ol className="tabular mt-auto grid grid-cols-4 border-t border-line-subtle pt-1.5" aria-label="Next hours">
-          {w.hours.slice(0, 4).map((h) => (
-            <li key={h.time} className="flex flex-col items-center gap-px text-[11px] leading-tight text-ink-3">
+        <ol
+          className="tabular -mx-3 mt-auto flex snap-x overflow-x-auto border-t border-line-subtle px-3 pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          aria-label="Next hours"
+          // A mouse wheel moves the hours sideways too; a trackpad swipes them by itself.
+          onWheel={(event) => {
+            if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) event.currentTarget.scrollLeft += event.deltaY;
+          }}
+        >
+          {w.hours.map((h) => (
+            <li key={h.time} className="flex w-[46px] shrink-0 snap-start flex-col items-center gap-px text-[11px] leading-tight text-ink-3">
               <span>{fmtTime(localTimeOf(new Date(h.time), clock.timeZone), clock.timeFormat)}</span>
               <span className="flex h-3.5 items-center gap-0.5">
                 <SkyIcon sky={h.sky} isDay={h.isDay} className="size-3.5" tinted={false} />
@@ -178,7 +188,10 @@ function LocateButton({ onLocate, withText = false }: { onLocate: () => void; wi
   return (
     <button
       type="button"
-      onClick={onLocate}
+      onClick={(event) => {
+        event.stopPropagation();
+        onLocate();
+      }}
       title="Use my location"
       aria-label="Use my location for the weather"
       className={`ml-auto inline-flex items-center gap-1 rounded-full text-ink-3 transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${withText ? "mt-1 text-xs font-semibold" : "p-0.5"}`}
@@ -213,6 +226,12 @@ const MODE_ICON: Record<TravelMode, { icon: LucideIcon; word: string }> = {
  * server has none for it (for example a web link), else what travel_times answered (R27).
  */
 export type TripTravel = TravelAnswer | null | undefined;
+
+/** Google Maps with the way to the event, by the trip's way of travel (a link; nothing is sent from here). */
+export function routeLink(location: string, mode: TravelMode): string {
+  const travelmode = { driving: "driving", cycling: "bicycling", walking: "walking", transit: "transit" }[mode];
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(location)}&travelmode=${travelmode}`;
+}
 
 /** The trip to leave for, worked out: minutes until leaving and its level; null without a time to leave. */
 export function tripState(travel: TripTravel, now: Date) {
@@ -412,7 +431,7 @@ export function GoalWidget({ goal }: { goal: WidgetGoal | null }) {
   const unit = goal.unit === "hours" ? " h" : "";
   const title = `${goal.title}: ${goal.done} of ${goal.target}${unit} this week${goal.met ? ", done" : ""}`;
   return (
-    <Link href="/goals" className="block h-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20">
+    <Link href={`/goals?goal=${goal.id}`} className="block h-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20">
       <Tile tone={goal.met ? color.block : undefined}>
         <div role="img" aria-label={title} className="flex h-full flex-col items-center justify-center gap-0.5">
           <span className={`relative grid size-9 place-items-center ${color.text}`}>
@@ -476,7 +495,7 @@ export function FreeWidget({ free, clock }: { free: { start: string; end: string
           <span className="tabular text-[11px] font-medium text-ink-3">Free · {durationText(minutes)}</span>
           <span className="tabular truncate text-sm font-semibold tracking-snug">{range(free.start, free.end, clock)}</span>
         </span>
-        <Link href="/focus" className={buttonClass("primary", "sm", "shrink-0 gap-1")}>
+        <Link href={`/focus?minutes=${lengthForEvent(Math.min(minutes, 120))}`} className={buttonClass("primary", "sm", "shrink-0 gap-1")}>
           <Play aria-hidden className="size-3" strokeWidth={2.4} />
           Focus
         </Link>
