@@ -36,6 +36,8 @@ import {
   stepProblem,
   summaryLines,
   toggleAvoidDay,
+  toggleMustDay,
+  MUST_IS_OFF_MESSAGE,
   weeklySum,
   type SetupAnswers,
 } from "./setup";
@@ -293,6 +295,7 @@ describe("the body of create_goal", () => {
       sessionMinutes: 60,
       dayPart: "evening",
       avoidDays: [5],
+      mustDays: [],
       location: "FitnessHut Lisboa",
     });
   });
@@ -356,7 +359,7 @@ describe("the tags and the sentence", () => {
       { step: "often", label: "How often", text: "Twice a week, 60 minutes each" },
       { step: "place", label: "Where", text: "FitnessHut Lisboa" },
       { step: "when", label: "When", text: "In the evening" },
-      { step: "days", label: "Days off", text: "Never on Fridays" },
+      { step: "days", label: "Days", text: "Never on Fridays" },
       { step: "date", label: "Until", text: "Dec 12, 2026" },
     ]);
     expect(summaryLines(gym({ place: { kind: "home" }, dayPart: "any", avoidDays: [], hasDate: false })).map((l) => l.text).slice(1)).toEqual([
@@ -368,7 +371,7 @@ describe("the tags and the sentence", () => {
   });
 
   it("maps every tag to its question, for Change", () => {
-    expect(STEP_OF_TAG).toEqual({ category: "category", often: "often", minutes: "often", dayPart: "when", days: "days", place: "place", date: "date" });
+    expect(STEP_OF_TAG).toEqual({ category: "category", often: "often", minutes: "often", dayPart: "when", sure: "days", days: "days", place: "place", date: "date" });
   });
 });
 
@@ -393,5 +396,40 @@ describe("Q6: the date and the days ruled out", () => {
     expect(dateHint(gym({ deadline: "2026-11-18", avoidDays: [], timesPerWeek: 3 }), TODAY)).toBeNull();
     expect(dateHint(gym({ deadline: "2026-11-22", avoidDays: [5], timesPerWeek: 6 }), TODAY)).toBeNull(); // a whole week
     expect(dateHint(gym({ hasDate: false }), TODAY)).toBeNull();
+  });
+});
+
+describe("the sure days", () => {
+  it("are chosen up to the sessions a week; one more is refused with a sentence", () => {
+    let a = gym({ timesPerWeek: 2, avoidDays: [] });
+    a = toggleMustDay(a, 3).answers;
+    a = toggleMustDay(a, 1).answers;
+    expect(a.mustDays).toEqual([1, 3]);
+    const more = toggleMustDay(a, 5);
+    expect(more.answers).toBe(a);
+    expect(more.refused).toBe("You plan 2 sessions a week, so you can choose up to 2 sure days.");
+    expect(toggleMustDay(gym({ timesPerWeek: 1, avoidDays: [], mustDays: [2] }), 4).refused).toBe("You plan 1 session a week, so you can choose 1 sure day.");
+    expect(toggleMustDay(a, 1).answers.mustDays).toEqual([3]);
+  });
+
+  it("a sure day cannot be a day off, and a day off cannot be a sure day", () => {
+    const a = gym({ avoidDays: [5], mustDays: [1] });
+    expect(toggleAvoidDay(a, 1)).toEqual({ answers: a, refused: MUST_IS_OFF_MESSAGE });
+    expect(toggleMustDay(a, 5).answers).toBe(a);
+  });
+
+  it("block the days question and How often when there are more than the sessions", () => {
+    const a = gym({ timesPerWeek: 1, avoidDays: [], mustDays: [1, 3] });
+    expect(stepProblem("days", a, TODAY)).toBe("You chose 2 sure days but plan 1 session a week. Unpick a day, or go back and plan more.");
+    expect(stepProblem("often", a, TODAY)).toBe(stepProblem("days", a, TODAY));
+  });
+
+  it("are sent, shown as a tag, in the review's line and in the sentence", () => {
+    const a = gym({ timesPerWeek: 3, avoidDays: [5], mustDays: [1, 3], dayPart: "any", place: { kind: "home" }, hasDate: false });
+    expect(createGoalBody(a).mustDays).toEqual([1, 3]);
+    expect(previewTags(a, "date", "12h").find((t) => t.key === "sure")).toEqual({ key: "sure", text: "On Mon, Wed", label: "Always on Monday and Wednesday", step: "days" });
+    expect(summaryLines(a).find((l) => l.step === "days")?.text).toBe("Always on Mondays and Wednesdays, never on Fridays");
+    expect(answersSentence(a)).toContain("always on Mondays and Wednesdays, never on Fridays");
+    expect(hasAnswers({ ...emptyAnswers("amber"), mustDays: [2] })).toBe(true);
   });
 });

@@ -227,7 +227,7 @@ describe("the review", () => {
     const html = render("review", GYM);
     expect(html).toContain(">Gym</h2>");
     expect(html).toContain("3 times a week, 60 minutes each, in the evening, never on Fridays, at FitnessHut Lisboa, until Dec 12, 2026.");
-    for (const label of ["name", "how often", "where", "when", "days off", "until"]) expect(html).toContain(`aria-label="Change ${label}"`);
+    for (const label of ["name", "how often", "where", "when", "days", "until"]) expect(html).toContain(`aria-label="Change ${label}"`);
     expect(html).toContain(">Create goal</button>");
     expect(html).not.toContain("Question ");
   });

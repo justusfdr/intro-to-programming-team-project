@@ -1,5 +1,6 @@
 // The guided questions for a new goal (spec 42). Pure: no React, no server. Six questions (what it is
-// about and its name, how often and how long, where, when in the day, the days it is never done on,
+// about and its name, how often and how long, where, when in the day, the days it always happens on and
+// the days it is never done on,
 // whether there is a date), then a review. The screens use these functions for every rule: whether
 // "Continue" is possible and, if not, the sentence to show; the quiet hints that never block; the exact
 // body of create_goal; the tags of the goal taking shape and the review's sentence (also on the goal card).
@@ -56,6 +57,8 @@ export type SetupAnswers = {
   dayPart: DayPart | "any" | null;
   /** Sorted, Monday = 1. */
   avoidDays: Weekday[];
+  /** The days it happens on for sure: sorted, at most one per session a week, never a day off. */
+  mustDays: Weekday[];
   /** null: not answered yet; true: there is a date; false: no end date. */
   hasDate: boolean | null;
   /** "YYYY-MM-DD" or "" while none is chosen. */
@@ -119,6 +122,7 @@ export function emptyAnswers(color: GoalColorName): SetupAnswers {
     address: "",
     dayPart: null,
     avoidDays: [],
+    mustDays: [],
     hasDate: null,
     deadline: "",
     color,
@@ -138,6 +142,7 @@ export function hasAnswers(answers: SetupAnswers): boolean {
     answers.place.kind !== "home" ||
     answers.dayPart !== null ||
     answers.avoidDays.length > 0 ||
+    answers.mustDays.length > 0 ||
     answers.hasDate !== null
   );
 }
@@ -195,6 +200,8 @@ export function canRuleOut(answers: Pick<SetupAnswers, "avoidDays">, day: Weekda
  * they are and `refused` holds the sentence to show.
  */
 export function toggleAvoidDay(answers: SetupAnswers, day: Weekday): { answers: SetupAnswers; refused: string | null } {
+  // A sure day cannot be a day off (the screen shows it greyed out).
+  if (answers.mustDays.includes(day)) return { answers, refused: MUST_IS_OFF_MESSAGE };
   if (answers.avoidDays.includes(day)) {
     return { answers: { ...answers, avoidDays: answers.avoidDays.filter((d) => d !== day) }, refused: null };
   }
@@ -203,10 +210,36 @@ export function toggleAvoidDay(answers: SetupAnswers, day: Weekday): { answers: 
   return { answers: { ...answers, avoidDays }, refused: null };
 }
 
+/** The sentence when a sure day is tapped below, as a day off. */
+export const MUST_IS_OFF_MESSAGE = "This is one of your sure days";
+
+/** The sentence when one sure day too many is tapped: never more than the sessions a week. */
+export function tooManyMustDays(times: number): string {
+  return times === 1 ? "You plan 1 session a week, so you can choose 1 sure day." : `You plan ${times} sessions a week, so you can choose up to ${times} sure days.`;
+}
+
+/**
+ * Makes a day a sure day or frees it again. A day off cannot be one (the screen greys it out), and
+ * never more sure days than sessions a week: then the answers stay and `refused` holds the sentence.
+ */
+export function toggleMustDay(answers: SetupAnswers, day: Weekday): { answers: SetupAnswers; refused: string | null } {
+  if (answers.mustDays.includes(day)) {
+    return { answers: { ...answers, mustDays: answers.mustDays.filter((d) => d !== day) }, refused: null };
+  }
+  if (answers.avoidDays.includes(day)) return { answers, refused: "This day is off limits. Free it below first." };
+  if (answers.mustDays.length >= answers.timesPerWeek) return { answers, refused: tooManyMustDays(answers.timesPerWeek) };
+  const mustDays = [...answers.mustDays, day].sort((a, b) => a - b);
+  return { answers: { ...answers, mustDays }, refused: null };
+}
+
 const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
 
 /** Q5's blocking sentence when the planned sessions do not fit the days left, else null. */
-export function daysProblem(answers: Pick<SetupAnswers, "avoidDays" | "timesPerWeek">): string | null {
+export function daysProblem(answers: Pick<SetupAnswers, "avoidDays" | "timesPerWeek"> & { mustDays?: readonly Weekday[] }): string | null {
+  const must = answers.mustDays?.length ?? 0;
+  if (must > answers.timesPerWeek) {
+    return `You chose ${plural(must, "sure day", "sure days")} but plan ${plural(answers.timesPerWeek, "session", "sessions")} a week. Unpick a day, or go back and plan more.`;
+  }
   const left = daysLeft(answers);
   if (left < 1) return LAST_DAY_MESSAGE;
   if (answers.timesPerWeek <= left) return null;
@@ -242,7 +275,7 @@ export function stepProblem(step: SetupStep, answers: SetupAnswers, today: Local
       const minutes = routineProblem({ ...noRoutine, sessionMinutes: answers.sessionMinutes }, []);
       if (minutes) return minutes.message;
       // Only after going back from a later question: the days ruled out leave fewer days than planned.
-      return times > daysLeft(answers) ? daysProblem(answers) : null;
+      return times > daysLeft(answers) || times < answers.mustDays.length ? daysProblem(answers) : null;
     }
     case "place": {
       const location = locationOf(answers);
@@ -373,6 +406,7 @@ export type CreateGoalBody = {
   sessionMinutes: number;
   dayPart: DayPart | null;
   avoidDays: Weekday[];
+  mustDays: Weekday[];
   location: string | null;
 };
 
@@ -391,6 +425,7 @@ export function createGoalBody(answers: SetupAnswers): CreateGoalBody {
     sessionMinutes: answers.sessionMinutes,
     dayPart: answers.dayPart === "any" ? null : answers.dayPart,
     avoidDays: [...answers.avoidDays].sort((a, b) => a - b),
+    mustDays: [...answers.mustDays].sort((a, b) => a - b),
     location: locationOf(answers),
   };
 }
@@ -404,14 +439,14 @@ export function answersRoutine(answers: SetupAnswers): GoalRoutine {
     sessionMinutes: body.sessionMinutes,
     dayPart: body.dayPart,
     avoidDays: body.avoidDays,
-    mustDays: [],
+    mustDays: body.mustDays,
     location: body.location,
   };
 }
 
 // ---------- The tags and the sentence ----------
 
-export type TagKey = "category" | "often" | "minutes" | "dayPart" | "days" | "place" | "date";
+export type TagKey = "category" | "often" | "minutes" | "dayPart" | "sure" | "days" | "place" | "date";
 
 /** One small tag: what it shows, what a screen reader hears, and the question it belongs to. */
 export type RoutineTag = { key: TagKey; text: string; label: string; step: SetupStep };
@@ -422,6 +457,7 @@ export const STEP_OF_TAG: Record<TagKey, SetupStep> = {
   often: "often",
   minutes: "often",
   dayPart: "when",
+  sure: "days",
   days: "days",
   place: "place",
   date: "date",
@@ -479,6 +515,9 @@ export function routineTags(input: TagInput, format: TimeFormat): RoutineTag[] {
   if (routine.dayPart !== null) {
     add("dayPart", DAY_PART_PLURAL[routine.dayPart], `${DAY_PART_PLURAL[routine.dayPart]}, ${dayPartTimes(routine.dayPart, format).toLowerCase()}`);
   }
+  if (routine.mustDays.length > 0) {
+    add("sure", `On ${routine.mustDays.map(dayShort).join(", ")}`, `Always on ${listOf(routine.mustDays.map(dayLong))}`);
+  }
   if (routine.avoidDays.length > 0) {
     add("days", `Not ${routine.avoidDays.map(dayShort).join(", ")}`, `Never on ${listOf(routine.avoidDays.map(dayLong))}`);
   }
@@ -500,6 +539,7 @@ export function previewTags(answers: SetupAnswers, reached: SetupStep, format: T
     location: upTo >= 2 ? routine.location : null,
     dayPart: upTo >= 3 ? routine.dayPart : null,
     avoidDays: upTo >= 4 ? routine.avoidDays : [],
+    mustDays: upTo >= 4 ? routine.mustDays : [],
   };
   const deadline = upTo >= 5 && answers.hasDate !== null ? (answers.hasDate ? answers.deadline || undefined : null) : undefined;
   return routineTags({ routine: shown, timesPerWeek: upTo >= 1 ? answers.timesPerWeek : null, deadline }, format);
@@ -525,11 +565,16 @@ export type SummaryLine = { step: SetupStep; label: string; text: string };
 export function summaryLines(answers: SetupAnswers): SummaryLine[] {
   const routine = answersRoutine(answers);
   const days = answers.avoidDays;
+  const sure = answers.mustDays;
+  const dayParts = [
+    ...(sure.length > 0 ? [`Always on ${listOf(sure.map((d) => `${dayLong(d)}s`))}`] : []),
+    ...(days.length > 0 ? [`${sure.length > 0 ? "never" : "Never"} on ${listOf(days.map((d) => `${dayLong(d)}s`), "or")}`] : []),
+  ];
   return [
     { step: "often", label: "How often", text: `${timesWords(answers.timesPerWeek)} a week, ${sessionWords(answers.sessionMinutes)} each` },
     { step: "place", label: "Where", text: routine.location ?? "At home or anywhere" },
     { step: "when", label: "When", text: routine.dayPart === null ? "Any time of day" : capitalise(DAY_PART_WORDS[routine.dayPart]) },
-    { step: "days", label: "Days off", text: days.length === 0 ? "Every day works" : `Never on ${listOf(days.map((d) => `${dayLong(d)}s`), "or")}` },
+    { step: "days", label: "Days", text: dayParts.length === 0 ? "Every day works" : dayParts.join(", ") },
     { step: "date", label: "Until", text: answers.hasDate && answers.deadline ? fmtDateWithYear(answers.deadline) : "No end date" },
   ];
 }
@@ -546,6 +591,7 @@ export function routineSentence(input: TagInput): string {
   if (input.timesPerWeek) parts.push(`${timesWords(input.timesPerWeek)} a week`);
   if (routine.sessionMinutes !== null) parts.push(input.timesPerWeek ? `${sessionWords(routine.sessionMinutes)} each` : `${sessionWords(routine.sessionMinutes)} a session`);
   if (routine.dayPart !== null) parts.push(DAY_PART_WORDS[routine.dayPart]);
+  if (routine.mustDays.length > 0) parts.push(`always on ${listOf(routine.mustDays.map((d) => `${dayLong(d)}s`))}`);
   if (routine.avoidDays.length > 0) parts.push(`never on ${listOf(routine.avoidDays.map((d) => `${dayLong(d)}s`), "or")}`);
   if (routine.location !== null) parts.push(`at ${routine.location}`);
   if (input.deadline !== undefined) parts.push(input.deadline === null ? "with no end date" : `until ${fmtDateWithYear(input.deadline)}`);
