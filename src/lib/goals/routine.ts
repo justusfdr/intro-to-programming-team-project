@@ -1,5 +1,6 @@
 // A goal's routine (spec 41, ontology R44): what kind of goal it is, how long one session usually is,
-// when in the day it suits, the weekdays it is never done on and where it is done. All optional; a goal
+// when in the day it suits, the weekdays it is never done on, the weekdays it always happens on and
+// where it is done. All optional; a goal
 // without any of it is a goal as before. How often per week stays in the goal's rules (R7).
 // Pure: no React, no database. The server checks a routine with routineProblem (and throws the message);
 // the screens of spec 42 show the same sentence before sending.
@@ -56,6 +57,8 @@ export type GoalRoutine = {
   dayPart: DayPart | null;
   /** Sorted, Monday = 1. */
   avoidDays: Weekday[];
+  /** The days it always happens on: sorted, Monday = 1, never one of avoidDays. */
+  mustDays: Weekday[];
   /** null: at home or nowhere in particular. */
   location: string | null;
 };
@@ -66,6 +69,7 @@ export const EMPTY_ROUTINE: GoalRoutine = {
   sessionMinutes: null,
   dayPart: null,
   avoidDays: [],
+  mustDays: [],
   location: null,
 };
 
@@ -116,6 +120,7 @@ export function hasRoutine(routine: GoalRoutine): boolean {
     routine.sessionMinutes !== null ||
     routine.dayPart !== null ||
     routine.avoidDays.length > 0 ||
+    routine.mustDays.length > 0 ||
     routine.location !== null
   );
 }
@@ -127,6 +132,8 @@ export type RoutineInput = {
   sessionMinutes: number | null;
   dayPart: string | null;
   avoidDays: readonly number[] | null;
+  /** Left out or null: none. */
+  mustDays?: readonly number[] | null;
   location: string | null;
 };
 
@@ -145,8 +152,8 @@ function trimmedOther(input: RoutineInput): string | null {
   return text === "" ? null : text;
 }
 
-function validAvoidDays(days: readonly number[] | null): days is readonly Weekday[] | null {
-  if (days === null) return true;
+function validDays(days: readonly number[] | null | undefined): days is readonly Weekday[] | null | undefined {
+  if (days === null || days === undefined) return true;
   return days.every(isWeekday) && new Set(days).size === days.length;
 }
 
@@ -175,9 +182,18 @@ export function routineProblem(input: RoutineInput, rules: readonly RoutineRule[
 
   if (input.dayPart !== null && !isDayPart(input.dayPart)) return problem("day_part", MESSAGES.dayPart);
 
-  if (!validAvoidDays(input.avoidDays)) return problem("avoid_days", MESSAGES.avoidDays);
+  if (!validDays(input.avoidDays)) return problem("avoid_days", MESSAGES.avoidDays);
   const avoided = input.avoidDays?.length ?? 0;
   if (avoided >= 7) return problem("avoid_all_days", MESSAGES.avoidAllDays);
+
+  // The days it always happens on: weekdays, none ruled out, and never more than the sessions a week.
+  if (!validDays(input.mustDays)) return problem("must_days", MESSAGES.mustDays);
+  const must = input.mustDays ?? [];
+  if (must.some((d) => input.avoidDays?.includes(d))) return problem("must_avoid_day", MESSAGES.mustAvoidDay);
+  const count = rules.find((r) => r.kind === "count");
+  if (count && must.length > count.target) {
+    return problem("must_days_count", MESSAGES.mustDaysCount.replace("{n}", String(count.target)));
+  }
 
   if (input.location !== null && [...input.location.trim()].length > MAX_LOCATION) {
     return problem("location_length", MESSAGES.locationLength);
@@ -206,6 +222,7 @@ export function cleanRoutine(input: RoutineInput): GoalRoutine {
     sessionMinutes: input.sessionMinutes,
     dayPart: isDayPart(input.dayPart) ? input.dayPart : null,
     avoidDays: avoidDaysFromText(avoidDaysToText((input.avoidDays ?? []).filter(isWeekday))),
+    mustDays: avoidDaysFromText(avoidDaysToText((input.mustDays ?? []).filter(isWeekday))),
     location: location === "" ? null : location,
   };
 }

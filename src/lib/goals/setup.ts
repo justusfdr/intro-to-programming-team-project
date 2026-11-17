@@ -404,6 +404,7 @@ export function answersRoutine(answers: SetupAnswers): GoalRoutine {
     sessionMinutes: body.sessionMinutes,
     dayPart: body.dayPart,
     avoidDays: body.avoidDays,
+    mustDays: [],
     location: body.location,
   };
 }

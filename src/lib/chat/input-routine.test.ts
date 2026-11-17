@@ -13,6 +13,7 @@ const FULL: GoalRoutine = {
   sessionMinutes: 90,
   dayPart: "evening",
   avoidDays: [5, 7],
+  mustDays: [],
   location: "Fitness Park, Rua Augusta 12, Porto",
 };
 const GYM: GoalInput = {
@@ -76,7 +77,7 @@ describe("a goal with a routine in the data block", () => {
   });
 
   it("leaves out every key without a value; a place that is a web link is not 'away'", () => {
-    const routine: GoalRoutine = { category: null, categoryOther: null, sessionMinutes: null, dayPart: null, avoidDays: [], location: "https://zoom.us/j/123" };
+    const routine: GoalRoutine = { category: null, categoryOther: null, sessionMinutes: null, dayPart: null, avoidDays: [], mustDays: [], location: "https://zoom.us/j/123" };
     const [goal] = buildAssistantInput(source([{ ...GYM, routine, weeks: [] }])).goals;
     expect(goal).toEqual({ ...before(GYM), weeks: [] });
   });
