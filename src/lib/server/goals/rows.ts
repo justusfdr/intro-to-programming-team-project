@@ -20,6 +20,8 @@ export type GoalRow = {
   day_part: string | null;
   avoid_days: string;
   must_days: string;
+  day_from_min: number | null;
+  day_until_min: number | null;
   location: string | null;
   open_ended: boolean;
   created_at: Date;
@@ -36,7 +38,7 @@ export async function readGoals(query: Query, onlyId?: string): Promise<{ goal: 
   // reads (a statement with parameters costs it one more round trip, see db/with-user.ts).
   const rows = await query<GoalRow>(
     `select g.id, g.title, g.deadline::text as deadline, g.auto_block, g.color, g.icon, g.why, g.created_at, g.updated_at,
-            g.category, g.category_other, g.session_minutes, g.day_part, g.avoid_days, g.must_days, g.location, g.open_ended,
+            g.category, g.category_other, g.session_minutes, g.day_part, g.avoid_days, g.must_days, g.day_from_min, g.day_until_min, g.location, g.open_ended,
             coalesce(json_agg(json_build_object('id', r.id, 'kind', r.kind, 'target', r.target::float, 'min_minutes', r.min_minutes)
                               order by r.kind, r.target, r.id) filter (where r.id is not null), '[]') as rules
        from app.goals g left join app.rules r on r.goal_id = g.id
@@ -74,7 +76,7 @@ export async function readGoals(query: Query, onlyId?: string): Promise<{ goal: 
 }
 
 /** The routine columns of a goal row (spec 41); the database allows only valid values. */
-export function routineOf(row: Pick<GoalRow, "category" | "category_other" | "session_minutes" | "day_part" | "avoid_days" | "location"> & { must_days?: string }): GoalRoutine {
+export function routineOf(row: Pick<GoalRow, "category" | "category_other" | "session_minutes" | "day_part" | "avoid_days" | "location"> & { must_days?: string; day_from_min?: number | null; day_until_min?: number | null }): GoalRoutine {
   const category = isGoalCategory(row.category) ? row.category : null;
   return {
     category,
@@ -83,6 +85,8 @@ export function routineOf(row: Pick<GoalRow, "category" | "category_other" | "se
     dayPart: isDayPart(row.day_part) ? row.day_part : null,
     avoidDays: avoidDaysFromText(row.avoid_days),
     mustDays: avoidDaysFromText(row.must_days ?? ""),
+    dayFrom: row.day_from_min ?? null,
+    dayUntil: row.day_until_min ?? null,
     location: row.location,
   };
 }
@@ -93,8 +97,8 @@ export function routineOf(row: Pick<GoalRow, "category" | "category_other" | "se
  * for anything that is not the user's goal.
  */
 export async function readSavedRoutine(query: Query, goalId: string): Promise<{ openEnded: boolean; routine: GoalRoutine }> {
-  const [row] = await query<Pick<GoalRow, "open_ended" | "category" | "category_other" | "session_minutes" | "day_part" | "avoid_days" | "must_days" | "location">>(
-    `select open_ended, category, category_other, session_minutes, day_part, avoid_days, must_days, location
+  const [row] = await query<Pick<GoalRow, "open_ended" | "category" | "category_other" | "session_minutes" | "day_part" | "avoid_days" | "must_days" | "day_from_min" | "day_until_min" | "location">>(
+    `select open_ended, category, category_other, session_minutes, day_part, avoid_days, must_days, day_from_min, day_until_min, location
        from app.goals where id = $1::uuid`,
     [goalId],
   );

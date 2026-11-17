@@ -29,7 +29,7 @@ const OPEN_ENDED: GoalView = {
   ...DATED,
   deadline: null,
   progress: { thisWeek: [], weeks: [], countdown: "No end date" },
-  routine: { category: "sport", categoryOther: null, sessionMinutes: 60, dayPart: "morning", avoidDays: [7], mustDays: [], location: "Park" },
+  routine: { category: "sport", categoryOther: null, sessionMinutes: 60, dayPart: "morning", avoidDays: [7], mustDays: [], dayFrom: null, dayUntil: null, location: "Park" },
 };
 
 const render = (state: Parameters<typeof GoalEditor>[0]["state"]) => renderToStaticMarkup(<GoalEditor state={state} onClose={() => {}} />);

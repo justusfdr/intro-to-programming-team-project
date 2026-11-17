@@ -98,7 +98,7 @@ function weekdayOf(date: string): string {
  * One goal as Claude sees it. Without a routine exactly the four keys of R22; with one (spec 43) also
  * the routine's keys that have a value and the weeks. Copied by name, so nothing else can slip through.
  */
-function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate) {
+function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate, hours: { startHour: number; endHour: number }) {
   const base = {
     id: g.id,
     title: g.title,
@@ -118,6 +118,7 @@ function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate) {
     ...(routine.category === "other" && routine.categoryOther !== null ? { categoryOther: routine.categoryOther } : {}),
     ...(routine.sessionMinutes !== null ? { sessionMinutes: routine.sessionMinutes } : {}),
     ...(routine.dayPart !== null ? { dayPart: routine.dayPart } : {}),
+    ...windowOf(routine, hours),
     ...(never.size > 0
       ? {
           never: ROUTINE_WEEKDAYS.filter((w) => never.has(w.day)).map((w) => w.long),
@@ -166,7 +167,7 @@ export function buildAssistantInput(source: AssistantInputSource) {
     dayStartHour: source.dayStartHour,
     dayEndHour: source.dayEndHour,
     lastDayForProposals: lastDay,
-    goals: source.goals.map((g) => goalEntry(g, today, lastDay)),
+    goals: source.goals.map((g) => goalEntry(g, today, lastDay, { startHour: source.dayStartHour, endHour: source.dayEndHour })),
     events,
     totals: source.totals,
     history: source.history.slice(-HISTORY_LENGTH).map((m) => ({
@@ -203,3 +204,13 @@ export function buildAssistantInput(source: AssistantInputSource) {
 }
 
 export type AssistantInput = ReturnType<typeof buildAssistantInput>;
+
+const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
+/** A goal's own window ("Custom"), cut to the visible hours; left out when it has none or nothing is left of it. */
+function windowOf(routine: { dayFrom: number | null; dayUntil: number | null }, hours: { startHour: number; endHour: number }) {
+  if (routine.dayFrom === null || routine.dayUntil === null) return {};
+  const from = Math.max(routine.dayFrom, hours.startHour * 60);
+  const until = Math.min(routine.dayUntil, hours.endHour * 60);
+  return from < until ? { window: { from: hhmm(from), until: hhmm(until) } } : {};
+}

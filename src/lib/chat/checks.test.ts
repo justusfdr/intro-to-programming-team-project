@@ -1,7 +1,7 @@
 // Tests for R23's checks (spec 19): each check with an accepted and a rejected case, and that one
 // failure rejects the whole answer.
 import { describe, expect, it } from "vitest";
-import { checkAnswer, checkProposals, checkText, latestStart, type CheckContext } from "./checks";
+import { checkAnswer, checkProposals, checkText, insideVisibleHours, latestStart, type CheckContext } from "./checks";
 
 const GOAL = "7f1d5c3e-1a2b-4c3d-8e9f-0a1b2c3d4e5f";
 // Monday 16 November 2026, 09:00 in Lisbon (UTC+0 in winter).
@@ -154,5 +154,18 @@ describe("helpers", () => {
   it("latestStart: on 16 Nov, 30 Nov 24:00 in the user's time zone", () => {
     expect(latestStart(NOW, "Europe/Lisbon")).toEqual(new Date("2026-12-01T00:00:00Z"));
     expect(latestStart(NOW, "Europe/Berlin")).toEqual(new Date("2026-11-30T23:00:00Z"));
+  });
+});
+
+describe("visible hours (Settings)", () => {
+  const hours = { startHour: 7, endHour: 22 };
+  const at = (s: string) => new Date(s);
+  it("an event must start and end inside them, on one day; ending at midnight counts with endHour 24", () => {
+    expect(insideVisibleHours(at("2026-11-18T07:00:00Z"), at("2026-11-18T08:00:00Z"), "UTC", hours)).toBe(true);
+    expect(insideVisibleHours(at("2026-11-18T21:00:00Z"), at("2026-11-18T22:00:00Z"), "UTC", hours)).toBe(true);
+    expect(insideVisibleHours(at("2026-11-18T03:00:00Z"), at("2026-11-18T04:00:00Z"), "UTC", hours)).toBe(false);
+    expect(insideVisibleHours(at("2026-11-18T21:30:00Z"), at("2026-11-18T22:30:00Z"), "UTC", hours)).toBe(false);
+    expect(insideVisibleHours(at("2026-11-18T23:00:00Z"), at("2026-11-19T00:00:00Z"), "UTC", { startHour: 0, endHour: 24 })).toBe(true);
+    expect(insideVisibleHours(at("2026-11-18T23:00:00Z"), at("2026-11-19T01:00:00Z"), "UTC", { startHour: 0, endHour: 24 })).toBe(false);
   });
 });

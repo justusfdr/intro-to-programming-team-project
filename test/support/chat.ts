@@ -93,7 +93,7 @@ export const A5_ANSWER = {
     { title: "Study", start: "2026-11-17T08:00", end: "2026-11-17T13:00", goalId: null },
     { title: "Call", start: "2026-11-17T13:30", end: "2026-11-17T14:00", goalId: null },
     { title: "Sport", start: "2026-11-17T18:00", end: "2026-11-17T19:30", goalId: null },
-    { title: "Event", start: "2026-11-17T20:00", end: "2026-11-17T22:30", goalId: null },
+    { title: "Event", start: "2026-11-17T20:00", end: "2026-11-17T21:00", goalId: null },
   ],
 };
 
@@ -101,5 +101,5 @@ export const A5_PROPOSALS: SeedProposal[] = [
   { title: "Study", start: "2026-11-17T08:00:00.000Z", end: "2026-11-17T13:00:00.000Z" },
   { title: "Call", start: "2026-11-17T13:30:00.000Z", end: "2026-11-17T14:00:00.000Z" },
   { title: "Sport", start: "2026-11-17T18:00:00.000Z", end: "2026-11-17T19:30:00.000Z" },
-  { title: "Event", start: "2026-11-17T20:00:00.000Z", end: "2026-11-17T22:30:00.000Z" },
+  { title: "Event", start: "2026-11-17T20:00:00.000Z", end: "2026-11-17T21:00:00.000Z" },
 ];

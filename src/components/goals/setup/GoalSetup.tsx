@@ -32,6 +32,7 @@ import {
   stepProblem,
   toggleAvoidDay,
   toggleMustDay,
+  customWindowProblem,
   type SetupAnswers,
   type SetupStep,
 } from "@/lib/goals/setup";
@@ -206,15 +207,17 @@ function SetupFlow({
   }
 
   const problem = isQuestion(screen) ? stepProblem(screen, answers, today) : null;
-  // A custom length of 0:00 does not block the button: its red sentence comes when Continue is pressed.
-  const zeroLength = screen === "often" && answers.sessionMinutes === 0;
+  // A custom length of 0:00 and an own time window that does not work do not block the button: their
+  // red sentence comes when Continue is pressed.
+  const softProblem =
+    (screen === "often" && answers.sessionMinutes === 0) || (screen === "when" && answers.dayPart === "custom" && customWindowProblem(answers) !== null);
   // The answers Continue was pressed with: any change after that hides the sentence again.
-  const [zeroTriedWith, setZeroTriedWith] = useState<SetupAnswers | null>(null);
-  const zeroTried = zeroLength && zeroTriedWith === answers;
+  const [triedWith, setTriedWith] = useState<SetupAnswers | null>(null);
+  const tried = softProblem && triedWith === answers;
 
   function next() {
     if (!isQuestion(screen)) return;
-    if (zeroLength) setZeroTriedWith(answers);
+    if (softProblem) setTriedWith(answers);
     if (problem) return say(problem);
     if (returnToReview) {
       const open = firstProblemStep(answers, today);
@@ -332,8 +335,14 @@ function SetupFlow({
     const element = innerRef.current;
     if (!element || typeof ResizeObserver === "undefined") return;
     const timers = { settle: settleTimer, next: autoNext };
+    let last = -1;
     const observer = new ResizeObserver(() => {
-      setHeight(element.offsetHeight);
+      // Only a real change of height counts. Hiding the scroll bar while the height glides changes the
+      // width, which calls this again: reacting to that made the question shake on every pick of a wheel.
+      const height = element.offsetHeight;
+      if (height === last) return;
+      last = height;
+      setHeight(height);
       if (prefersReducedMotion()) return;
       setSettling(true);
       if (timers.settle.current) clearTimeout(timers.settle.current);
@@ -373,11 +382,11 @@ function SetupFlow({
       case "category":
         return <QuestionCategory {...common} />;
       case "often":
-        return <QuestionOften {...common} showZero={zeroTried} />;
+        return <QuestionOften {...common} showZero={tried} />;
       case "place":
         return <QuestionPlace {...common} places={places} today={today} />;
       case "when":
-        return <QuestionWhen {...common} display={display} onChosen={chosenWhen} />;
+        return <QuestionWhen {...common} display={display} onChosen={chosenWhen} showWindowProblem={tried} />;
       case "days":
         return <QuestionDays {...common} onToggle={toggleDay} onToggleSure={toggleSureDay} shake={shake} note={daysNote} />;
       case "date":
@@ -435,7 +444,7 @@ function SetupFlow({
       */}
       <div
         ref={viewportRef}
-        className={`setup-viewport scroll-thin relative flex min-h-0 flex-col overflow-x-hidden overscroll-contain ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
+        className={`setup-viewport scroll-thin relative flex min-h-0 flex-col overflow-x-hidden overscroll-contain [scrollbar-gutter:stable] ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
         style={height === null ? undefined : ({ "--setup-h": `${height}px` } as CSSProperties)}
       >
         {/* The celebration sits in the middle of the area; a question starts at its top. */}
@@ -497,7 +506,7 @@ function SetupFlow({
                   <span id="goal-setup-why-not" className="sr-only">
                     {problem ?? ""}
                   </span>
-                  <Button size="lg" onClick={next} disabled={problem !== null && !zeroLength} aria-describedby="goal-setup-why-not">
+                  <Button size="lg" onClick={next} disabled={problem !== null && !softProblem} aria-describedby="goal-setup-why-not">
                     {nextIsReview ? "Review" : "Continue"}
                   </Button>
                 </>

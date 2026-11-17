@@ -23,7 +23,7 @@ const GOAL: GoalView = {
   progress: { thisWeek: [{ ruleId: "r1", text: "This week: 0 of 3 done", status: "open" }], weeks: [], countdown: "26 days left" },
 };
 
-const ROUTINE = { category: "sport" as const, categoryOther: null, sessionMinutes: 60, dayPart: "evening" as const, avoidDays: [5, 6] as (5 | 6)[], mustDays: [], location: "FitnessHut Lisboa" };
+const ROUTINE = { category: "sport" as const, categoryOther: null, sessionMinutes: 60, dayPart: "evening" as const, avoidDays: [5, 6] as (5 | 6)[], mustDays: [], dayFrom: null, dayUntil: null, location: "FitnessHut Lisboa" };
 
 describe("the goal card's routine", () => {
   it("shows the routine's tags under the title, only what is set", () => {
