@@ -57,7 +57,7 @@ describe("the editor of our own event", () => {
     const at = (text: string) => html.indexOf(text);
     expect(at(">When</p>")).toBeGreaterThan(-1);
     expect(at(">Guests</p>")).toBeGreaterThan(at(">When</p>"));
-    expect(at(">Location</p>")).toBeGreaterThan(at(">Guests</p>"));
+    expect(at(">Route</p>")).toBeGreaterThan(at(">Guests</p>"));
     expect(html).not.toContain(">Overlap</p>");
     expect(html).toContain('aria-label="Remove lea@example.com"');
     expect(html).toContain('aria-label="Remove tom@uni.example.org"');

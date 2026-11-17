@@ -6,15 +6,34 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import type { SavedPlace } from "@/lib/places/saved";
 import type { PlaceSuggestion } from "@/lib/places/places";
+import type { TravelMode } from "@/lib/settings/types";
 
-type Value = { places: SavedPlace[]; add: (place: SavedPlace) => void };
+type Value = { places: SavedPlace[]; add: (place: SavedPlace) => void; home: string; travelMode: TravelMode };
 
-const SavedPlacesContext = createContext<Value>({ places: [], add: () => {} });
+const SavedPlacesContext = createContext<Value>({ places: [], add: () => {}, home: "", travelMode: "driving" });
 
-export function SavedPlacesProvider({ places: initial, children }: { places: SavedPlace[]; children: ReactNode }) {
+export function SavedPlacesProvider({
+  places: initial,
+  home = "",
+  travelMode = "driving",
+  children,
+}: {
+  places: SavedPlace[];
+  /** The home address from the settings (empty when not set). */
+  home?: string;
+  /** The way of getting there from the settings (the default). */
+  travelMode?: TravelMode;
+  children: ReactNode;
+}) {
   const [places, setPlaces] = useState(initial);
   const add = (place: SavedPlace) => setPlaces((list) => [...list.filter((p) => p.id !== place.id), place]);
-  return <SavedPlacesContext.Provider value={{ places, add }}>{children}</SavedPlacesContext.Provider>;
+  return <SavedPlacesContext.Provider value={{ places, add, home, travelMode }}>{children}</SavedPlacesContext.Provider>;
+}
+
+/** The home address and the default way of getting there, from the settings. */
+export function useTravelDefaults(): { home: string; travelMode: TravelMode } {
+  const { home, travelMode } = useContext(SavedPlacesContext);
+  return { home, travelMode };
 }
 
 /** The saved places, or none outside the calendar page. */

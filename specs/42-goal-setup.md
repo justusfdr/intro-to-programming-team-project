@@ -21,6 +21,8 @@ A new goal is set up through a few guided questions, like a short onboarding, so
 ## Decisions
 - The questions are stricter than the server: one session a day at most, so the times a week never exceed the days left (the stepper stops there, Q5 blocks). The form keeps the server's R44.
 - Animations are CSS keyframes in `globals.css`, only inside `prefers-reduced-motion: no-preference`, one easing curve, transforms and opacity; the question area's height is the one layout property animated. Nothing is random: the celebration's pieces fly on fixed paths.
+- The frame keeps its size from question to question, so Back, the progress and Continue do not move: on a phone the sheet has one height (92% of the screen) and the question area fills it; on wider screens the question area follows its content but never goes below a floor of 420 px that the six questions share (less on a low window). Only the first question grows once, when the name field appears, and the review is taller.
+- On a phone the name field (after a category is chosen) and the open list of address suggestions scroll into view by themselves; the shared address field does that only where it is asked to, so the event editor is unchanged.
 - Q4 needs a choice ("Any time" included) before Continue, since a choice moves on by itself.
 - Dates show in the app's month-first form ("Until Dec 12"), as everywhere else in the app.
 - Screen-reader announcements of the dialog go to a live region inside the dialog (the page's announcer is outside the modal dialog and shows a visible bar); the page's announcer says "Goal saved." when Done closes the dialog.

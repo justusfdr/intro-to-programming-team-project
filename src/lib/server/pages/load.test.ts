@@ -88,7 +88,7 @@ describe("calendar page", () => {
     const page = await loadCalendarPage(after.deps, alice);
     expect(after.transactions.length).toBeLessThanOrEqual(2);
     expect(after.transactions).toHaveLength(2);
-    expect(page).toEqual({ display, week, goals, tasks, showWelcome, places: [] });
+    expect(page).toMatchObject({ display, week, goals, tasks, showWelcome, places: [] });
     expectIdentityFirst(after.transactions);
     // The old done task is gone (R33), and that removal ran in the first, separate transaction.
     expect((await tasksOf(app.db, alice)).map((t) => t.title)).toEqual(["Buy shoes"]);

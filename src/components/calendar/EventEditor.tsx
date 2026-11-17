@@ -49,7 +49,7 @@ import { GuestsSection } from "./editor/GuestsSection";
 import { LocationSection } from "./editor/LocationSection";
 import { NotesSection } from "./editor/NotesSection";
 import { TravelLine } from "./editor/TravelLine";
-import { TravelSection } from "./editor/TravelSection";
+import { RouteSection } from "./editor/RouteSection";
 import { TodoList } from "./editor/TodoList";
 import { useEventSave } from "./editor/useEventSave";
 import { createBody, eventFromAnswer, newValues, type EventValues } from "./editor/values";
@@ -228,24 +228,37 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
     !fromOutlook && <EventTodos key="todos" eventId={event.id} />,
     // All-day events have no goal (R29).
     !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => save.change({ goalId })} />,
-    <LocationSection
-      key="location"
-      value={fromOutlook ? (event.location ?? "") : values.location}
-      editable={!fromOutlook}
-      onType={(location) => save.change({ location })}
-      onDone={() => {}}
-    />,
-    // R27: when to leave, for the event as saved (all-day events have no travel time, R29).
-    !event.allDay && (
-      <TravelLine
-        key="travel-line"
-        eventId={event.id}
-        savedAt={event.updatedAt}
-        timeZone={timeZone}
-        unsaved={!fromOutlook && (values.location.trim() !== (event.location ?? "") || values.travelMode !== (event.travelMode ?? null) || values.travelFrom !== (event.travelFrom ?? null))}
+    // Route (R27): From, the way and To for a timed event of our own; otherwise only the location.
+    !values.allDay && !fromOutlook ? (
+      <RouteSection
+        key="route"
+        from={values.travelFrom}
+        onFrom={(travelFrom) => save.change({ travelFrom })}
+        mode={values.travelMode}
+        onMode={(travelMode) => save.change({ travelMode })}
+        location={values.location}
+        onLocation={(location) => save.change({ location })}
+      >
+        {!event.allDay && (
+          <TravelLine
+            eventId={event.id}
+            savedAt={event.updatedAt}
+            timeZone={timeZone}
+            unsaved={values.location.trim() !== (event.location ?? "") || values.travelMode !== (event.travelMode ?? null) || values.travelFrom !== (event.travelFrom ?? null)}
+          />
+        )}
+      </RouteSection>
+    ) : (
+      <LocationSection
+        key="location"
+        value={fromOutlook ? (event.location ?? "") : values.location}
+        editable={!fromOutlook}
+        onType={(location) => save.change({ location })}
+        onDone={() => {}}
       />
     ),
-    !values.allDay && !fromOutlook && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => save.change({ travelMode })} from={values.travelFrom} onFrom={(travelFrom) => save.change({ travelFrom })} />,
+    // R27: an Outlook event keeps the standard way; it still shows when to leave.
+    fromOutlook && !event.allDay && <TravelLine key="travel-line" eventId={event.id} savedAt={event.updatedAt} timeZone={timeZone} unsaved={false} />,
     // Issue #5: Outlook events have no notes (R11).
     !fromOutlook && <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => save.change({ notes })} />,
     <Refusal
@@ -411,8 +424,19 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
       onDelete={(key) => editTodos((list) => list.filter((t) => t.key !== key))}
     />,
     !values.allDay && <GoalSection key="goal" goals={goals} value={values.goalId} onChange={(goalId) => change({ goalId })} />,
-    <LocationSection key="location" value={values.location} editable onType={(location) => change({ location })} onDone={() => {}} />,
-    !values.allDay && <TravelSection key="travel" value={values.travelMode} onChange={(travelMode) => change({ travelMode })} from={values.travelFrom} onFrom={(travelFrom) => change({ travelFrom })} />,
+    values.allDay ? (
+      <LocationSection key="location" value={values.location} editable onType={(location) => change({ location })} onDone={() => {}} />
+    ) : (
+      <RouteSection
+        key="route"
+        from={values.travelFrom}
+        onFrom={(travelFrom) => change({ travelFrom })}
+        mode={values.travelMode}
+        onMode={(travelMode) => change({ travelMode })}
+        location={values.location}
+        onLocation={(location) => change({ location })}
+      />
+    ),
     <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => change({ notes })} />,
     <Refusal key="refusal" result={result} onReload={onClose} />,
   ];
