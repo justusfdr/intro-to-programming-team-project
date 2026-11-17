@@ -34,7 +34,7 @@ In addition to what spec 29 proposes:
 ## Out of scope
 Saving the list or the first step in the account, or writing the first step into an event's to-dos (both would need an action in the ontology). An address of its own for each article on the landing page (the landing page's test allows links to four addresses only; changing it is the team's decision). A "Library" entry in the sidebar. Photos or clips made with Higgsfield. German texts. A drawing for each single article (there is one per shelf).
 
-Still open: the owner looks at it in a browser signed in (the Focus page was checked with sample data, without an account); the team's approval of the ontology change; each "Publication" link clicked once.
+Still open: the owner looks at it in a browser signed in (the Focus page was checked with sample data, without an account, in a Chromium browser at 1440, 1100 and 375 pixels; not in Safari); the team's approval of the ontology change; each "Publication" link clicked once.
 
 ## Done when
 All existing tests pass unchanged. New: `src/lib/library/tiles.test.ts`, `src/components/library/Bento.test.tsx`, `src/components/focus/FocusStudies.test.tsx`, `src/components/landing/Research.test.tsx`. `npm run check` passes. Looked at in a browser at desktop and phone width.
