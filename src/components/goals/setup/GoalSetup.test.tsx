@@ -122,7 +122,8 @@ describe("Q2: how often and how long", () => {
     expect(html.match(/setup-dot-on/g)).toHaveLength(3);
     expect(html.match(/setup-dot-(on|off)/g)).toHaveLength(7);
     expect(checked(html).join("")).toContain('id="setup-often-minutes-60"');
-    expect(radios(html)).toHaveLength(6);
+    expect(radios(html)).toHaveLength(5);
+    for (const chip of [">30 min<", ">45 min<", ">1 h<", ">3 h<", ">Custom<"]) expect(html).toContain(chip);
     expect(html).toContain("3 × 60 min = <strong");
     expect(html).toContain("3 times 60 minutes is 3 h a week");
     expect(html).not.toContain("Make sure it fits");
@@ -140,11 +141,19 @@ describe("Q2: how often and how long", () => {
     expect(continueButton(html)).toMatch(/disabled=""/);
   });
 
-  it("opens 'Other' for a length that is not a chip, and hints above 20 hours", () => {
+  it("opens 'Custom' with the wheel for a length that is not a chip, and hints above 20 hours", () => {
     const html = render("often", { ...GYM, avoidDays: [], timesPerWeek: 7, sessionMinutes: 195 });
     expect(checked(html).join("")).toContain('id="setup-often-minutes-other"');
-    expect(html).toMatch(/aria-label="Minutes each time"[^>]*aria-valuenow="195" aria-valuetext="3 h 15 min"/);
+    expect(html).toContain('aria-label="Length of each session"');
     expect(html).toContain("That is 22 h 45 min a week for one goal. Make sure it fits.");
+    expect(html).not.toContain("Choose at least 1 minute.");
+  });
+
+  it("a custom 6 hours is fine; 0:00 shows the red sentence and Continue waits", () => {
+    expect(continueButton(render("often", { ...GYM, sessionMinutes: 360 }))).not.toMatch(/disabled=""/);
+    const zero = render("often", { ...GYM, sessionMinutes: 0 });
+    expect(zero).toContain("Choose at least 1 minute.");
+    expect(continueButton(zero)).toMatch(/disabled=""/);
   });
 });
 

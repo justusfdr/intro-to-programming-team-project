@@ -42,13 +42,16 @@ import {
   NAME_IDEAS,
   oneGoalHint,
   SESSION_CHIPS,
+  chipLength,
+  sessionLengthProblem,
   setSessionMinutes,
   setTimesPerWeek,
   stepProblem,
   type DisplayLike,
   type SetupAnswers,
 } from "@/lib/goals/setup";
-import { MAX_SESSION_MINUTES, MIN_SESSION_MINUTES, SESSION_STEP_MINUTES } from "@/lib/goals/routine";
+import { ROW, SIDE, WheelColumn } from "@/components/calendar/TimeWheel";
+import { MINUTES, withHour, withMinute } from "@/lib/time/wheel";
 import type { SavedPlace } from "@/lib/places/saved";
 import type { LocalDate } from "@/lib/time/zoned";
 import { ChoiceGroup, chipClass, focusRing, prefersReducedMotion, QuestionTitle, Stepper, stagger, useCountUp, type Choice } from "./parts";
@@ -159,12 +162,36 @@ export function QuestionCategory({ answers, update, uid }: QuestionProps) {
 
 // ---------- Q2: how often, and for how long ----------
 
+/** The hours of the custom length: 0 to 12. */
+const LENGTH_HOURS = Array.from({ length: 13 }, (_, h) => h);
+
+/** The custom length as two scrolling columns, hours (0 to 12) and minutes (0 to 59), like the calendar's time wheel. */
+function LengthWheel({ value, onChange }: { value: number; onChange: (minutes: number) => void }) {
+  return (
+    <div role="group" aria-label="Length of each session" className="relative mx-auto flex w-fit items-center justify-center gap-6 select-none">
+      <div aria-hidden className="pointer-events-none absolute -inset-x-4 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
+      <div className="relative flex items-center gap-1.5">
+        <WheelColumn label="Hours" items={LENGTH_HOURS} selected={Math.floor(value / 60)} onPick={(h) => onChange(withHour(value, h))} format={String} />
+        <span aria-hidden className="w-10 text-sm font-medium text-ink">
+          h
+        </span>
+      </div>
+      <div className="relative flex items-center gap-1.5">
+        <WheelColumn label="Minutes" items={MINUTES} selected={value % 60} onPick={(m) => onChange(withMinute(value, m))} format={String} />
+        <span aria-hidden className="w-10 text-sm font-medium text-ink">
+          min
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function QuestionOften({ answers, update, uid }: QuestionProps) {
   // "Other" stays open while the length is one of the chips too, once chosen.
   const [custom, setCustom] = useState(!(SESSION_CHIPS as readonly number[]).includes(answers.sessionMinutes));
   const max = maxTimesPerWeek(answers);
   const color = answers.category ? goalColor(answers.color).dot : "bg-ink";
-  const minuteChoices: Choice<string>[] = [...SESSION_CHIPS.map((m) => ({ value: String(m), title: `${m} min` })), { value: "other", title: "Other" }];
+  const minuteChoices: Choice<string>[] = [...SESSION_CHIPS.map((m) => ({ value: String(m), title: chipLength(m) })), { value: "other", title: "Custom" }];
   const hint = oneGoalHint(answers);
   return (
     <div>
@@ -228,17 +255,12 @@ export function QuestionOften({ answers, update, uid }: QuestionProps) {
         </div>
         {custom && (
           <div className="setup-rise mt-3">
-            <Stepper
-              label="Minutes each time"
-              value={answers.sessionMinutes}
-              min={MIN_SESSION_MINUTES}
-              max={MAX_SESSION_MINUTES}
-              step={SESSION_STEP_MINUTES}
-              format={fmtWeekly}
-              onChange={(m) => update((a) => setSessionMinutes(a, m))}
-              fewer="15 minutes less"
-              more="15 minutes more"
-            />
+            <LengthWheel value={answers.sessionMinutes} onChange={(m) => update((a) => setSessionMinutes(a, m))} />
+            {sessionLengthProblem(answers.sessionMinutes) && (
+              <p role="status" className="setup-rise mt-3 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">
+                {sessionLengthProblem(answers.sessionMinutes)}
+              </p>
+            )}
           </div>
         )}
       </section>
