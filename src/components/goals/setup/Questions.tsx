@@ -4,7 +4,7 @@
 // line and the answer controls; the frame (GoalSetup.tsx) adds Back, Close, the progress, the goal taking
 // shape and "Continue". The rules (what may be chosen, the sentences, the hints) are in
 // src/lib/goals/setup.ts; the controls only offer what passes.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Briefcase,
   CalendarCheck,
@@ -442,15 +442,19 @@ export function QuestionWhen({
 function WindowWheel({ label, value, display, onChange }: { label: string; value: number; display: { dayStartHour: number; dayEndHour: number }; onChange: (minutes: number) => void }) {
   const first = display.dayStartHour;
   const last = display.dayEndHour;
-  const hours = Array.from({ length: last - first + 1 }, (_, i) => first + i);
+  // The same list on every render: a new one would make the column jump back to the chosen row while
+  // it is being scrolled.
+  const hours = useMemo(() => Array.from({ length: last - first + 1 }, (_, i) => first + i), [first, last]);
   const clamp = (m: number) => Math.min(last * 60, Math.max(first * 60, m));
   const [reset, setReset] = useState(0);
+  // 24 is the end of the day (24:00): only with :00. (withHour knows the hours 0 to 23 only.)
+  const atHour = (h: number) => clamp(h >= 24 ? 24 * 60 : h * 60 + (value % 60));
   return (
     <div className="flex flex-col items-center gap-1.5">
       <span className={labelClass}>{label}</span>
       <div role="group" aria-label={`${label} time`} className="relative flex items-center justify-center gap-1 select-none">
         <div aria-hidden className="pointer-events-none absolute -inset-x-2 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
-        <WheelColumn label={`${label} hour`} items={hours} selected={Math.floor(value / 60)} onPick={(h) => onChange(clamp(withHour(value, h)))} />
+        <WheelColumn label={`${label} hour`} items={hours} selected={Math.floor(value / 60)} onPick={(h) => onChange(atHour(h))} />
         <span aria-hidden className="relative text-lg font-medium text-ink">
           :
         </span>
