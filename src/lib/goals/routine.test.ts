@@ -100,7 +100,8 @@ describe("routineProblem accepts", () => {
     ["'other' with an own word of 30 characters", { category: "other", categoryOther: "m".repeat(30) }],
     ["'other' without an own word", { category: "other", categoryOther: "   " }],
     ["an own word with another category (it is dropped)", { category: "sport", categoryOther: "x".repeat(99) }],
-    ["15 and 240 minutes", { sessionMinutes: 240 }],
+    ["1 and 720 minutes", { sessionMinutes: 720 }],
+    ["any minute in between", { sessionMinutes: 50 }],
     ["each part of the day", { dayPart: "afternoon" }],
     ["six avoided days in any order", { avoidDays: [6, 1, 2, 3, 4, 5] }],
     ["an empty list of days", { avoidDays: [] }],
@@ -121,11 +122,9 @@ describe("routineProblem rejects", () => {
     ["an own word of 31 characters", { category: "other", categoryOther: "m".repeat(31) }, "category_other_length", "Your own category can be at most 30 characters"],
     ["an own word with a line break", { category: "other", categoryOther: "Mu\nsic" }, "category_other_form", "Your own category must be on one line, without control characters"],
     ["an own word with a zero-width space", { category: "other", categoryOther: "Mu​sic" }, "category_other_form", "Your own category must be on one line, without control characters"],
-    ["0 minutes", { sessionMinutes: 0 }, "session_minutes", "A session lasts 15 minutes to 4 hours, in steps of 15 minutes"],
-    ["10 minutes", { sessionMinutes: 10 }, "session_minutes", "A session lasts 15 minutes to 4 hours, in steps of 15 minutes"],
-    ["50 minutes", { sessionMinutes: 50 }, "session_minutes", "A session lasts 15 minutes to 4 hours, in steps of 15 minutes"],
-    ["255 minutes", { sessionMinutes: 255 }, "session_minutes", "A session lasts 15 minutes to 4 hours, in steps of 15 minutes"],
-    ["22.5 minutes", { sessionMinutes: 22.5 }, "session_minutes", "A session lasts 15 minutes to 4 hours, in steps of 15 minutes"],
+    ["0 minutes", { sessionMinutes: 0 }, "session_minutes", "A session lasts 1 minute to 12 hours"],
+    ["721 minutes", { sessionMinutes: 721 }, "session_minutes", "A session lasts 1 minute to 12 hours"],
+    ["22.5 minutes", { sessionMinutes: 22.5 }, "session_minutes", "A session lasts 1 minute to 12 hours"],
     ["a part of the day outside the list", { dayPart: "night" }, "day_part", "Choose morning, afternoon, evening or any time"],
     ["a day 0", { avoidDays: [0] }, "avoid_days", "Choose weekdays from the list"],
     ["a day 8", { avoidDays: [8] }, "avoid_days", "Choose weekdays from the list"],
@@ -139,7 +138,7 @@ describe("routineProblem rejects", () => {
 
   it("names the first problem in the ontology's order", () => {
     expect(routineProblem({ ...NONE, category: "x", sessionMinutes: 1, dayPart: "x" }, TWO_RUNS)?.error).toBe("goal_category");
-    expect(routineProblem({ ...NONE, sessionMinutes: 1, dayPart: "x", avoidDays: [9] }, TWO_RUNS)?.error).toBe("session_minutes");
+    expect(routineProblem({ ...NONE, sessionMinutes: 0, dayPart: "x", avoidDays: [9] }, TWO_RUNS)?.error).toBe("session_minutes");
     expect(routineProblem({ ...NONE, dayPart: "x", avoidDays: [9] }, TWO_RUNS)?.error).toBe("day_part");
     expect(routineProblem({ ...NONE, avoidDays: [9], location: "l".repeat(201) }, TWO_RUNS)?.error).toBe("avoid_days");
     expect(routineProblem({ ...NONE, location: "l".repeat(201), avoidDays: [1, 2, 3, 4, 5, 6] }, [{ kind: "count", target: 14 }])?.error).toBe(

@@ -18,7 +18,6 @@ import {
   MAX_SESSION_MINUTES,
   MIN_SESSION_MINUTES,
   routineProblem,
-  SESSION_STEP_MINUTES,
   WEEKDAYS,
   type DayPart,
   type GoalCategory,
@@ -98,8 +97,23 @@ export const NAME_IDEAS: Record<GoalCategory, string[]> = {
   other: [],
 };
 
-/** The session lengths offered as chips; any other length in steps of 15 through "Other". */
-export const SESSION_CHIPS = [30, 45, 60, 90, 120] as const;
+/** The session lengths offered as chips; any other length, to the minute, through "Custom". */
+export const SESSION_CHIPS = [30, 45, 60, 180] as const;
+
+/** A chip's words: "30 min", "1 h", "3 h". */
+export function chipLength(minutes: number): string {
+  return minutes < 60 ? `${minutes} min` : fmtWeekly(minutes);
+}
+
+/** The custom wheel shows 0 to 12 hours; 0:00 and anything over 12 hours stay visible but block Continue. */
+export const WHEEL_MAX_MINUTES = 12 * 60 + 59;
+
+/** Why the custom length cannot be taken, or null. */
+export function sessionLengthProblem(minutes: number): string | null {
+  if (minutes < MIN_SESSION_MINUTES) return "Choose at least 1 minute.";
+  if (minutes > MAX_SESSION_MINUTES) return "A session can be at most 12 hours.";
+  return null;
+}
 
 /** The quick dates of the last question: in 4, 8 and 12 weeks. */
 export const DATE_CHIPS = [4, 8, 12] as const;
@@ -180,10 +194,9 @@ export function setTimesPerWeek(answers: SetupAnswers, times: number): SetupAnsw
   return { ...answers, timesPerWeek: next, oftenTouched: true };
 }
 
-/** Sets the session length, kept between 15 minutes and 4 hours in steps of 15. */
+/** Sets the session length to the minute, as the wheel shows it (0:00 to 12:59; stepProblem refuses what does not fit). */
 export function setSessionMinutes(answers: SetupAnswers, minutes: number): SetupAnswers {
-  const stepped = Math.round(minutes / SESSION_STEP_MINUTES) * SESSION_STEP_MINUTES;
-  const next = Math.max(MIN_SESSION_MINUTES, Math.min(MAX_SESSION_MINUTES, stepped));
+  const next = Math.max(0, Math.min(WHEEL_MAX_MINUTES, Math.round(minutes)));
   return { ...answers, sessionMinutes: next, oftenTouched: true };
 }
 
@@ -272,6 +285,8 @@ export function stepProblem(step: SetupStep, answers: SetupAnswers, today: Local
     case "often": {
       const times = answers.timesPerWeek;
       if (!Number.isInteger(times) || times < MIN_TIMES || times > MAX_TIMES) return "Choose 1 to 7 times a week.";
+      const length = sessionLengthProblem(answers.sessionMinutes);
+      if (length) return length;
       const minutes = routineProblem({ ...noRoutine, sessionMinutes: answers.sessionMinutes }, []);
       if (minutes) return minutes.message;
       // Only after going back from a later question: the days ruled out leave fewer days than planned.
