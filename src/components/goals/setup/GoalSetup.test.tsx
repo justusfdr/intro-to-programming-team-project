@@ -149,11 +149,11 @@ describe("Q2: how often and how long", () => {
     expect(html).not.toContain("Choose at least 1 minute.");
   });
 
-  it("a custom 6 hours is fine; 0:00 shows the red sentence and Continue waits", () => {
+  it("a custom 6 hours is fine; at 0:00 Continue stays pressable and the red sentence waits for it", () => {
     expect(continueButton(render("often", { ...GYM, sessionMinutes: 360 }))).not.toMatch(/disabled=""/);
     const zero = render("often", { ...GYM, sessionMinutes: 0 });
-    expect(zero).toContain("Choose at least 1 minute.");
-    expect(continueButton(zero)).toMatch(/disabled=""/);
+    expect(zero).not.toMatch(/text-danger">Choose at least 1 minute\./);
+    expect(continueButton(zero)).not.toMatch(/disabled=""/);
   });
 });
 

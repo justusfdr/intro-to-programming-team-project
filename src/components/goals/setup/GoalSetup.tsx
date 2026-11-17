@@ -206,9 +206,15 @@ function SetupFlow({
   }
 
   const problem = isQuestion(screen) ? stepProblem(screen, answers, today) : null;
+  // A custom length of 0:00 does not block the button: its red sentence comes when Continue is pressed.
+  const zeroLength = screen === "often" && answers.sessionMinutes === 0;
+  // The answers Continue was pressed with: any change after that hides the sentence again.
+  const [zeroTriedWith, setZeroTriedWith] = useState<SetupAnswers | null>(null);
+  const zeroTried = zeroLength && zeroTriedWith === answers;
 
   function next() {
     if (!isQuestion(screen)) return;
+    if (zeroLength) setZeroTriedWith(answers);
     if (problem) return say(problem);
     if (returnToReview) {
       const open = firstProblemStep(answers, today);
@@ -367,7 +373,7 @@ function SetupFlow({
       case "category":
         return <QuestionCategory {...common} />;
       case "often":
-        return <QuestionOften {...common} />;
+        return <QuestionOften {...common} showZero={zeroTried} />;
       case "place":
         return <QuestionPlace {...common} places={places} today={today} />;
       case "when":
@@ -491,7 +497,7 @@ function SetupFlow({
                   <span id="goal-setup-why-not" className="sr-only">
                     {problem ?? ""}
                   </span>
-                  <Button size="lg" onClick={next} disabled={problem !== null} aria-describedby="goal-setup-why-not">
+                  <Button size="lg" onClick={next} disabled={problem !== null && !zeroLength} aria-describedby="goal-setup-why-not">
                     {nextIsReview ? "Review" : "Continue"}
                   </Button>
                 </>

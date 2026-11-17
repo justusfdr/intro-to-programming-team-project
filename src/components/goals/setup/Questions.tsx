@@ -197,7 +197,7 @@ function LengthWheel({ value, onChange }: { value: number; onChange: (minutes: n
   );
 }
 
-export function QuestionOften({ answers, update, uid }: QuestionProps) {
+export function QuestionOften({ answers, update, uid, showZero = false }: QuestionProps & { /** Continue was pressed at 0:00: show why it did not go on. */ showZero?: boolean }) {
   // "Other" stays open while the length is one of the chips too, once chosen.
   const [custom, setCustom] = useState(!(SESSION_CHIPS as readonly number[]).includes(answers.sessionMinutes));
   const max = maxTimesPerWeek(answers);
@@ -267,7 +267,7 @@ export function QuestionOften({ answers, update, uid }: QuestionProps) {
         {custom && (
           <div className="setup-rise mt-3">
             <LengthWheel value={answers.sessionMinutes} onChange={(m) => update((a) => setSessionMinutes(a, m))} />
-            {sessionLengthProblem(answers.sessionMinutes) && (
+            {sessionLengthProblem(answers.sessionMinutes) && (answers.sessionMinutes !== 0 || showZero) && (
               <p role="status" className="setup-rise mt-3 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">
                 {sessionLengthProblem(answers.sessionMinutes)}
               </p>
