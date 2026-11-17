@@ -157,8 +157,9 @@ function LengthWheel({
   );
 }
 
-function StartCard({ forEvent, goal }: { forEvent: FocusData["forEvent"]; goal: FocusGoal | null }) {
-  const initial = forEvent?.suggestedMinutes ?? 60;
+function StartCard({ forEvent, goal, startMinutes }: { forEvent: FocusData["forEvent"]; goal: FocusGoal | null; startMinutes?: number }) {
+  // Spec 47: from "Free time" in the sidebar, the length of the free stretch.
+  const initial = forEvent?.suggestedMinutes ?? startMinutes ?? 60;
   // A suggested length is one of the chips; any other length starts on the custom wheel (R12).
   const [chosen, setChosen] = useState<number | "custom">(isSuggested(initial) ? initial : "custom");
   const [customMinutes, setCustomMinutes] = useState(initial);
@@ -434,11 +435,21 @@ function RecentSessions({ sessions, timeZone }: { sessions: FocusData["recent"];
 }
 
 /**
- * `library`: the library's articles for today (spec 29: the day's three; spec 47: seven, as tiles),
+ * `library`: the library's articles for today (spec 29: the day's three; spec 48: seven, as tiles),
  * under the start card. Not shown while a session is running or paused: then the page is for the
- * session only.
+ * session only. `startMinutes`: the length the page opens with (from "Free time" in the sidebar).
  */
-export function FocusView({ data, blocker, library = [] }: { data: FocusData; blocker: BlockerData; library?: readonly (Teaser | Tile)[] }) {
+export function FocusView({
+  data,
+  blocker,
+  library = [],
+  startMinutes,
+}: {
+  data: FocusData;
+  blocker: BlockerData;
+  library?: readonly (Teaser | Tile)[];
+  startMinutes?: number;
+}) {
   const { timeFormat } = useDisplay();
   const goalById = (id: string | null) => (id ? (data.goals.find((goal) => goal.id === id) ?? null) : null);
   // The rating card appears for the newest finished session if it ended in the last 12 hours.
@@ -460,7 +471,7 @@ export function FocusView({ data, blocker, library = [] }: { data: FocusData; bl
           {data.active ? (
             <RunningCard session={data.active} serverNow={data.now} goal={goalById(data.active.eventGoalId)} />
           ) : (
-            <StartCard forEvent={data.forEvent} goal={goalById(data.forEventGoalId)} />
+            <StartCard forEvent={data.forEvent} goal={goalById(data.forEventGoalId)} startMinutes={startMinutes} />
           )}
           {rateLatest && <RatingCard session={latest} />}
           <RecentSessions sessions={data.recent} timeZone={blocker.timeZone} />

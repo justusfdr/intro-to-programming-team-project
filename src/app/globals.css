@@ -407,6 +407,33 @@ dialog.goal-setup::backdrop {
   }
 }
 
+/* Sidebar widgets (spec 47): while editing they wiggle; "Leave now" pulses. Both stay still with reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .widget-wiggle {
+    animation: widget-wiggle 0.3s ease-in-out infinite;
+  }
+  .widget-pulse {
+    animation: widget-pulse 1.4s ease-out infinite;
+  }
+}
+@keyframes widget-wiggle {
+  0%,
+  100% {
+    transform: rotate(-1deg);
+  }
+  50% {
+    transform: rotate(1deg);
+  }
+}
+@keyframes widget-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(220 38 38 / 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgb(220 38 38 / 0);
+  }
+}
+
 /* The coach's voice wave (spec 44). Each bar follows the microphone (its height is set by the page);
    when the microphone cannot be read, the bars breathe one after another to show it is listening. */
 .voice-bar {
