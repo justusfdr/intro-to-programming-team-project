@@ -84,14 +84,14 @@ describe("events of the week", () => {
     expect(titlesByDay(week)["2026-11-17"]).toEqual([]);
   });
 
-  it("marks overlapping events with a conflict, but not 09:00–10:00 and 10:00–11:00 (R10)", async () => {
+  it("marks overlapping events that were not accepted, but not 09:00–10:00 and 10:00–11:00 (R10)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await seedEvent(app.db, alice, { title: "A", start: "2026-11-17T09:00:00Z", end: "2026-11-17T10:00:00Z" });
     await seedEvent(app.db, alice, { title: "B", start: "2026-11-17T10:00:00Z", end: "2026-11-17T11:00:00Z" });
     await seedEvent(app.db, alice, { title: "C", start: "2026-11-17T10:30:00Z", end: "2026-11-17T12:00:00Z", mayOverlap: true });
 
     const conflicts = (await loadWeek(app.deps, alice)).days[1].events.map((e) => [e.title, e.conflict]);
-    expect(conflicts).toEqual([["A", false], ["B", true], ["C", true]]);
+    expect(conflicts).toEqual([["A", false], ["B", true], ["C", false]]);
   });
 
   it("marks a conflict with an event of the next week (Sunday night running into Monday)", async () => {
