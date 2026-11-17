@@ -149,11 +149,8 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   const live = useLive();
   const outlookConnected = week.outlook.status === "connected";
   const closePop = useCallback(() => setPop(null), []);
-  const closeEditor = useCallback(() => {
-    const id = editorRef.current?.mode === "edit" ? editorRef.current.event.id : null;
-    setEditor(null);
-    if (!id) return;
-    // Issue #106: ask about an overlap once the calendar shows the saved event (up to 3 seconds).
+  /** Issue #106: ask about an overlap of this event once the calendar shows it saved (looks for up to 3 seconds). */
+  const watchOverlap = useCallback((id: string) => {
     let tries = 0;
     const look = () => {
       if (askAfterEditor.current(id) || ++tries >= 12) return;
@@ -161,6 +158,11 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
     };
     window.setTimeout(look, 250);
   }, []);
+  const closeEditor = useCallback(() => {
+    const id = editorRef.current?.mode === "edit" ? editorRef.current.event.id : null;
+    setEditor(null);
+    if (id) watchOverlap(id);
+  }, [watchOverlap]);
 
   // The toast goes after 8 seconds.
   useEffect(() => {
@@ -555,6 +557,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
           goals={goals}
           outlookConnected={outlookConnected}
           onClose={closePop}
+          onCreated={watchOverlap}
           onOpenEditor={(draft) => {
             setPop(null);
             setEditor({ mode: "create", ...draft, anchor: pop.anchor });
