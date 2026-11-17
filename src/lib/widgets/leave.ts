@@ -5,7 +5,8 @@ export type LeaveLevel = "green" | "amber" | "orange" | "red" | "now" | "late";
 
 /** Whole minutes from `now` until `leaveAt`, rounded up: 9 min 10 s left is "10 min". */
 export function minutesUntil(leaveAt: Date, now: Date): number {
-  return Math.ceil((leaveAt.getTime() - now.getTime()) / 60_000);
+  // `|| 0`: Math.ceil(-0.5) is -0, which should read as 0 ("Leave now").
+  return Math.ceil((leaveAt.getTime() - now.getTime()) / 60_000) || 0;
 }
 
 /** More than 30 minutes green, 21–30 amber, 11–20 orange, 1–10 red, 0 now, below 0 late. */

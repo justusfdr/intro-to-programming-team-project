@@ -31,8 +31,11 @@ const MINUTE = 60_000;
 const WEATHER_EVERY = 30 * MINUTE;
 const TRIP_EVERY = 15 * MINUTE;
 
-/** Runs `fn` now and every `ms` while the page is visible, and again when it becomes visible. */
-function useVisibleInterval(fn: () => void, ms: number, enabled: boolean) {
+/**
+ * Runs `fn` now and every `ms` while the page is visible, and again when it becomes visible. A new `key`
+ * (for example another event) starts over at once.
+ */
+function useVisibleInterval(fn: () => void, ms: number, enabled: boolean, key: string = "") {
   const latest = useRef(fn);
   useEffect(() => {
     latest.current = fn;
@@ -51,7 +54,7 @@ function useVisibleInterval(fn: () => void, ms: number, enabled: boolean) {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onShow);
     };
-  }, [ms, enabled]);
+  }, [ms, enabled, key]);
 }
 
 /** The time, moved on at each new minute. */
@@ -143,7 +146,7 @@ function useTrip(tripId: string | null): TripTravel {
     const answer = (result.data as { travel?: Record<string, TravelAnswer> } | undefined)?.travel?.[tripId] ?? null;
     setTrip({ id: tripId, answer: result.ok ? answer : null });
   }, [tripId]);
-  useVisibleInterval(load, TRIP_EVERY, tripId !== null);
+  useVisibleInterval(load, TRIP_EVERY, tripId !== null, tripId ?? "");
   return trip && trip.id === tripId ? trip.answer : undefined;
 }
 
@@ -421,7 +424,8 @@ function Gallery({
   onReset: () => void;
   onBack: () => void;
 }) {
-  const entries: { kind: WidgetKind; name: string; goalId?: string | null }[] = WIDGET_KINDS.flatMap((kind) =>
+  type Entry = { kind: WidgetKind; name: string; goalId?: string | null };
+  const entries: Entry[] = WIDGET_KINDS.flatMap((kind): Entry[] =>
     kind === "goal"
       ? goals.length > 0
         ? goals.map((g) => ({ kind, name: g.title, goalId: g.id }))
