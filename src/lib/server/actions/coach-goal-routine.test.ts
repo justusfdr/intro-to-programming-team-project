@@ -115,7 +115,7 @@ describe("send_message with a never day (R23 extended)", () => {
     expect((await chatOf(app.db, alice)).map((m) => m.status)).toEqual([null, "open"]);
   });
 
-  it("A27: an answer that plans a session on a never day is refused; nothing saved, the message counted", async () => {
+  it("A27: an answer that plans a session on a never day is refused; nothing saved, nothing counted (spec 44)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     const gym = await seedGym(alice);
     app.assistant.answerJson(gymAnswer(gym.id, "2026-11-18", "2026-11-20"));
@@ -125,7 +125,8 @@ describe("send_message with a never day (R23 extended)", () => {
     expect(answer).toEqual({ status: 502, body: { error: "answer_failed_checks", message: "The assistant's answer failed our checks. Please try again" } });
     expect(await chatOf(app.db, alice)).toEqual([]);
     expect(await eventsOf(app.db, alice)).toEqual([]);
-    expect(await sentToday(app.db, alice)).toBe(1);
+    // Spec 44: nothing is counted.
+    expect(await sentToday(app.db, alice)).toBe(0);
   });
 });
 
@@ -326,7 +327,8 @@ describe("A27 as the ontology tells it", () => {
     app.assistant.answerJson(gymAnswer(gym.id, "2026-11-20"));
     const refused = await read(await send("Plan the gym into my week"));
     expect(refused.body.message).toBe("The assistant's answer failed our checks. Please try again");
-    expect(await sentToday(app.db, alice)).toBe(2);
+    // Spec 44: nothing is counted.
+    expect(await sentToday(app.db, alice)).toBe(0);
     expect((await chatOf(app.db, alice)).length).toBe(2);
   });
 });

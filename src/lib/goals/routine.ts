@@ -43,9 +43,9 @@ export const WEEKDAYS: readonly { day: Weekday; short: string; long: string }[] 
 
 export const MAX_CATEGORY_OTHER = 30;
 export const MAX_LOCATION = 200;
-export const MIN_SESSION_MINUTES = 15;
-export const MAX_SESSION_MINUTES = 240;
-export const SESSION_STEP_MINUTES = 15;
+/** A session lasts 1 minute to 12 hours (R44 allows at most 12 hours a day), to the minute. */
+export const MIN_SESSION_MINUTES = 1;
+export const MAX_SESSION_MINUTES = 12 * 60;
 
 /** A goal's routine as the server sends it: null for an empty field, [] for no avoided days. */
 export type GoalRoutine = {
@@ -175,7 +175,7 @@ export function routineProblem(input: RoutineInput, rules: readonly RoutineRule[
   const minutes = input.sessionMinutes;
   if (
     minutes !== null &&
-    (!Number.isInteger(minutes) || minutes < MIN_SESSION_MINUTES || minutes > MAX_SESSION_MINUTES || minutes % SESSION_STEP_MINUTES !== 0)
+    (!Number.isInteger(minutes) || minutes < MIN_SESSION_MINUTES || minutes > MAX_SESSION_MINUTES)
   ) {
     return problem("session_minutes", MESSAGES.sessionMinutes);
   }

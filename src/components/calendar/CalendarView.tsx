@@ -38,10 +38,12 @@ import {
   visibleDays,
   type View,
 } from "@/lib/events/views";
-import { leadInto } from "@/lib/events/week-view";
+import { leadInto, withEventChange } from "@/lib/events/week-view";
+import { overlapOf, tripConflictIds, type NamedEvent, type Overlap } from "@/lib/events/conflicts";
+import { OverlapNotice } from "./editor/OverlapNotice";
 import { fmtDateLong, fmtWeekday } from "@/lib/time/display";
 import { msToNextMinute } from "@/lib/time/next-minute";
-import { localDateTimeOf } from "@/lib/time/zoned";
+import { localDateTimeOf, parseLocalDateTime } from "@/lib/time/zoned";
 import type { NewTodo } from "@/lib/todos/types";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { useDisplay } from "@/components/shell/DisplayProvider";
@@ -104,7 +106,16 @@ function useNowLocal(initial: string, timeZone: string): string {
 type Pop =
   | { kind: "new"; date: string; span: Span; anchor: Anchor }
   | { kind: "series"; event: WeekEvent; start: string; end: string; anchor: Anchor }
+  | ({ kind: "overlap" } & OverlapAsk)
   | null;
+
+/** Issue #106: the overlap question. After a drop it knows the move (Move it puts the event back). */
+type OverlapAsk = {
+  id: string;
+  overlap: Overlap;
+  anchor: Anchor;
+  drop?: { event: WeekEvent; start: string; end: string; saving: Promise<PostResult> };
+};
 
 /** The toast at the bottom, as in the prototype: a line and, for 8 seconds, "Undo". */
 export type Toast = { id: number; text: string; undo?: () => void };
@@ -126,6 +137,12 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   const today = now.slice(0, 10);
   const isPhone = useMediaQuery(MEDIA.phone);
   const [editor, setEditor] = useState<EditorState>(null);
+  const editorRef = useRef<EditorState>(null);
+  // Issue #106: whether an event asks about its overlap now (set further down, once the week's events are known).
+  const askAfterEditor = useRef<(id: string, changedFrom?: { start: string; end: string }) => boolean>(() => false);
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
   const [pop, setPop] = useState<Pop>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   // Events whose save is still running: they cannot be dragged again until it is done.
@@ -134,7 +151,24 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   const live = useLive();
   const outlookConnected = week.outlook.status === "connected";
   const closePop = useCallback(() => setPop(null), []);
-  const closeEditor = useCallback(() => setEditor(null), []);
+  /**
+   * Issue #106: ask about an overlap of this event once the calendar shows it saved. It looks for up to
+   * 8 seconds, as the time to leave (the trip) may come a little later. `changedFrom`: the times when
+   * the editor opened (left out for a new event).
+   */
+  const watchOverlap = useCallback((id: string, changedFrom?: { start: string; end: string }) => {
+    let tries = 0;
+    const look = () => {
+      if (askAfterEditor.current(id, changedFrom) || ++tries >= 32) return;
+      window.setTimeout(look, 250);
+    };
+    window.setTimeout(look, 250);
+  }, []);
+  const closeEditor = useCallback(() => {
+    const open = editorRef.current?.mode === "edit" ? editorRef.current.event : null;
+    setEditor(null);
+    if (open) watchOverlap(open.id, open.allDay ? undefined : { start: open.startLocal, end: open.endLocal });
+  }, [watchOverlap]);
 
   // The toast goes after 8 seconds.
   useEffect(() => {
@@ -197,20 +231,29 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
     [live, markPending, showToast, sendToOutlook, week.timeZone],
   );
 
+  /** Puts a dropped event back where it was, once its move is saved. */
+  const moveBack = useCallback(
+    (event: WeekEvent, start: string, end: string, saving: Promise<PostResult>, scope?: Scope) =>
+      void saving.then((answer) => {
+        const saved = savedEvent(answer);
+        if (!answer.ok || !saved) return;
+        void saveTimes({ ...event, startLocal: start, endLocal: end }, event.startLocal, event.endLocal, saved.updatedAt, scope);
+      }),
+    [saveTimes],
+  );
+
   /** A drop: move or resize, with Undo for 8 seconds (the undo edits the event back). */
   const moveEvent = useCallback(
     (event: WeekEvent, start: string, end: string, scope?: Scope) => {
       const saving = saveTimes(event, start, end, event.updatedAt, scope);
-      showToast(dropText(event, start, end, timeFormat, scope), () => {
-        void saving.then((answer) => {
-          const saved = savedEvent(answer);
-          if (!answer.ok || !saved) return;
-          void saveTimes({ ...event, startLocal: start, endLocal: end }, event.startLocal, event.endLocal, saved.updatedAt, scope);
-        });
-      });
+      showToast(dropText(event, start, end, timeFormat, scope), () => moveBack(event, start, end, saving, scope));
+      return saving;
     },
-    [saveTimes, showToast, timeFormat],
+    [saveTimes, showToast, timeFormat, moveBack],
   );
+
+  // Issue #106: what an event would overlap at new times (set below, once the week's events are known).
+  const overlapAt = useRef<(event: WeekEvent, start: string, end: string) => Overlap | null>(() => null);
 
   const onDrop = useCallback(
     (event: WeekEvent, day: string, span: Span, anchor: Anchor) => {
@@ -218,8 +261,11 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
       const end = localAt(day, span.endMin);
       if (start === event.startLocal && end === event.endLocal) return;
       // An event of a series: ask first (R28).
-      if (event.seriesId) setPop({ kind: "series", event, start, end, anchor });
-      else moveEvent(event, start, end);
+      if (event.seriesId) return setPop({ kind: "series", event, start, end, anchor });
+      const saving = moveEvent(event, start, end);
+      // Issue #106: it overlaps another event (or its trip does): ask right there.
+      const overlap = overlapAt.current(event, start, end);
+      if (overlap) setPop({ kind: "overlap", id: event.id, overlap, anchor, drop: { event, start, end, saving } });
     },
     [moveEvent],
   );
@@ -262,6 +308,120 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   // R27: when to leave for the shown events with a location (dashed blocks before them).
   const shownEvents = useMemo(() => placed.flat().map((b) => b.event), [placed]);
   const travel = useTravelTimes(shownEvents);
+  // Issue #106: the timed events with their times as dates, and when to leave for each one.
+  const timed = useMemo<NamedEvent[]>(
+    () =>
+      [...new Map(shownEvents.filter((e) => !e.allDay).map((e) => [e.id, e])).values()].map((e) => ({
+        id: e.id,
+        title: e.title,
+        startAt: new Date(e.startAt),
+        endAt: new Date(e.endAt),
+        mayOverlap: e.mayOverlap,
+      })),
+    [shownEvents],
+  );
+  const leaveOf = useCallback(
+    (id: string) => {
+      const answer = travel[id];
+      return answer?.status === "ok" ? new Date(answer.leaveAt) : null;
+    },
+    [travel],
+  );
+  const tripWarned = useMemo(() => tripConflictIds(timed, leaveOf), [timed, leaveOf]);
+  useEffect(() => {
+    overlapAt.current = (event, start, end) => {
+      const startAt = parseLocalDateTime(start, week.timeZone);
+      const endAt = parseLocalDateTime(end, week.timeZone);
+      if (!startAt || !endAt) return null;
+      // The trip keeps its length: it starts as much earlier as before.
+      const leave = leaveOf(event.id);
+      const shifted = leave ? new Date(startAt.getTime() - (new Date(event.startAt).getTime() - leave.getTime())) : null;
+      return overlapOf({ id: event.id, startAt, endAt, mayOverlap: event.mayOverlap }, timed, shifted, true);
+    };
+  }, [timed, leaveOf, week.timeZone]);
+
+  // The newest week, for the overlap question's buttons (they act on the event as it is now).
+  const weekRef = useRef(week);
+  useEffect(() => {
+    weekRef.current = week;
+  }, [week]);
+
+  /** The event of an overlap question as it is now: after a drop once its move is saved, else from the week. */
+  const currentOf = useCallback(
+    async (ask: OverlapAsk): Promise<WeekEvent | null> => {
+      if (ask.drop) {
+        const { event, start, end, saving } = ask.drop;
+        const answer = await saving;
+        const saved = savedEvent(answer);
+        if (!answer.ok || !saved) return null;
+        return { ...event, startAt: saved.startAt ?? event.startAt, endAt: saved.endAt ?? event.endAt, startLocal: start, endLocal: end, updatedAt: saved.updatedAt };
+      }
+      const found = findEvent(weekRef.current, ask.id);
+      return found && !found.allDay ? found : null;
+    },
+    [],
+  );
+
+  /** "That's fine": the event may overlap from now on. */
+  const acceptOverlap = useCallback(
+    async (ask: OverlapAsk) => {
+      const event = await currentOf(ask);
+      if (!event) return;
+      const accepted = await live.run({
+        send: () => postJson(`/api/events/${event.id}/edit`, { ...timesBody(event, event.startLocal, event.endLocal, event.updatedAt), mayOverlap: true }),
+        fromAnswer: savedEventChange,
+      });
+      if (!accepted.ok) showToast(accepted.message);
+      else sendToOutlook();
+    },
+    [currentOf, live, showToast, sendToOutlook],
+  );
+
+  /** "Discard": the event goes, with Undo in the toast. */
+  const discardOverlap = useCallback(
+    async (ask: OverlapAsk) => {
+      const event = await currentOf(ask);
+      if (!event) return;
+      const deleted = await live.run({
+        send: () => postJson(`/api/events/${event.id}/delete`, { updatedAt: event.updatedAt }),
+        fromAnswer: () => ({ week: (w) => withEventChange(w, { removed: event.id }) }),
+      });
+      if (!deleted.ok) return showToast(deleted.message);
+      sendToOutlook();
+      onDeleted(event, []);
+    },
+    [currentOf, live, showToast, sendToOutlook, onDeleted],
+  );
+
+  /** "Move it": after a drop the event goes back where it was; else its editor opens to change the time. */
+  const moveOverlap = useCallback(
+    (ask: OverlapAsk) => {
+      if (ask.drop) return moveBack(ask.drop.event, ask.drop.start, ask.drop.end, ask.drop.saving);
+      const event = findEvent(weekRef.current, ask.id);
+      if (event) setEditor({ mode: "edit", event, anchor: ask.anchor });
+    },
+    [moveBack],
+  );
+
+  /**
+   * Back on the calendar after the editor: an event that now overlaps (and was not accepted) asks right
+   * there. Its save may still be on its way, so the calendar looks a few times in the next seconds.
+   */
+  useEffect(() => {
+    askAfterEditor.current = (id, changedFrom) => {
+      const own = timed.find((e) => e.id === id);
+      const shown = shownEvents.find((e) => e.id === id && !e.allDay);
+      // A new event, or one whose times changed in the editor: ask again even if it was accepted before.
+      const fresh = changedFrom === undefined || (shown !== undefined && (shown.startLocal !== changedFrom.start || shown.endLocal !== changedFrom.end));
+      const overlap = own ? overlapOf(own, timed, leaveOf(id), fresh) : null;
+      if (!overlap) return false;
+      const block = document.querySelector(`[data-event-id="${id}"]`);
+      if (!block) return false;
+      setPop({ kind: "overlap", id, overlap, anchor: anchorOf(block) });
+      return true;
+    };
+  }, [timed, leaveOf, shownEvents]);
+
   const range = useMemo(
     () => gridRange(placed, { startMin: dayStartHour * 60, endMin: dayEndHour * 60 }),
     [placed, dayStartHour, dayEndHour],
@@ -396,6 +556,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               onCreate={(day, span, anchor) => setPop({ kind: "new", date: day, span, anchor })}
               onDrop={onDrop}
               travel={travel}
+              tripWarned={tripWarned}
             />
           )}
         </div>
@@ -423,6 +584,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
           goals={goals}
           outlookConnected={outlookConnected}
           onClose={closePop}
+          onCreated={(id) => watchOverlap(id)}
           onOpenEditor={(draft) => {
             setPop(null);
             setEditor({ mode: "create", ...draft, anchor: pop.anchor });
@@ -443,6 +605,27 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               onCancel={closePop}
             />
           </div>
+        </FloatingPanel>
+      )}
+      {pop?.kind === "overlap" && (
+        <FloatingPanel anchor={pop.anchor} label="This event overlaps another one" width={320} onClose={closePop}>
+          <OverlapNotice
+            overlap={pop.overlap}
+            timeZone={week.timeZone}
+            onFine={() => {
+              setPop(null);
+              void acceptOverlap(pop);
+            }}
+            onMove={() => {
+              setPop(null);
+              if (pop.drop) setToast(null);
+              moveOverlap(pop);
+            }}
+            onDiscard={() => {
+              setPop(null);
+              void discardOverlap(pop);
+            }}
+          />
         </FloatingPanel>
       )}
       {toast && <ToastBar key={toast.id} toast={toast} onDone={() => setToast(null)} />}

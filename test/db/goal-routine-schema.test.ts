@@ -93,11 +93,11 @@ describe("goal routine: category", () => {
 });
 
 describe("goal routine: session minutes", () => {
-  it.each([15, 45, 240])("accepts %i", async (minutes) => {
+  it.each([1, 15, 50, 240, 720])("accepts %i", async (minutes) => {
     expect(await setOnGoal("session_minutes = $2::integer", [minutes])).toHaveLength(1);
   });
 
-  it.each([0, 10, 50, 255])("refuses %i", async (minutes) => {
+  it.each([0, -15, 721])("refuses %i", async (minutes) => {
     await expect(setOnGoal("session_minutes = $2::integer", [minutes])).rejects.toThrow(/goals_session_minutes/);
   });
 });

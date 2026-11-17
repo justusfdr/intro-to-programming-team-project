@@ -11,7 +11,7 @@ import "server-only";
 //   page's reading then fails.
 // The counting test (load.test.ts) fails when a page opens more transactions than that.
 import type { AnalyticsData } from "@/lib/analytics/types";
-import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
+import { chatAllowed } from "@/lib/chat/access";
 import type { ChatPageData } from "@/lib/chat/types";
 import { lookOf } from "@/lib/goals/style";
 import type { BlockerData } from "@/lib/blocker/types";
@@ -24,7 +24,7 @@ import type { SettingsPageData } from "@/lib/settings/types";
 import type { TaskDto } from "@/lib/tasks/types";
 import type { Display } from "@/lib/time/display";
 import { readAnalytics } from "@/lib/server/analytics/load";
-import { readChatAccount, readMessages } from "@/lib/server/chat/rows";
+import { findOwnChat, readChatAccount, readChats, readMessages } from "@/lib/server/chat/rows";
 import { chatProOnly } from "@/lib/server/config";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
 import { readGoals } from "@/lib/server/goals/rows";
@@ -52,6 +52,8 @@ type PageDeps = Pick<Deps, "withUser" | "now">;
 
 /** How many of the latest messages the chat page shows. */
 const CHAT_PAGE_MESSAGES = 100;
+/** Spec 44: how many chats the coach's list shows at most (the newest). */
+const CHAT_PAGE_CHATS = 200;
 
 function displayOf(settings: { timeFormat: Display["timeFormat"]; dayStartHour: number; dayEndHour: number }): Display {
   return { timeFormat: settings.timeFormat, dayStartHour: settings.dayStartHour, dayEndHour: settings.dayEndHour };
@@ -228,23 +230,36 @@ export async function loadProfilePage(deps: PageDeps, userId: string): Promise<P
 }
 
 /**
- * The coach's page (spec 19): the messages with their drafts, the events of the days the open draft
- * touches (to draw it in the calendar's style; spec 20: also the old day of a moved event), the goals with their look, the messages left today,
- * whether the chat is allowed for this user, and whether Claude is set up on this server.
- * One transaction; nothing is changed.
+ * Which chat the coach's page shows (spec 44): the user's latest chat (a new one when there is none),
+ * a new, empty chat, or the chat with this id (a new one when it is not the user's or no longer exists).
  */
-export async function loadChatPage(deps: Pick<Deps, "withUser" | "assistant">, userId: string): Promise<ChatPageData> {
+export type ChatChoice = "latest" | "new" | { id: string };
+
+/**
+ * The coach's page (spec 19): the user's chats for the list (spec 44), the messages of the chosen chat
+ * with their drafts, the events of the days its open draft touches (to draw it in the calendar's style;
+ * spec 20: also the old day of a moved event), the goals with their look, whether the chat is allowed
+ * for this user, and whether Claude is set up on this server. One transaction; nothing is changed.
+ */
+export async function loadChatPage(
+  deps: Pick<Deps, "withUser" | "assistant"> & Partial<Pick<Deps, "now">>,
+  userId: string,
+  choice: ChatChoice = "latest",
+): Promise<ChatPageData> {
   return deps.withUser(userId, async (query) => {
-    // Reads without parameters first (one round), the messages (with a parameter) after them.
+    // Reads without parameters first (one round), the ones with a parameter after them.
     const settingsRead = readSettings(query);
     const goalsRead = readGoals(query);
     const accountRead = readChatAccount(query);
-    const [settings, goals, account, messages] = await Promise.all([
+    const [settings, goals, account, chats, asked] = await Promise.all([
       settingsRead,
       goalsRead,
       accountRead,
-      readMessages(query, CHAT_PAGE_MESSAGES),
+      readChats(query, CHAT_PAGE_CHATS),
+      typeof choice === "object" ? findOwnChat(query, choice.id) : Promise.resolve(null),
     ]);
+    const chat = choice === "latest" ? (chats[0] ?? null) : asked;
+    const messages = chat === null ? [] : await readMessages(query, chat.id, CHAT_PAGE_MESSAGES);
     const timeZone = settings.timeZone;
 
     const open = messages.find((m) => m.draft?.status === "open")?.draft ?? null;
@@ -292,11 +307,13 @@ export async function loadChatPage(deps: Pick<Deps, "withUser" | "assistant">, u
     return {
       display: displayOf(settings),
       timeZone,
+      chats,
+      chatId: chat?.id ?? null,
+      now: (deps.now?.() ?? new Date()).toISOString(),
       messages,
       draftDayEvents,
       draftDays,
       goals: goals.map(({ goal }, index) => ({ id: goal.id, title: goal.title, look: lookOf(goal, index) })),
-      messagesLeft: Math.max(0, DAILY_MESSAGES - account.usedToday),
       chatAllowed: chatAllowed(account.plan, chatProOnly()),
       assistantConfigured: deps.assistant !== null,
     };

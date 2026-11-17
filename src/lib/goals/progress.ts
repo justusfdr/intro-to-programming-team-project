@@ -8,6 +8,8 @@
 // judged. A week is met if all rules are met, missed if any is missed, else open.
 // R9 for a goal without an end date (spec 41): the strip runs from the week of creation to the current
 // week, at most the latest 12 weeks; the countdown says "No end date".
+// R9 (changed 17 Nov 2026): the 7 days of this week, each `done` when a done event of the goal starts
+// on it; a goal without an end date shows them instead of the strip. A day is never judged as missed.
 // Weeks run Monday 00:00 to Sunday 24:00 in the user's time zone; an event belongs to the week it starts in (R2).
 import { addDays, localDateOf, mondayOf, startOfLocalDate, type LocalDate } from "@/lib/time/zoned";
 
@@ -29,7 +31,15 @@ export type GoalInput = {
 
 export type RuleProgress = { ruleId: string; text: string; status: WeekStatus };
 export type StripWeek = { monday: LocalDate; status: WeekStatus; isCurrent: boolean };
-export type GoalProgress = { thisWeek: RuleProgress[]; weeks: StripWeek[]; countdown: string };
+/** One day of this week, Monday to Sunday: `done` when a done event of the goal starts on it. */
+export type StripDay = { date: LocalDate; done: boolean; isToday: boolean };
+export type GoalProgress = {
+  thisWeek: RuleProgress[];
+  weeks: StripWeek[];
+  countdown: string;
+  /** The 7 days of this week (R9); a goal without an end date shows them instead of the weeks. */
+  days?: StripDay[];
+};
 
 const MINUTE = 60_000;
 
@@ -121,5 +131,17 @@ export function goalProgress(goal: GoalInput, now: Date, timeZone: string): Goal
     }),
     weeks,
     countdown: goal.deadline === null ? NO_END_DATE : countdownText(goal.deadline, today),
+    days: thisWeekDays(goal.doneEvents, now, timeZone),
   };
+}
+
+/** The 7 days of the current week, Monday to Sunday, at `now` in `timeZone` (R9). */
+export function thisWeekDays(doneEvents: DoneEvent[], now: Date, timeZone: string): StripDay[] {
+  const today = localDateOf(now, timeZone);
+  const monday = mondayOf(today);
+  const doneDays = new Set(doneEvents.map((event) => localDateOf(event.startAt, timeZone)));
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(monday, i);
+    return { date, done: doneDays.has(date), isToday: date === today };
+  });
 }
