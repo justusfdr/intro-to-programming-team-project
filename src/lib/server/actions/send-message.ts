@@ -15,6 +15,9 @@ import "server-only";
 // turned back into the event at once, and the draft keeps the event's id and updated_at.
 // Spec 23: the same references name the events the coach adds to-dos to; each event in the data block
 // also says whether it takes to-dos from the coach and how many it has (the count only).
+// Spec 43: a goal with a routine also carries what the coach needs to plan its sessions (never its
+// place), with the sessions left this week and next worked out here; a new session that names a goal
+// must not start on a weekday the goal is never done on.
 import { z } from "zod";
 import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
 import { checkAnswer, checkText } from "@/lib/chat/checks";
@@ -26,6 +29,7 @@ import {
   blocksOf,
   countMessage,
   historyOf,
+  neverDaysOf,
   readCalendar,
   readChatAccount,
   readGoalInputs,
@@ -34,6 +38,7 @@ import {
   saveTurn,
   targetsOf,
   todoTargetsOf,
+  withGoalWeeks,
   withReferences,
 } from "@/lib/server/chat/rows";
 import { chatProOnly } from "@/lib/server/config";
@@ -83,7 +88,8 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       await finishDueSessions(query, now);
       const settings = await readSettings(query);
       const [goals, calendar, totalsInput, messages] = await Promise.all([
-        readGoalInputs(query),
+        // Spec 43: with each goal's routine, for the keys of R22 and the sessions left (R45).
+        readGoalInputs(query, { routines: true }),
         readCalendar(query, now, settings.timeZone),
         readTotalsInput(query, now, settings.timeZone),
         readMessages(query, HISTORY_LENGTH),
@@ -101,7 +107,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       dayStartHour: settings.dayStartHour,
       dayEndHour: settings.dayEndHour,
       history: historyOf(context.messages),
-      goals,
+      goals: withGoalWeeks(goals, context.totalsInput.doneEvents, calendar, asked, settings.timeZone),
       calendar,
       totals: chatTotals({ ...context.totalsInput, goals }, asked, settings.timeZone),
       message: context.text,
@@ -118,6 +124,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       calendar: blocksOf(calendar),
       targets: targetsOf(calendar),
       todoTargets: todoTargetsOf(calendar),
+      neverDays: neverDaysOf(goals),
     });
     if (!checked.ok) {
       console.error("Assistant answer failed a check:", checked.failure);

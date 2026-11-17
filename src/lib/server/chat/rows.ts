@@ -12,11 +12,13 @@ import {
   type TodoAddition,
   type TodoTarget,
 } from "@/lib/chat/checks";
+import { goalWeeks, type GoalEvent } from "@/lib/chat/goal-weeks";
 import type { CalendarInput, GoalInput, HistoryInput } from "@/lib/chat/input";
 import { totalsWindow, type DoneEventInput, type SessionInput } from "@/lib/chat/totals";
 import type { ChatMessageDto, ChatRole, DraftChangeDto, DraftDto, DraftStatus, DraftTodosDto, ProposedEventDto } from "@/lib/chat/types";
 import type { Plan } from "@/lib/chat/access";
 import { focusedMinutes } from "@/lib/focus/session-time";
+import type { Weekday } from "@/lib/goals/routine";
 import { MESSAGES } from "@/lib/messages";
 import type { Query } from "@/lib/server/db";
 import { ActionError } from "@/lib/server/errors";
@@ -283,6 +285,8 @@ type CalendarRow = {
   todo_count: number;
   /** Spec 24: whether it has guests (never the addresses). */
   has_guests: boolean;
+  /** Spec 43: "planned" or "done", for the sessions of a goal still planned. Never sent to Claude. */
+  status: string;
 };
 
 /**
@@ -300,6 +304,8 @@ export type CalendarEntry = CalendarInput & {
   todoCount: number;
   /** Spec 24: whether the event has guests (the coach may not move or delete it). Never sent to Claude. */
   hasGuests?: boolean;
+  /** Spec 43: "planned" or "done", to count a goal's sessions still planned (R45). Never sent to Claude. */
+  status?: string;
 };
 
 /**
@@ -312,7 +318,8 @@ export async function readCalendar(query: Query, now: Date, timeZone: string): P
     `select e.id, e.title, e.all_day, e.start_at, e.end_at, e.first_day::text as first_day, e.last_day::text as last_day,
             e.may_overlap, e.goal_id, e.series_id, e.source, e.updated_at,
             (select count(*) from app.event_todos t where t.event_id = e.id)::integer as todo_count,
-            coalesce(cardinality(e.guests), 0) > 0 as has_guests
+            coalesce(cardinality(e.guests), 0) > 0 as has_guests,
+            e.status
        from app.events e
       where (not e.all_day and e.end_at > $1::timestamptz and e.start_at < $2::timestamptz)
          or (e.all_day and e.last_day >= $3::date and e.first_day <= $4::date)
@@ -328,6 +335,7 @@ export async function readCalendar(query: Query, now: Date, timeZone: string): P
       seriesId: r.series_id,
       todoCount: Number(r.todo_count ?? 0),
       hasGuests: r.has_guests === true,
+      status: r.status,
     };
     return r.all_day
       ? { ...own, allDay: true as const, title: r.title, firstDay: r.first_day!, lastDay: r.last_day!, mayOverlap: r.may_overlap }
@@ -433,15 +441,70 @@ export function blocksOf(calendar: readonly CalendarEntry[]): CalendarBlock[] {
   return calendar.flatMap((e) => (e.allDay ? [] : [{ id: e.id, startAt: e.startAt, endAt: e.endAt, mayOverlap: e.mayOverlap }]));
 }
 
-/** The goals with deadlines and rules (R22). */
-export async function readGoalInputs(query: Query): Promise<GoalInput[]> {
+/**
+ * The goals with deadlines and rules (R22). Spec 43: with `routines`, also the routine of a goal that
+ * has one (send_message asks for it); without, exactly as before spec 43. Which of the routine's fields
+ * reach Claude is decided by buildAssistantInput (never the location itself).
+ */
+export async function readGoalInputs(query: Query, options: { routines?: boolean } = {}): Promise<GoalInput[]> {
   const goals = await readGoals(query);
   return goals.map(({ goal }) => ({
     id: goal.id,
     title: goal.title,
     deadline: goal.deadline,
     rules: goal.rules.map((r) => ({ kind: r.kind, target: r.target, minMinutes: r.minMinutes })),
+    ...(options.routines && goal.routine ? { routine: goal.routine } : {}),
   }));
+}
+
+/**
+ * Spec 43 (R45): each goal with a routine gets its sessions left this week and next. The done events
+ * are R31's (readTotalsInput); the planned ones are the timed events of the calendar read that are not
+ * done. A goal without a routine is returned unchanged.
+ */
+export function withGoalWeeks(
+  goals: readonly GoalInput[],
+  doneEvents: readonly GoalEvent[],
+  calendar: readonly CalendarEntry[],
+  now: Date,
+  timeZone: string,
+): GoalInput[] {
+  const planned: GoalEvent[] = calendar.flatMap((e) =>
+    e.allDay || e.status === "done" ? [] : [{ goalId: e.goalId, startAt: e.startAt, endAt: e.endAt }],
+  );
+  return goals.map((g) =>
+    g.routine
+      ? {
+          ...g,
+          weeks: goalWeeks({
+            goal: { id: g.id, deadline: g.deadline, rules: g.rules, sessionMinutes: g.routine.sessionMinutes },
+            done: doneEvents,
+            planned,
+            now,
+            timeZone,
+          }),
+        }
+      : g,
+  );
+}
+
+/** Spec 43: goal id -> the weekdays it is never done on, for the checks of R23 (only goals with some). */
+export function neverDaysOf(goals: readonly { id: string; routine?: { avoidDays: readonly Weekday[] } }[]): Map<string, readonly Weekday[]> {
+  return new Map(goals.flatMap((g) => (g.routine && g.routine.avoidDays.length > 0 ? [[g.id, [...g.routine.avoidDays]] as const] : [])));
+}
+
+/**
+ * Spec 43: the goals with their routines as they are now, for accept_draft and edit_draft: the ids (a
+ * deleted goal makes a draft out of date), the never days, and the place of each goal that has one.
+ */
+export async function readGoalRoutines(query: Query): Promise<{ goalIds: Set<string>; neverDays: Map<string, readonly Weekday[]>; places: Map<string, string> }> {
+  const goals = await readGoals(query);
+  const routines = goals.map(({ goal }) => ({ id: goal.id, routine: goal.routine }));
+  return {
+    goalIds: new Set(routines.map((g) => g.id)),
+    neverDays: neverDaysOf(routines),
+    places: new Map(routines.flatMap((g) => (g.routine?.location ? [[g.id, g.routine.location] as const] : []))),
+  };
 }
 
 /** What R31's totals are added up from: done timed events and finished sessions of the 8 weeks. */

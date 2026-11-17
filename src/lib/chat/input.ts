@@ -16,8 +16,16 @@
 // Spec 20: each event in the block carries a short reference ("e1") that is valid for this one request
 // only, and whether the coach may change it; an earlier draft carries its changes in words (title, old
 // and new time), never an event's id.
+// Spec 43 (R45): a goal that has a routine also carries what the coach needs to plan its sessions, each
+// key only when it has a value: its category, the length of one session, the part of the day, the
+// weekdays it is never done on (as names and as the dates of the 14 days), whether it happens away from
+// home ("away": true, never the place itself), and the sessions left this week and next ("weeks",
+// worked out by the server). A goal without a routine is sent exactly as before.
 import type { ChatTotals } from "./totals";
-import { addDays, localDateOf, localDateTimeOf, startOfLocalDate } from "@/lib/time/zoned";
+import type { WeekLeft } from "./goal-weeks";
+import { WEEKDAYS as ROUTINE_WEEKDAYS, weekdayOfDate, type GoalRoutine } from "@/lib/goals/routine";
+import { isWebLink } from "@/lib/travel/web-link";
+import { addDays, localDateOf, localDateTimeOf, startOfLocalDate, type LocalDate } from "@/lib/time/zoned";
 import type { ChatRole, DraftStatus } from "./types";
 
 export const HISTORY_LENGTH = 10;
@@ -43,9 +51,16 @@ export type HistoryInput = {
 export type GoalInput = {
   id: string;
   title: string;
-  /** null: the goal has no end date (spec 41). A goal's routine is not sent (that is spec 43). */
+  /** null: the goal has no end date (spec 41). */
   deadline: string | null;
   rules: { kind: "count" | "hours"; target: number; minMinutes: number | null }[];
+  /**
+   * Spec 43: present only when the goal has a routine (spec 41). Only the keys of goalEntry below are
+   * sent; the location never is, only whether it is a place away from home.
+   */
+  routine?: GoalRoutine;
+  /** Spec 43: the sessions left this week and next (goal-weeks.ts); sent only with a routine. */
+  weeks?: readonly WeekLeft[];
 };
 
 /**
@@ -79,6 +94,40 @@ function weekdayOf(date: string): string {
   return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 }
 
+/**
+ * One goal as Claude sees it. Without a routine exactly the four keys of R22; with one (spec 43) also
+ * the routine's keys that have a value and the weeks. Copied by name, so nothing else can slip through.
+ */
+function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate) {
+  const base = {
+    id: g.id,
+    title: g.title,
+    deadline: g.deadline,
+    rules: g.rules.map((r) => ({ kind: r.kind, target: r.target, minMinutes: r.minMinutes })),
+  };
+  const routine = g.routine;
+  if (!routine) return base;
+  const never = new Set(routine.avoidDays);
+  const days: LocalDate[] = [];
+  for (let day = today; day <= lastDay; day = addDays(day, 1)) days.push(day);
+  const location = routine.location?.trim() ?? "";
+  return {
+    ...base,
+    ...(routine.category !== null ? { category: routine.category } : {}),
+    ...(routine.category === "other" && routine.categoryOther !== null ? { categoryOther: routine.categoryOther } : {}),
+    ...(routine.sessionMinutes !== null ? { sessionMinutes: routine.sessionMinutes } : {}),
+    ...(routine.dayPart !== null ? { dayPart: routine.dayPart } : {}),
+    ...(never.size > 0
+      ? {
+          never: ROUTINE_WEEKDAYS.filter((w) => never.has(w.day)).map((w) => w.long),
+          neverDates: days.filter((day) => never.has(weekdayOfDate(day))),
+        }
+      : {}),
+    ...(location !== "" && !isWebLink(location) ? { away: true as const } : {}),
+    weeks: (g.weeks ?? []).map((w) => ({ from: w.from, to: w.to, left: w.left })),
+  };
+}
+
 const sortKey = (e: { allDay: true; firstDay: string } | { allDay: false; start: string }) => (e.allDay ? e.firstDay : e.start);
 
 /** The data block of the user turn. */
@@ -110,12 +159,7 @@ export function buildAssistantInput(source: AssistantInputSource) {
     dayStartHour: source.dayStartHour,
     dayEndHour: source.dayEndHour,
     lastDayForProposals: lastDay,
-    goals: source.goals.map((g) => ({
-      id: g.id,
-      title: g.title,
-      deadline: g.deadline,
-      rules: g.rules.map((r) => ({ kind: r.kind, target: r.target, minMinutes: r.minMinutes })),
-    })),
+    goals: source.goals.map((g) => goalEntry(g, today, lastDay)),
     events,
     totals: source.totals,
     history: source.history.slice(-HISTORY_LENGTH).map((m) => ({

@@ -11,6 +11,7 @@ import "server-only";
 //      assistant's answer and for accepting). One failed check refuses the change and nothing is
 //      saved (R1). Then app.chat_edit_draft writes the two times and moves the version on; it checks
 //      again what the database can.
+// Spec 43: the never-day check of R23 runs here too, against the goals' routines as they are now.
 // Spec 23: a draft's to-dos for existing events are not blocks and cannot be dragged; the draft's other
 // blocks can, and the checks run on the whole draft with them.
 // The calendar does not change: only "Add to calendar" / "Apply changes" (accept_draft) does that, with
@@ -28,6 +29,7 @@ import {
   proposalsOf,
   readCalendar,
   readDraft,
+  readGoalRoutines,
 } from "@/lib/server/chat/rows";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
@@ -86,8 +88,8 @@ export function editDraft(request: Request, deps: Pick<Deps, "auth" | "withUser"
         const timeZone = await readTimeZone(query);
         const startAt = exactLocal(body.data.start, timeZone);
         const endAt = exactLocal(body.data.end, timeZone);
-        const [calendar, goals] = await Promise.all([readCalendar(query, now, timeZone), query<{ id: string }>("select id from app.goals")]);
-        const context = { now, timeZone, goalIds: new Set(goals.map((g) => g.id)), calendar: blocksOf(calendar) };
+        const [calendar, goals] = await Promise.all([readCalendar(query, now, timeZone), readGoalRoutines(query)]);
+        const context = { now, timeZone, goalIds: goals.goalIds, calendar: blocksOf(calendar), neverDays: goals.neverDays };
         const outOfDate = () => new ActionError(409, "draft_out_of_date", MESSAGES.draftOutOfDate);
 
         // The draft as it is: still what accepting would check (otherwise it cannot be applied anyway).

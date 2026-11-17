@@ -7,7 +7,8 @@
 // paths, then the heading and "Done" rise in. Every path is a fixed number per piece (never random),
 // so the server and the browser draw the same thing.
 import type { CSSProperties } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button, LinkButton } from "@/components/ui/Button";
+import { planGoalHref } from "@/lib/chat/plan-goal";
 import { goalColor } from "@/lib/goals/colors";
 import { answersSentence, categoryName, MAX_WHY, summaryLines, type SetupAnswers, type SetupStep } from "@/lib/goals/setup";
 import { GOAL_COLOR_LABELS, GOAL_COLORS, GOAL_ICON_LABELS, GOAL_ICON_NAMES, type GoalColorName } from "@/lib/goals/style";
@@ -159,7 +160,11 @@ function burstColors(color: GoalColorName): string[] {
   return [0, 3, 5, 7].map((offset) => goalColor(GOAL_COLORS[(start + offset) % GOAL_COLORS.length]).dot);
 }
 
-export function Celebration({ answers, onDone }: { answers: SetupAnswers; onDone: () => void }) {
+/**
+ * `goalId` (spec 43): the new goal's id, for "Let the coach plan it into my week"; without it (an
+ * answer without an id) only "Done" shows.
+ */
+export function Celebration({ answers, onDone, goalId = null }: { answers: SetupAnswers; onDone: () => void; goalId?: string | null }) {
   const look = { color: answers.color, icon: answers.icon };
   const colors = burstColors(answers.color);
   return (
@@ -182,10 +187,19 @@ export function Celebration({ answers, onDone }: { answers: SetupAnswers; onDone
       </h2>
       <p className="setup-rise-late mt-2 max-w-sm text-sm text-ink-2">{`${answersSentence(answers)}.`}</p>
       <div className="setup-rise-late mt-7 flex w-full flex-col-reverse items-stretch gap-2 sm:w-auto sm:flex-row sm:justify-center">
-        {/* Spec 43 adds a second button here: "Let the coach plan it into my week". */}
-        <Button size="lg" onClick={onDone}>
+        {/*
+          Spec 43: the coach opens with "Plan "<title>" into my week." in the field; nothing is sent yet.
+          Planning the new goal is the natural next step, so it is the main button (on the right, and on
+          top on a phone); "Done" is the main one only when there is no id to plan with.
+        */}
+        <Button variant={goalId ? "secondary" : "primary"} size="lg" onClick={onDone}>
           Done
         </Button>
+        {goalId && (
+          <LinkButton href={planGoalHref(goalId)} size="lg">
+            Let the coach plan it into my week
+          </LinkButton>
+        )}
       </div>
     </div>
   );

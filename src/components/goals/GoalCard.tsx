@@ -5,9 +5,12 @@
 // Every status is said in words and shown with a symbol, so nothing depends on colour alone.
 // Spec 42: a goal with a routine shows it as one quiet line of tags under the title (only what is set,
 // its category's name first); a goal without one looks exactly as before.
+// Spec 43: the caption ends with a quiet link "Plan with coach" to /coach?plan=<goal id>.
+import Link from "next/link";
 import { useId, type ReactNode } from "react";
 import { Check, ChevronRight, X } from "lucide-react";
 import { useDisplay } from "@/components/shell/DisplayProvider";
+import { planGoalHref } from "@/lib/chat/plan-goal";
 import { goalColor } from "@/lib/goals/colors";
 import type { StripWeek, WeekStatus } from "@/lib/goals/progress";
 import { routineTags } from "@/lib/goals/setup";
@@ -151,6 +154,14 @@ export function GoalCard({ goal, onOpen, collapsed = false, onToggle, openTasks,
             <span>Auto-block on</span>
           </>
         )}
+        <span aria-hidden>·</span>
+        <Link
+          href={planGoalHref(goal.id)}
+          aria-label={`Plan ${goal.title} with the coach`}
+          className="rounded-sm text-ink-3 underline-offset-2 transition-colors hover:text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
+        >
+          Plan with coach
+        </Link>
       </p>
     </article>
   );
