@@ -105,8 +105,8 @@ export function chipLength(minutes: number): string {
   return minutes < 60 ? `${minutes} min` : fmtWeekly(minutes);
 }
 
-/** The custom wheel shows 0 to 12 hours; 0:00 and anything over 12 hours stay visible but block Continue. */
-export const WHEEL_MAX_MINUTES = 12 * 60 + 59;
+/** The custom wheel goes up to 12:00: at 12 hours the minutes stay at 0. 0:00 stays visible but blocks Continue. */
+export const WHEEL_MAX_MINUTES = MAX_SESSION_MINUTES;
 
 /** Why the custom length cannot be taken, or null. */
 export function sessionLengthProblem(minutes: number): string | null {
@@ -194,7 +194,7 @@ export function setTimesPerWeek(answers: SetupAnswers, times: number): SetupAnsw
   return { ...answers, timesPerWeek: next, oftenTouched: true };
 }
 
-/** Sets the session length to the minute, as the wheel shows it (0:00 to 12:59; stepProblem refuses what does not fit). */
+/** Sets the session length to the minute, as the wheel shows it: 0:00 (refused by stepProblem) to 12:00, never more. */
 export function setSessionMinutes(answers: SetupAnswers, minutes: number): SetupAnswers {
   const next = Math.max(0, Math.min(WHEEL_MAX_MINUTES, Math.round(minutes)));
   return { ...answers, sessionMinutes: next, oftenTouched: true };

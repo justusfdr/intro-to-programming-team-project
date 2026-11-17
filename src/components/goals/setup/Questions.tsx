@@ -164,20 +164,31 @@ export function QuestionCategory({ answers, update, uid }: QuestionProps) {
 
 /** The hours of the custom length: 0 to 12. */
 const LENGTH_HOURS = Array.from({ length: 13 }, (_, h) => h);
+/** The longest custom length: 12 hours. */
+const MAX_LENGTH = 12 * 60;
 
-/** The custom length as two scrolling columns, hours (0 to 12) and minutes (0 to 59), like the calendar's time wheel. */
+/** The custom length as two scrolling columns, hours (0 to 12) and minutes (0 to 59), like the calendar's time wheel. At 12 hours the minutes stay at 0. */
 function LengthWheel({ value, onChange }: { value: number; onChange: (minutes: number) => void }) {
+  // A minute picked at 12 hours is refused; a new key puts the minutes column back on 0.
+  const [reset, setReset] = useState(0);
   return (
     <div role="group" aria-label="Length of each session" className="relative mx-auto flex w-fit items-center justify-center gap-6 select-none">
       <div aria-hidden className="pointer-events-none absolute -inset-x-4 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
       <div className="relative flex items-center gap-1.5">
-        <WheelColumn label="Hours" items={LENGTH_HOURS} selected={Math.floor(value / 60)} onPick={(h) => onChange(withHour(value, h))} format={String} />
+        <WheelColumn label="Hours" items={LENGTH_HOURS} selected={Math.floor(value / 60)} onPick={(h) => onChange(Math.min(MAX_LENGTH, withHour(value, h)))} format={String} />
         <span aria-hidden className="w-10 text-sm font-medium text-ink">
           h
         </span>
       </div>
       <div className="relative flex items-center gap-1.5">
-        <WheelColumn label="Minutes" items={MINUTES} selected={value % 60} onPick={(m) => onChange(withMinute(value, m))} format={String} />
+        <WheelColumn
+          key={reset}
+          label="Minutes"
+          items={MINUTES}
+          selected={value % 60}
+          onPick={(m) => (value >= MAX_LENGTH && m !== 0 ? setReset((r) => r + 1) : onChange(withMinute(value, m)))}
+          format={String}
+        />
         <span aria-hidden className="w-10 text-sm font-medium text-ink">
           min
         </span>

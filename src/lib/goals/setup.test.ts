@@ -120,7 +120,7 @@ describe("Q1: what it is about and its name", () => {
 });
 
 describe("Q2: how often and how long", () => {
-  it("keeps the times between 1 and 7 and the minutes to the minute, as the wheel shows them (0:00 to 12:59)", () => {
+  it("keeps the times between 1 and 7 and the minutes to the minute, as the wheel shows them (0:00 to 12:00)", () => {
     const a = gym();
     expect(setTimesPerWeek(a, 0).timesPerWeek).toBe(1);
     expect(setTimesPerWeek(a, 9).timesPerWeek).toBe(6); // Friday is ruled out
@@ -128,7 +128,8 @@ describe("Q2: how often and how long", () => {
     expect(setSessionMinutes(a, 0).sessionMinutes).toBe(0);
     expect(setSessionMinutes(a, 360).sessionMinutes).toBe(360);
     expect(setSessionMinutes(a, 50).sessionMinutes).toBe(50);
-    expect(setSessionMinutes(a, 2000).sessionMinutes).toBe(779);
+    expect(setSessionMinutes(a, 2000).sessionMinutes).toBe(720);
+    expect(setSessionMinutes(a, 750).sessionMinutes).toBe(720);
     expect(setSessionMinutes(a, 75).oftenTouched).toBe(true);
   });
 
