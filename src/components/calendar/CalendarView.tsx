@@ -68,6 +68,8 @@ type Props = {
   goals: GoalLabel[];
   /** Outlook is set up on this server. */
   outlookAvailable?: boolean;
+  /** Spec 47: an event to open in the editor at once (from "Next up" in the sidebar), if it is shown. */
+  openEventId?: string;
 };
 
 /** Minutes of lead time above "now" when today is shown, and above the earliest event otherwise. */
@@ -128,7 +130,7 @@ function findEvent(week: WeekData, id: string): CalendarEvent | null {
   return week.lead.find((e) => e.id === id) ?? null;
 }
 
-export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailable = false }: Props) {
+export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailable = false, openEventId }: Props) {
   const week = useLiveWeek(serverWeek);
   const router = useRouter();
   const now = useNowLocal(nowLocal, week.timeZone);
@@ -174,6 +176,24 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
     const id = window.setTimeout(() => setToast(null), TOAST_MS);
     return () => window.clearTimeout(id);
   }, [toast]);
+
+  // Spec 47: opened from "Next up". The event's block comes into view and its editor opens beside it,
+  // as if it had been clicked. An event that is not shown (another day, deleted since) opens nothing.
+  useEffect(() => {
+    if (!openEventId) return;
+    const event = [...week.lead, ...week.days.flatMap((day) => [...day.events, ...day.allDay])].find((e) => e.id === openEventId);
+    if (!event) return;
+    // After the first paint, when the block has its place on the screen.
+    const frame = window.requestAnimationFrame(() => {
+      const block = document.querySelector(`[data-event-id="${CSS.escape(openEventId)}"]`);
+      if (!block) return;
+      block.scrollIntoView({ block: "center" });
+      setEditor({ mode: "edit", event, anchor: anchorOf(block) });
+    });
+    return () => window.cancelAnimationFrame(frame);
+    // Only when the page opens for an event.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openEventId]);
 
   const showToast = useCallback((text: string, undo?: () => void) => setToast({ id: Date.now(), text, undo }), []);
 
