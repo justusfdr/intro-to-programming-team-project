@@ -144,7 +144,7 @@ export function Review({ answers, update, uid, onChange, hint }: QuestionProps &
 /** 16 pieces on fixed paths: evenly round the tile, at four distances, turning by fixed angles. */
 const PIECES = Array.from({ length: 16 }, (_, i) => {
   const angle = ((i * 22.5 + (i % 2 ? 9 : 0)) * Math.PI) / 180;
-  const distance = [74, 98, 84, 110][i % 4];
+  const distance = [66, 86, 74, 92][i % 4];
   return {
     x: Math.round(Math.cos(angle) * distance),
     y: Math.round(Math.sin(angle) * distance),
