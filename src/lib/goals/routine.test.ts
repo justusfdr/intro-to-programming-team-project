@@ -182,8 +182,39 @@ describe("cleanRoutine", () => {
   it("trims, drops empty texts, keeps the own word only with 'other' and sorts the days", () => {
     expect(
       cleanRoutine({ category: "other", categoryOther: "  Music ", sessionMinutes: 45, dayPart: "evening", avoidDays: [7, 6], location: "  Studio  " }),
-    ).toEqual({ category: "other", categoryOther: "Music", sessionMinutes: 45, dayPart: "evening", avoidDays: [6, 7], location: "Studio" });
+    ).toEqual({ category: "other", categoryOther: "Music", sessionMinutes: 45, dayPart: "evening", avoidDays: [6, 7], mustDays: [], location: "Studio" });
     expect(cleanRoutine({ ...NONE, category: "sport", categoryOther: "Music", location: "   " })).toEqual({ ...EMPTY_ROUTINE, category: "sport" });
     expect(cleanRoutine(NONE)).toEqual(EMPTY_ROUTINE);
+  });
+});
+
+describe("the sure days (mustDays)", () => {
+  const COUNT3 = [{ kind: "count" as const, target: 3 }];
+
+  it("accepts up to one sure day per session a week, and none at all", () => {
+    expect(routineProblem({ ...NONE, mustDays: [1, 3, 5] }, COUNT3)).toBeNull();
+    expect(routineProblem({ ...NONE, mustDays: [] }, COUNT3)).toBeNull();
+    expect(routineProblem(NONE, COUNT3)).toBeNull();
+  });
+
+  it("refuses more sure days than sessions a week, with the number", () => {
+    expect(routineProblem({ ...NONE, mustDays: [1, 2, 3, 4] }, COUNT3)).toEqual({
+      error: "must_days_count",
+      message: "You can choose at most 3 sure days, one for each session a week",
+    });
+  });
+
+  it("refuses a day that is also ruled out", () => {
+    expect(routineProblem({ ...NONE, avoidDays: [5], mustDays: [1, 5] }, COUNT3)?.error).toBe("must_avoid_day");
+  });
+
+  it("refuses anything that is not a weekday, or a day twice", () => {
+    expect(routineProblem({ ...NONE, mustDays: [0] }, COUNT3)?.error).toBe("must_days");
+    expect(routineProblem({ ...NONE, mustDays: [2, 2] }, COUNT3)?.error).toBe("must_days");
+  });
+
+  it("is cleaned sorted, and counts as a routine", () => {
+    expect(cleanRoutine({ ...NONE, mustDays: [5, 1] }).mustDays).toEqual([1, 5]);
+    expect(hasRoutine({ ...EMPTY_ROUTINE, mustDays: [2] })).toBe(true);
   });
 });

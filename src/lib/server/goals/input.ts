@@ -5,7 +5,7 @@ import "server-only";
 // then the routine (spec 41, R44: category, own word, session length, part of the day, avoided days,
 // location, and whether the week still fits). Each throws the ontology's message.
 import { z } from "zod";
-import { cleanRoutine, EMPTY_ROUTINE, routineProblem, type GoalRoutine, type RoutineInput } from "@/lib/goals/routine";
+import { cleanRoutine, EMPTY_ROUTINE, routineProblem, type GoalRoutine, type RoutineInput, type Weekday } from "@/lib/goals/routine";
 import { isGoalColor, isGoalIcon, type GoalColorName, type GoalIconName } from "@/lib/goals/style";
 import { MESSAGES } from "@/lib/messages";
 import { ActionError } from "@/lib/server/errors";
@@ -40,6 +40,7 @@ export const GoalFields = z.object({
   sessionMinutes: z.number().nullable().optional(),
   dayPart: z.string().max(40).nullable().optional(),
   avoidDays: z.array(z.number()).max(7).nullable().optional(),
+  mustDays: z.array(z.number()).max(7).nullable().optional(),
   location: z.string().max(1000).nullable().optional(),
 });
 
@@ -132,6 +133,9 @@ export function checkGoalFields(fields: z.infer<typeof GoalFields>, today: Local
     sessionMinutes: fields.sessionMinutes !== undefined ? fields.sessionMinutes : base.sessionMinutes,
     dayPart: fields.dayPart !== undefined ? fields.dayPart : base.dayPart,
     avoidDays: fields.avoidDays !== undefined ? fields.avoidDays : base.avoidDays,
+    // Kept sure days give way to an edit that only sends other fields: a day now ruled out is dropped,
+    // and with fewer times a week the last ones go (the goal editor does not show the sure days).
+    mustDays: fields.mustDays !== undefined ? fields.mustDays : keptMustDays(base.mustDays, fields.avoidDays ?? base.avoidDays, rules),
     location: fields.location !== undefined ? fields.location : base.location,
   };
   const problem = routineProblem(routineInput, rules);
@@ -147,4 +151,11 @@ export function checkGoalFields(fields: z.infer<typeof GoalFields>, today: Local
     why,
     routine: cleanRoutine(routineInput),
   };
+}
+
+/** The saved sure days that still fit: none ruled out, at most one per session of the count rule. */
+function keptMustDays(must: readonly Weekday[], avoid: readonly number[], rules: readonly CheckedRule[]): Weekday[] {
+  const count = rules.find((r) => r.kind === "count");
+  const left = must.filter((d) => !avoid.includes(d));
+  return count ? left.slice(0, count.target) : left;
 }

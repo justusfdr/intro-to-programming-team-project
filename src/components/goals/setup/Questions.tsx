@@ -352,49 +352,121 @@ export function QuestionWhen({ answers, update, uid, display, onChosen }: Questi
   );
 }
 
-// ---------- Q5: the days it is never done on ----------
+// ---------- Q5: the days it happens on for sure, and the days it is never done on ----------
+
+/** Which row of days shook last (a tap that was refused), the day, and a counter that starts it again. */
+export type DaysShake = { row: "sure" | "off"; day: Weekday | null; round: number };
 
 export function QuestionDays({
   answers,
   uid,
   onToggle,
+  onToggleSure,
   shake,
+  note,
 }: QuestionProps & {
+  /** Taps a day of the lower row (never). */
   onToggle: (day: Weekday) => void;
-  /** The day that shook last (the last free day was tapped) and a counter that starts the shake again. */
-  shake: { day: Weekday | null; round: number };
+  /** Taps a day of the upper row (for sure). */
+  onToggleSure: (day: Weekday) => void;
+  shake: DaysShake;
+  /** Why the last tap on a sure day did nothing ("You plan 3 sessions a week, ..."), until the next tap that works. */
+  note: string | null;
 }) {
   const problem = daysProblem(answers);
   const left = daysLeft(answers);
+  const sure = answers.mustDays;
+  const full = sure.length >= answers.timesPerWeek;
+  const fill = answers.category ? goalColor(answers.color).dot : "bg-ink";
+  const shaking = (row: DaysShake["row"], day: Weekday) => shake.row === row && shake.day === day && shake.round > 0;
   return (
     <div>
-      <QuestionTitle id={`${uid}-title`} sub="Tap the days that are off limits. Leave them all if every day works.">
-        Are there days you never want to do it?
+      <QuestionTitle id={`${uid}-title`} sub="Pick the days it has to happen, and the days that are off limits. Leave both empty if any day works.">
+        Which days work for you?
       </QuestionTitle>
-      <div role="group" aria-labelledby={`${uid}-title`} className="mt-6 grid grid-cols-7 gap-1.5">
-        {WEEKDAYS.map(({ day, short, long }, i) => {
-          const off = answers.avoidDays.includes(day);
-          const shaking = shake.day === day && shake.round > 0;
-          return (
-            <span key={day} className="setup-rise flex" style={stagger(i)}>
-              <button
-                type="button"
-                aria-label={`${long}: ${off ? "never" : "possible"}`}
-                onClick={() => onToggle(day)}
-                className={`group relative flex h-12 w-full items-center justify-center rounded-xl border text-[13px] font-semibold transition-colors ${focusRing} ${
-                  off ? "border-line-subtle bg-raised text-ink-3" : "border-line bg-surface text-ink hover:bg-raised"
-                }`}
-              >
-                {/* A new key restarts the shake when the last free day is tapped again. */}
-                <span key={shaking ? shake.round : "still"} className={`relative inline-flex px-1 ${shaking ? "address-shake" : ""}`}>
-                  {short}
-                  {off && <span aria-hidden className="setup-strike absolute top-1/2 -right-1 -left-1 h-[1.5px] rounded-full bg-ink-3" />}
-                </span>
-              </button>
-            </span>
-          );
-        })}
-      </div>
+
+      <section aria-labelledby={`${uid}-sure`} className="mt-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 id={`${uid}-sure`} className="text-[13px] font-semibold text-ink">
+            Days for sure
+          </h3>
+          <span className={`text-xs tabular-nums transition-colors ${full && sure.length > 0 ? "text-ink-2" : "text-ink-3"}`}>
+            {answers.timesPerWeek === 1 ? "Up to 1 day" : `Up to ${answers.timesPerWeek} days`}
+          </span>
+        </div>
+        <div role="group" aria-labelledby={`${uid}-sure`} className="mt-2 grid grid-cols-7 gap-1.5">
+          {WEEKDAYS.map(({ day, short, long }, i) => {
+            const on = sure.includes(day);
+            const off = answers.avoidDays.includes(day);
+            const moving = shaking("sure", day);
+            return (
+              <span key={day} className="setup-rise flex" style={stagger(i)}>
+                <button
+                  type="button"
+                  aria-label={`${long}: ${on ? "for sure" : off ? "off limits" : "not chosen"}`}
+                  aria-pressed={on}
+                  disabled={off}
+                  onClick={() => onToggleSure(day)}
+                  className={`relative flex h-12 w-full items-center justify-center rounded-xl border text-[13px] font-semibold transition-[background-color,border-color,color,opacity] ${focusRing} ${
+                    on
+                      ? `border-transparent ${fill} text-white shadow-sm`
+                      : off
+                        ? "cursor-not-allowed border-dashed border-line-subtle bg-transparent text-ink-3 opacity-50"
+                        : `border-line bg-surface text-ink hover:bg-raised ${full ? "text-ink-2" : ""}`
+                  }`}
+                >
+                  <span key={moving ? shake.round : "still"} className={`inline-flex px-1 ${moving ? "address-shake" : ""}`}>
+                    {short}
+                  </span>
+                </button>
+              </span>
+            );
+          })}
+        </div>
+        {note && (
+          <p role="status" className="setup-rise mt-2.5 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">
+            {note}
+          </p>
+        )}
+      </section>
+
+      <section aria-labelledby={`${uid}-off`} className="mt-6">
+        <h3 id={`${uid}-off`} className="text-[13px] font-semibold text-ink">
+          Never on these days
+        </h3>
+        <div role="group" aria-labelledby={`${uid}-off`} className="mt-2 grid grid-cols-7 gap-1.5">
+          {WEEKDAYS.map(({ day, short, long }, i) => {
+            const off = answers.avoidDays.includes(day);
+            const locked = sure.includes(day);
+            const moving = shaking("off", day);
+            return (
+              <span key={day} className="setup-rise flex" style={stagger(i + 7)}>
+                <button
+                  type="button"
+                  aria-label={`${long}: ${locked ? "a day for sure" : off ? "never" : "possible"}`}
+                  aria-pressed={off}
+                  disabled={locked}
+                  onClick={() => onToggle(day)}
+                  className={`group relative flex h-12 w-full items-center justify-center rounded-xl border text-[13px] font-semibold transition-colors ${focusRing} ${
+                    locked
+                      ? "cursor-not-allowed border-dashed border-line-subtle bg-transparent text-ink-3 opacity-50"
+                      : off
+                        ? "border-line-subtle bg-raised text-ink-3"
+                        : "border-line bg-surface text-ink hover:bg-raised"
+                  }`}
+                >
+                  {/* A new key restarts the shake when the last free day is tapped again. */}
+                  <span key={moving ? shake.round : "still"} className={`relative inline-flex px-1 ${moving ? "address-shake" : ""}`}>
+                    {short}
+                    {off && <span aria-hidden className="setup-strike absolute top-1/2 -right-1 -left-1 h-[1.5px] rounded-full bg-ink-3" />}
+                  </span>
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      </section>
+
       <p className="mt-3 text-[13px] text-ink-3">
         {`${left === 1 ? "1 day" : `${left} days`} left · ${answers.timesPerWeek === 1 ? "1 session" : `${answers.timesPerWeek} sessions`} planned`}
       </p>

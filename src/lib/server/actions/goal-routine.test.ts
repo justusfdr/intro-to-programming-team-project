@@ -81,6 +81,7 @@ describe("create_goal with a routine", () => {
       sessionMinutes: 60,
       dayPart: "evening",
       avoidDays: [6, 7],
+      mustDays: [],
       location: "Studio 4, Lisbon",
     });
     expect(goal.deadline).toBe("2027-03-14");
@@ -104,6 +105,7 @@ describe("create_goal with a routine", () => {
       sessionMinutes: null,
       dayPart: null,
       avoidDays: [5],
+      mustDays: [],
       location: null,
     });
   });
@@ -343,5 +345,40 @@ describe("the week must still fit (R44)", () => {
     expect(await app.snapshot()).toEqual(before);
     expect((await edit(g.id, { ...HALF_MARATHON, rules: sameRules, avoidDays: [1, 2, 3], updatedAt: g.updatedAt })).status).toBe(200);
     expect(await routineRow(g.id)).toMatchObject({ avoid_days: "123" });
+  });
+});
+
+describe("the sure days (mustDays)", () => {
+  const BODY = { title: "Gym", deadline: null, rules: [{ kind: "count", target: 3, minMinutes: null }], avoidDays: [4, 5] };
+  const mustRow = async (id: string) => (await app.db.admin<{ must_days: string }>("select must_days from app.goals where id = $1", [id]))[0].must_days;
+
+  it("create saves them sorted and answers with them", async () => {
+    await app.signedInAs("alice@example.com");
+    const answer = await read(await create({ ...BODY, mustDays: [3, 1] }));
+    expect(answer.status).toBe(201);
+    const goal = answer.body.goal as { id: string; routine: { mustDays: number[] } };
+    expect(goal.routine.mustDays).toEqual([1, 3]);
+    expect(await mustRow(goal.id)).toBe("13");
+  });
+
+  it("create refuses more sure days than sessions, and a day that is ruled out; nothing is saved", async () => {
+    await app.signedInAs("alice@example.com");
+    expect(await read(await create({ ...BODY, mustDays: [1, 2, 3, 6] }))).toEqual({
+      status: 400,
+      body: { error: "must_days_count", message: "You can choose at most 3 sure days, one for each session a week" },
+    });
+    expect(await read(await create({ ...BODY, mustDays: [1, 4] }))).toEqual({
+      status: 400,
+      body: { error: "must_avoid_day", message: "A day cannot be both a sure day and a day off" },
+    });
+    expect(await app.db.admin("select id from app.goals")).toHaveLength(0);
+  });
+
+  it("an edit that leaves them out keeps them, minus a day now ruled out and beyond the new times a week", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const g = await seedWithRoutine(alice, "must_days = '12', avoid_days = ''");
+    const res = await edit(g.id, { title: "Gym", deadline: "2027-03-14", updatedAt: g.updatedAt, rules: [{ kind: "count", target: 2 }], avoidDays: [2] });
+    expect(res.status).toBe(200);
+    expect(await mustRow(g.id)).toBe("1");
   });
 });

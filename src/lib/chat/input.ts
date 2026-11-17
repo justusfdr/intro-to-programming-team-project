@@ -108,6 +108,7 @@ function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate) {
   const routine = g.routine;
   if (!routine) return base;
   const never = new Set(routine.avoidDays);
+  const always = new Set(routine.mustDays);
   const days: LocalDate[] = [];
   for (let day = today; day <= lastDay; day = addDays(day, 1)) days.push(day);
   const location = routine.location?.trim() ?? "";
@@ -121,6 +122,12 @@ function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate) {
       ? {
           never: ROUTINE_WEEKDAYS.filter((w) => never.has(w.day)).map((w) => w.long),
           neverDates: days.filter((day) => never.has(weekdayOfDate(day))),
+        }
+      : {}),
+    ...(always.size > 0
+      ? {
+          always: ROUTINE_WEEKDAYS.filter((w) => always.has(w.day)).map((w) => w.long),
+          alwaysDates: days.filter((day) => always.has(weekdayOfDate(day))),
         }
       : {}),
     ...(location !== "" && !isWebLink(location) ? { away: true as const } : {}),

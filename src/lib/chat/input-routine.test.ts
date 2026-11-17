@@ -13,6 +13,7 @@ const FULL: GoalRoutine = {
   sessionMinutes: 90,
   dayPart: "evening",
   avoidDays: [5, 7],
+  mustDays: [],
   location: "Fitness Park, Rua Augusta 12, Porto",
 };
 const GYM: GoalInput = {
@@ -69,16 +70,26 @@ describe("a goal with a routine in the data block", () => {
         { from: "2026-11-23", to: "2026-11-29", left: 3 },
       ],
     });
-    const allowed = ["id", "title", "deadline", "rules", "category", "categoryOther", "sessionMinutes", "dayPart", "never", "neverDates", "away", "weeks"];
+    const allowed = ["id", "title", "deadline", "rules", "category", "categoryOther", "sessionMinutes", "dayPart", "never", "neverDates", "always", "alwaysDates", "away", "weeks"];
     expect(Object.keys(gym).filter((key) => !allowed.includes(key))).toEqual([]);
     const text = JSON.stringify(buildAssistantInput(source([GYM])));
     for (const part of ["Fitness Park", "Rua Augusta", "Porto", "location"]) expect(text, part).not.toContain(part);
   });
 
   it("leaves out every key without a value; a place that is a web link is not 'away'", () => {
-    const routine: GoalRoutine = { category: null, categoryOther: null, sessionMinutes: null, dayPart: null, avoidDays: [], location: "https://zoom.us/j/123" };
+    const routine: GoalRoutine = { category: null, categoryOther: null, sessionMinutes: null, dayPart: null, avoidDays: [], mustDays: [], location: "https://zoom.us/j/123" };
     const [goal] = buildAssistantInput(source([{ ...GYM, routine, weeks: [] }])).goals;
     expect(goal).toEqual({ ...before(GYM), weeks: [] });
+  });
+
+  it("sends the days for sure by name and as dates, and leaves them out when there are none", () => {
+    const routine: GoalRoutine = { ...FULL, mustDays: [1, 3] };
+    const late = new Date("2026-11-15T23:30:00Z");
+    const [goal] = buildAssistantInput(source([{ ...GYM, routine }], { now: late })).goals;
+    expect(goal).toMatchObject({ always: ["Monday", "Wednesday"], alwaysDates: ["2026-11-16", "2026-11-18", "2026-11-23", "2026-11-25"] });
+    const [plain] = buildAssistantInput(source([{ ...GYM, routine: FULL }])).goals;
+    expect(plain).not.toHaveProperty("always");
+    expect(plain).not.toHaveProperty("alwaysDates");
   });
 
   it("sends the own word only with the category 'other'", () => {

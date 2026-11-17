@@ -31,6 +31,7 @@ import {
   SETUP_STEPS,
   stepProblem,
   toggleAvoidDay,
+  toggleMustDay,
   type SetupAnswers,
   type SetupStep,
 } from "@/lib/goals/setup";
@@ -40,7 +41,7 @@ import type { SavedPlace } from "@/lib/places/saved";
 import type { LocalDate } from "@/lib/time/zoned";
 import { focusRing, prefersReducedMotion } from "./parts";
 import { FrameTint, GoalTakingShape, ProgressBar, SEGMENTS } from "./Preview";
-import { QuestionCategory, QuestionDate, QuestionDays, QuestionOften, QuestionPlace, QuestionWhen } from "./Questions";
+import { QuestionCategory, QuestionDate, QuestionDays, QuestionOften, QuestionPlace, QuestionWhen, type DaysShake } from "./Questions";
 import { Celebration, Review } from "./Review";
 
 export type SetupScreen = SetupStep | "review" | "done";
@@ -162,7 +163,8 @@ function SetupFlow({
   /** Spec 43: the created goal's id, for the coach button on the success screen. */
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [live, setLive] = useState("");
-  const [shake, setShake] = useState<{ day: Weekday | null; round: number }>({ day: null, round: 0 });
+  const [shake, setShake] = useState<DaysShake>({ row: "off", day: null, round: 0 });
+  const [daysNote, setDaysNote] = useState<string | null>(null);
   // The focus moves to the question's heading only after the person moved (opening focuses it once).
   const [moved, setMoved] = useState(false);
 
@@ -234,9 +236,25 @@ function SetupFlow({
   function toggleDay(day: Weekday) {
     const result = toggleAvoidDay(answers, day);
     if (result.refused) {
-      setShake((s) => ({ day, round: s.round + 1 }));
+      setShake((s) => ({ row: "off", day, round: s.round + 1 }));
       return say(result.refused);
     }
+    setDaysNote(null);
+    const before = daysProblem(answers);
+    const after = daysProblem(result.answers);
+    update(() => result.answers);
+    if (after && after !== before) say(after);
+    else if (!after && before) say("The days fit now.");
+  }
+
+  function toggleSureDay(day: Weekday) {
+    const result = toggleMustDay(answers, day);
+    if (result.refused) {
+      setShake((s) => ({ row: "sure", day, round: s.round + 1 }));
+      setDaysNote(result.refused);
+      return say(result.refused);
+    }
+    setDaysNote(null);
     const before = daysProblem(answers);
     const after = daysProblem(result.answers);
     update(() => result.answers);
@@ -355,7 +373,7 @@ function SetupFlow({
       case "when":
         return <QuestionWhen {...common} display={display} onChosen={chosenWhen} />;
       case "days":
-        return <QuestionDays {...common} onToggle={toggleDay} shake={shake} />;
+        return <QuestionDays {...common} onToggle={toggleDay} onToggleSure={toggleSureDay} shake={shake} note={daysNote} />;
       case "date":
         return <QuestionDate {...common} today={today} />;
       case "review":
