@@ -1,4 +1,4 @@
-// The four drawings of the library (spec 47), one per shelf: a line of work that dips into two
+// The four drawings of the library (spec 48), one per shelf: a line of work that dips into two
 // other tasks and comes back (interruptions), a phone face down that buzzes (phones and feeds),
 // a dot stopped by a bump (what helps), and steps (guides). Decoration only: what they show is
 // said in the words next to them. They draw themselves once (globals.css), unless the reader

@@ -1,4 +1,4 @@
-// The library's articles as tiles of four sizes (spec 47): one large with the shelf's drawing,
+// The library's articles as tiles of four sizes (spec 48): one large with the shelf's drawing,
 // tall ones with a picture under the number, wide ones with the picture beside it, and square
 // ones with the number alone. A tile draws what its article has: bars, steps or two or three
 // numbers, each value written out. On the Focus page a tile leads to the article with a link; on

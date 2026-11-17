@@ -64,12 +64,12 @@ export type TilePicture =
   | { kind: "stats"; stats: Stat[] };
 
 /**
- * What a tile needs of an article (spec 47): the teaser, the line under the title, what the
+ * What a tile needs of an article (spec 48): the teaser, the line under the title, what the
  * tile's number counts, and the first picture of the article. Still not the text.
  */
 export type Tile = Teaser & { dek: string; label: string | null; picture: TilePicture | null };
 
-/** One step of "Before you start" on the Focus page (spec 47). */
+/** One step of "Before you start" on the Focus page (spec 48). */
 export type StartStep = {
   id: "phone" | "first-step" | "banners";
   title: string;
@@ -82,5 +82,5 @@ export type StartStep = {
   field?: { label: string; placeholder: string };
 };
 
-/** A popular claim and what the studies leave of it (spec 47), for the landing page. */
+/** A popular claim and what the studies leave of it (spec 48), for the landing page. */
 export type Claim = { quote: string; verdict: "Half true" | "Not confirmed" | "Not shown"; slug: string };

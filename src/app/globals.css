@@ -530,7 +530,7 @@ dialog.goal-setup::backdrop {
   }
 }
 
-/* The drawings and the list of spec 47: a dot that arrives, a dot that rolls up to a bump, and the
+/* The drawings and the list of spec 48: a dot that arrives, a dot that rolls up to a bump, and the
    tick of a step in "Before you start". Each runs once; --d is its start in milliseconds. */
 @media (prefers-reduced-motion: no-preference) {
   .library-pop {
@@ -564,7 +564,7 @@ dialog.goal-setup::backdrop {
   }
 }
 
-/* The reading window of the landing page (spec 47): a native dialog, the page behind it dimmed
+/* The reading window of the landing page (spec 48): a native dialog, the page behind it dimmed
    and slightly blurred like the welcome. */
 dialog.reader::backdrop {
   background: rgb(16 16 16 / 0.3);

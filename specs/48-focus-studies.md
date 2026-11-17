@@ -1,5 +1,5 @@
-# Spec 47: Focus page with studies, and the research on the landing page
-Asked for by the owner on 17 Nov 2026, after the team looked at six drawings and chose the second layout. Branch `47-focus-studies`, from `main`. It brings the Focus library (spec 29, branch `focus-library`, never merged) onto `main` and builds on it. `docs/ontology.md` is unchanged; what it would need is proposed below and waits for the team. No migration, no new dependency, no new service.
+# Spec 48: Focus page with studies, and the research on the landing page
+Asked for by the owner on 17 Nov 2026, after the team looked at six drawings and chose the second layout. Branch `48-focus-studies`, from `main` (first written as spec 47; the sidebar widgets took that number on `main` the same evening). It brings the Focus library (spec 29, branch `focus-library`, never merged) onto `main` and builds on it. `docs/ontology.md` is unchanged; what it would need is proposed below and waits for the team. No migration, no new dependency, no new service.
 
 ## Why
 The Focus page was a timer and a list of old sessions: nothing on it said why a session is worth it. The library's articles do, with studies anyone can open. The team wants them where the work starts, as tiles of different sizes with small drawings, and in front of visitors on the landing page.

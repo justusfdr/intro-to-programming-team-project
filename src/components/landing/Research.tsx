@@ -1,6 +1,6 @@
 "use client";
 
-// "The research" on the landing page (spec 47): what the library is, three popular claims with a
+// "The research" on the landing page (spec 48): what the library is, three popular claims with a
 // verdict, and the nine articles as tiles. A tile or a claim opens its article in a reading window
 // on the page itself: no new address is opened to visitors, and the page links nowhere new. The
 // guides are left out, because they explain screens a visitor cannot open.

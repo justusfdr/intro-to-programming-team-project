@@ -1,4 +1,4 @@
-// Spec 47: the Focus page before a session shows the start card with its ring, "Before you start"
+// Spec 48: the Focus page before a session shows the start card with its ring, "Before you start"
 // with three steps and their studies, the recent sessions behind a small button, and the library's
 // articles as tiles. While a session runs or is paused it shows the session only.
 import { renderToStaticMarkup } from "react-dom/server";

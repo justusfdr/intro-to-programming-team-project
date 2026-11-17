@@ -1,4 +1,4 @@
-// Spec 47: the library's articles as tiles of four sizes. A tile draws what its article has, with
+// Spec 48: the library's articles as tiles of four sizes. A tile draws what its article has, with
 // every value written out; it leads to the article with a link, or opens it with a button.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";

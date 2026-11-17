@@ -1,4 +1,4 @@
-// Spec 47: "The research" on the landing page shows the library's articles to visitors as tiles,
+// Spec 48: "The research" on the landing page shows the library's articles to visitors as tiles,
 // three claims with a verdict, and opens an article in a reading window on the page. It opens no
 // new address: the page links nowhere new and the route guard is as it was.
 import { renderToStaticMarkup } from "react-dom/server";
@@ -71,7 +71,7 @@ describe("the research on the landing page", () => {
   });
 });
 
-describe("the route guard after spec 47", () => {
+describe("the route guard after spec 48", () => {
   it("opens no address for the articles: a visitor still reads them on /home only", () => {
     expect(guard("/home", false)).toEqual({ kind: "allow" });
     for (const path of ["/research", "/research/2-8-seconds", "/home/research", "/focus/library", "/focus/library/2-8-seconds", "/focus"]) {

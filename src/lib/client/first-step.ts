@@ -1,4 +1,4 @@
-// The first step typed into "Before you start" on the Focus page (spec 47). It stays in this
+// The first step typed into "Before you start" on the Focus page (spec 48). It stays in this
 // browser tab only (sessionStorage): it is shown under the timer while the session runs and
 // removed when the session ends. Nothing here is sent to the server or saved in the account.
 import { useSyncExternalStore } from "react";

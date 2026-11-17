@@ -16,7 +16,7 @@ export const sectionTitle = "text-[20px] leading-7 font-semibold tracking-headin
 
 /**
  * One piece of an article's text. `action`: what stands under "Try it"; inside the app the way
- * to a session, on the landing page the way to an account (spec 47). `heading`: the level of a
+ * to a session, on the landing page the way to an account (spec 48). `heading`: the level of a
  * heading inside the text, one below the article's own title.
  */
 export function BodyBlock({ block, guide, action, heading: Heading = "h2" }: { block: Block; guide: boolean; action?: ReactNode; heading?: "h2" | "h3" }) {

@@ -1,4 +1,4 @@
-// Spec 47: the library's articles as tiles, the three steps of "Before you start", the three
+// Spec 48: the library's articles as tiles, the three steps of "Before you start", the three
 // claims of the landing page, and the first step that stays in the browser.
 import { describe, expect, it } from "vitest";
 import { cleanFirstStep, clearFirstStep, FIRST_STEP_MAX, readFirstStep, saveFirstStep } from "@/lib/client/first-step";

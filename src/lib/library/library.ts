@@ -99,7 +99,7 @@ function pictureOf(article: Article): TilePicture | null {
   return null;
 }
 
-/** An article as a tile (spec 47): what the teaser has, plus its line, its number's label and one picture. */
+/** An article as a tile (spec 48): what the teaser has, plus its line, its number's label and one picture. */
 export function tileOf(article: Article): Tile {
   return {
     slug: article.slug,
@@ -122,7 +122,7 @@ export function tilesOf(slugs: readonly string[]): Tile[] {
 }
 
 /**
- * The tiles the Focus page shows on a day (spec 47): `count` articles in a row, starting with the
+ * The tiles the Focus page shows on a day (spec 48): `count` articles in a row, starting with the
  * three of `teasersFor`, so they move on by one each day as well.
  */
 export function tilesFor(localDate: string, count = 7): Tile[] {

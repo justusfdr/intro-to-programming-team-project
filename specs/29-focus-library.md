@@ -1,5 +1,5 @@
 # Spec 29: Focus library
-Asked for by the owner on 15 Nov 2026. Branch `claude/gracious-gauss-7h9an2`, from `main`; it reached `main` with spec 47 (branch `47-focus-studies`), which builds on it. Plan: `docs/ontology.md` is unchanged on this branch; the change it needs is proposed below and waits for the team (R3 applies as it is). No migration, no new dependency, no new service.
+Asked for by the owner on 15 Nov 2026. Branch `claude/gracious-gauss-7h9an2`, from `main`; it reached `main` with spec 48 (branch `48-focus-studies`), which builds on it. Plan: `docs/ontology.md` is unchanged on this branch; the change it needs is proposed below and waits for the team (R3 applies as it is). No migration, no new dependency, no new service.
 
 ## Why
 The Focus page starts a timer and says nothing about why it is worth it. People believe what they can check: short articles that say what studies on interruptions, phones and feeds found, with the studies listed underneath, and guides that explain sessions and the blocker. The owner showed the "Tipps" tab of another app as the direction: tiles, articles, a list of publications. Ours looks like the calendar, not like a game.
@@ -10,7 +10,7 @@ The Focus page starts a timer and says nothing about why it is worth it. People 
 - [x] `/focus/library`: the shelves as a row of links (`?topic=phones`; reload and back work; anything else shows all), then every article as a tile: its number on the shelf's tint, shelf, title, a line about it, "3 min read · 2 studies". The first tile is the large one.
 - [x] `/focus/library/<slug>`: header, text, pictures (bars from zero with every value written out, numbered steps, two or three numbers on tiles), the limits, "Try it" with "Start a session", "Studies and publications" (each with "Publication", opening in a new tab; "Peer-reviewed" only where it is), "Read next" with two other articles. An address that names no article is "not found".
 - [x] The reading time is calculated from the words, 200 a minute, rounded up, at least one.
-- [x] Focus page: "From the library" with three articles and "All articles", to the right of the start card on wide screens and under it on phones. They move on by one each day in the user's time zone. Not shown while a session is running or paused. (Spec 47, 17 Nov 2026: the three became seven tiles under the start card; the day's three are the first of them.)
+- [x] Focus page: "From the library" with three articles and "All articles", to the right of the start card on wide screens and under it on phones. They move on by one each day in the user's time zone. Not shown while a session is running or paused. (Spec 48, 17 Nov 2026: the three became seven tiles under the start card; the day's three are the first of them.)
 - [x] Signed-out visitors are sent to the sign-in page, as on every page (R3). The pages read nothing from the database and save nothing.
 - [x] Motion (bars grow, steps arrive, the tiles' drawings move once) only for readers who have not asked for less motion.
 

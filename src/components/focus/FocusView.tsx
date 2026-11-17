@@ -6,7 +6,7 @@
 // sessions. It only sends the user's choices and shows the server's answers; the server decides
 // every state change (spec 04), including the end of a session at its planned length (R13).
 //
-// Since spec 47 the page also says why a session is worth it: next to the start card stands
+// Since spec 48 the page also says why a session is worth it: next to the start card stands
 // "Before you start" (three steps, each with a study), and under both the library's articles as
 // tiles. Recent sessions open from a small button under the start card. While a session runs the
 // page shows the session only.
@@ -259,7 +259,7 @@ function RunningCard({ session, serverNow, goal }: { session: SessionDto; server
   const [confirmCancel, setConfirmCancel] = useState(false);
   const { run, busy, failure } = useSessionAction();
   const paused = session.status === "paused";
-  // The first step typed before the start (spec 47): shown under the timer, gone when the session is over.
+  // The first step typed before the start (spec 48): shown under the timer, gone when the session is over.
   const firstStep = useFirstStep();
   const leave = async (path: string) => {
     const answer = await run(path);
@@ -401,7 +401,7 @@ function RatingCard({ session }: { session: SessionDto & { focusedMinutes: numbe
 }
 
 /**
- * The finished sessions, behind a small button under the start card (spec 47): the page is for the
+ * The finished sessions, behind a small button under the start card (spec 48): the page is for the
  * next session, not for the old ones. A native disclosure, so it opens without any script and the
  * list is part of the page either way.
  */

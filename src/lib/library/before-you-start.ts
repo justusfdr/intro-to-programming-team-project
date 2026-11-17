@@ -1,4 +1,4 @@
-// "Before you start" on the Focus page (spec 47): three things to do before a session, each with
+// "Before you start" on the Focus page (spec 48): three things to do before a session, each with
 // one sentence from a study of the library. Fixed content. Every number here is in the article
 // the step links to; the test checks that the study belongs to that article.
 import type { Claim, StartStep } from "./types";

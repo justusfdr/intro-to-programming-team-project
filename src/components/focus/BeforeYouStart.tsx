@@ -1,6 +1,6 @@
 "use client";
 
-// "Before you start" on the Focus page (spec 47): three things to do before a session, each with
+// "Before you start" on the Focus page (spec 48): three things to do before a session, each with
 // one sentence from a study and the way to its article. The ticks live in the page only and are
 // gone after a reload; the first step typed here stays in this browser tab (src/lib/client/first-step.ts).
 // Nothing of this list is sent to the server.

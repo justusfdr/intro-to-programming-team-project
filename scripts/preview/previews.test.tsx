@@ -552,7 +552,7 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
     renderToStaticMarkup(
       <Announcer>
         <AppShell current="/focus">
-          {/* The library's tiles of the sample day (spec 47). */}
+          {/* The library's tiles of the sample day (spec 48). */}
           <FocusView data={data} blocker={blocker} library={tilesFor("2026-11-17")} />
         </AppShell>
       </Announcer>,
