@@ -54,6 +54,7 @@ A new account has an empty calendar and no goals; its block list starts with six
 - The look follows our first prototype (spec 10): goals as open sections with a tinted tile, a thin bar and one row per rule; the event editor as a panel at the right with upper-case section labels, goal chips and a fixed footer. Every goal shows the same target icon in its colour (the data has no icon per goal). Collapsed goal sections are remembered in the browser only.
 - Tasks are rows under each goal's rules and weeks, with a ring to mark them done, a date chip (red when overdue) and "Add task"; tasks without a goal are listed under "Inbox", the last card of the Goals page. The header of each goal shows its number of open tasks.
 - When a chat message fails, the typed text stays in the input field.
+- The Focus page says why a session is worth it (specs 29 and 47): "Before you start" lists three steps, each with a study, and the library's articles stand under it as tiles. The ticks and the first step typed there stay in the browser only. The landing page shows the same articles under "The research".
 - Settings are reworked last.
 
 ## Submission (to fill in)
