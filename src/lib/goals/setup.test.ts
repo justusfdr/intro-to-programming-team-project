@@ -435,3 +435,12 @@ describe("the sure days", () => {
     expect(hasAnswers({ ...emptyAnswers("amber"), mustDays: [2] })).toBe(true);
   });
 });
+
+describe("long sessions", () => {
+  it("show as hours in the tag above two hours", () => {
+    const tag = (m: number) => previewTags(gym({ sessionMinutes: m }), "often", "12h").find((t) => t.key === "minutes")?.text;
+    expect(tag(90)).toBe("90 min");
+    expect(tag(360)).toBe("6 h");
+    expect(tag(395)).toBe("6 h 35 min");
+  });
+});

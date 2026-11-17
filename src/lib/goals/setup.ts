@@ -526,7 +526,7 @@ export function routineTags(input: TagInput, format: TimeFormat): RoutineTag[] {
   const category = categoryName(routine);
   if (input.withCategory && category !== null) add("category", category, `Category: ${category}`);
   if (input.timesPerWeek) add("often", `${input.timesPerWeek}× a week`, `${timesWords(input.timesPerWeek)} a week`);
-  if (routine.sessionMinutes !== null) add("minutes", `${routine.sessionMinutes} min`, `${routine.sessionMinutes} minutes each`);
+  if (routine.sessionMinutes !== null) add("minutes", routine.sessionMinutes > 120 ? fmtWeekly(routine.sessionMinutes) : `${routine.sessionMinutes} min`, `${routine.sessionMinutes} minutes each`);
   if (routine.dayPart !== null) {
     add("dayPart", DAY_PART_PLURAL[routine.dayPart], `${DAY_PART_PLURAL[routine.dayPart]}, ${dayPartTimes(routine.dayPart, format).toLowerCase()}`);
   }
