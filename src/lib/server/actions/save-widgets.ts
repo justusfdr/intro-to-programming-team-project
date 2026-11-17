@@ -36,7 +36,7 @@ export function saveWidgets(request: Request, deps: Pick<Deps, "auth" | "withUse
     if (!checked.ok) throw new ActionError(400, "invalid_widgets", checked.message);
 
     await deps.withUser(userId, (query) =>
-      query("update app.settings set widgets = $1::jsonb where user_id = $2", [JSON.stringify(checked.layout), userId]),
+      query("update app.settings set widgets = $1::text::jsonb where user_id = $2", [JSON.stringify(checked.layout), userId]),
     );
     return jsonOk({ layout: checked.layout, isDefault: false });
   });
