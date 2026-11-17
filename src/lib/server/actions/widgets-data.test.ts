@@ -1,4 +1,4 @@
-// Tests for widgets_data (spec 45): signed in only, a user sees only their own rows, which event is
+// Tests for widgets_data (spec 47): signed in only, a user sees only their own rows, which event is
 // "next", the trip, the goal rings, the minutes focused today, the free stretch and the layout.
 // The clock starts on Monday 16 November 2026, 09:00 UTC (10:00 in Berlin; the visible day is 7:00 to 21:00).
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";

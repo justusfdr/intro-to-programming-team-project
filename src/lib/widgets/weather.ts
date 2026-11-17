@@ -1,10 +1,10 @@
-// The weather widget's words and pictures (spec 45), shared by the server (which turns Open-Meteo's
+// The weather widget's words and pictures (spec 47), shared by the server (which turns Open-Meteo's
 // numbers into these) and the widget. WMO weather codes: https://open-meteo.com/en/docs#weathervariables
 
 export type Sky = "clear" | "partly" | "cloudy" | "fog" | "drizzle" | "rain" | "snow" | "storm";
 
 /**
- * Where the weather is for (R47): a city the widget always shows, the device's place, the place of the
+ * Where the weather is for (R48): a city the widget always shows, the device's place, the place of the
  * event now or just before, or home.
  */
 export type WeatherSource = "city" | "device" | "event" | "home";
@@ -75,7 +75,7 @@ export function skyLabel(sky: Sky, isDay: boolean): string {
 /** The chance of rain is shown from 30 percent on, never below (the widget stays quiet). */
 export const RAIN_SHOWN_FROM = 30;
 
-/** Rounds a coordinate to two decimals (about 1 km), before it leaves the server (R47). */
+/** Rounds a coordinate to two decimals (about 1 km), before it leaves the server (R48). */
 export function roundCoordinate(value: number): number {
   return Math.round(value * 100) / 100;
 }

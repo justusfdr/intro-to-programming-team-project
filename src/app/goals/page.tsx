@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Goals" };
 // column beside the calendar. The page reads everything in one transaction (src/lib/server/pages/load.ts);
 // every change goes through the goal and task routes. After an action the screen shows the answer at
 // once and router.refresh() runs this page again in the background (components/live/Live.tsx).
-// Spec 45: `?goal=<id>` from a goal widget in the sidebar scrolls to that goal and marks it.
+// Spec 47: `?goal=<id>` from a goal widget in the sidebar scrolls to that goal and marks it.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function GoalsRoute({ searchParams }: { searchParams: Promise<{ goal?: string | string[] }> }) {

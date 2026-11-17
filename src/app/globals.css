@@ -407,7 +407,7 @@ dialog.goal-setup::backdrop {
   }
 }
 
-/* Sidebar widgets (spec 45): while editing they wiggle; "Leave now" pulses. Both stay still with reduced motion. */
+/* Sidebar widgets (spec 47): while editing they wiggle; "Leave now" pulses. Both stay still with reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
   .widget-wiggle {
     animation: widget-wiggle 0.3s ease-in-out infinite;

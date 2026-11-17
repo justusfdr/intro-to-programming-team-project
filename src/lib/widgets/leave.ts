@@ -1,4 +1,4 @@
-// How urgent leaving is (spec 45): the colour of "Time to leave" and of the leave line in "Next up".
+// How urgent leaving is (spec 47): the colour of "Time to leave" and of the leave line in "Next up".
 // Soft tints while there is time; full red from 10 minutes; at 0 it pulses; after that it counts up.
 
 export type LeaveLevel = "green" | "amber" | "orange" | "red" | "now" | "late";

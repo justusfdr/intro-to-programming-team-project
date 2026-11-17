@@ -1,11 +1,11 @@
 "use client";
 
-// The widgets under the sidebar's navigation (spec 45): reads widgets_data on opening and every minute
-// while the page is visible, the weather every 30 minutes (R47) and the trip to leave for (R27), and
+// The widgets under the sidebar's navigation (spec 47): reads widgets_data on opening and every minute
+// while the page is visible, the weather every 30 minutes (R48) and the trip to leave for (R27), and
 // lays the widgets out in the 3 × 6 grid, as many rows as fit (layout.ts). A click on a widget does what
 // grid.tsx says (the weather opens in detail). Editing: the pencil or a right-click; the free fields of
 // this screen show as "+"; a click on a widget opens its settings; remove, change size, drag (or arrow
-// keys) to move; "Add" opens the gallery; "Done" saves the list with save_widgets (R46). A refusal shows
+// keys) to move; "Add" opens the gallery; "Done" saves the list with save_widgets (R47). A refusal shows
 // its message and puts the saved list back (R1).
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Pencil, Plus, X } from "lucide-react";
@@ -69,7 +69,7 @@ function useMinuteClock(): Date {
 }
 
 /**
- * The weather (R47). The browser is asked for the location only when the user clicks "Use my location";
+ * The weather (R48). The browser is asked for the location only when the user clicks "Use my location";
  * once allowed, it is used by itself from then on. Without it the server picks the event's place or home.
  */
 function useWeather(enabled: boolean) {
@@ -146,7 +146,7 @@ function useTrip(tripId: string | null): TripTravel {
   return trip && trip.id === tripId ? trip.answer : undefined;
 }
 
-/** The weather of the cities that widgets name, each asked every 30 minutes (R47). */
+/** The weather of the cities that widgets name, each asked every 30 minutes (R48). */
 function useCityWeather(cities: string[], enabled: boolean): Record<string, WeatherAnswer> {
   const [answers, setAnswers] = useState<Record<string, WeatherAnswer>>({});
   const key = [...new Set(cities)].sort().join("\n");
@@ -223,7 +223,7 @@ export function WidgetArea() {
     return () => observer.disconnect();
   }, [ready]);
 
-  // A goal widget whose goal is gone is not shown, and is dropped at the next save (R46).
+  // A goal widget whose goal is gone is not shown, and is dropped at the next save (R47).
   const goalIds = useMemo(() => new Set(data?.goals.map((g) => g.id) ?? []), [data]);
   const shown = useCallback((list: WidgetItem[]) => list.filter((w) => w.kind !== "goal" || !w.goalId || goalIds.has(w.goalId)), [goalIds]);
   const saved = useMemo(() => (data ? shown(data.layout) : []), [data, shown]);

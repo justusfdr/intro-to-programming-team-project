@@ -1,4 +1,4 @@
-// The grid of widgets without any state (spec 45): which tile a widget is, and the cell it sits in, with
+// The grid of widgets without any state (spec 47): which tile a widget is, and the cell it sits in, with
 // the minus and the size tag while editing. WidgetArea holds the state and passes everything in; the
 // preview tool renders the same pieces with sample data.
 import type { DragEvent, KeyboardEvent, ReactNode } from "react";
@@ -13,9 +13,9 @@ import { FocusWidget, FreeWidget, GoalWidget, LeaveWidget, NextWidget, routeLink
 /** What the tiles are drawn from. */
 export type WidgetContext = {
   data: WidgetsData;
-  /** The weather for a widget: its own city, or (none) where the user is (R47). */
+  /** The weather for a widget: its own city, or (none) where the user is (R48). */
   weatherFor: (city: string | null | undefined) => WeatherAnswer | null;
-  /** Offered while the browser has not been asked for the location (R47). */
+  /** Offered while the browser has not been asked for the location (R48). */
   onLocate?: () => void;
   /** A click on a weather widget: the weather in detail. */
   onOpenWeather?: (item: WidgetItem) => void;

@@ -1,4 +1,4 @@
-// Tests for save_widgets (spec 45, R46): a widget list is saved only if every widget is one of the six
+// Tests for save_widgets (spec 47, R47): a widget list is saved only if every widget is one of the six
 // kinds in one of its sizes, only a goal widget names a goal, and all fit in the 3 x 6 grid. Every
 // rejected case leaves the saved value as it was (R1).
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -94,7 +94,7 @@ describe("save_widgets accepted", () => {
   });
 });
 
-describe("save_widgets rejected (R46): nothing changes", () => {
+describe("save_widgets rejected (R47): nothing changes", () => {
   async function expectRefused(body: unknown, status: number, message?: string, headers?: Record<string, string>) {
     const alice = await withSaved();
     const before = await app.snapshot();

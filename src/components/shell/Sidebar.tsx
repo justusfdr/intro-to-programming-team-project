@@ -165,7 +165,7 @@ export function Sidebar({ current, me }: { current: string; me?: SidebarMe }) {
             <SidebarLink key={item.href} item={item} on={current === item.href} wide={wide} />
           ))}
         </nav>
-        {/* The widgets (spec 45), only while the sidebar is kept open; folded, the bottom links stay at the bottom. */}
+        {/* The widgets (spec 47), only while the sidebar is kept open; folded, the bottom links stay at the bottom. */}
         {!folded && <WidgetArea />}
         <div className="mt-auto flex flex-col gap-0.5">
           <SidebarLink item={PRICING} on={current === PRICING.href} wide={wide} />

@@ -1,4 +1,4 @@
-// Where each widget sits in the 3 × 6 grid, and whether a list of widgets may be saved (R46).
+// Where each widget sits in the 3 × 6 grid, and whether a list of widgets may be saved (R47).
 // The grid fills from the top: each widget takes the first place where it fits, so a small widget
 // after a wide one fills the hole beside an earlier small one. There are never gaps the user did not
 // make, and the same list always lands in the same places.
@@ -59,7 +59,7 @@ export const LAYOUT_MESSAGES = {
 } as const;
 
 /**
- * R46: a list of widgets may be saved when every widget is one of the six kinds, in one of its sizes,
+ * R47: a list of widgets may be saved when every widget is one of the six kinds, in one of its sizes,
  * only a goal widget names a goal (an id, or none for "the first goal"), only a weather widget names a
  * city (1 to 80 characters on one line, or none: it follows the user), and all of them fit in the 3 × 6
  * grid together. Anything else is refused as a whole.

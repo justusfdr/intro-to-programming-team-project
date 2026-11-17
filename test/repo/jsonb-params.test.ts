@@ -1,7 +1,7 @@
 // A JSON text sent as a query parameter must be cast `$1::text::jsonb`, never `$1::jsonb`. With `$1::jsonb`
 // the real database driver (postgres) sends the text as a JSON string, so the column gets a string
 // instead of a list; the temporary test database (PGlite) does not, so no action test notices it.
-// It broke the Outlook sync once and saving the sidebar widgets (spec 45) a second time.
+// It broke the Outlook sync once and saving the sidebar widgets (spec 47) a second time.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";

@@ -36,7 +36,7 @@ const RAW = {
 const NOW = new Date("2026-11-16T09:20:00Z");
 
 describe("forecastFrom", () => {
-  // Rewritten for spec 45 v2: 24 hours instead of 4, with rain amount, wind and wind direction; wind now and 7 days
+  // Rewritten for spec 47 v2: 24 hours instead of 4, with rain amount, wind and wind direction; wind now and 7 days
   it("rounds to whole degrees and takes the next 24 full hours after now, as UTC instants, with wind and rain amounts", () => {
     const forecast = forecastFrom(RAW, NOW)!;
     expect(forecast).toMatchObject({ temp: 14, sky: "partly", isDay: true, high: 17, low: 9, wind: 12 });
@@ -103,7 +103,7 @@ describe("forecastFrom", () => {
     expect(hours[0].time).toBe("2026-11-16T11:00:00.000Z");
   });
 
-  // Rewritten for spec 45 v2: the days now come from daily.time and the day lists, so an answer without them is unreadable
+  // Rewritten for spec 47 v2: the days now come from daily.time and the day lists, so an answer without them is unreadable
   it.each([null, {}, "x", { current: {} }, { ...RAW, daily: {} }, { ...RAW, hourly: {} }])("is null for an answer it cannot read (%j)", (raw) => {
     expect(forecastFrom(raw, NOW)).toBeNull();
   });
@@ -119,7 +119,7 @@ function fakeFetch(answer: unknown, status = 200) {
 }
 
 describe("openMeteo", () => {
-  // Rewritten for spec 45 v2: it also asks for wind, rain amounts, the days' sky and 8 days in km/h
+  // Rewritten for spec 47 v2: it also asks for wind, rain amounts, the days' sky and 8 days in km/h
   it("asks only for the rounded place and the fields it uses", async () => {
     const { fetchImpl, urls } = fakeFetch(RAW);
     const service = openMeteo({ fetchImpl, now: () => NOW, cache: new Map() });

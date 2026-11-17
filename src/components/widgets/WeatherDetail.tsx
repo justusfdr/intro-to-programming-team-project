@@ -1,6 +1,6 @@
 "use client";
 
-// The weather in detail (spec 45), opened by a click on a weather widget: the weather now, the next 24
+// The weather in detail (spec 47), opened by a click on a weather widget: the weather now, the next 24
 // hours as temperature, precipitation or wind (swipe or scroll sideways), and the next 7 days with
 // their range. Everything comes from the answer the widget already has; nothing is asked again.
 import { useState } from "react";

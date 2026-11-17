@@ -147,7 +147,7 @@ function LengthWheel({
 }
 
 function StartCard({ forEvent, goal, startMinutes }: { forEvent: FocusData["forEvent"]; goal: FocusGoal | null; startMinutes?: number }) {
-  // Spec 45: from "Free time" in the sidebar, the length of the free stretch.
+  // Spec 47: from "Free time" in the sidebar, the length of the free stretch.
   const initial = forEvent?.suggestedMinutes ?? startMinutes ?? 60;
   // A suggested length is one of the chips; any other length starts on the custom wheel (R12).
   const [chosen, setChosen] = useState<number | "custom">(isSuggested(initial) ? initial : "custom");

@@ -1,8 +1,8 @@
 "use client";
 
-// A widget's settings (spec 45), opened by a click on a widget while editing: a preview, its size, and
-// for the weather where it is for (where you are, or a city it always shows, R47), for a goal widget
-// which goal. Changes go into the list being edited; "Done" on the grid saves it (save_widgets, R46).
+// A widget's settings (spec 47), opened by a click on a widget while editing: a preview, its size, and
+// for the weather where it is for (where you are, or a city it always shows, R48), for a goal widget
+// which goal. Changes go into the list being edited; "Done" on the grid saves it (save_widgets, R47).
 import { useId, useState } from "react";
 import { Check, MapPin, Navigation, Trash2 } from "lucide-react";
 import { AddressField } from "@/components/places/AddressField";
@@ -144,7 +144,7 @@ function Body({
   );
 }
 
-/** Where the weather is for: where you are (R47), or a city the widget always shows. */
+/** Where the weather is for: where you are (R48), or a city the widget always shows. */
 function WeatherPlace({ item, onChange }: { item: WidgetItem; onChange: (item: WidgetItem) => void }) {
   const [mode, setMode] = useState<"here" | "city">(item.city ? "city" : "here");
   const [text, setText] = useState(item.city ?? "");

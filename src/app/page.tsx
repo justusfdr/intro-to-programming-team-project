@@ -34,7 +34,7 @@ export default async function CalendarPage({
 
   const params = await searchParams;
   const address = readAddress(params);
-  // Spec 45: `&event=<id>` from "Next up" in the sidebar opens that event's editor.
+  // Spec 47: `&event=<id>` from "Next up" in the sidebar opens that event's editor.
   const openEventId = typeof params.event === "string" && UUID.test(params.event) ? params.event : undefined;
   const { display, week, goals, showWelcome, places, home, travelMode } = await loadCalendarPage(deps, userId, address.date, address.view);
 

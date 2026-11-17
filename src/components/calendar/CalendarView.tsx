@@ -66,7 +66,7 @@ type Props = {
   goals: GoalLabel[];
   /** Outlook is set up on this server. */
   outlookAvailable?: boolean;
-  /** Spec 45: an event to open in the editor at once (from "Next up" in the sidebar), if it is shown. */
+  /** Spec 47: an event to open in the editor at once (from "Next up" in the sidebar), if it is shown. */
   openEventId?: string;
 };
 
@@ -143,7 +143,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  // Spec 45: opened from "Next up". The event's block comes into view and its editor opens beside it,
+  // Spec 47: opened from "Next up". The event's block comes into view and its editor opens beside it,
   // as if it had been clicked. An event that is not shown (another day, deleted since) opens nothing.
   useEffect(() => {
     if (!openEventId) return;

@@ -1,10 +1,10 @@
 import "server-only";
 
-// Action widgets_data (spec 45): everything the sidebar widgets show, read in one go. Reads only.
+// Action widgets_data (spec 47): everything the sidebar widgets show, read in one go. Reads only.
 //   1. signed in (R3)   2. one transaction (withUser) with all the reads   3. one answer.
 // Everything is calculated at the time of the request from the user's own rows (row-level security
 // limits every query to them): nothing is saved here. The widget layout is the saved list, or the
-// standard one when none is saved or the saved one is no longer valid (R46).
+// standard one when none is saved or the saved one is no longer valid (R47).
 import { ruleAmount, type DoneEvent, type Rule } from "@/lib/goals/progress";
 import { focusedMinutes, plannedEnd, type SessionTimes } from "@/lib/focus/session-time";
 import { canTravel } from "@/lib/travel/web-link";

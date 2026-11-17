@@ -1,6 +1,6 @@
 "use client";
 
-// The widget gallery (spec 45), like the one on a phone: the widgets in categories on the left, and on
+// The widget gallery (spec 47), like the one on a phone: the widgets in categories on the left, and on
 // the right each widget of the category as a live preview in every size it comes in, with "Add" under
 // each. The heading says how many fields are still free on this screen; a size with no room left says
 // so instead of "Add".
@@ -29,7 +29,7 @@ export function freeFields(layout: WidgetItem[], rows: number): number {
   return Math.max(0, rows * 3 - used);
 }
 
-/** One more widget fits on this screen (and in the full 3 × 6 grid, R46). */
+/** One more widget fits on this screen (and in the full 3 × 6 grid, R47). */
 export function fitsOnScreen(layout: WidgetItem[], item: WidgetItem, rows: number): boolean {
   return fitsWith(layout, item) && !pack([...layout, item], rows).hidden.includes(layout.length);
 }

@@ -1,9 +1,9 @@
 import "server-only";
 
-// Action save_widgets (spec 45, R46): saves the user's list of sidebar widgets, or sets it back to the
+// Action save_widgets (spec 47, R47): saves the user's list of sidebar widgets, or sets it back to the
 // standard one ("reset").
 //   1. same-origin check   2. signed in (R3)   3. read and shape-check the body
-//   4. R46 (src/lib/widgets/layout.ts): refused as a whole, with its message, nothing saved
+//   4. R47 (src/lib/widgets/layout.ts): refused as a whole, with its message, nothing saved
 //   5. write the user's own settings row   6. answer with the list and whether it is the standard one
 // The database keeps only the shape (a list of at most 18) again; which kinds and sizes are allowed is checked here.
 import { z } from "zod";
@@ -14,7 +14,7 @@ import { requireUser } from "@/lib/server/session";
 import { checkLayout } from "@/lib/widgets/layout";
 import { DEFAULT_LAYOUT } from "@/lib/widgets/types";
 
-// The list itself is checked by R46, so here only that it is a list; "reset" must be exactly true.
+// The list itself is checked by R47, so here only that it is a list; "reset" must be exactly true.
 const WidgetsBody = z.union([z.strictObject({ layout: z.array(z.unknown()) }), z.strictObject({ reset: z.literal(true) })]);
 
 export function saveWidgets(request: Request, deps: Pick<Deps, "auth" | "withUser">): Promise<Response> {

@@ -1,4 +1,4 @@
-// The widgets in the sidebar (spec 45): which kinds there are, in which sizes, and what the server sends
+// The widgets in the sidebar (spec 47): which kinds there are, in which sizes, and what the server sends
 // for them. Shared by the browser and the server; the server checks every saved layout with layout.ts.
 import type { GoalLook } from "@/lib/goals/style";
 import type { TimeFormat } from "@/lib/time/display";
@@ -12,7 +12,7 @@ export type WidgetSize = (typeof WIDGET_SIZES)[number];
 
 /**
  * One widget in the user's list. A goal widget names its goal; without one it shows the first goal.
- * A weather widget may name a city to always show; without one it follows the user (R47).
+ * A weather widget may name a city to always show; without one it follows the user (R48).
  */
 export type WidgetItem = { kind: WidgetKind; size: WidgetSize; goalId?: string | null; city?: string | null };
 

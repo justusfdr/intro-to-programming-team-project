@@ -10,7 +10,7 @@ import { isSessionLength } from "@/lib/focus/session-time";
 export const metadata: Metadata = { title: "Focus" };
 
 // The Focus page (spec 04). Opened from an event as /focus?event=<id>; from "Free time" in the sidebar
-// as /focus?minutes=<n> (spec 45), which only chooses the length to start with.
+// as /focus?minutes=<n> (spec 47), which only chooses the length to start with.
 export default async function FocusPage({ searchParams }: { searchParams: Promise<{ event?: string | string[]; minutes?: string | string[] }> }) {
   const deps = await pageDeps();
   // The proxy already sends signed-out visitors away; the page checks again (R3).

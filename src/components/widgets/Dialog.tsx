@@ -1,6 +1,6 @@
 "use client";
 
-// The window the widgets open in the middle of the screen (spec 45): the weather in detail, the gallery
+// The window the widgets open in the middle of the screen (spec 47): the weather in detail, the gallery
 // and a widget's settings. A native <dialog> like the places and the goal editor: Escape, the close
 // button or a click on the backdrop close it; the page behind cannot be used meanwhile.
 import { useEffect, useRef, type ReactNode } from "react";

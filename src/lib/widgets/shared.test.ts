@@ -1,4 +1,4 @@
-// Spec 45: the grid (pack, R46's check), the leave levels and the weather words, shared by browser and server.
+// Spec 47: the grid (pack, R47's check), the leave levels and the weather words, shared by browser and server.
 import { describe, expect, it } from "vitest";
 import { checkLayout, fitsWith, LAYOUT_MESSAGES, pack, rowsFor } from "./layout";
 import { durationText, leaveLevel, leaveLine, minutesUntil } from "./leave";
@@ -56,7 +56,7 @@ describe("pack: where the widgets sit", () => {
   });
 });
 
-describe("R46: which widget lists may be saved", () => {
+describe("R47: which widget lists may be saved", () => {
   it("accepts a full grid, the empty list and a goal widget with or without a goal", () => {
     expect(checkLayout(DEFAULT_LAYOUT)).toEqual({ ok: true, layout: DEFAULT_LAYOUT });
     expect(checkLayout([])).toEqual({ ok: true, layout: [] });
@@ -151,7 +151,7 @@ describe("weather words", () => {
     expect(skyLabel("storm", true)).toBe("Thunderstorm");
   });
 
-  it("rounds coordinates to two decimals (about 1 km) before they leave the server (R47)", () => {
+  it("rounds coordinates to two decimals (about 1 km) before they leave the server (R48)", () => {
     expect(roundCoordinate(38.678912)).toBe(38.68);
     expect(roundCoordinate(-9.334567)).toBe(-9.33);
   });

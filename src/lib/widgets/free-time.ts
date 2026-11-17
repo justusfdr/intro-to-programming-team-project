@@ -1,4 +1,4 @@
-// The "Free time" widget (spec 45): the next stretch of at least 30 minutes today with nothing in it.
+// The "Free time" widget (spec 47): the next stretch of at least 30 minutes today with nothing in it.
 // It starts at the later of now (rounded up to the next 5 minutes) and the start of the visible day,
 // and must end by the end of the visible day. Pure: no database, no clock of its own.
 import { addDays, localDateOf, parseLocalDateTime, startOfLocalDate } from "@/lib/time/zoned";

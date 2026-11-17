@@ -1,4 +1,4 @@
-// The six widgets of the sidebar (spec 45), drawn from the data they are given. They hold no state and
+// The six widgets of the sidebar (spec 47), drawn from the data they are given. They hold no state and
 // fetch nothing: WidgetArea reads the data and the clock and passes them in.
 // One look for all: a white tile with a fine border and 16 px corners (rounded-card), rows inside with
 // 8 px corners like the sidebar links, buttons as round pills like Button, Geist, lucide at stroke 1.8.
@@ -101,7 +101,7 @@ export const SOURCE_ICON: Record<WeatherSource, { icon: LucideIcon; label: strin
 };
 
 /**
- * The weather (R47). `onLocate`: offered while the browser has not been asked for the location yet; a
+ * The weather (R48). `onLocate`: offered while the browser has not been asked for the location yet; a
  * click asks it once. Nothing moves: the sky is an icon, the colour is in the icon and the chance of rain.
  */
 export function WeatherWidget({ size, answer, clock, onLocate }: { size: WidgetSize; answer: WeatherAnswer | null; clock: Clock; onLocate?: () => void }) {

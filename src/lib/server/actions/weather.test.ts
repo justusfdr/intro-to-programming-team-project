@@ -1,4 +1,4 @@
-// Tests for weather (spec 45, R47): a city the widget names, else the device's place, else the event on now or the last one that ended
+// Tests for weather (spec 47, R48): a city the widget names, else the device's place, else the event on now or the last one that ended
 // today, else home, else "Add your home address"; only rounded coordinates reach the weather service;
 // nothing is saved. The clock starts on Monday 16 November 2026, 09:00 UTC (10:00 in Berlin).
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";

@@ -14,7 +14,7 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Microphone for the spoken chat input later (R24). Location for the weather widget, only on our own
-  // pages and only when the user clicks the location sign (R47). No camera.
+  // pages and only when the user clicks the location sign (R48). No camera.
   { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(self)" },
   // Browsers ignore this on http://localhost; on the deployed https site it keeps them on https.
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },

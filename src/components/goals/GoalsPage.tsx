@@ -32,7 +32,7 @@ type Props = {
   places?: SavedPlace[];
   /** Previews and tests only: open with the questions or the form for a new goal. */
   openOn?: "setup" | "form";
-  /** Spec 45: the goal a widget in the sidebar was clicked for; the page scrolls to it and marks it. */
+  /** Spec 47: the goal a widget in the sidebar was clicked for; the page scrolls to it and marks it. */
   focusGoalId?: string;
 };
 
@@ -63,7 +63,7 @@ export function GoalsPage({ goals, tasks: serverTasks, today, places = [], openO
   const [collapsed, toggle] = useCollapsed([...goals.map((goal) => goal.id), INBOX_KEY]);
   const { byGoal, inbox } = groupTasks(goals, tasks);
   const goalOptions: GoalOption[] = goals.map(({ id, title }) => ({ id, title }));
-  // Spec 45: opened from a goal widget. The goal's card opens if it was folded, comes into view and is
+  // Spec 47: opened from a goal widget. The goal's card opens if it was folded, comes into view and is
   // marked for a moment.
   const [marked, setMarked] = useState<string | null>(null);
   useEffect(() => {

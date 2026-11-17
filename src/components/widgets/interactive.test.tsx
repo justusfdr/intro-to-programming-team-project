@@ -1,4 +1,4 @@
-// Spec 45 v2: what a click on a widget does, the gallery's room on this screen, and the weather in detail.
+// Spec 47 v2: what a click on a widget does, the gallery's room on this screen, and the weather in detail.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { TravelAnswer } from "@/lib/travel/types";

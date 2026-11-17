@@ -1,4 +1,4 @@
-// Spec 45: what the widgets show for given data (the leave colours, the goal ring, weather and next up).
+// Spec 47: what the widgets show for given data (the leave colours, the goal ring, weather and next up).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { TravelAnswer } from "@/lib/travel/types";
@@ -146,7 +146,7 @@ describe("next up and free time", () => {
     expect(html).toContain("Then Gym at 5pm");
   });
 
-  // Rewritten for spec 45 v2: "Focus" now starts with the free stretch's length (/focus?minutes=90).
+  // Rewritten for spec 47 v2: "Focus" now starts with the free stretch's length (/focus?minutes=90).
   it("says Nothing else today with tomorrow's first event, and shows the free stretch", () => {
     const html = renderToStaticMarkup(
       <NextWidget size="3x2" next={null} after={null} tomorrow={{ title: "Statistics", start: "2026-11-18T09:00:00Z" }} travel={null} clock={clock} />,

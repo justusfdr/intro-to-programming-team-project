@@ -2,7 +2,7 @@ import "server-only";
 
 // The weather module: the only place that talks to Open-Meteo (AGENTS.md: one module per service). No key
 // is needed. Only coordinates go out, rounded to two decimals (about 1 km) before they get here, and
-// rounded again here so no caller can send more (R47). Plain `fetch`, 5 seconds at most. Nothing is
+// rounded again here so no caller can send more (R48). Plain `fetch`, 5 seconds at most. Nothing is
 // logged but the kind of a failure. The answer is kept in memory for 30 minutes per rounded place.
 import { roundCoordinate, skyOf } from "@/lib/widgets/weather";
 import type { Forecast, WeatherService } from "./types";

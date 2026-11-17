@@ -1,6 +1,6 @@
 import "server-only";
 
-// Action weather (spec 45, R47): the weather for the place the user is at. Reads only; nothing is saved.
+// Action weather (spec 47, R48): the weather for the place the user is at. Reads only; nothing is saved.
 //   1. same-origin check   2. signed in (R3)   3. read and shape-check the body: nothing, or both coordinates
 //   4. the place, in this order: the device's location (only when the browser sent it), the place of the
 //      timed event happening now or the last one that ended today (not a web link), the home address
@@ -26,7 +26,7 @@ import { roundCoordinate, type WeatherAnswer, type WeatherSource } from "@/lib/w
 
 const MAX_LABEL = 30;
 
-/** The two answers without a weather (R47). */
+/** The two answers without a weather (R48). */
 export const WEATHER_NO_PLACE = "Add your home address";
 export const WEATHER_UNAVAILABLE = "Weather not available";
 export const WEATHER_CITY_NOT_FOUND = "City not found";
