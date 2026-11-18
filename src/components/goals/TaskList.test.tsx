@@ -148,7 +148,9 @@ describe("the Goals page with tasks", () => {
     expect(section.indexOf(">Soon<")).toBeLessThan(section.indexOf(">No date<"));
     expect(section.indexOf(">No date<")).toBeLessThan(section.indexOf(">Done one<"));
     // The tasks come after the rules and the weeks.
-    expect(section.indexOf('aria-label="Weeks"')).toBeLessThan(section.indexOf(">Soon<"));
+    // Changed 18 Nov 2026 with Emily's approval (spec 47): there is no strip of weeks any more.
+    expect(section.indexOf('aria-label="This week"')).toBeGreaterThan(-1);
+    expect(section.indexOf('aria-label="This week"')).toBeLessThan(section.indexOf(">Soon<"));
   });
 
   it("shows Inbox at the bottom with a grey tile and its own 'Add task', also with no goals", () => {

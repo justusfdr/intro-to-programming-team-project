@@ -27,17 +27,24 @@ export type GoalInput = {
   rules: Rule[];
   /** Only the goal's events with status done. */
   doneEvents: DoneEvent[];
+  /** The goal's timed events still planned (not done), for the days of this week (R9). */
+  plannedEvents?: { startAt: Date }[];
 };
 
 export type RuleProgress = { ruleId: string; text: string; status: WeekStatus };
 export type StripWeek = { monday: LocalDate; status: WeekStatus; isCurrent: boolean };
 /** One day of this week, Monday to Sunday: `done` when a done event of the goal starts on it. */
-export type StripDay = { date: LocalDate; done: boolean; isToday: boolean };
+/**
+ * One day of this week (R9). `done`: a done event of the goal starts on it. Otherwise `missed`: the day
+ * has ended and a planned event of the goal started on it; `planned`: today or later, with a planned
+ * event of the goal. A day with none of these is empty: a rest day is never missed.
+ */
+export type StripDay = { date: LocalDate; done: boolean; isToday: boolean; missed?: boolean; planned?: boolean };
 export type GoalProgress = {
   thisWeek: RuleProgress[];
   weeks: StripWeek[];
   countdown: string;
-  /** The 7 days of this week (R9); a goal without an end date shows them instead of the weeks. */
+  /** The 7 days of this week (R9); every goal shows them. */
   days?: StripDay[];
 };
 
@@ -131,17 +138,20 @@ export function goalProgress(goal: GoalInput, now: Date, timeZone: string): Goal
     }),
     weeks,
     countdown: goal.deadline === null ? NO_END_DATE : countdownText(goal.deadline, today),
-    days: thisWeekDays(goal.doneEvents, now, timeZone),
+    days: thisWeekDays(goal.doneEvents, now, timeZone, goal.plannedEvents ?? []),
   };
 }
 
 /** The 7 days of the current week, Monday to Sunday, at `now` in `timeZone` (R9). */
-export function thisWeekDays(doneEvents: DoneEvent[], now: Date, timeZone: string): StripDay[] {
+export function thisWeekDays(doneEvents: DoneEvent[], now: Date, timeZone: string, plannedEvents: { startAt: Date }[] = []): StripDay[] {
   const today = localDateOf(now, timeZone);
   const monday = mondayOf(today);
   const doneDays = new Set(doneEvents.map((event) => localDateOf(event.startAt, timeZone)));
+  const plannedDays = new Set(plannedEvents.map((event) => localDateOf(event.startAt, timeZone)));
   return Array.from({ length: 7 }, (_, i) => {
     const date = addDays(monday, i);
-    return { date, done: doneDays.has(date), isToday: date === today };
+    const done = doneDays.has(date);
+    const planned = !done && plannedDays.has(date);
+    return { date, done, isToday: date === today, missed: planned && date < today, planned: planned && date >= today };
   });
 }

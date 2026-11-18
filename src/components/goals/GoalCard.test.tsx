@@ -38,18 +38,18 @@ const GOAL: GoalView = {
 describe("goal card", () => {
   const html = renderToStaticMarkup(<GoalCard goal={GOAL} />);
 
-  it("shows the title, the countdown and each rule's text", () => {
+  // Changed 18 Nov 2026 with Emily's approval (spec 47, R9): one row of days for every goal, "sessions" with the number in bold.
+  it("shows the title, the countdown and each rule's text, the number done in bold", () => {
     expect(html).toContain("Run a half marathon");
     expect(html).toContain("12 days left");
-    expect(html).toContain("This week: 1 of 2 done");
-    expect(html).toContain("This week: 3.5 of 6 h");
+    expect(html).toMatch(/This week: <strong[^>]*>1<\/strong> of 2 sessions/);
+    expect(html).toMatch(/This week: <strong[^>]*>3\.5<\/strong> of 6 h/);
   });
 
-  it("says every week's status in words, marks this week, and draws a symbol for met and missed", () => {
-    expect(html).toContain("Week of Nov 2: met");
-    expect(html).toContain("Week of Nov 9: missed");
-    expect(html).toContain("Week of Nov 16 (this week): open");
-    expect(html.match(/<svg/g)?.length).toBeGreaterThanOrEqual(2);
+  // Changed 18 Nov 2026 with Emily's approval (spec 47, R9): one row of days for every goal, "sessions" with the number in bold.
+  it("shows no strip of weeks any more", () => {
+    expect(html).not.toContain("Week of Nov");
+    expect(html).not.toContain('aria-label="Weeks"');
   });
 
   it("uses the goal's own colour and icon (spec 13) and mentions auto-block", () => {
