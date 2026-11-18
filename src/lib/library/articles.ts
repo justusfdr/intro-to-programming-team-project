@@ -46,9 +46,9 @@ export const ARTICLES: Article[] = [
       {
         kind: "stats",
         stats: [
-          { value: "57%", label: "of work stretches ended in an interruption" },
+          { value: "57 %", label: "of work stretches ended in an interruption" },
           { value: "~2", label: "other tasks before people came back" },
-          { value: "27%", label: "of alert detours lasted over two hours" },
+          { value: "27 %", label: "of alert detours lasted over two hours" },
         ],
       },
       {
@@ -186,10 +186,10 @@ export const ARTICLES: Article[] = [
         title: "Carrying on at the wrong step",
         note: "Share of steps right after an interruption, against steps with none.",
         bars: [
-          { label: "Experiment 1: no interruption", value: 1.8, text: "1.8%" },
-          { label: "Experiment 1: after 4.4 seconds", value: 5.8, text: "5.8%", strong: true },
-          { label: "Experiment 2: no interruption", value: 2.0, text: "2.0%" },
-          { label: "Experiment 2: after 2.8 seconds", value: 4.3, text: "4.3%", strong: true },
+          { label: "Experiment 1: no interruption", value: 1.8, text: "1.8 %" },
+          { label: "Experiment 1: after 4.4 seconds", value: 5.8, text: "5.8 %", strong: true },
+          { label: "Experiment 2: no interruption", value: 2.0, text: "2.0 %" },
+          { label: "Experiment 2: after 2.8 seconds", value: 4.3, text: "4.3 %", strong: true },
         ],
       },
       { kind: "h", text: "They did not notice" },
@@ -359,7 +359,7 @@ export const ARTICLES: Article[] = [
     topic: "helps",
     title: "A small speed bump",
     dek: "Most scrolling starts before any decision is made. A pause of a few seconds is often enough to turn it into one.",
-    figure: { value: "36%", label: "of attempts to open an app were dropped after a short pause" },
+    figure: { value: "36 %", label: "of attempts to open an app were dropped after a short pause" },
     studies: ["gruning-2023", "allcott-2022"],
     body: [
       {
@@ -373,9 +373,9 @@ export const ARTICLES: Article[] = [
       {
         kind: "stats",
         stats: [
-          { value: "36%", label: "of attempts ended with the app closed again" },
-          { value: "−37%", label: "attempts to open it, week 1 to week 6" },
-          { value: "−57%", label: "actual openings after six weeks" },
+          { value: "36 %", label: "of attempts ended with the app closed again" },
+          { value: "−37 %", label: "attempts to open it, week 1 to week 6" },
+          { value: "−57 %", label: "actual openings after six weeks" },
         ],
       },
       {

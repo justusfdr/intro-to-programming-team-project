@@ -224,7 +224,7 @@ function summary(sheet: Sheet, report: PeriodReport): void {
     {
       label: "Focus time",
       value: minutesText(totals.focusedMinutes),
-      note: growth === null ? `in ${plural(totals.sessions, "session")}` : growth >= 0 ? `${growth}% more than before` : `${-growth}% less than before`,
+      note: growth === null ? `in ${plural(totals.sessions, "session")}` : growth >= 0 ? `${growth} % more than before` : `${-growth} % less than before`,
       good: growth !== null && growth > 0,
     },
     { label: "Focus sessions", value: String(totals.sessions), note: totals.averageSessionMinutes === null ? "none finished" : `${minutesText(totals.averageSessionMinutes)} on average` },
