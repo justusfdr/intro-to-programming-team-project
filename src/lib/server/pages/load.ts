@@ -10,6 +10,7 @@ import "server-only";
 //   (finishing due sessions, R13, or removing old done tasks, R33), so it stays saved even if the
 //   page's reading then fails.
 // The counting test (load.test.ts) fails when a page opens more transactions than that.
+import type { AnalyticsReport } from "@/lib/analytics/report-types";
 import type { AnalyticsData } from "@/lib/analytics/types";
 import { chatAllowed } from "@/lib/chat/access";
 import type { ChatPageData } from "@/lib/chat/types";
@@ -24,6 +25,7 @@ import type { SettingsPageData } from "@/lib/settings/types";
 import type { TaskDto } from "@/lib/tasks/types";
 import type { Display } from "@/lib/time/display";
 import { readAnalytics } from "@/lib/server/analytics/load";
+import { readAnalyticsReport } from "@/lib/server/analytics/report";
 import { findOwnChat, readChatAccount, readChats, readMessages } from "@/lib/server/chat/rows";
 import { chatProOnly } from "@/lib/server/config";
 import { EVENT_COLUMNS, toEventDto, type EventRow } from "@/lib/server/events/rows";
@@ -158,7 +160,7 @@ export async function loadFocusPage(deps: PageDeps, userId: string, eventId?: st
   });
 }
 
-export type AnalyticsPageData = { display: Display; analytics: AnalyticsData };
+export type AnalyticsPageData = { display: Display; analytics: AnalyticsData; report: AnalyticsReport };
 
 /** The Analytics page (spec 06). Reads only, apart from finishing due sessions first (R13). */
 export async function loadAnalyticsPage(deps: PageDeps, userId: string, requestedWeek?: string): Promise<AnalyticsPageData> {
@@ -167,11 +169,15 @@ export async function loadAnalyticsPage(deps: PageDeps, userId: string, requeste
   await settleSessions(deps, userId, now);
   return deps.withUser(userId, async (query) => {
     const settingsRead = readSettings(query);
-    const [settings, analytics] = await Promise.all([
+    const timeZone = settingsRead.then((s) => s.timeZone);
+    // The goals have no parameters: they go out first, with the settings (see readAnalyticsReport).
+    const goalsRead = readGoals(query);
+    const [settings, analytics, report] = await Promise.all([
       settingsRead,
-      readAnalytics(query, now, requestedWeek, settingsRead.then((s) => s.timeZone)),
+      readAnalytics(query, now, requestedWeek, timeZone),
+      readAnalyticsReport(query, now, requestedWeek, timeZone, goalsRead),
     ]);
-    return { display: displayOf(settings), analytics };
+    return { display: displayOf(settings), analytics, report };
   });
 }
 
