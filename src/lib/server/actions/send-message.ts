@@ -120,7 +120,13 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
     });
     const result = await assistant!.ask({ system: SYSTEM_PROMPT, data: JSON.stringify(input), schema: ANSWER_JSON_SCHEMA });
     if (result.kind === "unavailable") throw unavailableError();
-    if (result.kind === "failed") throw failedChecksError();
+    if (result.kind === "failed") {
+      // A refusal and an answer cut off at max_tokens each get their own message; every other failure
+      // (not JSON, another stop reason) keeps the general one. The status is 502 in all three cases.
+      if (result.reason === "refusal") throw new ActionError(502, "answer_refused", MESSAGES.chatRefused);
+      if (result.reason === "max_tokens") throw new ActionError(502, "answer_too_long", MESSAGES.chatTooLong);
+      throw failedChecksError();
+    }
 
     // Step 6: never trust the answer.
     const checked = checkAnswer(result.value, {

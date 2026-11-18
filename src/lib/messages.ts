@@ -97,6 +97,8 @@ export const MESSAGES = {
   chatGone: "This chat no longer exists",
   chatSearchLength: "A search can be at most 100 characters",
   chatFailedChecks: "The assistant's answer failed our checks. Please try again",
+  chatRefused: "The coach cannot help with this request.",
+  chatTooLong: "That was too much for one answer. Ask for less at once, for example fewer days.",
   chatUnavailable: "The assistant is not available right now. Your calendar is unchanged",
   draftNotOpen: "This draft is no longer open",
   draftOutOfDate: "This draft is out of date. Ask again",
