@@ -8,7 +8,7 @@ A user creates an account, confirms the email address and signs in. Each user's 
 - [ ] `sign_up` with a new email and an 8-character password creates an `unconfirmed` account (plan `free`, `time_zone` from the browser, else "Europe/Lisbon") and sends a confirmation link.
 - [ ] `sign_up` rejects a registered email ("This email is already registered") and a 7-character password ("Password needs at least 8 characters"); nothing is created.
 - [ ] `confirm_email` makes the account `confirmed`; a used or expired link: "This link has expired. Ask for a new one".
-- [ ] `sign_in` with a wrong password: "Email or password is wrong"; before confirming: "Confirm your email first. We sent you a link". `sign_out` ends the session.
+- [ ] `sign_in` with a wrong password: "Email or password is wrong"; before confirming: "Confirm your email first. Open the link from your sign-up email or ask for a new one". `sign_out` ends the session.
 - [ ] `resend_confirmation` shows "If this email needs confirming, we sent a link"; again within 60 seconds: "Please wait a minute before asking again".
 - [ ] `request_password_reset` always shows "If this email is registered, we sent a link"; unknown emails get none (A14).
 - [ ] `reset_password` with a 7-character password: "Password needs at least 8 characters"; a used link: "This link has expired. Ask for a new one".

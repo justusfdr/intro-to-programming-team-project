@@ -11,7 +11,7 @@ export const MESSAGES = {
   resendTooSoon: "Please wait a minute before asking again",
   tooManyAttempts: "Too many attempts. Try again in a few minutes.",
   wrongCredentials: "Email or password is wrong",
-  unconfirmed: "Confirm your email first. We sent you a link",
+  unconfirmed: "Confirm your email first. Open the link from your sign-up email or ask for a new one",
   resetRequested: "If this email is registered, we sent a link",
   // ontology, section 5 (events) and R3, R4
   titleLength: "Title must be 1 to 100 characters",
