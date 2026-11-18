@@ -25,6 +25,14 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// Spec 53: the browser reads shared calendars after the page is on screen, which a static render never
+// does. The previews hand the calendar fixed shared calendars instead (empty unless a preview sets them).
+const previewShared = vi.hoisted(() => ({ calendars: [] as import("@/lib/shares/place").ShownCalendar[] }));
+vi.mock("@/components/calendar/useSharedCalendars", async (original) => ({
+  ...(await original<typeof import("@/components/calendar/useSharedCalendars")>()),
+  useSharedCalendars: () => ({ chosen: previewShared.calendars.map((c) => c.person.userId), toggle: () => {}, calendars: previewShared.calendars }),
+}));
+
 const ROOT = join(__dirname, "..", "..");
 const OUT = process.env.PREVIEW_OUT ?? join(ROOT, "previews");
 
@@ -205,6 +213,137 @@ it("writes the preview files", async () => {
     const html = page(name, calendar(data), styles);
     writeFileSync(join(OUT, `${name}-desktop.html`), html);
     writeFileSync(join(OUT, `${name}-phone.html`), phoneFrame(name, html));
+  }
+
+  // Spec 53: People and shared calendars, with sample people (no second account needed). Lucas shares
+  // his calendar with details, Emily as free/busy; Ana has invited the user; the user has invited Maya.
+  {
+    const { PeopleView } = await import("@/components/people/PeopleView");
+    const { PersonView } = await import("@/components/profile/PersonView");
+    const { WeekList } = await import("@/components/profile/PersonWeek");
+    const { SharedEventDetails } = await import("@/components/calendar/Shared");
+    const { placeShared, sharedAllDayByDay } = await import("@/lib/shares/place");
+    type SharingPerson = import("@/lib/shares/types").SharingPerson;
+    type ShownCalendar = import("@/lib/shares/place").ShownCalendar;
+    const NOW = "2026-11-17T12:10:00.000Z";
+    const me = { userId: "u-me", displayName: "Justus", name: "Justus", email: "preview@example.com", photoUrl: null };
+    const lucas: SharingPerson = { userId: "u-lucas", name: "Lucas Meyer", photoUrl: null, calendar: "details", focus: false };
+    const emily: SharingPerson = { userId: "u-emily", name: "Emily Chen", photoUrl: null, calendar: "busy", focus: false };
+    const people = {
+      me,
+      contacts: [
+        { id: "c-lucas", userId: lucas.userId, name: lucas.name, email: "lucas@example.com", photoUrl: null, since: "2026-11-10T10:00:00.000Z" },
+        { id: "c-emily", userId: emily.userId, name: emily.name, email: "emily@example.com", photoUrl: null, since: "2026-11-12T10:00:00.000Z" },
+      ],
+      received: [{ id: "i-ana", userId: "u-ana", name: "Ana Silva", email: "ana@example.com", photoUrl: null, since: "2026-11-16T18:00:00.000Z" }],
+      sent: [{ id: "s-maya", email: "maya@example.com", sentAt: "2026-11-15T09:00:00.000Z" }],
+    };
+    const shares = [
+      { contactId: "c-lucas", userId: lucas.userId, out: { calendar: "busy" as const, focus: false }, in: { calendar: "details" as const, focus: false } },
+      { contactId: "c-emily", userId: emily.userId, out: { calendar: "none" as const, focus: false }, in: { calendar: "busy" as const, focus: false } },
+    ];
+    const facts = [
+      { userId: lucas.userId, bio: "Physics at Nova. Climbing on weekends.", timeZone: "Europe/Berlin" },
+      { userId: emily.userId, bio: "Group project lead, statistics tutor.", timeZone: "Europe/Lisbon" },
+      { userId: "u-ana", bio: null, timeZone: "Europe/Lisbon" },
+    ];
+    const peopleHtml = page(
+      "People",
+      renderToStaticMarkup(
+        <Announcer>
+          <AppShell current="/people" invitations={1} me={{ name: me.name, photoUrl: null }}>
+            <PeopleView data={people} timeZone="Europe/Lisbon" shares={shares} facts={facts} now={NOW} />
+          </AppShell>
+        </Announcer>,
+      ),
+      styles,
+    );
+    writeFileSync(join(OUT, "people.html"), peopleHtml);
+    writeFileSync(join(OUT, "people-phone.html"), phoneFrame("People", peopleHtml));
+
+    // Their calendars for the sample week (UTC; Lisbon is UTC in November, Berlin one hour ahead).
+    const lucasWeek: ShownCalendar = {
+      person: lucas,
+      level: "details",
+      events: [
+        { allDay: false, startAt: "2026-11-17T13:00:00.000Z", endAt: "2026-11-17T14:30:00.000Z", title: "Physics lab", location: "Lab 3, Campus de Carcavelos" },
+        { allDay: false, startAt: "2026-11-18T09:00:00.000Z", endAt: "2026-11-18T10:00:00.000Z", title: "Thesis call", location: null },
+        { allDay: false, startAt: "2026-11-20T15:00:00.000Z", endAt: "2026-11-20T17:00:00.000Z", title: "Climbing", location: "Gravity gym" },
+        { allDay: true, firstDay: "2026-11-19", lastDay: "2026-11-19", title: "Conference in Porto", location: "Porto" },
+      ],
+    };
+    const emilyWeek: ShownCalendar = {
+      person: emily,
+      level: "busy",
+      events: [
+        { allDay: false, startAt: "2026-11-17T09:30:00.000Z", endAt: "2026-11-17T11:00:00.000Z" },
+        { allDay: false, startAt: "2026-11-19T15:00:00.000Z", endAt: "2026-11-19T16:00:00.000Z" },
+        { allDay: true, firstDay: "2026-11-21", lastDay: "2026-11-21" },
+      ],
+    };
+
+    // The person page: Lucas shares details (his week as a list, in his time zone); Emily's page when she
+    // shares nothing. The week is read by the browser, so its list is put in place of "Loading…".
+    const loading = '<p class="text-sm text-ink-3">Loading…</p>';
+    const personPage = (person: SharingPerson, bio: string, timeZone: string, shared: "none" | "busy" | "details", week: ShownCalendar | null) => {
+      const card = { userId: person.userId, displayName: person.name, name: person.name, email: `${person.name.split(" ")[0].toLowerCase()}@example.com`, photoUrl: null, bio, linkedinUrl: "https://www.linkedin.com/in/sample-person", timeZone };
+      const relation = { contactId: `c-${person.userId}`, out: { calendar: "busy" as const, focus: false }, shared: { calendar: shared, focus: false } };
+      let html = renderToStaticMarkup(
+        <Announcer>
+          <AppShell current="/people" me={{ name: me.name, photoUrl: null }}>
+            <PersonView person={card} now={NOW} sections relation={relation} viewerId={me.userId} />
+          </AppShell>
+        </Announcer>,
+      );
+      if (week) {
+        const dates = ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22"];
+        const list = renderToStaticMarkup(
+          <WeekList person={person} dates={dates} today="2026-11-17" timeZone={timeZone} allDay={sharedAllDayByDay([week], dates)} blocks={placeShared([week], dates, timeZone)} onOpen={() => {}} />,
+        );
+        if (!html.includes(loading)) throw new Error("The person page's week changed; update the preview.");
+        html = html.replace(loading, list);
+      }
+      return page(person.name, html, styles);
+    };
+    const lucasHtml = personPage(lucas, "Physics at Nova. Climbing on weekends.", "Europe/Berlin", "details", lucasWeek);
+    writeFileSync(join(OUT, "person-shares-details.html"), lucasHtml);
+    writeFileSync(join(OUT, "person-shares-details-phone.html"), phoneFrame("Person", lucasHtml));
+    writeFileSync(join(OUT, "person-shares-nothing.html"), personPage({ ...emily, calendar: "none" }, "Group project lead, statistics tutor.", "Europe/Lisbon", "none", null));
+
+    // The calendar with shared calendars shown (the People button counts them).
+    const sharedCalendar = (shown: typeof week, calendars: ShownCalendar[]) => {
+      previewShared.calendars = calendars;
+      try {
+        return renderToStaticMarkup(
+          <Announcer>
+            <AppShell current="/">
+              <CalendarView
+                week={shown}
+                nowLocal="2026-11-17T12:10"
+                goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
+                outlookAvailable
+                viewerId={me.userId}
+                sharing={[lucas, emily]}
+              />
+            </AppShell>
+          </Announcer>,
+        );
+      } finally {
+        previewShared.calendars = [];
+      }
+    };
+    writeFileSync(join(OUT, "week-shared-busy.html"), page("Week with Emily (free/busy)", sharedCalendar(week, [emilyWeek]), styles));
+    writeFileSync(join(OUT, "week-shared-details.html"), page("Week with Lucas (details)", sharedCalendar(week, [lucasWeek]), styles));
+    writeFileSync(join(OUT, "day-shared-phone.html"), phoneFrame("Day with Emily", page("Day with Emily", sharedCalendar(dayData, [emilyWeek]), styles)));
+    writeFileSync(join(OUT, "month-shared.html"), page("Month with shared calendars", sharedCalendar(monthData, [lucasWeek, emilyWeek]), styles));
+    // The read-only card of Lucas's "Physics lab", next to its block (placed by a small script, as the editor's).
+    const floatingCard = (selector: string, inner: string) =>
+      `<div id="floating-card" role="dialog" class="fixed z-50 overflow-y-auto rounded-card border border-line-subtle bg-surface shadow-float" style="left:0;top:0;width:300px;visibility:hidden">${inner}</div>
+<script>(function(){var p=document.getElementById("floating-card"),b=document.querySelector(${JSON.stringify(selector)});if(!b)return;var a=b.getBoundingClientRect(),vw=innerWidth,vh=innerHeight,w=Math.min(300,vw-16),l=a.right+10;if(l+w>vw-8)l=a.left-w-10;l=Math.max(8,Math.min(l,vw-w-8));var t=Math.max(8,Math.min(a.top,vh-p.offsetHeight-8));p.style.left=l+"px";p.style.top=t+"px";p.style.width=w+"px";p.style.visibility="visible";})();</script>`;
+    const card = renderToStaticMarkup(
+      <SharedEventDetails shared={{ person: lucas, title: "Physics lab", location: "Lab 3, Campus de Carcavelos", when: "Tuesday, November 17, 1 – 2:30pm" }} />,
+    );
+    writeFileSync(join(OUT, "shared-details-card.html"), page("Shared event", `${sharedCalendar(week, [lucasWeek])}${floatingCard('[aria-label^="Physics lab"]', card)}`, styles));
   }
 
   // Spec 16: the editor as the prototype's 360 px card next to the block it belongs to. A static page

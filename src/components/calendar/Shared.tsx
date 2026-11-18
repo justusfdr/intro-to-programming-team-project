@@ -239,21 +239,28 @@ export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onO
   );
 }
 
+/** What the read-only card shows: title, time, place, whose calendar (also used by the previews). */
+export function SharedEventDetails({ shared }: { shared: OpenShared }) {
+  return (
+    <div className="flex flex-col gap-2 p-4" style={SHARED_STRIPES}>
+      <p className="pr-8 text-[15px] font-semibold text-ink">{shared.title}</p>
+      <p className="text-sm text-ink-2">{shared.when}</p>
+      {shared.location && <p className="text-sm text-ink-2">{shared.location}</p>}
+      <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-ink-3">
+        <span>From</span>
+        {/* The person's name is a plain link to their profile (spec 53, from spec 33). */}
+        <PersonChip person={{ userId: shared.person.userId, name: shared.person.name, photoUrl: shared.person.photoUrl }} className="text-xs font-medium" />
+        <span>&apos;s calendar. Read only.</span>
+      </p>
+    </div>
+  );
+}
+
 /** The read-only card of a shared "details" event: title, time, place, whose calendar. */
 export function SharedEventCard({ shared, anchor, onClose }: { shared: OpenShared; anchor: Anchor; onClose: () => void }) {
   return (
     <FloatingPanel anchor={anchor} label={`${shared.title}, from ${whose(shared.person)}`} width={300} onClose={onClose}>
-      <div className="flex flex-col gap-2 p-4" style={SHARED_STRIPES}>
-        <p className="pr-8 text-[15px] font-semibold text-ink">{shared.title}</p>
-        <p className="text-sm text-ink-2">{shared.when}</p>
-        {shared.location && <p className="text-sm text-ink-2">{shared.location}</p>}
-        <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-ink-3">
-          <span>From</span>
-          {/* The person's name is a plain link to their profile (spec 53, from spec 33). */}
-          <PersonChip person={{ userId: shared.person.userId, name: shared.person.name, photoUrl: shared.person.photoUrl }} className="text-xs font-medium" />
-          <span>&apos;s calendar. Read only.</span>
-        </p>
-      </div>
+      <SharedEventDetails shared={shared} />
     </FloatingPanel>
   );
 }
