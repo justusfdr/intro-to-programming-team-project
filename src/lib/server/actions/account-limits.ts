@@ -44,3 +44,21 @@ export function checkAccountAttempt(request: Request, action: AccountAction, ema
   );
   if (!allowed) throw new ActionError(429, "too_many_attempts", MESSAGES.tooManyAttempts);
 }
+
+// invite_contact (spec 28): a cheap extra brake in memory, before the database's own limits (10 per
+// hour per sender, counted in the database). Per user at most 20 and per client address at most 30
+// invitations per 15 minutes. Like the limits above, it never depends on the invited address.
+const invitesPerUser = createLimiter({ limit: 20, windowMs: WINDOW_MS });
+const invitesPerClient = createLimiter({ limit: 30, windowMs: WINDOW_MS });
+
+/** Counts one invitation, or refuses it with 429 when the user or the client is over its limit. */
+export function checkInviteAttempt(request: Request, userId: string, now: Date): void {
+  const allowed = takeAll(
+    [
+      [invitesPerUser, userId],
+      [invitesPerClient, clientAddress(request)],
+    ],
+    now.getTime(),
+  );
+  if (!allowed) throw new ActionError(429, "too_many_attempts", MESSAGES.tooManyAttempts);
+}
