@@ -82,6 +82,8 @@ describe("create_goal with a routine", () => {
       dayPart: "evening",
       avoidDays: [6, 7],
       mustDays: [],
+      dayFrom: null,
+      dayUntil: null,
       location: "Studio 4, Lisbon",
     });
     expect(goal.deadline).toBe("2027-03-14");
@@ -106,6 +108,8 @@ describe("create_goal with a routine", () => {
       dayPart: null,
       avoidDays: [5],
       mustDays: [],
+      dayFrom: null,
+      dayUntil: null,
       location: null,
     });
   });
@@ -379,5 +383,32 @@ describe("the sure days (mustDays)", () => {
     const res = await edit(g.id, { title: "Gym", deadline: "2027-03-14", updatedAt: g.updatedAt, rules: [{ kind: "count", target: 2 }], avoidDays: [2] });
     expect(res.status).toBe(200);
     expect(await mustRow(g.id)).toBe("1");
+  });
+});
+
+describe("the own time window (Custom)", () => {
+  const BODY = { title: "Gym", deadline: null, rules: [{ kind: "count", target: 3, minMinutes: null }], sessionMinutes: 60 };
+  const windowRow = async (id: string) =>
+    (await app.db.admin<{ day_from_min: number | null; day_until_min: number | null; day_part: string | null }>("select day_from_min, day_until_min, day_part from app.goals where id = $1", [id]))[0];
+
+  it("create saves it and answers with it; one shorter than a session is refused", async () => {
+    await app.signedInAs("alice@example.com");
+    const answer = await read(await create({ ...BODY, dayFrom: 390, dayUntil: 480 }));
+    expect(answer.status).toBe(201);
+    const goal = answer.body.goal as { id: string; routine: { dayFrom: number; dayUntil: number } };
+    expect(goal.routine).toMatchObject({ dayFrom: 390, dayUntil: 480 });
+    expect(await windowRow(goal.id)).toEqual({ day_from_min: 390, day_until_min: 480, day_part: null });
+    expect((await read(await create({ ...BODY, dayFrom: 390, dayUntil: 420 }))).body.error).toBe("day_window_short");
+  });
+
+  it("an edit keeps it; sending a part of the day instead clears it", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const g = await seedWithRoutine(alice, "day_from_min = 390, day_until_min = 480, session_minutes = 60");
+    const kept = await read(await edit(g.id, { title: "Gym", deadline: "2027-03-14", updatedAt: g.updatedAt, rules: [{ kind: "count", target: 2 }] }));
+    expect(kept.status).toBe(200);
+    expect(await windowRow(g.id)).toMatchObject({ day_from_min: 390, day_until_min: 480 });
+    const updatedAt = (kept.body.goal as { updatedAt: string }).updatedAt;
+    expect((await read(await edit(g.id, { title: "Gym", deadline: "2027-03-14", updatedAt, rules: [{ kind: "count", target: 2 }], dayPart: "evening" }))).status).toBe(200);
+    expect(await windowRow(g.id)).toEqual({ day_from_min: null, day_until_min: null, day_part: "evening" });
   });
 });

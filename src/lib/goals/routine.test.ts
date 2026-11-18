@@ -181,7 +181,7 @@ describe("cleanRoutine", () => {
   it("trims, drops empty texts, keeps the own word only with 'other' and sorts the days", () => {
     expect(
       cleanRoutine({ category: "other", categoryOther: "  Music ", sessionMinutes: 45, dayPart: "evening", avoidDays: [7, 6], location: "  Studio  " }),
-    ).toEqual({ category: "other", categoryOther: "Music", sessionMinutes: 45, dayPart: "evening", avoidDays: [6, 7], mustDays: [], location: "Studio" });
+    ).toEqual({ category: "other", categoryOther: "Music", sessionMinutes: 45, dayPart: "evening", avoidDays: [6, 7], mustDays: [], dayFrom: null, dayUntil: null, location: "Studio" });
     expect(cleanRoutine({ ...NONE, category: "sport", categoryOther: "Music", location: "   " })).toEqual({ ...EMPTY_ROUTINE, category: "sport" });
     expect(cleanRoutine(NONE)).toEqual(EMPTY_ROUTINE);
   });
@@ -215,5 +215,24 @@ describe("the sure days (mustDays)", () => {
   it("is cleaned sorted, and counts as a routine", () => {
     expect(cleanRoutine({ ...NONE, mustDays: [5, 1] }).mustDays).toEqual([1, 5]);
     expect(hasRoutine({ ...EMPTY_ROUTINE, mustDays: [2] })).toBe(true);
+  });
+});
+
+describe("the own time window (Custom)", () => {
+  it("accepts a window inside one day that fits a session", () => {
+    expect(routineProblem({ ...NONE, sessionMinutes: 60, dayFrom: 390, dayUntil: 480 }, [])).toBeNull();
+    expect(routineProblem({ ...NONE, dayFrom: 0, dayUntil: 1440 }, [])).toBeNull();
+    expect(cleanRoutine({ ...NONE, dayFrom: 390, dayUntil: 480 })).toMatchObject({ dayFrom: 390, dayUntil: 480 });
+    expect(hasRoutine({ ...EMPTY_ROUTINE, dayFrom: 390, dayUntil: 480 })).toBe(true);
+  });
+
+  it("refuses half windows, reversed ones, ones past the day and one with a part of the day", () => {
+    for (const w of [{ dayFrom: 390 }, { dayUntil: 480 }, { dayFrom: 480, dayUntil: 390 }, { dayFrom: 60, dayUntil: 1441 }, { dayFrom: 6.5, dayUntil: 480 }, { dayPart: "morning", dayFrom: 390, dayUntil: 480 }]) {
+      expect(routineProblem({ ...NONE, ...w }, [])?.error).toBe("day_window");
+    }
+  });
+
+  it("refuses a window shorter than one session", () => {
+    expect(routineProblem({ ...NONE, sessionMinutes: 120, dayFrom: 390, dayUntil: 480 }, [])).toEqual({ error: "day_window_short", message: "The time window is shorter than one session" });
   });
 });

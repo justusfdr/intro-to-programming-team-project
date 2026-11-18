@@ -37,6 +37,7 @@ import {
   summaryLines,
   toggleAvoidDay,
   toggleMustDay,
+  startCustom,
   MUST_IS_OFF_MESSAGE,
   weeklySum,
   type SetupAnswers,
@@ -299,6 +300,8 @@ describe("the body of create_goal", () => {
       dayPart: "evening",
       avoidDays: [5],
       mustDays: [],
+      dayFrom: null,
+      dayUntil: null,
       location: "FitnessHut Lisboa",
     });
   });
@@ -443,5 +446,27 @@ describe("long sessions", () => {
     expect(tag(90)).toBe("90 min");
     expect(tag(360)).toBe("6 h");
     expect(tag(395)).toBe("6 h 35 min");
+  });
+});
+
+describe("the own time window (Custom)", () => {
+  it("starts inside the visible day, long enough for one session", () => {
+    expect(startCustom(gym({ sessionMinutes: 90 }), { timeFormat: "24h", dayStartHour: 6, dayEndHour: 22 })).toMatchObject({ dayPart: "custom", customFrom: 420, customUntil: 510 });
+    expect(startCustom(gym({ sessionMinutes: 30 }), { timeFormat: "24h", dayStartHour: 9, dayEndHour: 22 })).toMatchObject({ customFrom: 540, customUntil: 600 });
+  });
+
+  it("blocks Continue when the end is not after the start or a session does not fit", () => {
+    expect(stepProblem("when", gym({ dayPart: "custom", customFrom: 480, customUntil: 420 }), TODAY)).toBe("The end has to be after the start.");
+    expect(stepProblem("when", gym({ dayPart: "custom", sessionMinutes: 60, customFrom: 420, customUntil: 450 }), TODAY)).toBe("The time window is shorter than one session (1 h).");
+    expect(stepProblem("when", gym({ dayPart: "custom", sessionMinutes: 60, customFrom: 390, customUntil: 480 }), TODAY)).toBeNull();
+  });
+
+  it("is sent as dayFrom and dayUntil, and shown in the tag, the review and the sentence", () => {
+    const a = gym({ dayPart: "custom", customFrom: 390, customUntil: 480, place: { kind: "home" }, hasDate: false });
+    expect(createGoalBody(a)).toMatchObject({ dayPart: null, dayFrom: 390, dayUntil: 480 });
+    expect(createGoalBody(gym({ dayPart: "evening" }))).toMatchObject({ dayPart: "evening", dayFrom: null, dayUntil: null });
+    expect(previewTags(a, "date", "24h").find((t) => t.key === "dayPart")?.text).toBe("6:30 – 8:00");
+    expect(summaryLines(a, "24h").find((l) => l.step === "when")?.text).toBe("6:30 – 8:00");
+    expect(answersSentence(a, "24h")).toContain("between 6:30 – 8:00");
   });
 });

@@ -67,7 +67,7 @@ describe("send_message accepted", () => {
               { title: "Study", startAt: "2026-11-17T08:00:00.000Z", endAt: "2026-11-17T13:00:00.000Z", goalId: null },
               { title: "Call", startAt: "2026-11-17T13:30:00.000Z", endAt: "2026-11-17T14:00:00.000Z", goalId: null },
               { title: "Sport", startAt: "2026-11-17T18:00:00.000Z", endAt: "2026-11-17T19:30:00.000Z", goalId: null },
-              { title: "Event", startAt: "2026-11-17T20:00:00.000Z", endAt: "2026-11-17T22:30:00.000Z", goalId: null },
+              { title: "Event", startAt: "2026-11-17T20:00:00.000Z", endAt: "2026-11-17T21:00:00.000Z", goalId: null },
             ],
           },
         },
@@ -180,7 +180,7 @@ describe("what Claude receives (R22, R31)", () => {
         { title: "Study", start: "2026-11-17T08:00", end: "2026-11-17T13:00", goalId: null },
         { title: "Call", start: "2026-11-17T13:30", end: "2026-11-17T14:00", goalId: null },
         { title: "Sport", start: "2026-11-17T18:00", end: "2026-11-17T19:30", goalId: null },
-        { title: "Event", start: "2026-11-17T20:00", end: "2026-11-17T22:30", goalId: null },
+        { title: "Event", start: "2026-11-17T20:00", end: "2026-11-17T21:00", goalId: null },
       ],
     });
 

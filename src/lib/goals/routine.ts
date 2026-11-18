@@ -53,8 +53,11 @@ export type GoalRoutine = {
   /** Only with the category "other": the person's own word ("Music"). */
   categoryOther: string | null;
   sessionMinutes: number | null;
-  /** null: any time. */
+  /** null: any time (or the own window below). */
   dayPart: DayPart | null;
+  /** The own window ("Custom"), minutes after midnight, from (included) to until; both null without one. Never with dayPart. */
+  dayFrom: number | null;
+  dayUntil: number | null;
   /** Sorted, Monday = 1. */
   avoidDays: Weekday[];
   /** The days it always happens on: sorted, Monday = 1, never one of avoidDays. */
@@ -68,6 +71,8 @@ export const EMPTY_ROUTINE: GoalRoutine = {
   categoryOther: null,
   sessionMinutes: null,
   dayPart: null,
+  dayFrom: null,
+  dayUntil: null,
   avoidDays: [],
   mustDays: [],
   location: null,
@@ -119,6 +124,7 @@ export function hasRoutine(routine: GoalRoutine): boolean {
     routine.categoryOther !== null ||
     routine.sessionMinutes !== null ||
     routine.dayPart !== null ||
+    routine.dayFrom !== null ||
     routine.avoidDays.length > 0 ||
     routine.mustDays.length > 0 ||
     routine.location !== null
@@ -134,6 +140,9 @@ export type RoutineInput = {
   avoidDays: readonly number[] | null;
   /** Left out or null: none. */
   mustDays?: readonly number[] | null;
+  /** The own window; left out or null: none. */
+  dayFrom?: number | null;
+  dayUntil?: number | null;
   location: string | null;
 };
 
@@ -182,6 +191,18 @@ export function routineProblem(input: RoutineInput, rules: readonly RoutineRule[
 
   if (input.dayPart !== null && !isDayPart(input.dayPart)) return problem("day_part", MESSAGES.dayPart);
 
+  // The own window: both ends or none, inside one day, the end after the start, never with a part of
+  // the day, and long enough for one session.
+  const from = input.dayFrom ?? null;
+  const until = input.dayUntil ?? null;
+  if (from !== null || until !== null) {
+    const whole = (n: number | null) => n !== null && Number.isInteger(n);
+    if (!whole(from) || !whole(until) || from! < 0 || until! > 24 * 60 || from! >= until! || input.dayPart !== null) {
+      return problem("day_window", MESSAGES.dayWindow);
+    }
+    if (minutes !== null && until! - from! < minutes) return problem("day_window_short", MESSAGES.dayWindowShort);
+  }
+
   if (!validDays(input.avoidDays)) return problem("avoid_days", MESSAGES.avoidDays);
   const avoided = input.avoidDays?.length ?? 0;
   if (avoided >= 7) return problem("avoid_all_days", MESSAGES.avoidAllDays);
@@ -221,6 +242,8 @@ export function cleanRoutine(input: RoutineInput): GoalRoutine {
     categoryOther: trimmedOther(input),
     sessionMinutes: input.sessionMinutes,
     dayPart: isDayPart(input.dayPart) ? input.dayPart : null,
+    dayFrom: input.dayFrom ?? null,
+    dayUntil: input.dayUntil ?? null,
     avoidDays: avoidDaysFromText(avoidDaysToText((input.avoidDays ?? []).filter(isWeekday))),
     mustDays: avoidDaysFromText(avoidDaysToText((input.mustDays ?? []).filter(isWeekday))),
     location: location === "" ? null : location,
