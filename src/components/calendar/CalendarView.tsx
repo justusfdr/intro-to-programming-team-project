@@ -14,6 +14,12 @@
 // updated_at (R4); if the server refuses, the block goes back and the ontology's message shows. After a
 // move, a resize or a delete a toast offers "Undo" for 8 seconds. An event of a series asks "This
 // event / This and following" on drop.
+//
+// Spec 53 (from spec 29): contacts who share their calendar with the viewer can be shown next to the
+// viewer's own events ("People" in the toolbar, at most three). Their events are a separate kind of thing
+// on the screen (src/lib/shares/place.ts): read only, never dragged, never in the editor, and never part
+// of the viewer's overlap marks or questions (R10: `shownEvents`, `timed`, `tripWarned` and `overlapAt`
+// are built from the viewer's own events only) or of what the coach gets (R22, R57).
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -57,6 +63,10 @@ import { NewEventPopover } from "./NewEventPopover";
 import { useTravelTimes } from "./useTravelTimes";
 import { OutlookChip } from "./OutlookChip";
 import { TimeGrid, type GoalLabel } from "./TimeGrid";
+import { SharedEventCard, SharedPeopleButton, type OpenShared, type SharedMonthEntry } from "./Shared";
+import { useSharedCalendars } from "./useSharedCalendars";
+import { placeShared, sharedAllDayByDay } from "@/lib/shares/place";
+import type { SharingPerson } from "@/lib/shares/types";
 import { MEDIA, useMediaQuery } from "./useMedia";
 
 type Props = {
@@ -70,7 +80,15 @@ type Props = {
   outlookAvailable?: boolean;
   /** Spec 47: an event to open in the editor at once (from "Next up" in the sidebar), if it is shown. */
   openEventId?: string;
+  /** Spec 53: the signed-in user, whose browser remembers which shared calendars they chose to show. */
+  viewerId?: string;
+  /** Spec 53: the contacts who share their calendar with the viewer (none: no "People" button). */
+  sharing?: SharingPerson[];
+  /** Spec 53: a person the address asks to show ("?share=<id>", from "Show in my calendar"). */
+  showPerson?: string;
 };
+
+const NO_PEOPLE: SharingPerson[] = [];
 
 /** Minutes of lead time above "now" when today is shown, and above the earliest event otherwise. */
 const SCROLL_CONTEXT_MIN = 90;
@@ -178,7 +196,16 @@ function findEvent(week: WeekData, id: string): CalendarEvent | null {
   return week.lead.find((e) => e.id === id) ?? null;
 }
 
-export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailable = false, openEventId }: Props) {
+export function CalendarView({
+  week: serverWeek,
+  nowLocal,
+  goals,
+  outlookAvailable = false,
+  openEventId,
+  viewerId = "",
+  sharing = NO_PEOPLE,
+  showPerson,
+}: Props) {
   const week = useLiveWeek(serverWeek);
   const router = useRouter();
   const now = useNowLocal(nowLocal, week.timeZone);
@@ -353,6 +380,32 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   }, [coerced, week.days, week.lead, date]);
 
   const placed = useMemo(() => placeWeek(days, lead), [days, lead]);
+
+  // Spec 53: the shared calendars chosen for showing, read for the days the server sent. They stay in
+  // their own arrays: nothing below that marks or asks about overlaps ever sees them (R10, R57).
+  const shownDates = useMemo(() => week.days.map((d) => d.date), [week.days]);
+  const { chosen: shownPeople, toggle: togglePerson, calendars: sharedCalendars } = useSharedCalendars(viewerId, sharing, shownDates, week.timeZone, showPerson);
+  const [openShared, setOpenShared] = useState<{ shared: OpenShared; anchor: Anchor } | null>(null);
+  const onOpenShared = (item: OpenShared, anchor: Anchor) => setOpenShared({ shared: item, anchor });
+  const gridDates = useMemo(() => days.map((d) => d.date), [days]);
+  const sharedBlocks = useMemo(() => placeShared(sharedCalendars, gridDates, week.timeZone), [sharedCalendars, gridDates, week.timeZone]);
+  const sharedAllDay = useMemo(() => sharedAllDayByDay(sharedCalendars, gridDates), [sharedCalendars, gridDates]);
+  const sharedMonth = useMemo(() => {
+    if (week.view !== "month" || sharedCalendars.length === 0) return undefined;
+    const blocks = placeShared(sharedCalendars, shownDates, week.timeZone);
+    const allDay = sharedAllDayByDay(sharedCalendars, shownDates);
+    const byDay: Record<string, SharedMonthEntry[]> = {};
+    shownDates.forEach((date, i) => {
+      byDay[date] = [
+        ...allDay[i].map((item) => ({ key: item.key, allDay: item })),
+        ...blocks[i]
+          .filter((b) => !b.continuesBefore)
+          .sort((a, b) => a.startMin - b.startMin)
+          .map((block) => ({ key: block.key, block })),
+      ];
+    });
+    return byDay;
+  }, [week.view, sharedCalendars, shownDates, week.timeZone]);
   // R27: when to leave for the shown events with a location (dashed blocks before them).
   const shownEvents = useMemo(() => placed.flat().map((b) => b.event), [placed]);
   const travel = useTravelTimes(shownEvents);
@@ -567,6 +620,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
             </LinkButton>
             <ViewSwitch views={allowedViews(isPhone)} view={view} date={date} />
             <div className="ml-auto flex items-center gap-2">
+              <SharedPeopleButton people={sharing} chosen={shownPeople} onToggle={togglePerson} />
               <Button variant="secondary" size="icon" aria-label="New event" title="New event" className="@3xl:w-auto @3xl:px-4" onClick={(e) => addEvent(anchorOf(e.currentTarget))}>
                 <Plus className="size-4" strokeWidth={2} />
                 <span className="hidden @3xl:inline">New event</span>
@@ -590,6 +644,9 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               dayHref={dayHref}
               onOpenDay={(day) => router.push(dayHref(day))}
               onOpenEvent={(event, anchor) => setEditor({ mode: "edit", event, anchor })}
+              shared={sharedMonth}
+              timeZone={week.timeZone}
+              onOpenShared={onOpenShared}
             />
           ) : (
             <TimeGrid
@@ -614,6 +671,10 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
                 setEditor({ mode: "create", start: `${day}T09:00`, end: `${day}T10:00`, allDay: true, anchor });
               }}
               onZoom={zoom.setHourPx}
+              shared={sharedCalendars.length > 0 ? sharedBlocks : undefined}
+              sharedAllDay={sharedCalendars.length > 0 ? sharedAllDay : undefined}
+              timeZone={week.timeZone}
+              onOpenShared={onOpenShared}
             />
           )}
         </div>
@@ -685,6 +746,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
           />
         </FloatingPanel>
       )}
+      {openShared && <SharedEventCard shared={openShared.shared} anchor={openShared.anchor} onClose={() => setOpenShared(null)} />}
       {toast && <ToastBar key={toast.id} toast={toast} onDone={() => setToast(null)} />}
     </>
   );

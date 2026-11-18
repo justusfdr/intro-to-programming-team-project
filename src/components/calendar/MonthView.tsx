@@ -5,6 +5,7 @@
 // on a cell (or its date) opens that day. The prototype measured the width to choose rows or dots;
 // here a container query does it, so the first paint from the server is already right.
 // Cells and items: src/lib/events/month.ts.
+// Spec 53 (from spec 29): other people's shared events, read only, under a cell's own rows (wider screens).
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useDisplay } from "@/components/shell/DisplayProvider";
@@ -15,6 +16,7 @@ import { fmtDateLong, fmtDateShort, fmtRange, fmtTime, type TimeFormat } from "@
 import type { GoalLabel } from "./TimeGrid";
 import { WEEKDAY_LABELS } from "./MiniMonth";
 import { anchorOf, type Anchor } from "./FloatingPanel";
+import { SharedMonthRow, type OpenShared, type SharedMonthEntry } from "./Shared";
 
 type Props = {
   days: WeekDay[];
@@ -25,7 +27,14 @@ type Props = {
   dayHref: (date: string) => string;
   onOpenDay: (date: string) => void;
   onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
+  /** Spec 53: other people's shared events by day (read only), shown under the day's own events. */
+  shared?: Readonly<Record<string, SharedMonthEntry[]>>;
+  timeZone?: string;
+  onOpenShared?: (shared: OpenShared, anchor: Anchor) => void;
 };
+
+/** Spec 53: at most this many shared entries in a month cell, then "+N shared". */
+const SHARED_MAX = 2;
 
 /** Height before the first measurement: show text rows already. */
 const DEFAULT_HEIGHT = 600;
@@ -36,7 +45,7 @@ const HEAD_PX = 33;
 /** At most this many dots in a cell on phones. */
 const DOTS_MAX = 3;
 
-export function MonthView({ days, lead, month, goals, dayHref, onOpenDay, onOpenEvent }: Props) {
+export function MonthView({ days, lead, month, goals, dayHref, onOpenDay, onOpenEvent, shared, timeZone = "UTC", onOpenShared }: Props) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
 
@@ -82,6 +91,9 @@ export function MonthView({ days, lead, month, goals, dayHref, onOpenDay, onOpen
                 dayHref={dayHref}
                 onOpenDay={onOpenDay}
                 onOpenEvent={onOpenEvent}
+                shared={shared?.[cell.key]}
+                timeZone={timeZone}
+                onOpenShared={onOpenShared}
               />
             ))}
           </div>
@@ -99,9 +111,12 @@ type CellProps = {
   dayHref: (date: string) => string;
   onOpenDay: (date: string) => void;
   onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
+  shared?: SharedMonthEntry[];
+  timeZone: string;
+  onOpenShared?: (shared: OpenShared, anchor: Anchor) => void;
 };
 
-function DayCell({ cell, first, max, dotOf, dayHref, onOpenDay, onOpenEvent }: CellProps) {
+function DayCell({ cell, first, max, dotOf, dayHref, onOpenDay, onOpenEvent, shared, timeZone, onOpenShared }: CellProps) {
   const numberClass = cell.isToday ? "bg-today text-white" : cell.inMonth ? "text-ink" : "text-ink-3";
 
   return (
@@ -124,6 +139,18 @@ function DayCell({ cell, first, max, dotOf, dayHref, onOpenDay, onOpenEvent }: C
       {/* Phones (narrow grid): dots only. Wider: rows. */}
       <CompactMarks items={cell.items} dotOf={dotOf} />
       <CellItems cell={cell} max={max} dotOf={dotOf} onOpenDay={onOpenDay} onOpenEvent={onOpenEvent} />
+      {shared && shared.length > 0 && onOpenShared && (
+        <ul aria-label="Shared calendars" className="mt-0.5 flex min-h-0 flex-col gap-0.5 overflow-hidden @max-[532px]:hidden">
+          {shared.slice(0, SHARED_MAX).map((entry) => (
+            <li key={entry.key} className="shrink-0">
+              <SharedMonthRow entry={entry} timeZone={timeZone} onOpen={onOpenShared} />
+            </li>
+          ))}
+          {shared.length > SHARED_MAX && (
+            <li className="shrink-0 truncate px-1 text-[11px] leading-[18px] text-ink-3">+{shared.length - SHARED_MAX} shared</li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }
