@@ -127,6 +127,9 @@ describe("with the 12-hour setting (issue #161)", () => {
     const html = twelve(<TimeField label="Start" value={19 * 60 + 29} onChange={() => {}} />);
     expect(html).toMatch(/<input[^>]*aria-label="Start"[^>]*value="7:29pm"/);
     expect(html).toContain('placeholder="8:30am"');
+    // Text keyboard: the number pad has no "am" / "pm".
+    expect(html).toContain('inputMode="text"');
+    expect(html).not.toContain('inputMode="numeric"');
   });
 
   it("the hour column keeps its 24 rows, labelled 12 am to 11 pm, in a wider column; minutes stay as they are", () => {

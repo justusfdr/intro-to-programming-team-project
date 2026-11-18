@@ -92,7 +92,7 @@ export function TimeField({
     <div className="flex flex-col gap-1">
       <input
         type="text"
-        inputMode="numeric"
+        inputMode={timeFormat === "24h" ? "numeric" : "text"}
         autoComplete="off"
         aria-label={label}
         data-open={open || undefined}
