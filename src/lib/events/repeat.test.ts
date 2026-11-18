@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { repeatDates, weekdayOf } from "./repeat";
+import { defaultUntil, repeatDates, weekdayOf } from "./repeat";
 
 describe("repeating dates (R28)", () => {
   it("A12: weekly on Tue and Thu from Tue 17 Nov 2026 until 18 Dec: 10 dates", () => {
@@ -34,5 +34,29 @@ describe("repeating dates (R28)", () => {
 
   it("knows the weekday of a date (Mon 16 Nov 2026 = 1, Sun 22 Nov = 7)", () => {
     expect([weekdayOf("2026-11-16"), weekdayOf("2026-11-22")]).toEqual([1, 7]);
+  });
+});
+
+describe("defaultUntil (issue #129)", () => {
+  it("monthly runs a year: 12 dates, not just one", () => {
+    const until = defaultUntil("2026-11-18", "monthly");
+    expect(until).toBe("2027-11-16");
+    expect(repeatDates("2026-11-18", { frequency: "monthly", weekdays: [], until })).toHaveLength(12);
+  });
+
+  it("weekly runs a year: 52 dates", () => {
+    const until = defaultUntil("2026-11-18", "weekly");
+    expect(repeatDates("2026-11-18", { frequency: "weekly", weekdays: [], until })).toHaveLength(52);
+  });
+
+  it("daily runs about 3 months: 90 dates", () => {
+    const until = defaultUntil("2026-11-18", "daily");
+    expect(repeatDates("2026-11-18", { frequency: "daily", weekdays: [], until })).toHaveLength(90);
+  });
+
+  it("weekly on several days stops at 100 dates instead of failing", () => {
+    const until = defaultUntil("2026-11-16", "weekly", [1, 3, 5]);
+    const dates = repeatDates("2026-11-16", { frequency: "weekly", weekdays: [1, 3, 5], until });
+    expect(dates).toHaveLength(100);
   });
 });
