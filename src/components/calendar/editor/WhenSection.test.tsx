@@ -1,9 +1,13 @@
 // The end picked on the wheel or typed in the editor: a time of day (00:00 to 23:59), on the start's day
 // when it is after the start, on the next day when it is at or before the start (an event past midnight).
 import { describe, expect, it } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { DisplayProvider } from "@/components/shell/DisplayProvider";
+import { DEFAULT_DISPLAY } from "@/lib/time/display";
+import { newValues } from "./values";
 import { endProblem } from "@/lib/time/wheel";
 import { cannotSave } from "./useEventSave";
-import { endFromPicked, repeatSentence } from "./WhenSection";
+import { endFromPicked, repeatSentence, WhenSection } from "./WhenSection";
 
 const at = (h: number, m = 0) => h * 60 + m;
 
@@ -44,5 +48,30 @@ describe("repeatSentence", () => {
       expect(repeatSentence("monthly", [], `2026-12-${day}`, "")).toBe(`Every month on the ${word}`);
     }
     expect(repeatSentence("daily", [], "2026-11-17", "2026-12-20")).toMatch(/^Every day · until .*20/);
+  });
+});
+
+// Issue #159: with "All day" on, First day and Last day are stacked in one column, so the calendar that
+// opens under a field gets the full row width (in two columns it only got half and looked cramped).
+describe("WhenSection, all-day dates", () => {
+  const render = (allDay: boolean) =>
+    renderToStaticMarkup(
+      <DisplayProvider value={DEFAULT_DISPLAY}>
+        <WhenSection event={null} values={newValues({ start: "2026-11-17T09:00", end: "2026-11-17T10:00", allDay })} onChange={() => {}} todayKey="2026-11-17" />
+      </DisplayProvider>,
+    );
+
+  it("stacks First day and Last day in one column", () => {
+    const html = render(true);
+    expect(html).toContain("First day");
+    expect(html).toContain("Last day");
+    expect(html).toContain('class="grid grid-cols-1 gap-2"');
+    expect(html).not.toContain("grid-cols-2");
+  });
+
+  it("shows the single full-width Date field for a timed event", () => {
+    const html = render(false);
+    expect(html).toContain('aria-label="Date: ');
+    expect(html).not.toContain("First day");
   });
 });
