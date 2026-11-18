@@ -1,11 +1,11 @@
 // Tests for the PDF of a report (spec 49, "Export"): the answer is a real PDF, has several pages for a
 // long period, keeps to the chosen parts, and never fails on text the standard fonts cannot print.
-import { describe, expect, it } from "vitest";
-import { PDFDocument } from "pdf-lib";
+import { describe, expect, it, vi } from "vitest";
+import { PDFDocument, PDFPage } from "pdf-lib";
 import { PARTS, type PeriodReport, type PeriodWeek } from "@/lib/analytics/period";
 import type { GoalRef } from "@/lib/analytics/report-types";
 import { addDays } from "@/lib/time/zoned";
-import { periodText, renderReportPdf } from "./pdf";
+import { compactCell, periodText, renderReportPdf } from "./pdf";
 
 const thesis: GoalRef = { id: "g1", title: "Thesis", color: "indigo", icon: "graduation" };
 const run: GoalRef = { id: "g2", title: "Run 10k", color: "teal", icon: "footprints" };
@@ -119,6 +119,43 @@ describe("the PDF of a report", () => {
         expect(startsLikePdf(bytes)).toBe(true);
       }
     }
+  });
+
+  // Issue #135: a week cell of an 8-week report is about 28 pt wide; "2.5 of 6 h" was cut to "2.5 o...".
+  describe("the week cells of the goals table", () => {
+    const hoursReport = (count: number): PeriodReport => {
+      const report = longReport(count);
+      return { ...report, goals: report.goals.map((goal) => ({ ...goal, weeks: goal.weeks.map((w) => ({ ...w, text: "2.5 of 6 h", status: "missed" as const })) })) };
+    };
+    // The page content is compressed in the file, so the texts are caught as they are drawn.
+    const drawn = async (report: PeriodReport): Promise<string[]> => {
+      const spy = vi.spyOn(PDFPage.prototype, "drawText");
+      try {
+        await renderReportPdf(report, ["goals"]);
+        return spy.mock.calls.map((call) => call[0]);
+      } finally {
+        spy.mockRestore();
+      }
+    };
+
+    it("turns '2.5 of 6 h' into '2.5/6 h' and '3 of 4' into '3/4'", () => {
+      expect(compactCell("2.5 of 6 h")).toBe("2.5/6 h");
+      expect(compactCell("3 of 4")).toBe("3/4");
+      expect(compactCell("–")).toBe("–");
+    });
+
+    it("use the short form when the long one does not fit (8 weeks) and are not cut", async () => {
+      const texts = await drawn(hoursReport(8));
+      expect(texts).toContain("2.5/6 h");
+      expect(texts).not.toContain("2.5 of 6 h");
+      expect(texts.filter((t) => t.includes("…"))).toEqual([]);
+    });
+
+    it("keep the long form when it fits (4 weeks)", async () => {
+      const texts = await drawn(hoursReport(4));
+      expect(texts).toContain("2.5 of 6 h");
+      expect(texts).not.toContain("2.5/6 h");
+    });
   });
 
   it("is one page that says so when the period has nothing", async () => {
