@@ -31,6 +31,8 @@ import {
   SETUP_STEPS,
   stepProblem,
   toggleAvoidDay,
+  toggleMustDay,
+  customWindowProblem,
   type SetupAnswers,
   type SetupStep,
 } from "@/lib/goals/setup";
@@ -40,7 +42,7 @@ import type { SavedPlace } from "@/lib/places/saved";
 import type { LocalDate } from "@/lib/time/zoned";
 import { focusRing, prefersReducedMotion } from "./parts";
 import { FrameTint, GoalTakingShape, ProgressBar, SEGMENTS } from "./Preview";
-import { QuestionCategory, QuestionDate, QuestionDays, QuestionOften, QuestionPlace, QuestionWhen } from "./Questions";
+import { QuestionCategory, QuestionDate, QuestionDays, QuestionOften, QuestionPlace, QuestionWhen, type DaysShake } from "./Questions";
 import { Celebration, Review } from "./Review";
 
 export type SetupScreen = SetupStep | "review" | "done";
@@ -97,7 +99,7 @@ export function GoalSetup({ open, onClose, onUseForm, goals, places, today, init
         requestClose.current();
       }}
       onClick={(event) => event.target === dialog.current && requestClose.current()}
-      className="goal-setup m-0 mt-auto h-[92dvh] max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-panel bg-surface p-0 text-ink shadow-pop md:m-auto md:h-fit md:max-h-[min(780px,calc(100dvh-3rem))] md:max-w-[560px] md:rounded-panel"
+      className="goal-setup m-0 mt-auto h-[92dvh] max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-panel bg-surface p-0 text-ink shadow-pop md:m-auto md:h-[min(720px,calc(100dvh-3rem))] md:max-h-[min(720px,calc(100dvh-3rem))] md:max-w-[560px] md:rounded-panel"
     >
       <span id="goal-setup-name" className="sr-only">
         New goal
@@ -162,7 +164,8 @@ function SetupFlow({
   /** Spec 43: the created goal's id, for the coach button on the success screen. */
   const [createdId, setCreatedId] = useState<string | null>(null);
   const [live, setLive] = useState("");
-  const [shake, setShake] = useState<{ day: Weekday | null; round: number }>({ day: null, round: 0 });
+  const [shake, setShake] = useState<DaysShake>({ row: "off", day: null, round: 0 });
+  const [daysNote, setDaysNote] = useState<string | null>(null);
   // The focus moves to the question's heading only after the person moved (opening focuses it once).
   const [moved, setMoved] = useState(false);
 
@@ -204,9 +207,17 @@ function SetupFlow({
   }
 
   const problem = isQuestion(screen) ? stepProblem(screen, answers, today) : null;
+  // A custom length of 0:00 and an own time window that does not work do not block the button: their
+  // red sentence comes when Continue is pressed.
+  const softProblem =
+    (screen === "often" && answers.sessionMinutes === 0) || (screen === "when" && answers.dayPart === "custom" && customWindowProblem(answers) !== null);
+  // The answers Continue was pressed with: any change after that hides the sentence again.
+  const [triedWith, setTriedWith] = useState<SetupAnswers | null>(null);
+  const tried = softProblem && triedWith === answers;
 
   function next() {
     if (!isQuestion(screen)) return;
+    if (softProblem) setTriedWith(answers);
     if (problem) return say(problem);
     if (returnToReview) {
       const open = firstProblemStep(answers, today);
@@ -234,9 +245,25 @@ function SetupFlow({
   function toggleDay(day: Weekday) {
     const result = toggleAvoidDay(answers, day);
     if (result.refused) {
-      setShake((s) => ({ day, round: s.round + 1 }));
+      setShake((s) => ({ row: "off", day, round: s.round + 1 }));
       return say(result.refused);
     }
+    setDaysNote(null);
+    const before = daysProblem(answers);
+    const after = daysProblem(result.answers);
+    update(() => result.answers);
+    if (after && after !== before) say(after);
+    else if (!after && before) say("The days fit now.");
+  }
+
+  function toggleSureDay(day: Weekday) {
+    const result = toggleMustDay(answers, day);
+    if (result.refused) {
+      setShake((s) => ({ row: "sure", day, round: s.round + 1 }));
+      setDaysNote(result.refused);
+      return say(result.refused);
+    }
+    setDaysNote(null);
     const before = daysProblem(answers);
     const after = daysProblem(result.answers);
     update(() => result.answers);
@@ -308,8 +335,14 @@ function SetupFlow({
     const element = innerRef.current;
     if (!element || typeof ResizeObserver === "undefined") return;
     const timers = { settle: settleTimer, next: autoNext };
+    let last = -1;
     const observer = new ResizeObserver(() => {
-      setHeight(element.offsetHeight);
+      // Only a real change of height counts. Hiding the scroll bar while the height glides changes the
+      // width, which calls this again: reacting to that made the question shake on every pick of a wheel.
+      const height = element.offsetHeight;
+      if (height === last) return;
+      last = height;
+      setHeight(height);
       if (prefersReducedMotion()) return;
       setSettling(true);
       if (timers.settle.current) clearTimeout(timers.settle.current);
@@ -349,13 +382,13 @@ function SetupFlow({
       case "category":
         return <QuestionCategory {...common} />;
       case "often":
-        return <QuestionOften {...common} />;
+        return <QuestionOften {...common} showZero={tried} />;
       case "place":
         return <QuestionPlace {...common} places={places} today={today} />;
       case "when":
-        return <QuestionWhen {...common} display={display} onChosen={chosenWhen} />;
+        return <QuestionWhen {...common} display={display} onChosen={chosenWhen} showWindowProblem={tried} />;
       case "days":
-        return <QuestionDays {...common} onToggle={toggleDay} shake={shake} />;
+        return <QuestionDays {...common} onToggle={toggleDay} onToggleSure={toggleSureDay} shake={shake} note={daysNote} />;
       case "date":
         return <QuestionDate {...common} today={today} />;
       case "review":
@@ -411,7 +444,7 @@ function SetupFlow({
       */}
       <div
         ref={viewportRef}
-        className={`setup-viewport scroll-thin relative flex min-h-0 flex-col overflow-x-hidden overscroll-contain ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
+        className={`setup-viewport scroll-thin relative flex min-h-0 flex-col overflow-x-hidden overscroll-contain [scrollbar-gutter:stable] ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
         style={height === null ? undefined : ({ "--setup-h": `${height}px` } as CSSProperties)}
       >
         {/* The celebration sits in the middle of the area; a question starts at its top. */}
@@ -473,7 +506,7 @@ function SetupFlow({
                   <span id="goal-setup-why-not" className="sr-only">
                     {problem ?? ""}
                   </span>
-                  <Button size="lg" onClick={next} disabled={problem !== null} aria-describedby="goal-setup-why-not">
+                  <Button size="lg" onClick={next} disabled={problem !== null && !softProblem} aria-describedby="goal-setup-why-not">
                     {nextIsReview ? "Review" : "Continue"}
                   </Button>
                 </>

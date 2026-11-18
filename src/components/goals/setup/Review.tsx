@@ -8,6 +8,7 @@
 // so the server and the browser draw the same thing.
 import type { CSSProperties } from "react";
 import { Button, LinkButton } from "@/components/ui/Button";
+import { useDisplay } from "@/components/shell/DisplayProvider";
 import { planGoalHref } from "@/lib/chat/plan-goal";
 import { goalColor } from "@/lib/goals/colors";
 import { answersSentence, categoryName, MAX_WHY, summaryLines, type SetupAnswers, type SetupStep } from "@/lib/goals/setup";
@@ -20,9 +21,10 @@ import { SetupTile } from "./Preview";
 const labelClass = "text-xs font-medium text-ink-2";
 
 export function Review({ answers, update, uid, onChange, hint }: QuestionProps & { onChange: (step: SetupStep) => void; hint: string | null }) {
+  const { timeFormat } = useDisplay();
   const category = categoryName({ category: answers.category, categoryOther: answers.categoryOther.trim() || null });
   const look = { color: answers.color, icon: answers.icon };
-  const lines = [{ step: "category" as const, label: "Name", text: category ? `${answers.title.trim()} · ${category}` : answers.title.trim() }, ...summaryLines(answers)];
+  const lines = [{ step: "category" as const, label: "Name", text: category ? `${answers.title.trim()} · ${category}` : answers.title.trim() }, ...summaryLines(answers, timeFormat)];
   return (
     <div>
       <div className="flex flex-col items-center text-center">
@@ -32,7 +34,7 @@ export function Review({ answers, update, uid, onChange, hint }: QuestionProps &
             {answers.title.trim()}
           </h2>
         </div>
-        <p className="mt-1.5 max-w-sm text-sm text-ink-2">{`${answersSentence(answers)}.`}</p>
+        <p className="mt-1.5 max-w-sm text-sm text-ink-2">{`${answersSentence(answers, timeFormat)}.`}</p>
       </div>
 
       <ul aria-label="Your answers" className="mt-5 divide-y divide-line-subtle rounded-card border border-line-subtle">

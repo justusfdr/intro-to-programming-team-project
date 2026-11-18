@@ -11,6 +11,12 @@ export const ACCOUNT_PAGES = [
   "/reset-password",
 ] as const;
 
+/**
+ * Pages for visitors (spec 45): the landing page and the legal notes. They are plain text and
+ * drawings, read nothing from the database and show no user's data, so R3 has nothing to protect there.
+ */
+export const VISITOR_PAGES = ["/home", "/legal"] as const;
+
 /** Server addresses of the account actions (sign_up, sign_in, sign_out, …): no sign-in needed. */
 const ACCOUNT_API = "/api/auth";
 
@@ -29,7 +35,13 @@ function matches(pathname: string, base: string): boolean {
 }
 
 export function isPublic(pathname: string): boolean {
-  return pathname === STRIPE_WEBHOOK || matches(pathname, ACCOUNT_API) || ACCOUNT_PAGES.some((page) => matches(pathname, page));
+  return (
+    pathname === STRIPE_WEBHOOK ||
+    matches(pathname, ACCOUNT_API) ||
+    ACCOUNT_PAGES.some((page) => matches(pathname, page)) ||
+    // Only the page itself: nothing may hide below /home or /legal.
+    VISITOR_PAGES.some((page) => pathname === page)
+  );
 }
 
 /**

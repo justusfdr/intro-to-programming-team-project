@@ -122,7 +122,8 @@ describe("Q2: how often and how long", () => {
     expect(html.match(/setup-dot-on/g)).toHaveLength(3);
     expect(html.match(/setup-dot-(on|off)/g)).toHaveLength(7);
     expect(checked(html).join("")).toContain('id="setup-often-minutes-60"');
-    expect(radios(html)).toHaveLength(6);
+    expect(radios(html)).toHaveLength(5);
+    for (const chip of [">30 min<", ">45 min<", ">1 h<", ">3 h<", ">Custom<"]) expect(html).toContain(chip);
     expect(html).toContain("3 × 60 min = <strong");
     expect(html).toContain("3 times 60 minutes is 3 h a week");
     expect(html).not.toContain("Make sure it fits");
@@ -140,11 +141,19 @@ describe("Q2: how often and how long", () => {
     expect(continueButton(html)).toMatch(/disabled=""/);
   });
 
-  it("opens 'Other' for a length that is not a chip, and hints above 20 hours", () => {
+  it("opens 'Custom' with the wheel for a length that is not a chip, and hints above 20 hours", () => {
     const html = render("often", { ...GYM, avoidDays: [], timesPerWeek: 7, sessionMinutes: 195 });
     expect(checked(html).join("")).toContain('id="setup-often-minutes-other"');
-    expect(html).toMatch(/aria-label="Minutes each time"[^>]*aria-valuenow="195" aria-valuetext="3 h 15 min"/);
+    expect(html).toContain('aria-label="Length of each session"');
     expect(html).toContain("That is 22 h 45 min a week for one goal. Make sure it fits.");
+    expect(html).not.toContain("Choose at least 1 minute.");
+  });
+
+  it("a custom 6 hours is fine; at 0:00 Continue stays pressable and the red sentence waits for it", () => {
+    expect(continueButton(render("often", { ...GYM, sessionMinutes: 360 }))).not.toMatch(/disabled=""/);
+    const zero = render("often", { ...GYM, sessionMinutes: 0 });
+    expect(zero).not.toMatch(/text-danger">Choose at least 1 minute\./);
+    expect(continueButton(zero)).not.toMatch(/disabled=""/);
   });
 });
 
@@ -167,12 +176,26 @@ describe("Q3: where", () => {
 });
 
 describe("Q4: when", () => {
-  it("offers four cards with the times in 12 hours, none chosen at first", () => {
+  it("offers Any time, Morning, Afternoon, Evening and Custom in that order, none chosen at first", () => {
     const html = render("when", { ...GYM, dayPart: null });
     expect(html).toContain("When does it suit you best?");
-    expect(radios(html)).toHaveLength(4);
+    expect(radios(html)).toHaveLength(5);
     expect(checked(html)).toHaveLength(0);
-    for (const text of ["Before 12pm", "12 – 5pm", "After 5pm", "Whenever it fits"]) expect(html).toContain(text);
+    const order = ["-any\"", "-morning\"", "-afternoon\"", "-evening\"", "-custom\""].map((id) => html.indexOf(id));
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    for (const text of ["Before 12pm", "12 – 5pm", "After 5pm", "Whenever it fits", "Choose your own time"]) expect(html).toContain(text);
+  });
+
+  it("Custom shows From and Until with the visible hours only; a bad window waits for Continue", () => {
+    const html = render("when", { ...GYM, dayPart: "custom", customFrom: 390, customUntil: 480 }, { display: { timeFormat: "24h", dayStartHour: 6, dayEndHour: 22 } });
+    expect(html).toContain('aria-label="From time"');
+    expect(html).toContain('aria-label="Until time"');
+    const hours = /aria-label="From hour"(.*?)<\/div><\/div>/s.exec(html)![1];
+    expect(hours.match(/role="option"/g)).toHaveLength(17);
+    expect(html).toContain("6:30 – 8:00");
+    const bad = render("when", { ...GYM, dayPart: "custom", customFrom: 480, customUntil: 420 });
+    expect(bad).not.toMatch(/text-danger">The end has to be after the start\./);
+    expect(continueButton(bad)).not.toMatch(/disabled=""/);
   });
 
   it("writes the times in 24 hours, and hints when an evening session runs past the visible day", () => {
@@ -186,12 +209,22 @@ describe("Q4: when", () => {
 describe("Q5: the days", () => {
   it("has seven day buttons with their state in words, a strike through the ruled-out ones", () => {
     const html = render("days", GYM);
-    expect(html).toContain("Tap the days that are off limits. Leave them all if every day works.");
+    expect(html).toContain("Which days work for you?");
     expect(html).toContain('aria-label="Friday: never"');
     expect(html).toContain('aria-label="Monday: possible"');
     expect(html.match(/aria-label="[A-Za-z]+day: (never|possible)"/g)).toHaveLength(7);
     expect(html.match(/setup-strike/g)).toHaveLength(1);
     expect(html).toContain("6 days left · 3 sessions planned");
+    expect(continueButton(html)).not.toMatch(/disabled=""/);
+  });
+
+  it("has a row of days for sure above; a sure day is greyed out below and a day off greyed out above", () => {
+    const html = render("days", { ...GYM, mustDays: [1] });
+    expect(html.indexOf("Days for sure")).toBeLessThan(html.indexOf("Never on these days"));
+    expect(html).toContain("Up to 3 days");
+    expect(html).toMatch(/aria-label="Monday: for sure" aria-pressed="true"/);
+    expect(html).toMatch(/aria-label="Monday: a day for sure" aria-pressed="false" disabled=""/);
+    expect(html).toMatch(/aria-label="Friday: off limits" aria-pressed="false" disabled=""/);
     expect(continueButton(html)).not.toMatch(/disabled=""/);
   });
 
@@ -227,7 +260,7 @@ describe("the review", () => {
     const html = render("review", GYM);
     expect(html).toContain(">Gym</h2>");
     expect(html).toContain("3 times a week, 60 minutes each, in the evening, never on Fridays, at FitnessHut Lisboa, until Dec 12, 2026.");
-    for (const label of ["name", "how often", "where", "when", "days off", "until"]) expect(html).toContain(`aria-label="Change ${label}"`);
+    for (const label of ["name", "how often", "where", "when", "days", "until"]) expect(html).toContain(`aria-label="Change ${label}"`);
     expect(html).toContain(">Create goal</button>");
     expect(html).not.toContain("Question ");
   });

@@ -1,0 +1,217 @@
+/*
+  The landing page (spec 45). Only the moves live here: colours, sizes and layout are Tailwind classes
+  in the markup. Every move uses transform and opacity (the focus ring also its stroke) and one easing
+  curve, and runs only without "reduce motion". Without motion every graphic shows its final state, so
+  the plain style of each animated element is that final state.
+
+  Timing comes from the markup: --d is the delay in milliseconds, --out the moment something leaves.
+  Scene.tsx holds a graphic's animations at the first frame until the graphic is on screen.
+*/
+.landing {
+  --l-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Things that are only there for a part of an animation are gone in the final state. */
+.l-ghost,
+.l-leave {
+  opacity: 0;
+}
+
+/* The answer of a question: the plus turns into a cross while it is open. */
+.landing details[open] .l-faq-plus {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Links in the navigation glide to their section, which stops below the sticky bar. */
+  html:has(.landing) {
+    scroll-behavior: smooth;
+    scroll-padding-top: 88px;
+  }
+
+  .l-rise {
+    animation: l-rise 640ms var(--l-ease) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  .l-pop {
+    animation: l-pop 420ms var(--l-ease) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  .l-slide {
+    animation: l-slide 520ms var(--l-ease) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+
+  /* Comes in at --d and leaves again at --out (a suggestion before it is accepted, "typing" dots). */
+  .l-ghost {
+    animation:
+      l-pop 380ms var(--l-ease) both,
+      l-out 260ms ease forwards;
+    animation-delay: calc(var(--d, 0) * 1ms), calc(var(--out, 0) * 1ms);
+  }
+  /* There from the start, leaves at --out (the old number before it changes). */
+  .l-leave {
+    animation: l-out 260ms ease both;
+    animation-delay: calc(var(--out, 0) * 1ms);
+  }
+
+  /* A suggested block becomes a real one: a small swell as it locks in. */
+  .l-lock {
+    animation: l-lock 460ms var(--l-ease) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  /* A button being pressed. */
+  .l-press {
+    animation: l-press 380ms var(--l-ease) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  /* A blocked site: a short shake of the head. */
+  .l-shake {
+    animation: l-shake 420ms ease both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  /* Bars and strike-through lines grow from the left (--from is the share they start with). */
+  .l-grow {
+    transform-origin: left center;
+    animation: l-grow 760ms var(--l-ease) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  /* The focus ring draws itself up to its value (--from is the full circle's length). */
+  .l-ring {
+    animation: l-ring 1800ms var(--l-ease) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  /* A tick drawing itself (a path of length 1). */
+  .l-draw {
+    stroke-dasharray: 1;
+    animation: l-draw 320ms var(--l-ease) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+
+  /* The three dots while the coach is thinking. */
+  .l-dot {
+    animation: l-dot 1100ms ease-in-out infinite;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  /* The red "now" dot breathes. */
+  .l-now::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: inherit;
+    animation: l-now 2400ms ease-out infinite;
+  }
+  /* A live connection: the small green dot breathes. */
+  .l-live {
+    animation: l-live 2200ms ease-in-out infinite;
+  }
+
+  .landing details[open] > .l-answer {
+    animation: l-rise 320ms var(--l-ease) both;
+  }
+  .l-faq-plus {
+    transition: transform 240ms var(--l-ease);
+  }
+}
+
+@keyframes l-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes l-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes l-slide {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+@keyframes l-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes l-lock {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.025);
+  }
+}
+@keyframes l-press {
+  40% {
+    transform: scale(0.94);
+  }
+}
+@keyframes l-shake {
+  20%,
+  60% {
+    transform: translateX(-3px);
+  }
+  40%,
+  80% {
+    transform: translateX(3px);
+  }
+}
+@keyframes l-grow {
+  from {
+    transform: scaleX(var(--from, 0));
+  }
+}
+@keyframes l-ring {
+  from {
+    stroke-dashoffset: var(--from);
+  }
+}
+@keyframes l-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes l-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: none;
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+@keyframes l-now {
+  from {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+@keyframes l-live {
+  50% {
+    opacity: 0.35;
+  }
+}

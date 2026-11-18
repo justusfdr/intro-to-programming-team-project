@@ -11,7 +11,7 @@ import { RoutineSection, routineBody, routineCount, routineValue } from "./Routi
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
 const TODAY = "2026-11-16";
-const ROUTINE: GoalRoutine = { category: "sport", categoryOther: null, sessionMinutes: 60, dayPart: "morning", avoidDays: [7], location: "Park" };
+const ROUTINE: GoalRoutine = { category: "sport", categoryOther: null, sessionMinutes: 60, dayPart: "morning", avoidDays: [7], mustDays: [], dayFrom: null, dayUntil: null, location: "Park" };
 
 const GOAL: GoalView = {
   id: "g1",

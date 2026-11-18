@@ -1,7 +1,9 @@
 // The coach's markup (spec 19, step B): the empty page with its starters, a conversation with an open
-// draft drawn between the calendar's events, an added draft, and the three ways the field is off
-// (not allowed, not set up, no messages left). The assistant's text is plain text.
+// draft drawn between the calendar's events, an added draft, and the two ways the field is off
+// (not allowed, not set up). The assistant's text is plain text.
 // Spec 20: a draft that moves and deletes events, "Apply changes", "Undo" and an undone draft.
+// Spec 44: no counter and no limit any more, starters in English only; the chats by day are in
+// CoachChats.test.tsx.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
@@ -86,11 +88,12 @@ function render(fields: Partial<ChatPageData>, timeFormat: "12h" | "24h" = "12h"
   const data: ChatPageData = {
     display: { timeFormat, dayStartHour: 7, dayEndHour: 21 },
     timeZone: "Europe/Lisbon",
+    chats: [],
+    chatId: null,
     messages: [],
     draftDayEvents: [],
     draftDays: [],
     goals: [EXAM],
-    messagesLeft: 17,
     chatAllowed: true,
     assistantConfigured: true,
     ...fields,
@@ -103,18 +106,20 @@ function render(fields: Partial<ChatPageData>, timeFormat: "12h" | "24h" = "12h"
 }
 
 const openConversation = {
+  chatId: "chat-1",
   messages: [user("Tomorrow: study 2 hours before lunch, football at 8 in the evening"), coach("Here is a plan for Tuesday.\nThe lecture stays where it is.", "open")],
   draftDayEvents: [lecture, examWeek],
   draftDays: ["2026-11-17"],
 };
 
 describe("coach page", () => {
-  it("empty: the heading, the promise, four starters (one in German) and the counter", () => {
+  it("empty: the heading, the promise, four starters in English, no counter (spec 44)", () => {
     const html = render({});
     expect(html).toContain("What should tomorrow look like?");
     expect(html).toContain("nothing changes until you add it");
-    expect(html).toContain("17 of 20 messages left today");
-    expect(html).toContain("Plane meinen Tag morgen: 4 Stunden lernen, abends Fußball schauen");
+    expect(html).not.toContain("messages left today");
+    expect(html).not.toContain("Plane meinen Tag morgen");
+    expect(html).toContain("Find two hours for deep work every morning this week.");
     expect(html).toContain("How much time did I spend on my goals last week?");
     const starters = html.slice(html.indexOf('aria-label="Ideas to start with"'), html.indexOf("</ul>", html.indexOf("Ideas to start with")));
     expect(starters.match(/<button/g)).toHaveLength(4);
@@ -133,7 +138,8 @@ describe("coach page", () => {
 
   it("a conversation with an open draft: the messages, the day drawn with the calendar's events, and the buttons", () => {
     const html = render(openConversation);
-    expect(html).toContain("Clear chat");
+    // Spec 44: one chat is deleted, not all of them.
+    expect(html).toContain("Delete chat");
     // The user's text and the coach's text, line breaks kept as plain text.
     expect(html).toContain("Tomorrow: study 2 hours before lunch, football at 8 in the evening");
     expect(html).toContain("Here is a plan for Tuesday.\nThe lecture stays where it is.");
@@ -251,10 +257,10 @@ describe("coach page", () => {
     expect(html).toMatch(/<textarea[^>]*disabled=""/);
   });
 
-  it("no messages left today: the limit's sentence, the field off", () => {
-    const html = render({ messagesLeft: 0, messages: [user("Hi"), coach("Hello.", null)] });
-    expect(html).toContain("0 of 20 messages left today");
-    expect(html).toContain(MESSAGES.chatLimit.replace("'", "&#x27;"));
-    expect(html).toMatch(/<textarea[^>]*disabled=""/);
+  it("spec 44: no daily limit: after a conversation the field stays on, with no counter and no limit sentence", () => {
+    const html = render({ chatId: "chat-1", messages: [user("Hi"), coach("Hello.", null)] });
+    expect(html).not.toContain("messages left today");
+    expect(html).not.toContain("20 messages");
+    expect(html).not.toMatch(/<textarea[^>]*disabled=""/);
   });
 });

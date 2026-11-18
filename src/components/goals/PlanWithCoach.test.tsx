@@ -29,7 +29,7 @@ const GOAL: GoalView = {
   look: { color: "teal", icon: "dumbbell" },
   rules: [{ id: "r1", kind: "count", target: 3, minMinutes: null }],
   progress: { thisWeek: [{ ruleId: "r1", text: "This week: 0 of 3 done", status: "open" }], weeks: [], countdown: "26 days left" },
-  routine: { category: "sport", categoryOther: null, sessionMinutes: 60, dayPart: "evening", avoidDays: [5], location: "FitnessHut" },
+  routine: { category: "sport", categoryOther: null, sessionMinutes: 60, dayPart: "evening", avoidDays: [5], mustDays: [], dayFrom: null, dayUntil: null, location: "FitnessHut" },
 };
 
 describe("the goal card's 'Plan with coach'", () => {

@@ -12,6 +12,7 @@ import { useAnnounce } from "@/components/calendar/Announcer";
 import { FormMessage } from "@/components/account/FormMessage";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { forgetWidgets } from "@/components/widgets/cache";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { SettingsCardHeader, INPUT_CLASS } from "./fields";
 
@@ -43,6 +44,7 @@ export function YourAccountCard({
     setFailure(null);
     const answer = await postJson(path, body);
     if (answer.ok) {
+      forgetWidgets(); // spec 47: the next account must not see these widgets
       // Refresh first, so the next page reads the cleared session cookies.
       router.refresh();
       router.push(answer.next ?? "/sign-in");

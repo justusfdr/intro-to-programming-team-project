@@ -4,7 +4,7 @@
 // line and the answer controls; the frame (GoalSetup.tsx) adds Back, Close, the progress, the goal taking
 // shape and "Continue". The rules (what may be chosen, the sentences, the hints) are in
 // src/lib/goals/setup.ts; the controls only offer what passes.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Briefcase,
   CalendarCheck,
@@ -18,13 +18,14 @@ import {
   Moon,
   Repeat,
   Shapes,
+  SlidersHorizontal,
   Sun,
   Sunrise,
 } from "lucide-react";
 import { DateField, inputClass } from "@/components/calendar/fields";
 import { AddressField } from "@/components/places/AddressField";
 import { goalColor } from "@/lib/goals/colors";
-import { DAY_PARTS, GOAL_CATEGORIES, GOAL_CATEGORY_LABELS, MAX_CATEGORY_OTHER, WEEKDAYS, type DayPart, type GoalCategory, type Weekday } from "@/lib/goals/routine";
+import { GOAL_CATEGORIES, GOAL_CATEGORY_LABELS, MAX_CATEGORY_OTHER, WEEKDAYS, type DayPart, type GoalCategory, type Weekday } from "@/lib/goals/routine";
 import {
   CATEGORY_LINES,
   chooseCategory,
@@ -42,13 +43,19 @@ import {
   NAME_IDEAS,
   oneGoalHint,
   SESSION_CHIPS,
+  chipLength,
+  sessionLengthProblem,
+  customWindowProblem,
+  startCustom,
   setSessionMinutes,
   setTimesPerWeek,
   stepProblem,
   type DisplayLike,
   type SetupAnswers,
 } from "@/lib/goals/setup";
-import { MAX_SESSION_MINUTES, MIN_SESSION_MINUTES, SESSION_STEP_MINUTES } from "@/lib/goals/routine";
+import { fmtRange } from "@/lib/time/display";
+import { ROW, SIDE, WheelColumn } from "@/components/calendar/TimeWheel";
+import { MINUTES, withHour, withMinute } from "@/lib/time/wheel";
 import type { SavedPlace } from "@/lib/places/saved";
 import type { LocalDate } from "@/lib/time/zoned";
 import { ChoiceGroup, chipClass, focusRing, prefersReducedMotion, QuestionTitle, Stepper, stagger, useCountUp, type Choice } from "./parts";
@@ -159,12 +166,47 @@ export function QuestionCategory({ answers, update, uid }: QuestionProps) {
 
 // ---------- Q2: how often, and for how long ----------
 
-export function QuestionOften({ answers, update, uid }: QuestionProps) {
+/** The hours of the custom length: 0 to 12. */
+const LENGTH_HOURS = Array.from({ length: 13 }, (_, h) => h);
+/** The longest custom length: 12 hours. */
+const MAX_LENGTH = 12 * 60;
+
+/** The custom length as two scrolling columns, hours (0 to 12) and minutes (0 to 59), like the calendar's time wheel. At 12 hours the minutes stay at 0. */
+function LengthWheel({ value, onChange }: { value: number; onChange: (minutes: number) => void }) {
+  // A minute picked at 12 hours is refused; a new key puts the minutes column back on 0.
+  const [reset, setReset] = useState(0);
+  return (
+    <div role="group" aria-label="Length of each session" className="relative mx-auto flex w-fit items-center justify-center gap-6 select-none">
+      <div aria-hidden className="pointer-events-none absolute -inset-x-4 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
+      <div className="relative flex items-center gap-1.5">
+        <WheelColumn label="Hours" items={LENGTH_HOURS} selected={Math.floor(value / 60)} onPick={(h) => onChange(Math.min(MAX_LENGTH, withHour(value, h)))} format={String} />
+        <span aria-hidden className="w-10 text-sm font-medium text-ink">
+          h
+        </span>
+      </div>
+      <div className="relative flex items-center gap-1.5">
+        <WheelColumn
+          key={reset}
+          label="Minutes"
+          items={MINUTES}
+          selected={value % 60}
+          onPick={(m) => (value >= MAX_LENGTH && m !== 0 ? setReset((r) => r + 1) : onChange(withMinute(value, m)))}
+          format={String}
+        />
+        <span aria-hidden className="w-10 text-sm font-medium text-ink">
+          min
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function QuestionOften({ answers, update, uid, showZero = false }: QuestionProps & { /** Continue was pressed at 0:00: show why it did not go on. */ showZero?: boolean }) {
   // "Other" stays open while the length is one of the chips too, once chosen.
   const [custom, setCustom] = useState(!(SESSION_CHIPS as readonly number[]).includes(answers.sessionMinutes));
   const max = maxTimesPerWeek(answers);
   const color = answers.category ? goalColor(answers.color).dot : "bg-ink";
-  const minuteChoices: Choice<string>[] = [...SESSION_CHIPS.map((m) => ({ value: String(m), title: `${m} min` })), { value: "other", title: "Other" }];
+  const minuteChoices: Choice<string>[] = [...SESSION_CHIPS.map((m) => ({ value: String(m), title: chipLength(m) })), { value: "other", title: "Custom" }];
   const hint = oneGoalHint(answers);
   return (
     <div>
@@ -228,17 +270,12 @@ export function QuestionOften({ answers, update, uid }: QuestionProps) {
         </div>
         {custom && (
           <div className="setup-rise mt-3">
-            <Stepper
-              label="Minutes each time"
-              value={answers.sessionMinutes}
-              min={MIN_SESSION_MINUTES}
-              max={MAX_SESSION_MINUTES}
-              step={SESSION_STEP_MINUTES}
-              format={fmtWeekly}
-              onChange={(m) => update((a) => setSessionMinutes(a, m))}
-              fewer="15 minutes less"
-              more="15 minutes more"
-            />
+            <LengthWheel value={answers.sessionMinutes} onChange={(m) => update((a) => setSessionMinutes(a, m))} />
+            {sessionLengthProblem(answers.sessionMinutes) && (answers.sessionMinutes !== 0 || showZero) && (
+              <p role="status" className="setup-rise mt-3 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">
+                {sessionLengthProblem(answers.sessionMinutes)}
+              </p>
+            )}
           </div>
         )}
       </section>
@@ -321,15 +358,44 @@ export function QuestionPlace({ answers, update, uid, places, today }: QuestionP
 
 const DAY_PART_ICONS: Record<DayPart, typeof Sun> = { morning: Sunrise, afternoon: Sun, evening: Moon };
 
-export function QuestionWhen({ answers, update, uid, display, onChosen }: QuestionProps & { display: DisplayLike; onChosen: () => void }) {
-  const choices: Choice<DayPart | "any">[] = [
-    ...DAY_PARTS.map((part) => {
-      const Icon = DAY_PART_ICONS[part];
-      return { value: part, title: `${part[0].toUpperCase()}${part.slice(1)}`, line: dayPartTimes(part, display.timeFormat), icon: <Icon className={icon} strokeWidth={1.8} /> };
-    }),
-    { value: "any" as const, title: "Any time", line: "Whenever it fits", icon: <Clock3 className={icon} strokeWidth={1.8} /> },
+export function QuestionWhen({
+  answers,
+  update,
+  uid,
+  display,
+  onChosen,
+  showWindowProblem = false,
+}: QuestionProps & {
+  display: DisplayLike & { dayStartHour: number };
+  onChosen: () => void;
+  /** Continue was pressed with a window that does not work: show why. */
+  showWindowProblem?: boolean;
+}) {
+  const part = (p: DayPart): Choice<DayPart> => {
+    const Icon = DAY_PART_ICONS[p];
+    return { value: p, title: `${p[0].toUpperCase()}${p.slice(1)}`, line: dayPartTimes(p, display.timeFormat), icon: <Icon className={icon} strokeWidth={1.8} /> };
+  };
+  // Any time top left, Morning top right, Afternoon and Evening below, Custom across the whole width.
+  const custom = answers.dayPart === "custom";
+  const choices: Choice<DayPart | "any" | "custom">[] = [
+    { value: "any", title: "Any time", line: "Whenever it fits", icon: <Clock3 className={icon} strokeWidth={1.8} /> },
+    part("morning"),
+    part("afternoon"),
+    part("evening"),
+    {
+      value: "custom",
+      title: "Custom",
+      line: custom ? fmtRange(answers.customFrom, answers.customUntil, display.timeFormat) : "Choose your own time",
+      icon: <SlidersHorizontal className={icon} strokeWidth={1.8} />,
+    },
   ];
   const hint = eveningHint(answers, display);
+  const problem = custom && showWindowProblem ? customWindowProblem(answers) : null;
+  // The sentence sits under the wheels: bring it into view when it comes.
+  const problemRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (problem) problemRef.current?.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }, [problem]);
   return (
     <div>
       <QuestionTitle id={`${uid}-title`} sub="A preference for planning. You can still plan it at other times.">
@@ -339,62 +405,187 @@ export function QuestionWhen({ answers, update, uid, display, onChosen }: Questi
         <ChoiceGroup
           labelledBy={`${uid}-title`}
           idPrefix={`${uid}-when`}
+          layout="grid gap-2 sm:grid-cols-2 sm:[&>*:last-child]:col-span-2"
           choices={choices}
           value={answers.dayPart}
           onChoose={(dayPart) => {
+            if (dayPart === "custom") {
+              // Custom stays open to set the times; the question does not go on by itself.
+              if (!custom) update((a) => startCustom(a, display));
+              return;
+            }
             update((a) => ({ ...a, dayPart }));
             onChosen();
           }}
         />
       </div>
+      {custom && (
+        <div className="setup-rise mt-4 grid grid-cols-2 gap-3">
+          <WindowWheel label="From" value={answers.customFrom} display={display} onChange={(customFrom) => update((a) => ({ ...a, customFrom }))} />
+          <WindowWheel label="Until" value={answers.customUntil} display={display} onChange={(customUntil) => update((a) => ({ ...a, customUntil }))} />
+        </div>
+      )}
+      {problem && (
+        <p ref={problemRef} className="setup-rise mt-3 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">
+          {problem}
+        </p>
+      )}
       {hint && <Hint>{hint}</Hint>}
     </div>
   );
 }
 
-// ---------- Q5: the days it is never done on ----------
+/**
+ * One end of the own window: hours and minutes as scrolling columns, the hours only those of the visible
+ * day (the settings' first to last hour; the last one only as :00).
+ */
+function WindowWheel({ label, value, display, onChange }: { label: string; value: number; display: { dayStartHour: number; dayEndHour: number }; onChange: (minutes: number) => void }) {
+  const first = display.dayStartHour;
+  const last = display.dayEndHour;
+  // The same list on every render: a new one would make the column jump back to the chosen row while
+  // it is being scrolled.
+  const hours = useMemo(() => Array.from({ length: last - first + 1 }, (_, i) => first + i), [first, last]);
+  const clamp = (m: number) => Math.min(last * 60, Math.max(first * 60, m));
+  const [reset, setReset] = useState(0);
+  // 24 is the end of the day (24:00): only with :00. (withHour knows the hours 0 to 23 only.)
+  const atHour = (h: number) => clamp(h >= 24 ? 24 * 60 : h * 60 + (value % 60));
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <span className={labelClass}>{label}</span>
+      <div role="group" aria-label={`${label} time`} className="relative flex items-center justify-center gap-1 select-none">
+        <div aria-hidden className="pointer-events-none absolute -inset-x-2 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
+        <WheelColumn label={`${label} hour`} items={hours} selected={Math.floor(value / 60)} onPick={(h) => onChange(atHour(h))} />
+        <span aria-hidden className="relative text-lg font-medium text-ink">
+          :
+        </span>
+        <WheelColumn
+          key={reset}
+          label={`${label} minute`}
+          items={MINUTES}
+          selected={value % 60}
+          // At the last hour only :00 (the day ends there); another minute puts the column back.
+          onPick={(m) => (Math.floor(value / 60) >= last && m !== 0 ? setReset((r) => r + 1) : onChange(clamp(withMinute(value, m))))}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------- Q5: the days it happens on for sure, and the days it is never done on ----------
+
+/** Which row of days shook last (a tap that was refused), the day, and a counter that starts it again. */
+export type DaysShake = { row: "sure" | "off"; day: Weekday | null; round: number };
 
 export function QuestionDays({
   answers,
   uid,
   onToggle,
+  onToggleSure,
   shake,
+  note,
 }: QuestionProps & {
+  /** Taps a day of the lower row (never). */
   onToggle: (day: Weekday) => void;
-  /** The day that shook last (the last free day was tapped) and a counter that starts the shake again. */
-  shake: { day: Weekday | null; round: number };
+  /** Taps a day of the upper row (for sure). */
+  onToggleSure: (day: Weekday) => void;
+  shake: DaysShake;
+  /** Why the last tap on a sure day did nothing ("You plan 3 sessions a week, ..."), until the next tap that works. */
+  note: string | null;
 }) {
   const problem = daysProblem(answers);
   const left = daysLeft(answers);
+  const sure = answers.mustDays;
+  const full = sure.length >= answers.timesPerWeek;
+  const fill = answers.category ? goalColor(answers.color).dot : "bg-ink";
+  const shaking = (row: DaysShake["row"], day: Weekday) => shake.row === row && shake.day === day && shake.round > 0;
   return (
     <div>
-      <QuestionTitle id={`${uid}-title`} sub="Tap the days that are off limits. Leave them all if every day works.">
-        Are there days you never want to do it?
+      <QuestionTitle id={`${uid}-title`} sub="Pick the days it has to happen, and the days that are off limits. Leave both empty if any day works.">
+        Which days work for you?
       </QuestionTitle>
-      <div role="group" aria-labelledby={`${uid}-title`} className="mt-6 grid grid-cols-7 gap-1.5">
-        {WEEKDAYS.map(({ day, short, long }, i) => {
-          const off = answers.avoidDays.includes(day);
-          const shaking = shake.day === day && shake.round > 0;
-          return (
-            <span key={day} className="setup-rise flex" style={stagger(i)}>
-              <button
-                type="button"
-                aria-label={`${long}: ${off ? "never" : "possible"}`}
-                onClick={() => onToggle(day)}
-                className={`group relative flex h-12 w-full items-center justify-center rounded-xl border text-[13px] font-semibold transition-colors ${focusRing} ${
-                  off ? "border-line-subtle bg-raised text-ink-3" : "border-line bg-surface text-ink hover:bg-raised"
-                }`}
-              >
-                {/* A new key restarts the shake when the last free day is tapped again. */}
-                <span key={shaking ? shake.round : "still"} className={`relative inline-flex px-1 ${shaking ? "address-shake" : ""}`}>
-                  {short}
-                  {off && <span aria-hidden className="setup-strike absolute top-1/2 -right-1 -left-1 h-[1.5px] rounded-full bg-ink-3" />}
-                </span>
-              </button>
-            </span>
-          );
-        })}
-      </div>
+
+      <section aria-labelledby={`${uid}-sure`} className="mt-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h3 id={`${uid}-sure`} className="text-[13px] font-semibold text-ink">
+            Days for sure
+          </h3>
+          <span className={`text-xs tabular-nums transition-colors ${full && sure.length > 0 ? "text-ink-2" : "text-ink-3"}`}>
+            {answers.timesPerWeek === 1 ? "Up to 1 day" : `Up to ${answers.timesPerWeek} days`}
+          </span>
+        </div>
+        <div role="group" aria-labelledby={`${uid}-sure`} className="mt-2 grid grid-cols-7 gap-1.5">
+          {WEEKDAYS.map(({ day, short, long }, i) => {
+            const on = sure.includes(day);
+            const off = answers.avoidDays.includes(day);
+            const moving = shaking("sure", day);
+            return (
+              <span key={day} className="setup-rise flex" style={stagger(i)}>
+                <button
+                  type="button"
+                  aria-label={`${long}: ${on ? "for sure" : off ? "off limits" : "not chosen"}`}
+                  aria-pressed={on}
+                  disabled={off}
+                  onClick={() => onToggleSure(day)}
+                  className={`relative flex h-12 w-full items-center justify-center rounded-xl border text-[13px] font-semibold transition-[background-color,border-color,color,opacity] ${focusRing} ${
+                    on
+                      ? `border-transparent ${fill} text-white shadow-sm`
+                      : off
+                        ? "cursor-not-allowed border-dashed border-line-subtle bg-transparent text-ink-3 opacity-50"
+                        : `border-line bg-surface text-ink hover:bg-raised ${full ? "text-ink-2" : ""}`
+                  }`}
+                >
+                  <span key={moving ? shake.round : "still"} className={`inline-flex px-1 ${moving ? "address-shake" : ""}`}>
+                    {short}
+                  </span>
+                </button>
+              </span>
+            );
+          })}
+        </div>
+        {note && (
+          <p role="status" className="setup-rise mt-2.5 rounded-xl bg-danger-soft px-3 py-2.5 text-sm text-danger">
+            {note}
+          </p>
+        )}
+      </section>
+
+      <section aria-labelledby={`${uid}-off`} className="mt-6">
+        <h3 id={`${uid}-off`} className="text-[13px] font-semibold text-ink">
+          Never on these days
+        </h3>
+        <div role="group" aria-labelledby={`${uid}-off`} className="mt-2 grid grid-cols-7 gap-1.5">
+          {WEEKDAYS.map(({ day, short, long }, i) => {
+            const off = answers.avoidDays.includes(day);
+            const locked = sure.includes(day);
+            const moving = shaking("off", day);
+            return (
+              <span key={day} className="setup-rise flex" style={stagger(i + 7)}>
+                <button
+                  type="button"
+                  aria-label={`${long}: ${locked ? "a day for sure" : off ? "never" : "possible"}`}
+                  aria-pressed={off}
+                  disabled={locked}
+                  onClick={() => onToggle(day)}
+                  className={`group relative flex h-12 w-full items-center justify-center rounded-xl border text-[13px] font-semibold transition-colors ${focusRing} ${
+                    locked
+                      ? "cursor-not-allowed border-dashed border-line-subtle bg-transparent text-ink-3 opacity-50"
+                      : off
+                        ? "border-line-subtle bg-raised text-ink-3"
+                        : "border-line bg-surface text-ink hover:bg-raised"
+                  }`}
+                >
+                  {/* A new key restarts the shake when the last free day is tapped again. */}
+                  <span key={moving ? shake.round : "still"} className={`relative inline-flex px-1 ${moving ? "address-shake" : ""}`}>
+                    {short}
+                    {off && <span aria-hidden className="setup-strike absolute top-1/2 -right-1 -left-1 h-[1.5px] rounded-full bg-ink-3" />}
+                  </span>
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      </section>
+
       <p className="mt-3 text-[13px] text-ink-3">
         {`${left === 1 ? "1 day" : `${left} days`} left · ${answers.timesPerWeek === 1 ? "1 session" : `${answers.timesPerWeek} sessions`} planned`}
       </p>

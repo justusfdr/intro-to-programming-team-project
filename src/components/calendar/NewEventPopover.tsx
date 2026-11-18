@@ -13,7 +13,7 @@ import { localAt, MIN_DURATION } from "@/lib/events/drag";
 import { fmtMinutes } from "@/lib/time/display";
 import { LAST_MINUTE, endProblem } from "@/lib/time/wheel";
 import { useAnnounce } from "./Announcer";
-import { savedEventChange } from "./event-changes";
+import { savedEvent, savedEventChange } from "./event-changes";
 import { DateField, Eyebrow, GoalChips, ToggleChip, inputClass } from "./fields";
 import { FloatingPanel, type Anchor } from "./FloatingPanel";
 import { TimeField, TimeWheel } from "./TimeWheel";
@@ -43,6 +43,8 @@ type Props = {
   outlookConnected?: boolean;
   onClose: () => void;
   onOpenEditor: (draft: NewEventDraft) => void;
+  /** The new event was saved (the calendar then asks about an overlap, issue #106). */
+  onCreated?: (id: string) => void;
 };
 
 /** The card in its floating panel (a sheet from the bottom on phones). */
@@ -55,7 +57,7 @@ export function NewEventPopover({ anchor, ...rest }: Props) {
 }
 
 /** The card's content (also rendered on its own for the previews and tests). */
-export function NewEventForm({ date: suggestedDate, today, startMin, endMin, goals, outlookConnected = false, onClose, onOpenEditor }: Omit<Props, "anchor">) {
+export function NewEventForm({ date: suggestedDate, today, startMin, endMin, goals, outlookConnected = false, onClose, onOpenEditor, onCreated }: Omit<Props, "anchor">) {
   const live = useLive();
   const announce = useAnnounce();
   const [title, setTitle] = useState("");
@@ -89,6 +91,8 @@ export function NewEventForm({ date: suggestedDate, today, startMin, endMin, goa
     if (answer.message) announce(answer.message);
     if (outlookConnected) void postJson("/api/outlook/send", {}).then(() => live.refresh());
     onClose();
+    const created = savedEvent(answer);
+    if (created) onCreated?.(created.id);
   };
 
   // A new start keeps the length.

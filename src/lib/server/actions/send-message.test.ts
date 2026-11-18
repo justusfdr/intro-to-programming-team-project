@@ -1,6 +1,7 @@
 // Tests for send_message (spec 19; ontology section 5, R1, R3, R5, R21 to R23, R31, A4, A5, A6, A11),
-// with the fake assistant: what is saved, what Claude receives, the limit, the Pro switch both ways,
-// and every way it can fail (nothing saved, the calendar unchanged, counted where R1 says so).
+// with the fake assistant: what is saved, what Claude receives, the Pro switch both ways, and every way
+// it can fail (nothing saved, the calendar unchanged). Spec 44: there is no daily limit any more and
+// nothing is counted; the tests that pinned the limit now pin that it is gone.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
 import { A5_ANSWER, chatOf, draftsOf, seedDraft, A5_PROPOSALS, sentToday, setPlan, setSentToday } from "@test/support/chat";
@@ -55,7 +56,6 @@ describe("send_message accepted", () => {
 
     expect(answer.status).toBe(201);
     expect(answer.body).toMatchObject({
-      messagesLeft: 19,
       messages: [
         { role: "user", text: A5_TEXT, draft: null },
         {
@@ -67,7 +67,7 @@ describe("send_message accepted", () => {
               { title: "Study", startAt: "2026-11-17T08:00:00.000Z", endAt: "2026-11-17T13:00:00.000Z", goalId: null },
               { title: "Call", startAt: "2026-11-17T13:30:00.000Z", endAt: "2026-11-17T14:00:00.000Z", goalId: null },
               { title: "Sport", startAt: "2026-11-17T18:00:00.000Z", endAt: "2026-11-17T19:30:00.000Z", goalId: null },
-              { title: "Event", startAt: "2026-11-17T20:00:00.000Z", endAt: "2026-11-17T22:30:00.000Z", goalId: null },
+              { title: "Event", startAt: "2026-11-17T20:00:00.000Z", endAt: "2026-11-17T21:00:00.000Z", goalId: null },
             ],
           },
         },
@@ -78,7 +78,8 @@ describe("send_message accepted", () => {
       ["assistant", "open"],
     ]);
     expect(await eventsOf(app.db, alice)).toEqual([]);
-    expect(await sentToday(app.db, alice)).toBe(1);
+    // Spec 44: nothing is counted.
+    expect(await sentToday(app.db, alice)).toBe(0);
   });
 
   it("saves a text answer without a draft; nothing else changes", async () => {
@@ -120,11 +121,12 @@ describe("send_message accepted", () => {
     ]);
   });
 
-  it("accepts the 20th message of the day", async () => {
+  it("spec 44: no daily limit: a message after 20 today is answered, and nothing is counted", async () => {
     const alice = await app.signedInAs("alice@example.com");
-    await setSentToday(app.db, alice, 19);
+    await setSentToday(app.db, alice, 20);
     const answer = await read(await send({ text: "One more" }));
-    expect(answer).toMatchObject({ status: 201, body: { messagesLeft: 0 } });
+    expect(answer.status).toBe(201);
+    expect(answer.body).not.toHaveProperty("messagesLeft");
     expect(await sentToday(app.db, alice)).toBe(20);
   });
 });
@@ -178,7 +180,7 @@ describe("what Claude receives (R22, R31)", () => {
         { title: "Study", start: "2026-11-17T08:00", end: "2026-11-17T13:00", goalId: null },
         { title: "Call", start: "2026-11-17T13:30", end: "2026-11-17T14:00", goalId: null },
         { title: "Sport", start: "2026-11-17T18:00", end: "2026-11-17T19:30", goalId: null },
-        { title: "Event", start: "2026-11-17T20:00", end: "2026-11-17T22:30", goalId: null },
+        { title: "Event", start: "2026-11-17T20:00", end: "2026-11-17T21:00", goalId: null },
       ],
     });
 
@@ -236,10 +238,10 @@ describe("what Claude receives (R22, R31)", () => {
 });
 
 describe("send_message rejected", () => {
-  it("A6: a wrong answer fails the checks, saves nothing but counts; then the limit stops it before Claude", async () => {
+  it("A6: a wrong answer fails the checks and saves nothing; spec 44: the next message is asked again", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await setSentToday(app.db, alice, 19);
-    const before = await snapshotWithoutCount();
+    const before = await app.snapshot();
     app.assistant.answerJson({ ...A5_ANSWER, events: [{ title: "Call", start: "2026-11-17T13:30", end: "2026-11-17T13:00", goalId: null }] });
 
     expect(await read(await send({ text: A5_TEXT }))).toEqual({
@@ -247,15 +249,11 @@ describe("send_message rejected", () => {
       body: { error: "answer_failed_checks", message: "The assistant's answer failed our checks. Please try again" },
     });
     expect(await chatOf(app.db, alice)).toEqual([]);
-    expect(await sentToday(app.db, alice)).toBe(20);
-    expect(await snapshotWithoutCount()).toEqual(before);
+    expect(await app.snapshot()).toEqual(before);
 
-    expect(await read(await send({ text: A5_TEXT }))).toEqual({
-      status: 429,
-      body: { error: "daily_limit", message: "Today's 20 messages are used" },
-    });
-    expect(app.assistant.requests).toHaveLength(1);
-    expect(await sentToday(app.db, alice)).toBe(20);
+    expect((await send({ text: A5_TEXT })).status).toBe(201);
+    expect(app.assistant.requests).toHaveLength(2);
+    expect(await sentToday(app.db, alice)).toBe(19);
   });
 
   it.each([
@@ -265,7 +263,7 @@ describe("send_message rejected", () => {
     ["a proposal for another user's goal", { kind: "answer", value: { ...A5_ANSWER, events: [{ ...A5_ANSWER.events[0], goalId: "00000000-0000-4000-8000-000000000000" }] } } as const],
     ["an all-day proposal", { kind: "answer", value: { ...A5_ANSWER, events: [{ title: "Exam", start: "2026-11-17", end: "2026-11-18", goalId: null }] } } as const],
     ["a proposal over an event that may not overlap", { kind: "answer", value: A5_ANSWER } as const],
-  ])("%s: 'failed our checks', nothing saved, counted", async (_case, result) => {
+  ])("%s: 'failed our checks', nothing saved, nothing counted (spec 44)", async (_case, result) => {
     const alice = await app.signedInAs("alice@example.com");
     await seedEvent(app.db, alice, { title: "Gym", start: "2026-11-17T18:30:00Z", end: "2026-11-17T19:00:00Z" });
     const before = await snapshotWithoutCount();
@@ -275,10 +273,10 @@ describe("send_message rejected", () => {
 
     expect(answer.body.message).toBe("The assistant's answer failed our checks. Please try again");
     expect(await snapshotWithoutCount()).toEqual(before);
-    expect(await sentToday(app.db, alice)).toBe(1);
+    expect(await sentToday(app.db, alice)).toBe(0);
   });
 
-  it("Claude down: 'not available', nothing saved, the calendar and the open draft unchanged, counted", async () => {
+  it("Claude down: 'not available', nothing saved, the calendar and the open draft unchanged, nothing counted (spec 44)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await seedDraft(app.db, alice, A5_PROPOSALS);
     const before = await snapshotWithoutCount();
@@ -289,7 +287,7 @@ describe("send_message rejected", () => {
       body: { error: "assistant_unavailable", message: "The assistant is not available right now. Your calendar is unchanged" },
     });
     expect(await snapshotWithoutCount()).toEqual(before);
-    expect(await sentToday(app.db, alice)).toBe(1);
+    expect(await sentToday(app.db, alice)).toBe(0);
   });
 
   it("no key on this server: 'not available', Claude not called, nothing changed, not counted", async () => {
@@ -301,22 +299,22 @@ describe("send_message rejected", () => {
     expect(await app.snapshot()).toEqual(before);
   });
 
-  it("at 20 messages today: 'Today's 20 messages are used', Claude not called, nothing changed", async () => {
+  it("spec 44: at 20 messages today Claude is still asked and the turn is saved", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await setSentToday(app.db, alice, 20);
-    const before = await app.snapshot();
-    expect(await read(await send({ text: "Hi" }))).toEqual({ status: 429, body: { error: "daily_limit", message: "Today's 20 messages are used" } });
-    expect(app.assistant.requests).toEqual([]);
-    expect(await app.snapshot()).toEqual(before);
+    expect((await send({ text: "Hi" })).status).toBe(201);
+    expect(app.assistant.requests).toHaveLength(1);
+    expect((await chatOf(app.db, alice)).map((m) => m.text)).toEqual(["Hi", "Okay."]);
   });
 
-  it("two messages at the same moment at 19: one is answered, the other gets the limit", async () => {
+  it("two messages at the same moment: both are answered and saved (spec 44: no limit)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await setSentToday(app.db, alice, 19);
     const answers = await Promise.all((await Promise.all([send({ text: "First" }), send({ text: "Second" })])).map(read));
-    expect(answers.map((a) => a.status).sort()).toEqual([201, 429]);
-    expect(await sentToday(app.db, alice)).toBe(20);
-    expect(app.assistant.requests).toHaveLength(1);
+    expect(answers.map((a) => a.status)).toEqual([201, 201]);
+    expect(await sentToday(app.db, alice)).toBe(19);
+    expect(app.assistant.requests).toHaveLength(2);
+    expect(await chatOf(app.db, alice)).toHaveLength(4);
   });
 
   it.each([
@@ -382,12 +380,12 @@ describe("who may use the coach (R21, R5, CHAT_PRO_ONLY)", () => {
     expect((await send({ text: "Hi" })).status).toBe(201);
   });
 
-  it("names the first problem in the ontology's order: Pro before the limit before the text", async () => {
+  it("names the first problem in the ontology's order: Pro before the text (spec 44: no limit in between)", async () => {
     vi.stubEnv("CHAT_PRO_ONLY", "true");
     const alice = await app.signedInAs("alice@example.com");
     await setSentToday(app.db, alice, 20);
     expect((await read(await send({ text: "" }))).body.message).toBe("The AI chat is part of Pro");
     await setPlan(app.db, alice, "pro");
-    expect((await read(await send({ text: "" }))).body.message).toBe("Today's 20 messages are used");
+    expect((await read(await send({ text: "" }))).body.message).toBe("A message must be 1 to 4,000 characters");
   });
 });

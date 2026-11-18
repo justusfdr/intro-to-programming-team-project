@@ -81,6 +81,9 @@ describe("create_goal with a routine", () => {
       sessionMinutes: 60,
       dayPart: "evening",
       avoidDays: [6, 7],
+      mustDays: [],
+      dayFrom: null,
+      dayUntil: null,
       location: "Studio 4, Lisbon",
     });
     expect(goal.deadline).toBe("2027-03-14");
@@ -104,6 +107,9 @@ describe("create_goal with a routine", () => {
       sessionMinutes: null,
       dayPart: null,
       avoidDays: [5],
+      mustDays: [],
+      dayFrom: null,
+      dayUntil: null,
       location: null,
     });
   });
@@ -141,9 +147,8 @@ const REJECTED: [string, Record<string, unknown>, string, string][] = [
   ["a category outside the list", { category: "music" }, "goal_category", "Choose a category from the list"],
   ["an own word of 31 characters", { category: "other", categoryOther: "m".repeat(31) }, "category_other_length", "Your own category can be at most 30 characters"],
   ["an own word with a line break", { category: "other", categoryOther: "Mu\nsic" }, "category_other_form", "Your own category must be on one line, without control characters"],
-  ["0 minutes", { sessionMinutes: 0 }, "session_minutes", "A session lasts 15 minutes to 4 hours, in steps of 15 minutes"],
-  ["50 minutes", { sessionMinutes: 50 }, "session_minutes", "A session lasts 15 minutes to 4 hours, in steps of 15 minutes"],
-  ["255 minutes", { sessionMinutes: 255 }, "session_minutes", "A session lasts 15 minutes to 4 hours, in steps of 15 minutes"],
+  ["0 minutes", { sessionMinutes: 0 }, "session_minutes", "A session lasts 1 minute to 12 hours"],
+  ["721 minutes", { sessionMinutes: 721 }, "session_minutes", "A session lasts 1 minute to 12 hours"],
   ["a part of the day outside the list", { dayPart: "night" }, "day_part", "Choose morning, afternoon, evening or any time"],
   ["a day 8", { avoidDays: [8] }, "avoid_days", "Choose weekdays from the list"],
   ["a day twice", { avoidDays: [5, 5] }, "avoid_days", "Choose weekdays from the list"],
@@ -343,5 +348,67 @@ describe("the week must still fit (R44)", () => {
     expect(await app.snapshot()).toEqual(before);
     expect((await edit(g.id, { ...HALF_MARATHON, rules: sameRules, avoidDays: [1, 2, 3], updatedAt: g.updatedAt })).status).toBe(200);
     expect(await routineRow(g.id)).toMatchObject({ avoid_days: "123" });
+  });
+});
+
+describe("the sure days (mustDays)", () => {
+  const BODY = { title: "Gym", deadline: null, rules: [{ kind: "count", target: 3, minMinutes: null }], avoidDays: [4, 5] };
+  const mustRow = async (id: string) => (await app.db.admin<{ must_days: string }>("select must_days from app.goals where id = $1", [id]))[0].must_days;
+
+  it("create saves them sorted and answers with them", async () => {
+    await app.signedInAs("alice@example.com");
+    const answer = await read(await create({ ...BODY, mustDays: [3, 1] }));
+    expect(answer.status).toBe(201);
+    const goal = answer.body.goal as { id: string; routine: { mustDays: number[] } };
+    expect(goal.routine.mustDays).toEqual([1, 3]);
+    expect(await mustRow(goal.id)).toBe("13");
+  });
+
+  it("create refuses more sure days than sessions, and a day that is ruled out; nothing is saved", async () => {
+    await app.signedInAs("alice@example.com");
+    expect(await read(await create({ ...BODY, mustDays: [1, 2, 3, 6] }))).toEqual({
+      status: 400,
+      body: { error: "must_days_count", message: "You can choose at most 3 sure days, one for each session a week" },
+    });
+    expect(await read(await create({ ...BODY, mustDays: [1, 4] }))).toEqual({
+      status: 400,
+      body: { error: "must_avoid_day", message: "A day cannot be both a sure day and a day off" },
+    });
+    expect(await app.db.admin("select id from app.goals")).toHaveLength(0);
+  });
+
+  it("an edit that leaves them out keeps them, minus a day now ruled out and beyond the new times a week", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const g = await seedWithRoutine(alice, "must_days = '12', avoid_days = ''");
+    const res = await edit(g.id, { title: "Gym", deadline: "2027-03-14", updatedAt: g.updatedAt, rules: [{ kind: "count", target: 2 }], avoidDays: [2] });
+    expect(res.status).toBe(200);
+    expect(await mustRow(g.id)).toBe("1");
+  });
+});
+
+describe("the own time window (Custom)", () => {
+  const BODY = { title: "Gym", deadline: null, rules: [{ kind: "count", target: 3, minMinutes: null }], sessionMinutes: 60 };
+  const windowRow = async (id: string) =>
+    (await app.db.admin<{ day_from_min: number | null; day_until_min: number | null; day_part: string | null }>("select day_from_min, day_until_min, day_part from app.goals where id = $1", [id]))[0];
+
+  it("create saves it and answers with it; one shorter than a session is refused", async () => {
+    await app.signedInAs("alice@example.com");
+    const answer = await read(await create({ ...BODY, dayFrom: 390, dayUntil: 480 }));
+    expect(answer.status).toBe(201);
+    const goal = answer.body.goal as { id: string; routine: { dayFrom: number; dayUntil: number } };
+    expect(goal.routine).toMatchObject({ dayFrom: 390, dayUntil: 480 });
+    expect(await windowRow(goal.id)).toEqual({ day_from_min: 390, day_until_min: 480, day_part: null });
+    expect((await read(await create({ ...BODY, dayFrom: 390, dayUntil: 420 }))).body.error).toBe("day_window_short");
+  });
+
+  it("an edit keeps it; sending a part of the day instead clears it", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const g = await seedWithRoutine(alice, "day_from_min = 390, day_until_min = 480, session_minutes = 60");
+    const kept = await read(await edit(g.id, { title: "Gym", deadline: "2027-03-14", updatedAt: g.updatedAt, rules: [{ kind: "count", target: 2 }] }));
+    expect(kept.status).toBe(200);
+    expect(await windowRow(g.id)).toMatchObject({ day_from_min: 390, day_until_min: 480 });
+    const updatedAt = (kept.body.goal as { updatedAt: string }).updatedAt;
+    expect((await read(await edit(g.id, { title: "Gym", deadline: "2027-03-14", updatedAt, rules: [{ kind: "count", target: 2 }], dayPart: "evening" }))).status).toBe(200);
+    expect(await windowRow(g.id)).toEqual({ day_from_min: null, day_until_min: null, day_part: "evening" });
   });
 });

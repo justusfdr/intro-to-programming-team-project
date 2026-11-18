@@ -2,13 +2,14 @@ import "server-only";
 
 // Action send_message (ontology section 5, R1, R21 to R23, R31; spec 19):
 //   1. same-origin check   2. signed in (R3)   3. read and shape-check the body (at most 32 KB)
-//   4. first transaction: allowed (R21, R5), under today's limit, text 1 to 4,000 characters, Claude
-//      set up on this server; then count the message in the database (atomically) and read what
-//      Claude receives (R22, R31). It commits here: the count stays even if Claude then fails (R1's
-//      exception).
+//   4. first transaction: allowed (R21, R5), the chat is the user's (spec 44), text 1 to 4,000
+//      characters, Claude set up on this server; then read what Claude receives (R22, R31).
 //   5. call Claude with no transaction open (it may take up to a minute)
 //   6. run every check of R23 on the answer; one failure rejects it, nothing saved, no second try
-//   7. second transaction: the user's message, the answer and its draft saved together.
+//   7. second transaction: the user's message, the answer and its draft saved together, in their chat,
+//      or in a new chat titled with the message when none was named.
+// Spec 44: there is no daily limit any more; nothing is counted. Claude receives the last messages of
+// this chat only, so a new chat starts without the earlier conversations.
 // The calendar never changes here: a draft becomes events only with accept_draft.
 // Spec 20: every event in the data block gets a reference valid for this request only ("e1") and a
 // flag whether the coach may change it; no event id goes to Claude. A reference in the answer is
@@ -19,7 +20,7 @@ import "server-only";
 // place), with the sessions left this week and next worked out here; a new session that names a goal
 // must not start on a weekday the goal is never done on.
 import { z } from "zod";
-import { chatAllowed, DAILY_MESSAGES } from "@/lib/chat/access";
+import { chatAllowed } from "@/lib/chat/access";
 import { checkAnswer, checkText } from "@/lib/chat/checks";
 import { buildAssistantInput, HISTORY_LENGTH } from "@/lib/chat/input";
 import { ANSWER_JSON_SCHEMA, SYSTEM_PROMPT } from "@/lib/chat/prompt";
@@ -27,8 +28,10 @@ import { chatTotals } from "@/lib/chat/totals";
 import { MESSAGES } from "@/lib/messages";
 import {
   blocksOf,
-  countMessage,
+  chatGone,
+  findOwnChat,
   historyOf,
+  latestChat,
   neverDaysOf,
   readCalendar,
   readChatAccount,
@@ -52,11 +55,12 @@ import { readSettings } from "@/lib/server/settings";
 /** 4,000 characters can take up to 16,000 bytes; JSON escaping adds more. */
 const MAX_BODY = 32 * 1024;
 
-const Body = z.object({ text: z.string().max(20_000) });
+// Spec 44: `chatId` names the chat to answer in, or is "new" to start one; left out, the turn goes into
+// the user's latest chat (a new one when there is none), as before chats existed.
+const Body = z.object({ text: z.string().max(20_000), chatId: z.string().max(100).optional() });
 
 export const proOnlyError = () => new ActionError(403, "pro_only", MESSAGES.chatProOnly);
 export const unavailableError = () => new ActionError(503, "assistant_unavailable", MESSAGES.chatUnavailable);
-const limitError = () => new ActionError(429, "daily_limit", MESSAGES.chatLimit);
 const failedChecksError = () => new ActionError(502, "answer_failed_checks", MESSAGES.chatFailedChecks);
 
 export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now" | "assistant">): Promise<Response> {
@@ -71,17 +75,18 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
 
     const assistant = deps.assistant;
 
-    // Step 4: checks in the ontology's order, then count, then read; committed together.
+    // Step 4: checks in the ontology's order, then read what Claude receives.
     const context = await deps.withUser(userId, async (query) => {
       const account = await readChatAccount(query);
       if (!chatAllowed(account.plan, chatProOnly())) throw proOnlyError();
-      if (account.usedToday >= DAILY_MESSAGES) throw limitError();
+      const asked = body.data.chatId;
+      const chat = asked === undefined ? await latestChat(query) : asked === "new" ? null : await findOwnChat(query, asked);
+      if (asked !== undefined && asked !== "new" && chat === null) throw chatGone();
+      const chatId = chat?.id ?? null;
       const text = checkText(body.data.text);
       if (text === null) throw new ActionError(400, "text_length", MESSAGES.chatTextLength);
-      // Without a key Claude cannot be asked; nothing is counted then.
+      // Without a key Claude cannot be asked.
       if (!assistant) throw unavailableError();
-      // The database counts atomically: of two requests at the 20th message, only one gets it.
-      if (!(await countMessage(query))) throw limitError();
 
       const now = deps.now();
       // R13: a session that reached its planned length counts as finished in the totals.
@@ -92,9 +97,10 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
         readGoalInputs(query, { routines: true }),
         readCalendar(query, now, settings.timeZone),
         readTotalsInput(query, now, settings.timeZone),
-        readMessages(query, HISTORY_LENGTH),
+        // Spec 44: only this chat's messages; a new chat has none.
+        chatId === null ? Promise.resolve([]) : readMessages(query, chatId, HISTORY_LENGTH),
       ]);
-      return { text, settings, goals, calendar, totalsInput, messages };
+      return { chatId, text, settings, goals, calendar, totalsInput, messages };
     });
 
     // Step 5: Claude, outside any transaction.
@@ -125,6 +131,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       targets: targetsOf(calendar),
       todoTargets: todoTargetsOf(calendar),
       neverDays: neverDaysOf(goals),
+      visibleHours: { startHour: settings.dayStartHour, endHour: settings.dayEndHour },
     });
     if (!checked.ok) {
       console.error("Assistant answer failed a check:", checked.failure);
@@ -133,16 +140,14 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
 
     // Step 7: both messages and the draft in one step.
     const answer = checked.value;
-    const messages = await deps.withUser(userId, async (query) => {
-      const saved = await saveTurn(query, context.text, {
+    const saved = await deps.withUser(userId, (query) =>
+      saveTurn(query, context.chatId, context.text, {
         text: answer.text,
         proposals: answer.kind === "draft" ? answer.proposals : null,
         changes: answer.kind === "draft" ? answer.changes : [],
         additions: answer.kind === "draft" ? (answer.additions ?? []) : [],
-      });
-      const account = await readChatAccount(query);
-      return { saved, messagesLeft: Math.max(0, DAILY_MESSAGES - account.usedToday) };
-    });
-    return jsonOk({ messages: messages.saved, messagesLeft: messages.messagesLeft }, 201);
+      }),
+    );
+    return jsonOk({ chat: saved.chat, messages: saved.messages }, 201);
   });
 }

@@ -15,7 +15,18 @@ import {
 import { goalWeeks, type GoalEvent } from "@/lib/chat/goal-weeks";
 import type { CalendarInput, GoalInput, HistoryInput } from "@/lib/chat/input";
 import { totalsWindow, type DoneEventInput, type SessionInput } from "@/lib/chat/totals";
-import type { ChatMessageDto, ChatRole, DraftChangeDto, DraftDto, DraftStatus, DraftTodosDto, ProposedEventDto } from "@/lib/chat/types";
+import { chatTitleOf } from "@/lib/chat/chats";
+import { excerptOf, likePatterns, SEARCH_RESULTS } from "@/lib/chat/search";
+import type {
+  ChatMessageDto,
+  ChatRole,
+  ChatSummaryDto,
+  DraftChangeDto,
+  DraftDto,
+  DraftStatus,
+  DraftTodosDto,
+  ProposedEventDto,
+} from "@/lib/chat/types";
 import type { Plan } from "@/lib/chat/access";
 import { focusedMinutes } from "@/lib/focus/session-time";
 import type { Weekday } from "@/lib/goals/routine";
@@ -194,11 +205,69 @@ function toMessageDto(row: MessageRow): ChatMessageDto {
   return { id: row.id, role: row.role, text: row.text, createdAt: new Date(row.created_at).toISOString(), draft };
 }
 
-/** The latest `limit` messages with their drafts, oldest first. */
-export async function readMessages(query: Query, limit: number): Promise<ChatMessageDto[]> {
-  const rows = await query<MessageRow>(`${MESSAGE_SELECT} order by m.seq desc limit $1`, [limit]);
+/** The latest `limit` messages of one chat (spec 44) with their drafts, oldest first. */
+export async function readMessages(query: Query, chatId: string, limit: number): Promise<ChatMessageDto[]> {
+  const rows = await query<MessageRow>(`${MESSAGE_SELECT} where m.chat_id = $1 order by m.seq desc limit $2`, [chatId, limit]);
   return rows.reverse().map(toMessageDto);
 }
+
+type ChatRow = { id: string; title: string; updated_at: string | Date };
+
+const toChatDto = (row: ChatRow): ChatSummaryDto => ({ id: row.id, title: row.title, updatedAt: new Date(row.updated_at).toISOString() });
+
+/** The user's latest `limit` chats (spec 44), newest first. */
+export async function readChats(query: Query, limit: number): Promise<ChatSummaryDto[]> {
+  const rows = await query<ChatRow>("select id, title, updated_at from app.chats order by updated_at desc, id limit $1", [limit]);
+  return rows.map(toChatDto);
+}
+
+/** The user's latest chat (by its latest message), or null when they have none. */
+export async function latestChat(query: Query): Promise<ChatSummaryDto | null> {
+  const [row] = await query<ChatRow>("select id, title, updated_at from app.chats order by updated_at desc, id limit 1");
+  return row ? toChatDto(row) : null;
+}
+
+/** The user's chat with this id, or null (another user's chat is not visible, R3; an id that is no id is none). */
+export async function findOwnChat(query: Query, id: string): Promise<ChatSummaryDto | null> {
+  if (!UUID.test(id)) return null;
+  const [row] = await query<ChatRow>("select id, title, updated_at from app.chats where id = $1", [id]);
+  return row ? toChatDto(row) : null;
+}
+
+/** One chat found by a search (spec 44): the first message with every word, and an excerpt around the hit. */
+export type ChatSearchResult = { chat: ChatSummaryDto; messageId: string | null; excerpt: string | null };
+
+/**
+ * The user's chats whose title or one of whose messages contains every word (ignoring case), newest
+ * first, at most 30 (spec 44). Row-level security keeps it to the user's own chats (R3). For each chat
+ * the first message with all the words, and a short excerpt around the hit; a chat found only by its
+ * title has none.
+ */
+export async function searchOwnChats(query: Query, words: readonly string[]): Promise<ChatSearchResult[]> {
+  const rows = await query<ChatRow & { message_id: string | null; message_text: string | null }>(
+    `select c.id, c.title, c.updated_at, m.id as message_id, m.text as message_text
+       from app.chats c
+       left join lateral (
+         select m.id, m.text
+           from app.chat_messages m
+          where m.chat_id = c.id and m.text ilike all ($1::text[])
+          order by m.seq
+          limit 1
+       ) m on true
+      where m.id is not null or c.title ilike all ($1::text[])
+      order by c.updated_at desc, c.id
+      limit $2`,
+    [likePatterns(words), SEARCH_RESULTS],
+  );
+  return rows.map((row) => ({
+    chat: toChatDto(row),
+    messageId: row.message_id,
+    excerpt: row.message_text === null ? null : excerptOf(row.message_text, words),
+  }));
+}
+
+/** "This chat no longer exists": the chat was deleted (or is not the user's). */
+export const chatGone = () => new ActionError(404, "chat_gone", MESSAGES.chatGone);
 
 /** The same as what Claude receives as history (R22). */
 export function historyOf(messages: readonly ChatMessageDto[]): HistoryInput[] {
@@ -234,23 +303,10 @@ export function historyOf(messages: readonly ChatMessageDto[]): HistoryInput[] {
   }));
 }
 
-/**
- * The user's plan and how many messages they sent today (R21), on the database's clock in the user's
- * time zone: the same day the counting function uses.
- */
-export async function readChatAccount(query: Query): Promise<{ plan: Plan; usedToday: number }> {
-  const [row] = await query<{ plan: Plan; used: number }>(
-    `select p.plan,
-            case when p.chat_count_date = (now() at time zone s.time_zone)::date then p.chat_count else 0 end as used
-       from app.profiles p cross join app.settings s`,
-  );
-  return { plan: row?.plan ?? "free", usedToday: row?.used ?? 0 };
-}
-
-/** Counts one message for today; false when today's 20 are used (the database decides, atomically). */
-export async function countMessage(query: Query): Promise<boolean> {
-  const [row] = await query<{ counted: boolean }>("select app.chat_count_message() as counted");
-  return row?.counted === true;
+/** The user's plan (R21). Spec 44: there is no daily limit any more, so nothing is counted. */
+export async function readChatAccount(query: Query): Promise<{ plan: Plan }> {
+  const [row] = await query<{ plan: Plan }>("select plan from app.profiles where id = (select auth.uid())");
+  return { plan: row?.plan ?? "free" };
 }
 
 /**
@@ -546,15 +602,31 @@ export async function readTotalsInput(
  */
 export async function saveTurn(
   query: Query,
+  chatId: string | null,
   userText: string,
   answer: { text: string; proposals: readonly Proposal[] | null; changes?: readonly Change[]; additions?: readonly TodoAddition[] },
-): Promise<ChatMessageDto[]> {
+): Promise<{ chat: ChatSummaryDto; messages: ChatMessageDto[] }> {
   await query("select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('chat:' || auth.uid()::text))");
+  // Spec 44: the turn goes into its chat; a chat deleted since the message was sent saves nothing (R1).
+  // delete_chat takes the same lock, so a delete on another device waits for this turn or comes first.
+  // Without a chat the turn starts a new one, titled with the user's message.
+  let chat: string;
+  if (chatId !== null) {
+    const own = await findOwnChat(query, chatId);
+    if (!own) throw chatGone();
+    chat = own.id;
+  } else {
+    const [made] = await query<{ id: string }>("insert into app.chats (title) values ($1) returning id", [chatTitleOf(userText)]);
+    chat = made.id;
+  }
   if (answer.proposals) await query("update app.draft_plans set status = 'replaced' where status = 'open'");
-  const [user] = await query<{ id: string }>("insert into app.chat_messages (role, text) values ('user', $1) returning id", [userText]);
+  const [user] = await query<{ id: string }>("insert into app.chat_messages (chat_id, role, text) values ($1::uuid, 'user', $2) returning id", [
+    chat,
+    userText,
+  ]);
   const [assistant] = await query<{ id: string }>(
-    "insert into app.chat_messages (role, text) values ('assistant', $1) returning id",
-    [answer.text],
+    "insert into app.chat_messages (chat_id, role, text) values ($1::uuid, 'assistant', $2) returning id",
+    [chat, answer.text],
   );
   if (answer.proposals) {
     // $2::text::jsonb, not $2::jsonb: the real database driver encodes a parameter it knows to be jsonb
@@ -572,7 +644,8 @@ export async function saveTurn(
     );
   }
   const rows = await query<MessageRow>(`${MESSAGE_SELECT} where m.id = any($1::uuid[]) order by m.seq`, [[user.id, assistant.id]]);
-  return rows.map(toMessageDto);
+  const saved = await findOwnChat(query, chat);
+  return { chat: saved!, messages: rows.map(toMessageDto) };
 }
 
 export type DraftRow = {

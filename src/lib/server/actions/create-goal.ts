@@ -39,9 +39,9 @@ export function createGoal(request: Request, deps: Pick<Deps, "auth" | "withUser
       const { routine } = goal;
       const [{ id }] = await query<{ id: string }>(
         `insert into app.goals (title, deadline, auto_block, color, icon, why,
-                                open_ended, category, category_other, session_minutes, day_part, avoid_days, location)
+                                open_ended, category, category_other, session_minutes, day_part, avoid_days, location, must_days, day_from_min, day_until_min)
          values ($1::text, $2::date, $3::boolean, $4::text, coalesce($5::text, 'rocket'), $6::text,
-                 $7::boolean, $8::text, $9::text, $10::integer, $11::text, $12::text, $13::text) returning id`,
+                 $7::boolean, $8::text, $9::text, $10::integer, $11::text, $12::text, $13::text, $14::text, $15::integer, $16::integer) returning id`,
         [
           goal.title,
           goal.deadline ?? addDays(today, OPEN_ENDED_PLACEHOLDER_DAYS),
@@ -56,6 +56,9 @@ export function createGoal(request: Request, deps: Pick<Deps, "auth" | "withUser
           routine.dayPart,
           avoidDaysToText(routine.avoidDays),
           routine.location,
+          avoidDaysToText(routine.mustDays),
+          routine.dayFrom,
+          routine.dayUntil,
         ],
       );
       for (const rule of goal.rules) {

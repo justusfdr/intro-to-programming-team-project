@@ -500,6 +500,7 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
 
   // The Focus page in its states (spec 04). Sample sessions written by hand; times as the server sends them.
   const { FocusView } = await import("@/components/focus/FocusView");
+  const { tilesFor } = await import("@/lib/library/library");
   type FocusData = import("@/lib/focus/types").FocusData;
   type SessionDto = import("@/lib/focus/types").SessionDto;
   const focusNow = "2026-11-17T09:42:00.000Z";
@@ -551,7 +552,8 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
     renderToStaticMarkup(
       <Announcer>
         <AppShell current="/focus">
-          <FocusView data={data} blocker={blocker} />
+          {/* The library's tiles of the sample day (spec 48). */}
+          <FocusView data={data} blocker={blocker} library={tilesFor("2026-11-17")} />
         </AppShell>
       </Announcer>,
     );
@@ -590,9 +592,12 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
   writeFileSync(join(OUT, "block-page.html"), blockedHtml);
   writeFileSync(join(OUT, "focus-running-phone.html"), phoneFrame("Focus", page("Focus", focusPage(focusStates[2][1]), styles)));
 
-  // The Analytics page (spec 06), from sessions and attempts saved the real way and read with loadAnalytics.
-  const { AnalyticsView } = await import("@/components/analytics/AnalyticsView");
-  const { loadAnalytics } = await import("@/lib/server/analytics/load");
+  // The Analytics page in tabs (spec 49). Once from sessions and attempts saved the real way and read
+  // with the page's own loader, once per tab from the sample report (a full week with goals), and empty.
+  const { AnalyticsTabs } = await import("@/components/analytics/AnalyticsTabs");
+  const { loadAnalyticsTabsPage } = await import("@/lib/server/pages/load");
+  const { sampleReport } = await import("@/lib/analytics/report-fixture");
+  const { STANDARD_LAYOUT, TABS } = await import("@/lib/analytics/report-types");
   const { seedSession } = await import("@test/support/sessions");
   const stats = await createTestApp();
   const learner = await stats.signedInAs("analytics@example.com", { timeZone: "Europe/Lisbon" });
@@ -619,18 +624,20 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
   await blockedAt("x.com", "18T11:05");
   await done("19T09:00", 30, 60);
   stats.advance(3 * 24 * 3_600_000 + 4 * 3_600_000); // Thursday 19 November, 13:00 UTC
-  const full = await loadAnalytics(stats.deps, learner);
+  const full = (await loadAnalyticsTabsPage(stats.deps, learner)).report;
   const fresh = await stats.signedInAs("new-account@example.com", { timeZone: "Europe/Lisbon" });
-  const empty = await loadAnalytics(stats.deps, fresh);
+  const empty = (await loadAnalyticsTabsPage(stats.deps, fresh)).report;
   await stats.close();
-  const analyticsPage = (data: typeof full) =>
+  const analyticsPage = (report: typeof full, tab: (typeof TABS)[number] = "overview") =>
     renderToStaticMarkup(
       <AppShell current="/analytics">
-        <AnalyticsView data={data} />
+        <AnalyticsTabs report={report} layout={STANDARD_LAYOUT} tab={tab} onEdit={() => {}} onExport={() => {}} />
       </AppShell>,
     );
-  const analyticsHtml = page("Analytics", analyticsPage(full), styles);
+  const analyticsHtml = page("Analytics", analyticsPage(sampleReport), styles);
   writeFileSync(join(OUT, "analytics.html"), analyticsHtml);
+  for (const tab of TABS) writeFileSync(join(OUT, `analytics-${tab}.html`), page("Analytics", analyticsPage(sampleReport, tab), styles));
+  writeFileSync(join(OUT, "analytics-from-database.html"), page("Analytics", analyticsPage(full, "focus"), styles));
   writeFileSync(join(OUT, "analytics-empty.html"), page("Analytics", analyticsPage(empty), styles));
   writeFileSync(join(OUT, "analytics-phone.html"), phoneFrame("Analytics", analyticsHtml));
 
@@ -654,11 +661,19 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
   const coachData = (fields: Partial<ChatPageData>): ChatPageData => ({
     display: { timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
     timeZone: "Europe/Lisbon",
+    // Spec 44: a few chats for the list, the open one first.
+    chats: [
+      { id: "chat-wed", title: "Tomorrow I want to study about 2 hours in the morning", updatedAt: "2026-11-17T20:00:30.000Z" },
+      { id: "chat-gym", title: "Plan the gym into my week", updatedAt: "2026-11-17T09:12:00.000Z" },
+      { id: "chat-mon", title: "How much time did I spend on my goals last week?", updatedAt: "2026-11-16T18:40:00.000Z" },
+      { id: "chat-fri", title: "Plan my Saturday: a long run in the morning", updatedAt: "2026-11-13T16:05:00.000Z" },
+    ],
+    chatId: "chat-wed",
+    now: "2026-11-17T21:00:00.000Z",
     messages: [],
     draftDayEvents: [],
     draftDays: [],
     goals: goalLabels,
-    messagesLeft: 17,
     chatAllowed: true,
     assistantConfigured: true,
     ...fields,
@@ -694,7 +709,6 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
     draftDays: ["2026-11-18"],
   });
   const addedDraft = coachData({
-    messagesLeft: 15,
     messages: [
       chat("m1", "user", "Plane meinen Tag morgen: 4 Stunden lernen, abends Fußball schauen"),
       chat("m2", "assistant", "Hier ist ein Entwurf für Dienstag: zwei Lernblöcke um deine Termine herum (3,5 Stunden, mehr passt nicht), Fußball ab 20 Uhr.", {
@@ -764,12 +778,12 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
       </Announcer>,
     );
   const coachOpenHtml = page("Coach", coachPage(openDraft), styles);
-  writeFileSync(join(OUT, "coach-empty.html"), page("Coach", coachPage(coachData({ messagesLeft: 20 })), styles));
+  writeFileSync(join(OUT, "coach-empty.html"), page("Coach", coachPage(coachData({ chatId: null })), styles));
   writeFileSync(join(OUT, "coach-draft.html"), coachOpenHtml);
   writeFileSync(join(OUT, "coach-added.html"), page("Coach", coachPage(addedDraft), styles));
   writeFileSync(join(OUT, "coach-changes.html"), page("Coach", coachPage(changesDraft), styles));
   writeFileSync(join(OUT, "coach-phone.html"), phoneFrame("Coach", coachOpenHtml));
-  writeFileSync(join(OUT, "coach-empty-phone.html"), phoneFrame("Coach", page("Coach", coachPage(coachData({ messagesLeft: 20 })), styles)));
+  writeFileSync(join(OUT, "coach-empty-phone.html"), phoneFrame("Coach", page("Coach", coachPage(coachData({ chatId: null })), styles)));
 
   writeFileSync(join(OUT, "sign-in.html"), page("Sign in", renderToStaticMarkup(<SignInPage />), styles));
   writeFileSync(join(OUT, "sign-up.html"), page("Sign up", renderToStaticMarkup(<SignUpPage />), styles));

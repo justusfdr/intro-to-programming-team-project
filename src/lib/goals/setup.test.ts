@@ -36,6 +36,9 @@ import {
   stepProblem,
   summaryLines,
   toggleAvoidDay,
+  toggleMustDay,
+  startCustom,
+  MUST_IS_OFF_MESSAGE,
   weeklySum,
   type SetupAnswers,
 } from "./setup";
@@ -118,25 +121,28 @@ describe("Q1: what it is about and its name", () => {
 });
 
 describe("Q2: how often and how long", () => {
-  it("keeps the times between 1 and 7 and the minutes between 15 and 240 in steps of 15", () => {
+  it("keeps the times between 1 and 7 and the minutes to the minute, as the wheel shows them (0:00 to 12:00)", () => {
     const a = gym();
     expect(setTimesPerWeek(a, 0).timesPerWeek).toBe(1);
     expect(setTimesPerWeek(a, 9).timesPerWeek).toBe(6); // Friday is ruled out
     expect(setTimesPerWeek({ ...a, avoidDays: [] }, 9).timesPerWeek).toBe(7);
-    expect(setSessionMinutes(a, 0).sessionMinutes).toBe(15);
-    expect(setSessionMinutes(a, 300).sessionMinutes).toBe(240);
-    expect(setSessionMinutes(a, 50).sessionMinutes).toBe(45);
+    expect(setSessionMinutes(a, 0).sessionMinutes).toBe(0);
+    expect(setSessionMinutes(a, 360).sessionMinutes).toBe(360);
+    expect(setSessionMinutes(a, 50).sessionMinutes).toBe(50);
+    expect(setSessionMinutes(a, 2000).sessionMinutes).toBe(720);
+    expect(setSessionMinutes(a, 750).sessionMinutes).toBe(720);
     expect(setSessionMinutes(a, 75).oftenTouched).toBe(true);
   });
 
-  it("accepts 1 and 7, 15 and 240 minutes; refuses 0, 8, 10 and 255 minutes", () => {
+  it("accepts 1 and 7 times, 1 minute to 12 hours; refuses 0 and 8 times, 0 minutes and more than 12 hours", () => {
     const q2 = (change: Partial<SetupAnswers>) => stepProblem("often", gym({ avoidDays: [], ...change }), TODAY);
-    expect(q2({ timesPerWeek: 1, sessionMinutes: 15 })).toBeNull();
-    expect(q2({ timesPerWeek: 7, sessionMinutes: 240 })).toBeNull();
+    expect(q2({ timesPerWeek: 1, sessionMinutes: 1 })).toBeNull();
+    expect(q2({ timesPerWeek: 7, sessionMinutes: 720 })).toBeNull();
+    expect(q2({ sessionMinutes: 360 })).toBeNull();
     expect(q2({ timesPerWeek: 0 })).toBe("Choose 1 to 7 times a week.");
     expect(q2({ timesPerWeek: 8 })).toBe("Choose 1 to 7 times a week.");
-    expect(q2({ sessionMinutes: 10 })).toBe(MESSAGES.sessionMinutes);
-    expect(q2({ sessionMinutes: 255 })).toBe(MESSAGES.sessionMinutes);
+    expect(q2({ sessionMinutes: 0 })).toBe("Choose at least 1 minute.");
+    expect(q2({ sessionMinutes: 721 })).toBe("A session can be at most 12 hours.");
   });
 
   it("refuses more times than the days left after going back from the days", () => {
@@ -293,6 +299,9 @@ describe("the body of create_goal", () => {
       sessionMinutes: 60,
       dayPart: "evening",
       avoidDays: [5],
+      mustDays: [],
+      dayFrom: null,
+      dayUntil: null,
       location: "FitnessHut Lisboa",
     });
   });
@@ -356,7 +365,7 @@ describe("the tags and the sentence", () => {
       { step: "often", label: "How often", text: "Twice a week, 60 minutes each" },
       { step: "place", label: "Where", text: "FitnessHut Lisboa" },
       { step: "when", label: "When", text: "In the evening" },
-      { step: "days", label: "Days off", text: "Never on Fridays" },
+      { step: "days", label: "Days", text: "Never on Fridays" },
       { step: "date", label: "Until", text: "Dec 12, 2026" },
     ]);
     expect(summaryLines(gym({ place: { kind: "home" }, dayPart: "any", avoidDays: [], hasDate: false })).map((l) => l.text).slice(1)).toEqual([
@@ -368,7 +377,7 @@ describe("the tags and the sentence", () => {
   });
 
   it("maps every tag to its question, for Change", () => {
-    expect(STEP_OF_TAG).toEqual({ category: "category", often: "often", minutes: "often", dayPart: "when", days: "days", place: "place", date: "date" });
+    expect(STEP_OF_TAG).toEqual({ category: "category", often: "often", minutes: "often", dayPart: "when", sure: "days", days: "days", place: "place", date: "date" });
   });
 });
 
@@ -393,5 +402,71 @@ describe("Q6: the date and the days ruled out", () => {
     expect(dateHint(gym({ deadline: "2026-11-18", avoidDays: [], timesPerWeek: 3 }), TODAY)).toBeNull();
     expect(dateHint(gym({ deadline: "2026-11-22", avoidDays: [5], timesPerWeek: 6 }), TODAY)).toBeNull(); // a whole week
     expect(dateHint(gym({ hasDate: false }), TODAY)).toBeNull();
+  });
+});
+
+describe("the sure days", () => {
+  it("are chosen up to the sessions a week; one more is refused with a sentence", () => {
+    let a = gym({ timesPerWeek: 2, avoidDays: [] });
+    a = toggleMustDay(a, 3).answers;
+    a = toggleMustDay(a, 1).answers;
+    expect(a.mustDays).toEqual([1, 3]);
+    const more = toggleMustDay(a, 5);
+    expect(more.answers).toBe(a);
+    expect(more.refused).toBe("You plan 2 sessions a week, so you can choose up to 2 sure days.");
+    expect(toggleMustDay(gym({ timesPerWeek: 1, avoidDays: [], mustDays: [2] }), 4).refused).toBe("You plan 1 session a week, so you can choose 1 sure day.");
+    expect(toggleMustDay(a, 1).answers.mustDays).toEqual([3]);
+  });
+
+  it("a sure day cannot be a day off, and a day off cannot be a sure day", () => {
+    const a = gym({ avoidDays: [5], mustDays: [1] });
+    expect(toggleAvoidDay(a, 1)).toEqual({ answers: a, refused: MUST_IS_OFF_MESSAGE });
+    expect(toggleMustDay(a, 5).answers).toBe(a);
+  });
+
+  it("block the days question and How often when there are more than the sessions", () => {
+    const a = gym({ timesPerWeek: 1, avoidDays: [], mustDays: [1, 3] });
+    expect(stepProblem("days", a, TODAY)).toBe("You chose 2 sure days but plan 1 session a week. Unpick a day, or go back and plan more.");
+    expect(stepProblem("often", a, TODAY)).toBe(stepProblem("days", a, TODAY));
+  });
+
+  it("are sent, shown as a tag, in the review's line and in the sentence", () => {
+    const a = gym({ timesPerWeek: 3, avoidDays: [5], mustDays: [1, 3], dayPart: "any", place: { kind: "home" }, hasDate: false });
+    expect(createGoalBody(a).mustDays).toEqual([1, 3]);
+    expect(previewTags(a, "date", "12h").find((t) => t.key === "sure")).toEqual({ key: "sure", text: "On Mon, Wed", label: "Always on Monday and Wednesday", step: "days" });
+    expect(summaryLines(a).find((l) => l.step === "days")?.text).toBe("Always on Mondays and Wednesdays, never on Fridays");
+    expect(answersSentence(a)).toContain("always on Mondays and Wednesdays, never on Fridays");
+    expect(hasAnswers({ ...emptyAnswers("amber"), mustDays: [2] })).toBe(true);
+  });
+});
+
+describe("long sessions", () => {
+  it("show as hours in the tag above two hours", () => {
+    const tag = (m: number) => previewTags(gym({ sessionMinutes: m }), "often", "12h").find((t) => t.key === "minutes")?.text;
+    expect(tag(90)).toBe("90 min");
+    expect(tag(360)).toBe("6 h");
+    expect(tag(395)).toBe("6 h 35 min");
+  });
+});
+
+describe("the own time window (Custom)", () => {
+  it("starts inside the visible day, long enough for one session", () => {
+    expect(startCustom(gym({ sessionMinutes: 90 }), { timeFormat: "24h", dayStartHour: 6, dayEndHour: 22 })).toMatchObject({ dayPart: "custom", customFrom: 420, customUntil: 510 });
+    expect(startCustom(gym({ sessionMinutes: 30 }), { timeFormat: "24h", dayStartHour: 9, dayEndHour: 22 })).toMatchObject({ customFrom: 540, customUntil: 600 });
+  });
+
+  it("blocks Continue when the end is not after the start or a session does not fit", () => {
+    expect(stepProblem("when", gym({ dayPart: "custom", customFrom: 480, customUntil: 420 }), TODAY)).toBe("The end has to be after the start.");
+    expect(stepProblem("when", gym({ dayPart: "custom", sessionMinutes: 60, customFrom: 420, customUntil: 450 }), TODAY)).toBe("The time window is shorter than one session (1 h).");
+    expect(stepProblem("when", gym({ dayPart: "custom", sessionMinutes: 60, customFrom: 390, customUntil: 480 }), TODAY)).toBeNull();
+  });
+
+  it("is sent as dayFrom and dayUntil, and shown in the tag, the review and the sentence", () => {
+    const a = gym({ dayPart: "custom", customFrom: 390, customUntil: 480, place: { kind: "home" }, hasDate: false });
+    expect(createGoalBody(a)).toMatchObject({ dayPart: null, dayFrom: 390, dayUntil: 480 });
+    expect(createGoalBody(gym({ dayPart: "evening" }))).toMatchObject({ dayPart: "evening", dayFrom: null, dayUntil: null });
+    expect(previewTags(a, "date", "24h").find((t) => t.key === "dayPart")?.text).toBe("6:30 – 8:00");
+    expect(summaryLines(a, "24h").find((l) => l.step === "when")?.text).toBe("6:30 – 8:00");
+    expect(answersSentence(a, "24h")).toContain("between 6:30 – 8:00");
   });
 });
