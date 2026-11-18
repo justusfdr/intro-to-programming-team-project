@@ -96,7 +96,7 @@ export const NAME_IDEAS: Record<GoalCategory, string[]> = {
   sport: ["Gym", "Running", "Half marathon"],
   uni: ["Study for exams", "Thesis"],
   work: ["Side project", "Deep work"],
-  personal: ["Reading", "Guitar"],
+  personal: ["Reading"],
   other: [],
 };
 

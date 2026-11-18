@@ -36,6 +36,16 @@ describe("the New event card", () => {
     expect(html).toMatch(/<button type="button"[^>]*disabled=""[^>]*>Add details<\/button>/);
   });
 
+  it("keeps the Add / Add details row stuck to the bottom of the scrolling panel (issue #134)", () => {
+    const html = card(540, 600);
+    const row = html.match(/<div class="([^"]*)"><button type="submit"/);
+    expect(row).not.toBeNull();
+    expect(row![1]).toContain("sticky");
+    expect(row![1]).toContain("bottom-0");
+    expect(row![1]).toContain("bg-surface");
+    expect(row![1]).toContain("border-t");
+  });
+
   it("presses the chip of the dragged length and shows start and end as HH:MM (24-hour wheel)", () => {
     const html = card(540, 630);
     expect(html).toMatch(/aria-pressed="true"[^>]*>1\.5h</);

@@ -77,7 +77,7 @@ export function WhenSection({ event, values, onChange, todayKey, children }: Pro
         )}
       </div>
       {values.allDay ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-xs text-ink-2">First day</span>
             <DateField label="First day" value={values.firstDay} todayKey={todayKey} onChange={(day) => onChange(moveFirstDay(values, day))} />
