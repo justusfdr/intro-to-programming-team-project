@@ -426,7 +426,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
     [currentOf, live, showToast, sendToOutlook],
   );
 
-  /** "Discard": the event goes, with Undo in the toast. */
+  /** "Delete event": the event goes, with Undo in the toast. */
   const discardOverlap = useCallback(
     async (ask: OverlapAsk) => {
       const event = await currentOf(ask);
@@ -442,7 +442,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
     [currentOf, live, showToast, sendToOutlook, onDeleted],
   );
 
-  /** "Move it": after a drop the event goes back where it was; else its editor opens to change the time. */
+  /** "Move it" (after a drop "Put it back"): after a drop the event goes back where it was; else its editor opens to change the time. */
   const moveOverlap = useCallback(
     (ask: OverlapAsk) => {
       if (ask.drop) return moveBack(ask.drop.event, ask.drop.start, ask.drop.end, ask.drop.saving);
@@ -668,6 +668,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
         <FloatingPanel anchor={pop.anchor} label="This event overlaps another one" width={320} onClose={closePop}>
           <OverlapNotice
             overlap={pop.overlap}
+            afterDrop={Boolean(pop.drop)}
             timeZone={week.timeZone}
             onFine={() => {
               setPop(null);
