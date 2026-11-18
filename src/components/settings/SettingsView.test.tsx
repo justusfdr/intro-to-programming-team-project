@@ -1,10 +1,11 @@
 // The settings page's markup (spec 12): the five cards in the prototype's order, every control with a
 // real label, the saved values chosen, nothing about leaving times, and the typed delete confirmation.
+// Spec 52: the list of sections on the left, one section shown at a time, the blocker's guide folded.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { BlockerData } from "@/lib/blocker/types";
 import type { SettingsPageData } from "@/lib/settings/types";
-import { SettingsView } from "./SettingsView";
+import { SettingsView, sectionOf } from "./SettingsView";
 import { YourAccountCard } from "./YourAccountCard";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -136,5 +137,50 @@ describe("settings page", () => {
     expect(asking).toContain("Demo items you changed are removed too. Everything you added yourself stays.");
     expect(asking).toMatch(/>Cancel<\/button>/);
     expect(asking).toMatch(/>Remove<\/button>/);
+  });
+
+  it("lists the sections in groups, each a link to its #part, with Calendar open at first (spec 52)", () => {
+    const html = render();
+    expect(html).toContain('<nav aria-label="Settings sections"');
+    const order = ["Planning", "Calendar", "Travel", "Focus", "Focus blocker", "Account", "Account and plan"].map((t) => html.indexOf(`>${t}<`));
+    expect(order.every((at) => at > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    for (const key of ["calendar", "travel", "blocker", "account"]) expect(html).toContain(`href="#${key}"`);
+    expect(html).toMatch(/<a href="#calendar" aria-current="true"/);
+    expect(html.match(/aria-current="true"/g)).toHaveLength(1);
+  });
+
+  it("shows one section at a time; the others stay on the page, hidden (spec 52)", () => {
+    const html = render();
+    const sections = [...html.matchAll(/<section aria-label="([^"]+)"( hidden="")?/g)].map((m) => [m[1], Boolean(m[2])]);
+    expect(sections).toEqual([
+      ["Calendar", false],
+      ["Travel", true],
+      ["Focus blocker", true],
+      ["Account and plan", true],
+    ]);
+  });
+
+  it("marks the blocker red in the list while it is not connected, and says so in words (spec 52)", () => {
+    expect(render()).toContain('<span class="sr-only">(needs you)</span>');
+    expect(renderToStaticMarkup(<SettingsView data={DATA} blocker={{ ...BLOCKER, connected: true }} />)).not.toContain("(needs you)");
+    expect(render()).toContain("Free plan");
+    expect(render({ ...DATA, settings: { ...DATA.settings, homeAddress: "" } })).toContain("No home address yet");
+  });
+
+  it("opens a section from the address's #part; the old #outlook opens Calendar (spec 52)", () => {
+    expect(sectionOf("#outlook")).toBe("calendar");
+    expect(sectionOf("#calendar")).toBe("calendar");
+    expect(sectionOf("#travel")).toBe("travel");
+    expect(sectionOf("#blocker")).toBe("blocker");
+    expect(sectionOf("#account")).toBe("account");
+    expect(sectionOf("")).toBeNull();
+    expect(sectionOf("#nothing")).toBeNull();
+  });
+
+  it("folds the blocker's five install steps into one row (spec 52)", () => {
+    const html = render();
+    expect(html).toMatch(/<details class="[^"]*"><summary[^>]*>.*Install the extension.*<\/summary>.*Download the extension/s);
+    expect(html).not.toMatch(/<details[^>]*open/);
   });
 });
