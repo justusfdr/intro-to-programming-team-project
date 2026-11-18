@@ -111,4 +111,14 @@ describe("the legal notes", () => {
     for (const id of ["privacy", "terms", "cookies"]) expect(legal).toContain(`<section id="${id}"`);
     expect(legal.match(/<h1/g)?.length).toBe(1);
   });
+
+  // Issue #146: the notes must name every service that receives data and say what deleting removes.
+  it("names Open-Meteo as a recipient, with only rounded coordinates", () => {
+    expect(legal).toContain("Open-Meteo, when the weather widget shows the weather: the coordinates of the place, rounded to about 1 km.");
+  });
+
+  it("says that deleting the account deletes our data and that payment records stay with Stripe", () => {
+    expect(legal).toContain("that deletes the account and all your data in our database. Payment records stay with Stripe.");
+    expect(legal).not.toContain("that removes your data");
+  });
 });

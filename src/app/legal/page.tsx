@@ -21,8 +21,8 @@ const NOTES: Note[] = [
     title: "Privacy",
     paragraphs: [
       `${APP_NAME} stores what you put into it: your e-mail address, your events, goals, tasks and to-dos, your focus sessions, your settings and, if you add them, a profile photo and saved places. Your account and this data are kept with Supabase. Each account can read only its own data.`,
-      "Other services receive data only when you use the feature that needs them. Microsoft, if you connect Outlook: your events are synced in both directions. Anthropic, when you write to the coach: your recent messages, your goals, your events of the next 14 days and weekly totals of your focus time. Google Maps, when you search for a place or ask for a travel time: the addresses. Stripe, when you upgrade to Pro: the payment itself, on Stripe's own page. We never see your card details.",
-      "There are no ads and no tracking, and we do not sell data. You can delete your account in the settings at any time; that removes your data.",
+      "Other services receive data only when you use the feature that needs them. Microsoft, if you connect Outlook: your events are synced in both directions. Anthropic, when you write to the coach: your recent messages, your goals, your events of the next 14 days and weekly totals of your focus time. Google Maps, when you search for a place or ask for a travel time: the addresses. Open-Meteo, when the weather widget shows the weather: the coordinates of the place, rounded to about 1 km. Stripe, when you upgrade to Pro: the payment itself, on Stripe's own page. We never see your card details.",
+      "There are no ads and no tracking, and we do not sell data. You can delete your account in the settings at any time; that deletes the account and all your data in our database. Payment records stay with Stripe.",
     ],
   },
   {
