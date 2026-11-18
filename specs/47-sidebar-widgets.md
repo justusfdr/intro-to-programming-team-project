@@ -33,6 +33,16 @@ and puts the last saved list back (R1).
 
 Data: on opening and every minute while the page is visible, `widgets_data`; the weather on opening and
 every 30 minutes; the trip with the existing `travel_times` for the one event to leave for.
+What was shown last stays in the tab's memory (src/components/widgets/cache.ts, never in the browser's
+storage, emptied on signing out), so after a page change the widgets are there at once and are brought
+up to date in the background; the weather is asked at the same time as `widgets_data`, not after it.
+
+Adding (v3): the gallery's previews are dragged into the sidebar. As soon as a preview moves, the gallery
+steps aside, the widget follows the pointer and the grid shows where it would land (`spotFor` in
+layout.ts: the place nearest to the field under the widget's top left that keeps every widget on this
+screen). Let go over the grid, it is added there; beside it or with no room, the gallery comes back.
+A click on a preview still adds it: into the "+" field that opened the gallery, else at the end. The small
+"Time to leave" writes long times short ("5h 26m") so they fit, and so does the leave line in "Next up".
 
 ## Ontology changes (with this spec)
 

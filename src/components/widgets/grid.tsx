@@ -105,6 +105,7 @@ export function WidgetCell({
   place,
   editing,
   dragging = false,
+  landing = false,
   onRemove,
   onCycleSize,
   onOpen,
@@ -118,6 +119,8 @@ export function WidgetCell({
   place: Placement;
   editing: boolean;
   dragging?: boolean;
+  /** The widget being dragged in from the gallery, shown where it will land. */
+  landing?: boolean;
   onRemove?: () => void;
   onCycleSize?: () => void;
   /** While editing: a click on the widget opens its settings. */
@@ -132,7 +135,7 @@ export function WidgetCell({
   return (
     <div
       style={{ gridRow: `${row + 1} / span ${h}`, gridColumn: `${col + 1} / span ${w}`, animationDelay: index % 2 ? "-0.15s" : undefined }}
-      className={`relative min-w-0 ${editing ? "widget-wiggle cursor-grab rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30" : ""} ${dragging ? "opacity-40" : ""}`}
+      className={`relative min-w-0 ${landing ? "rounded-card opacity-60 ring-2 ring-ink/30" : ""} ${editing && !landing ? "widget-wiggle cursor-grab rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30" : ""} ${dragging ? "opacity-40" : ""}`}
       draggable={editing}
       tabIndex={editing ? 0 : undefined}
       aria-label={editing ? `${WIDGET_NAMES[item.kind]}, ${sizeWords(item)}. Enter opens its settings, arrow keys move it, Delete removes it` : undefined}
@@ -174,7 +177,7 @@ export function WidgetCell({
                 onCycleSize?.();
               }}
               aria-label={`Size ${sizeWords(item)}. Change size`}
-              className="tabular absolute -bottom-1.5 -right-1.5 z-10 rounded-full bg-ink px-1.5 text-[10.5px] font-semibold leading-5 text-white shadow-float"
+              className={`tabular absolute ${w === 1 ? "-top-1.5" : "-bottom-1.5"} -right-1.5 z-10 rounded-full bg-ink px-1.5 text-[10.5px] font-semibold leading-5 text-white shadow-float`}
             >
               {item.size.replace("x", "×")}
             </button>

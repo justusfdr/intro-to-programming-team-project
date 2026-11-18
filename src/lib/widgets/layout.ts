@@ -106,3 +106,30 @@ export function checkLayout(value: unknown): LayoutCheck {
 export function rowsFor(px: number, cell = 64, gap = 8): number {
   return Math.max(0, Math.min(GRID_ROWS, Math.floor((px + gap) / (cell + gap))));
 }
+
+/**
+ * Where in the list a new widget goes so that it lands as near as it can to the field `cell` of the
+ * screen's first `rows` rows, when it is dragged there from the gallery. Only places that keep every
+ * widget of the full 3 × 6 grid (R47) and push no other widget off this screen count; null: no room.
+ */
+export function spotFor(layout: WidgetItem[], item: WidgetItem, rows: number, cell: { row: number; col: number }): number | null {
+  if (!fitsWith(layout, item)) return null;
+  const hiddenBefore = pack(layout, rows).hidden.length;
+  let best: { index: number; score: number } | null = null;
+  for (let index = 0; index <= layout.length; index++) {
+    const list = [...layout.slice(0, index), item, ...layout.slice(index)];
+    const { placed, hidden } = pack(list, rows);
+    if (hidden.length !== hiddenBefore) continue;
+    const at = placed.find((p) => p.index === index);
+    if (!at) continue;
+    const col = Math.min(cell.col, GRID_COLUMNS - at.w);
+    const score = Math.abs(at.row - cell.row) * GRID_COLUMNS + Math.abs(at.col - col);
+    if (!best || score < best.score) best = { index, score };
+  }
+  return best ? best.index : null;
+}
+
+/** `layout` with `item` put in at `index`. */
+export function insertAt(layout: WidgetItem[], item: WidgetItem, index: number): WidgetItem[] {
+  return [...layout.slice(0, index), item, ...layout.slice(index)];
+}

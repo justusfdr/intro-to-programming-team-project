@@ -5,19 +5,21 @@
 // lays the widgets out in the 3 × 6 grid, as many rows as fit (layout.ts). A click on a widget does what
 // grid.tsx says (the weather opens in detail). Editing: the pencil or a right-click; the free fields of
 // this screen show as "+"; a click on a widget opens its settings; remove, change size, drag (or arrow
-// keys) to move; "Add" opens the gallery; "Done" saves the list with save_widgets (R47). A refusal shows
+// keys) to move; "Add" opens the gallery, whose widgets are dragged into the grid (or clicked, which puts
+// them in the "+" field that opened the gallery, else at the end); "Done" saves the list with save_widgets (R47). A refusal shows
 // its message and puts the saved list back (R1).
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Pencil, Plus, X } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
 import { getJson, postJson } from "@/lib/client/post-json";
 import { msToNextMinute } from "@/lib/time/next-minute";
-import { pack, rowsFor } from "@/lib/widgets/layout";
+import { insertAt, pack, rowsFor, spotFor } from "@/lib/widgets/layout";
 import { CELL_PX, DEFAULT_LAYOUT, GAP_PX, GRID_COLUMNS, SIZES_OF, WIDGET_NAMES, type WidgetItem, type WidgetsData } from "@/lib/widgets/types";
 import type { WeatherAnswer } from "@/lib/widgets/weather";
 import type { TravelAnswer } from "@/lib/travel/types";
+import { remember, remembered } from "./cache";
 import { WidgetDialog } from "./Dialog";
-import { freeFields, Gallery } from "./Gallery";
+import { freeFields, Gallery, pxOf, type PickUp } from "./Gallery";
 import { GRID_STYLE, renderWidget, WidgetCell, type WidgetContext } from "./grid";
 import type { TripTravel } from "./tiles";
 import { WeatherDetail } from "./WeatherDetail";
@@ -73,7 +75,11 @@ function useMinuteClock(): Date {
  * once allowed, it is used by itself from then on. Without it the server picks the event's place or home.
  */
 function useWeather(enabled: boolean) {
-  const [answer, setAnswer] = useState<WeatherAnswer | null>(null);
+  const [answer, setAnswerState] = useState<WeatherAnswer | null>(() => remembered().weather);
+  const setAnswer = useCallback((value: WeatherAnswer) => {
+    remember({ weather: value });
+    setAnswerState(value);
+  }, []);
   const [canAsk, setCanAsk] = useState(false);
   const coords = useRef<{ lat: number; lon: number } | null>(null);
   const allowed = useRef(false);
@@ -83,7 +89,7 @@ function useWeather(enabled: boolean) {
     const data = result.data as Partial<WeatherAnswer> | undefined;
     if (result.ok && data && typeof data.status === "string") setAnswer(data as WeatherAnswer);
     else if (result.status !== 401) setAnswer({ status: "unavailable", message: result.message || "Weather not available" });
-  }, []);
+  }, [setAnswer]);
 
   const locate = useCallback(() => {
     if (!("geolocation" in navigator)) return void load();
@@ -135,20 +141,28 @@ function useWeather(enabled: boolean) {
 
 /** The trip to the event to leave for (R27), asked again every 15 minutes and when the event changes. */
 function useTrip(tripId: string | null): TripTravel {
-  const [trip, setTrip] = useState<{ id: string; answer: TravelAnswer | null } | null>(null);
+  const [trip, setTrip] = useState<{ id: string; answer: TravelAnswer | null } | null>(() => {
+    const trips = remembered().trips;
+    return tripId && tripId in trips ? { id: tripId, answer: trips[tripId] } : null;
+  });
   const load = useCallback(async () => {
     if (!tripId) return;
     const result = await postJson("/api/travel", { ids: [tripId] });
     const answer = (result.data as { travel?: Record<string, TravelAnswer> } | undefined)?.travel?.[tripId] ?? null;
-    setTrip({ id: tripId, answer: result.ok ? answer : null });
+    const value = result.ok ? answer : null;
+    remember({ trips: { ...remembered().trips, [tripId]: value } });
+    setTrip({ id: tripId, answer: value });
   }, [tripId]);
   useVisibleInterval(load, TRIP_EVERY, tripId !== null, tripId ?? "");
-  return trip && trip.id === tripId ? trip.answer : undefined;
+  if (trip && trip.id === tripId) return trip.answer;
+  // Another event than the one asked about: what was known about it before, if anything.
+  const known = tripId ? remembered().trips : {};
+  return tripId && tripId in known ? known[tripId] : undefined;
 }
 
 /** The weather of the cities that widgets name, each asked every 30 minutes (R48). */
 function useCityWeather(cities: string[], enabled: boolean): Record<string, WeatherAnswer> {
-  const [answers, setAnswers] = useState<Record<string, WeatherAnswer>>({});
+  const [answers, setAnswers] = useState<Record<string, WeatherAnswer>>(() => remembered().cities);
   const key = [...new Set(cities)].sort().join("\n");
   const load = useCallback(async () => {
     const list = key === "" ? [] : key.split("\n");
@@ -160,7 +174,9 @@ function useCityWeather(cities: string[], enabled: boolean): Record<string, Weat
         return result.status === 401 ? null : [city, { status: "unavailable", message: result.message || "Weather not available" }];
       }),
     );
-    setAnswers((old) => ({ ...old, ...Object.fromEntries(pairs.filter((p) => p !== null)) }));
+    const known = { ...remembered().cities, ...Object.fromEntries(pairs.filter((p) => p !== null)) };
+    remember({ cities: known });
+    setAnswers(known);
   }, [key]);
   useVisibleInterval(load, WEATHER_EVERY, enabled && key !== "", key);
   return answers;
@@ -185,7 +201,12 @@ function freeCells(layout: WidgetItem[], rows: number): { row: number; col: numb
 }
 
 export function WidgetArea() {
-  const [data, setData] = useState<WidgetsData | null>(null);
+  // What was shown last on the page before (cache.ts), so a page change does not start empty.
+  const [data, setDataState] = useState<WidgetsData | null>(() => remembered().data);
+  const setData = useCallback((value: WidgetsData) => {
+    remember({ data: value });
+    setDataState(value);
+  }, []);
   const [off, setOff] = useState(false);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -195,9 +216,16 @@ export function WidgetArea() {
   const [resetAsked, setResetAsked] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [rows, setRows] = useState(0);
+  const [rows, setRows] = useState(() => remembered().rows);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  // A widget dragged in from the gallery: what, where the pointer is, and where it would land
+  // (undefined: not over the grid; null: over it, but there is no room).
+  const [carry, setCarry] = useState<PickUp | null>(null);
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
+  const [landing, setLanding] = useState<number | null | undefined>(undefined);
+  const [addCell, setAddCell] = useState<{ row: number; col: number } | null>(null);
   const gridBox = useRef<HTMLDivElement>(null);
+  const gridEl = useRef<HTMLDivElement>(null);
   const detailTitle = useId();
   const now = useMinuteClock();
 
@@ -205,18 +233,24 @@ export function WidgetArea() {
     const result = await getJson("/api/widgets");
     if (result.ok) setData(result.data as WidgetsData);
     else if (result.status === 401) setOff(true);
-  }, []);
+  }, [setData]);
   useVisibleInterval(loadData, MINUTE, !off);
 
   const ready = data !== null;
-  const weather = useWeather(!off && ready);
+  // The weather is asked at the same time as the rest, not after it.
+  const weather = useWeather(!off);
   const travel = useTrip(data?.trip?.id ?? null);
 
   // As many rows as fit in the space between the navigation and the bottom links.
-  useEffect(() => {
+  // Before the browser paints, so the grid never shows with too few rows first.
+  useLayoutEffect(() => {
     const box = gridBox.current;
     if (!box) return;
-    const measure = () => setRows(rowsFor(box.clientHeight, CELL_PX, GAP_PX));
+    const measure = () => {
+      const fit = rowsFor(box.clientHeight, CELL_PX, GAP_PX);
+      remember({ rows: fit });
+      setRows(fit);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(box);
@@ -227,7 +261,7 @@ export function WidgetArea() {
   const goalIds = useMemo(() => new Set(data?.goals.map((g) => g.id) ?? []), [data]);
   const shown = useCallback((list: WidgetItem[]) => list.filter((w) => w.kind !== "goal" || !w.goalId || goalIds.has(w.goalId)), [goalIds]);
   const saved = useMemo(() => (data ? shown(data.layout) : []), [data, shown]);
-  const layout = editing ? draft : saved;
+  const layout = editing ? (carry && typeof landing === "number" ? insertAt(draft, carry.item, landing) : draft) : saved;
   const { placed, hidden } = useMemo(() => pack(layout, rows), [layout, rows]);
   const cities = useMemo(() => layout.flatMap((w) => (w.kind === "weather" && w.city ? [w.city] : [])), [layout]);
   const cityWeather = useCityWeather(cities, !off && ready);
@@ -259,17 +293,77 @@ export function WidgetArea() {
       setMessage(result.message);
       setDraft(saved);
     }
-  }, [data, draft, resetAsked, saved]);
+  }, [data, draft, resetAsked, saved, setData]);
+
+  // Dragging a widget in from the gallery: the field under the widget's top left decides the place.
+  useEffect(() => {
+    if (!carry) return;
+    const step = CELL_PX + GAP_PX;
+    const spotAt = (x: number, y: number): number | null | undefined => {
+      const grid = gridEl.current;
+      if (!grid || rows === 0) return undefined;
+      const box = grid.getBoundingClientRect();
+      const slack = 32;
+      if (x < box.left - slack || x > box.right + slack || y < box.top - slack || y > box.top + rows * step + slack) return undefined;
+      const left = x - carry.dx + CELL_PX / 2;
+      const top = y - carry.dy + CELL_PX / 2;
+      const cell = {
+        row: Math.min(rows - 1, Math.max(0, Math.floor((top - box.top) / step))),
+        col: Math.min(GRID_COLUMNS - 1, Math.max(0, Math.floor((left - box.left) / step))),
+      };
+      return spotFor(draft, carry.item, rows, cell);
+    };
+    const end = () => {
+      setCarry(null);
+      setPointer(null);
+      setLanding(undefined);
+      document.body.style.removeProperty("cursor");
+    };
+    const onMove = (event: PointerEvent) => {
+      setPointer({ x: event.clientX, y: event.clientY });
+      setLanding(spotAt(event.clientX, event.clientY));
+    };
+    const onUp = (event: PointerEvent) => {
+      const spot = spotAt(event.clientX, event.clientY);
+      if (typeof spot === "number") {
+        setDraft(insertAt(draft, carry.item, spot));
+        setMessage("");
+      } else {
+        // Let go beside the grid, or where there is no room: back to the gallery.
+        if (spot === null) setMessage("No room for this widget there on this screen");
+        setAdding(true);
+      }
+      end();
+    };
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setAdding(true);
+      end();
+    };
+    document.body.style.cursor = "grabbing";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", end);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", end);
+      window.removeEventListener("keydown", onKey, true);
+      document.body.style.removeProperty("cursor");
+    };
+  }, [carry, draft, rows]);
 
   useEffect(() => {
     // Escape inside a dialog closes the dialog only.
-    if (!editing || adding || settingsOf !== null) return;
+    if (!editing || adding || carry || settingsOf !== null) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") void finish();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editing, adding, settingsOf, finish]);
+  }, [editing, adding, carry, settingsOf, finish]);
 
   if (off || !data) return <div className="min-h-0 flex-1" aria-hidden />;
 
@@ -328,7 +422,14 @@ export function WidgetArea() {
         )}
         {editing ? (
           <>
-            <button type="button" onClick={() => setAdding(true)} className={buttonClass("secondary", "sm", "h-7 gap-1 px-2.5")}>
+            <button
+              type="button"
+              onClick={() => {
+                setAddCell(null);
+                setAdding(true);
+              }}
+              className={buttonClass("secondary", "sm", "h-7 gap-1 px-2.5")}
+            >
               <Plus aria-hidden className="size-3.5" strokeWidth={2} />
               Add
             </button>
@@ -355,6 +456,7 @@ export function WidgetArea() {
       )}
       <div ref={gridBox} className="relative mt-2 min-h-0 flex-1">
         <div
+          ref={gridEl}
           className="grid"
           style={GRID_STYLE}
           onContextMenu={(event) => {
@@ -373,6 +475,7 @@ export function WidgetArea() {
                 place={place}
                 editing={editing}
                 dragging={dragFrom === index}
+                landing={carry !== null && landing === index}
                 onRemove={() => remove(index)}
                 onCycleSize={() => cycleSize(index)}
                 onOpen={() => setSettingsOf(index)}
@@ -391,7 +494,10 @@ export function WidgetArea() {
               <button
                 key={`free-${row}-${col}`}
                 type="button"
-                onClick={() => setAdding(true)}
+                onClick={() => {
+                  setAddCell({ row, col });
+                  setAdding(true);
+                }}
                 aria-label="Add a widget"
                 style={{ gridRow: row + 1, gridColumn: col + 1 }}
                 className="grid place-items-center rounded-card border-[1.5px] border-dashed border-line text-ink-3 transition-colors hover:border-ink-3 hover:bg-raised hover:text-ink"
@@ -409,8 +515,16 @@ export function WidgetArea() {
         rows={rows}
         ctx={ctx}
         onAdd={(item) => {
-          setDraft((list) => [...list, item]);
+          // Into the "+" field that opened the gallery when it fits there, else at the end.
+          const spot = addCell ? spotFor(draft, item, rows, addCell) : null;
+          setDraft(spot === null ? [...draft, item] : insertAt(draft, item, spot));
           setAdding(false);
+        }}
+        onPickUp={(pickUp) => {
+          setAdding(false);
+          setMessage("");
+          setCarry(pickUp);
+          setPointer({ x: pickUp.x, y: pickUp.y });
         }}
         onReset={() => {
           setDraft(DEFAULT_LAYOUT);
@@ -430,6 +544,16 @@ export function WidgetArea() {
         }}
         onClose={() => setSettingsOf(null)}
       />
+      {carry && pointer && (
+        // The widget under the pointer while it is dragged in from the gallery.
+        <div
+          aria-hidden
+          className="pointer-events-none fixed z-50 scale-105 rounded-card shadow-pop"
+          style={{ left: pointer.x - carry.dx, top: pointer.y - carry.dy, ...pxOf(carry.item.size) }}
+        >
+          {renderWidget(carry.item, ctx, true)}
+        </div>
+      )}
       <WidgetDialog open={detailAnswer?.status === "ok"} onClose={() => setDetail(null)} titleId={detailTitle} title="Weather" width="md:max-w-xl">
         {detailAnswer?.status === "ok" && <WeatherDetail weather={detailAnswer.weather} clock={ctx.clock} />}
       </WidgetDialog>

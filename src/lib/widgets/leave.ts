@@ -19,11 +19,12 @@ export function leaveLevel(minutes: number): LeaveLevel {
   return "green";
 }
 
-/** "Leave in 12 min", "Leave now", "4 min late"; above an hour "Leave in 1 h 5 min". */
-export function leaveLine(minutes: number): string {
-  if (minutes < 0) return `${durationText(-minutes)} late`;
+/** "Leave in 12 min", "Leave now", "4 min late"; above an hour "Leave in 1 h 5 min" ("Leave in 1h 5m" when `short`). */
+export function leaveLine(minutes: number, short = false): string {
+  const text = short ? shortDuration : durationText;
+  if (minutes < 0) return `${text(-minutes)} late`;
   if (minutes === 0) return "Leave now";
-  return `Leave in ${durationText(minutes)}`;
+  return `Leave in ${text(minutes)}`;
 }
 
 /** "12 min", "1 h", "1 h 5 min". */
@@ -32,4 +33,12 @@ export function durationText(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+/** For the small tile, which has room for about six characters: "26 min", "5 h", "5h 26m". */
+export function shortDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h}h ${m}m`;
 }

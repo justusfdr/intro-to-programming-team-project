@@ -40,7 +40,7 @@ import { lengthForEvent } from "@/lib/focus/session-time";
 import { fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { localTimeOf } from "@/lib/time/zoned";
 import type { TravelAnswer } from "@/lib/travel/types";
-import { durationText, leaveLevel, leaveLine, minutesUntil, type LeaveLevel } from "@/lib/widgets/leave";
+import { durationText, leaveLevel, leaveLine, minutesUntil, shortDuration, type LeaveLevel } from "@/lib/widgets/leave";
 import type { WidgetEvent, WidgetGoal, WidgetSize } from "@/lib/widgets/types";
 import { RAIN_SHOWN_FROM, skyLabel, type Sky, type WeatherAnswer, type WeatherSource } from "@/lib/widgets/weather";
 
@@ -269,7 +269,7 @@ export function LeaveWidget({ size, trip, travel, clock }: { size: WidgetSize; t
   const line = leaveLine(state.minutes);
   const title = `${line} for ${trip.title}, at ${time(state.leaveAt, clock)}, ${durationText(state.trip)} ${word}`;
   if (size === "1x1") {
-    const value = state.level === "now" ? "Now" : durationText(Math.abs(state.minutes));
+    const value = state.level === "now" ? "Now" : shortDuration(Math.abs(state.minutes));
     const label = state.level === "late" ? "late" : state.level === "now" ? "leave" : "to leave";
     return <Small tone={LEVEL_TONE[state.level]} title={title} picture={<Mode aria-hidden className="size-4" strokeWidth={1.8} />} value={value} label={label} />;
   }
@@ -299,7 +299,7 @@ function LeaveRow({ travel, clock }: { travel: TripTravel; clock: Clock }) {
   return (
     <div className={`tabular flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 text-xs font-semibold ${LEVEL_TONE[state.level]}`}>
       <Mode aria-hidden className="size-3.5 shrink-0" strokeWidth={1.8} />
-      <span className="truncate">{leaveLine(state.minutes)}</span>
+      <span className="truncate">{leaveLine(state.minutes, true)}</span>
       <span className="ml-auto font-medium opacity-80">{time(state.leaveAt, clock)}</span>
     </div>
   );
