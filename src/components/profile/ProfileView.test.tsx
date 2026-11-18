@@ -1,7 +1,7 @@
 // The profile page (spec 40): the avatar, name and address at the top with "Sign out" at the top right,
 // then photo (change, remove), display name, bio, LinkedIn and the time zone with the local time, every
-// field labelled; Save shows only after a change; "Only you see your profile." is said once, and nothing
-// on the page speaks of other people. Settings has the row "Your profile" at the top.
+// field labelled; Save shows only after a change; who sees the profile is said once (spec 53: contacts
+// and the people the user invites), and nothing else on the page speaks of other people. Settings has the row "Your profile" at the top.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsView } from "@/components/settings/SettingsView";
@@ -75,10 +75,11 @@ describe("profile page", () => {
   });
 
   it("says only the user sees it, speaks of nobody else, and shows no Save button while nothing changed", () => {
-    expect(WHO_SEES).toBe("Only you see your profile.");
+    expect(WHO_SEES).toBe("Your contacts and the people you invite see your name, photo, e-mail address, bio, LinkedIn link and time zone.");
     for (const html of [own(FULL), own(NO_NAME)]) {
       expect(html).toContain(WHO_SEES);
-      expect(html).not.toMatch(/contact|invit|people|shar|\/people/i);
+      // Spec 53: apart from that sentence, nothing on the page speaks of other people.
+      expect(html.replace(WHO_SEES, "")).not.toMatch(/contact|invit|people|shar|\/people/i);
       expect(html).not.toContain(">Save</button>");
       expect(html).not.toContain(">Discard</button>");
     }
