@@ -10,7 +10,8 @@ import "server-only";
 //   (finishing due sessions, R13, or removing old done tasks, R33), so it stays saved even if the
 //   page's reading then fails.
 // The counting test (load.test.ts) fails when a page opens more transactions than that.
-import type { AnalyticsReport } from "@/lib/analytics/report-types";
+import { layoutOf } from "@/lib/analytics/layout";
+import type { AnalyticsLayout, AnalyticsReport } from "@/lib/analytics/report-types";
 import type { AnalyticsData } from "@/lib/analytics/types";
 import { chatAllowed } from "@/lib/chat/access";
 import type { ChatPageData } from "@/lib/chat/types";
@@ -160,24 +161,44 @@ export async function loadFocusPage(deps: PageDeps, userId: string, eventId?: st
   });
 }
 
-export type AnalyticsPageData = { display: Display; analytics: AnalyticsData; report: AnalyticsReport };
+export type AnalyticsPageData = { display: Display; analytics: AnalyticsData };
 
-/** The Analytics page (spec 06). Reads only, apart from finishing due sessions first (R13). */
+/** The numbers of the first Analytics page (spec 06). Reads only, apart from finishing due sessions first (R13). */
 export async function loadAnalyticsPage(deps: PageDeps, userId: string, requestedWeek?: string): Promise<AnalyticsPageData> {
   const now = deps.now();
   // By itself: a session that reached its planned length finishes first, so it counts (R13).
   await settleSessions(deps, userId, now);
   return deps.withUser(userId, async (query) => {
     const settingsRead = readSettings(query);
-    const timeZone = settingsRead.then((s) => s.timeZone);
-    // The goals have no parameters: they go out first, with the settings (see readAnalyticsReport).
-    const goalsRead = readGoals(query);
-    const [settings, analytics, report] = await Promise.all([
+    const [settings, analytics] = await Promise.all([
       settingsRead,
-      readAnalytics(query, now, requestedWeek, timeZone),
-      readAnalyticsReport(query, now, requestedWeek, timeZone, goalsRead),
+      readAnalytics(query, now, requestedWeek, settingsRead.then((s) => s.timeZone)),
     ]);
-    return { display: displayOf(settings), analytics, report };
+    return { display: displayOf(settings), analytics };
+  });
+}
+
+export type AnalyticsTabsPageData = { display: Display; report: AnalyticsReport; layout: AnalyticsLayout; isStandardLayout: boolean };
+
+/**
+ * The Analytics page in tabs (spec 49): every number of the shown week and the user's layout of
+ * widgets (the saved one, or the standard one). Reads only, apart from finishing due sessions first (R13).
+ */
+export async function loadAnalyticsTabsPage(deps: PageDeps, userId: string, requestedWeek?: string): Promise<AnalyticsTabsPageData> {
+  const now = deps.now();
+  await settleSessions(deps, userId, now);
+  return deps.withUser(userId, async (query) => {
+    // The reads without parameters go out first, together (see readAnalyticsReport).
+    const settingsRead = readSettings(query);
+    const goalsRead = readGoals(query);
+    const savedRead = query<{ analytics_widgets: unknown }>("select analytics_widgets from app.settings");
+    const [settings, saved, report] = await Promise.all([
+      settingsRead,
+      savedRead,
+      readAnalyticsReport(query, now, requestedWeek, settingsRead.then((s) => s.timeZone), goalsRead),
+    ]);
+    const { layout, isStandard } = layoutOf(saved[0]?.analytics_widgets ?? null);
+    return { display: displayOf(settings), report, layout, isStandardLayout: isStandard };
   });
 }
 
