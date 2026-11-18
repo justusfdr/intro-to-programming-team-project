@@ -322,8 +322,10 @@ describe("calendar markup", () => {
     expect(html.indexOf(">All day<")).toBeLessThan(html.search(/>Before \d{1,2}(am|pm)</));
   });
 
-  it("has no all-day row in a week without all-day events", () => {
-    expect(render(week({}))).not.toContain('aria-label="All day"');
+  it("keeps an empty all-day row on wider screens in a week without all-day events (a click adds one), hidden on phones", () => {
+    const html = render(week({}));
+    expect(html).toMatch(/<section aria-label="All day" class="hidden [^"]*md:flex/);
+    expect(html.match(/data-all-day-slot="2026-11-\d\d"/g)).toHaveLength(7);
   });
 
   it("marks Outlook events and app events that Outlook does not have yet, in words and with an icon", () => {

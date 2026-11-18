@@ -25,9 +25,9 @@ beforeEach(async () => {
   routing.places.set("nova sbe, carcavelos", { lat: 38.6797, lon: -9.3197 });
 });
 
-const ask = (id: string, headers: Record<string, string> = {}) =>
+const ask = (id: string, headers: Record<string, string> = {}, query = "") =>
   travelTime(
-    new Request(`http://localhost:3000/api/events/${id}/travel`, {
+    new Request(`http://localhost:3000/api/events/${id}/travel${query}`, {
       headers: { host: "localhost:3000", origin: "http://localhost:3000", "sec-fetch-site": "same-origin", ...headers },
     }),
     app.deps,
@@ -327,5 +327,30 @@ describe("travel_time: where the trip starts (travel_from)", () => {
     const id = await lecture(user);
     await setFrom(id, `place:${place.id}`);
     expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Home" });
+  });
+});
+
+describe("travel_time: the route as the editor has it, before Save", () => {
+  it("counts a changed way, start and address for the answer, and saves nothing", async () => {
+    const id = await lecture(await alice({ mode: "driving", buffer: 0 }));
+    routing.places.set("cais do sodré, lisboa", { lat: 38.706, lon: -9.144 });
+    const before = await app.snapshot();
+    const query = "?" + new URLSearchParams({ mode: "cycling", from: "address:Cais do Sodré, Lisboa", location: "Nova SBE, Carcavelos" });
+    expect((await read(await ask(id, {}, query))).body).toMatchObject({
+      travel: { status: "ok", mode: "cycling", minutes: 40, leaveAt: "2026-11-17T09:20:00.000Z", from: "Other address" },
+    });
+    expect(await app.snapshot()).toEqual(before);
+  });
+
+  it("an empty way is the standard from the settings; an empty address has no travel time", async () => {
+    const id = await lecture(await alice({ mode: "walking", buffer: 0 }), "Nova SBE, Carcavelos", "driving");
+    expect((await read(await ask(id, {}, "?mode="))).body).toMatchObject({ travel: { mode: "walking", minutes: 90 } });
+    expect((await read(await ask(id, {}, "?location="))).body).toEqual({ travel: null });
+  });
+
+  it("leaves out values that are not valid ones, and the saved ones count", async () => {
+    const id = await lecture(await alice({ mode: "driving", buffer: 0 }));
+    const query = "?" + new URLSearchParams({ mode: "rocket", from: "nowhere", location: "x".repeat(201) });
+    expect((await read(await ask(id, {}, query))).body).toMatchObject({ travel: { status: "ok", mode: "driving", minutes: 25, from: "Home" } });
   });
 });

@@ -94,6 +94,15 @@ describe("sketchDraft", () => {
     ]);
     expect(day.allDay).toEqual(["Exam week"]);
   });
+
+  it("leaves out the calendar's events of earlier days (Lernen on the 16th is not drawn on the 17th)", () => {
+    const calendar = [
+      event({ id: "a", title: "Lernen", startAt: "2026-11-16T08:00:00Z", endAt: "2026-11-16T10:00:00Z" }),
+      event({ id: "b", title: "Mittagessen", startAt: "2026-11-15T12:00:00Z", endAt: "2026-11-15T13:00:00Z" }),
+    ];
+    const [day] = sketchDraft(A5, calendar, TZ);
+    expect(day.existing).toEqual([]);
+  });
 });
 
 describe("sketchBox", () => {

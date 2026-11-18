@@ -4,15 +4,26 @@
 // Ported from the first prototype's calendar (hour height, lanes for overlapping events, click slots).
 import type { WeekDay, WeekEvent } from "./types";
 
-/** Height of one hour in the grid, in pixels. */
+/** Height of one hour in the grid, in pixels, before any zoom. */
 export const HOUR_PX = 52;
+/** The two-finger zoom keeps the hour height between these (whole day in view … about three hours). */
+export const MIN_HOUR_PX = 28;
+export const MAX_HOUR_PX = 240;
+
+/** A zoomed hour height kept inside the limits; anything that is not a number gives the normal height. */
+export function clampHourPx(px: number): number {
+  return Number.isFinite(px) ? Math.min(MAX_HOUR_PX, Math.max(MIN_HOUR_PX, px)) : HOUR_PX;
+}
 const DAY_MIN = 24 * 60;
 /** Blocks are never drawn shorter than this, so a 15-minute event stays readable and clickable. */
 export const MIN_BLOCK_PX = 22;
 /** The hours shown when no event lies outside them. */
 const DEFAULT_RANGE = { startMin: 7 * 60, endMin: 22 * 60 };
 
-export type GridRange = { startMin: number; endMin: number };
+/** The hours shown, and the height of one hour when zoomed (HOUR_PX when not given). */
+export type GridRange = { startMin: number; endMin: number; hourPx?: number };
+
+const hourPxOf = (range: GridRange) => range.hourPx ?? HOUR_PX;
 
 /** One block in one day column. An event past midnight gets a block on each of its two days. */
 export type Placed = {
@@ -120,11 +131,11 @@ export function gridRange(placed: Placed[][], visible: GridRange = DEFAULT_RANGE
 }
 
 export function minuteToPx(min: number, range: GridRange): number {
-  return ((min - range.startMin) / 60) * HOUR_PX;
+  return ((min - range.startMin) / 60) * hourPxOf(range);
 }
 
 export function rangeHeight(range: GridRange): number {
-  return ((range.endMin - range.startMin) / 60) * HOUR_PX;
+  return ((range.endMin - range.startMin) / 60) * hourPxOf(range);
 }
 
 /** Top and height of a block, in pixels. A block that starts before the first hour starts at the top. */
@@ -160,7 +171,7 @@ export function formatMinute(min: number): string {
  * lasts one hour, and stays inside the day.
  */
 export function slotAt(offsetY: number, range: GridRange): { startMin: number; endMin: number } {
-  const clicked = range.startMin + (offsetY / HOUR_PX) * 60;
+  const clicked = range.startMin + (offsetY / hourPxOf(range)) * 60;
   const startMin = Math.min(Math.max(Math.floor(clicked / 30) * 30, range.startMin), DAY_MIN - 60);
   return { startMin, endMin: startMin + 60 };
 }

@@ -126,6 +126,8 @@ function blockOn(
   const endDay = localDateOf(end, timeZone);
   const startTime = localTimeOf(start, timeZone);
   const endTime = localTimeOf(end, timeZone);
+  // An event that is over before this day starts has no part on it (it used to be drawn from midnight).
+  if (endDay < date) return null;
   const startsBefore = startDay < date;
   const startMin = startsBefore ? 0 : startDay === date ? minuteOf(startTime) : -1;
   if (startMin < 0) return null;
