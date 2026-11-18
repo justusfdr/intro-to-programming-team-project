@@ -12,7 +12,7 @@ Each step names the grading criterion it shows (`docs/grading-criteria.md`): **C
 - Open the deployed URL and sign in. The free Supabase database pauses when it is idle; opening the app wakes it (`docs/ontology.md`, section 7).
 - Check that `main` is what Vercel shows (latest deployment green in Vercel). Check before the demo.
 - Click through every step below once on the deployed URL, with the account you will use.
-- Check the open bugs that touch the demo path: #157 (dragging an event onto another and choosing "Discard" deletes it), #128 (same start and end time makes a 24-hour event), #121 (paying for Pro shows an error). Avoid these paths unless they are fixed.
+- One open bug touches the demo path: #121 (paying for Pro shows an error). Do not demo payment unless it is fixed.
 
 ### What to prepare
 - **A demo account with data.** Created and confirmed beforehand (`README.md`). It should have: a week of events (some with a location), two or three goals with a routine, a few tasks, and past focus sessions so Analytics has numbers. The demo week (`/api/demo/load`, offered on the welcome screen) can fill an empty account.
@@ -28,14 +28,14 @@ Each step names the grading criterion it shows (`docs/grading-criteria.md`): **C
 2. **Rejected sign-in (optional).** Sign in once with a wrong password first. The app says "Email or password is wrong" and stays on the form. Say: "Wrong input is rejected with a clear message; repeated attempts are rate-limited." (C1, C5)
 3. **Calendar week.** Show the week with events, goal colours and the sidebar widgets. Say: "Each event can belong to a goal, so goal progress counts automatically." (C2, C3)
 4. **Accepted action: create an event.** Click an empty slot, type a title, pick a goal, add a location, save. The app says "Event saved." and the editor shows the travel time and when to leave. Say: "Travel time comes from Google's routing on our server, with our buffer added." (C1, C3)
-5. **Rejected action: an all-day event that ends before it starts.** In the editor, switch to all day and set the last day before the first day, then save. The server answers "The last day cannot be before the first day" and nothing is saved. Say: "The server checks every rule, not only the screen; a rejected action changes nothing." (C1, C4) Try this in the rehearsal; the date picker is squeezed (#159). Check before the demo.
+5. **Rejected action: an all-day event that ends before it starts.** In the editor, switch to all day and set the last day before the first day, then save. The server answers "The last day cannot be before the first day" and nothing is saved. Say: "The server checks every rule, not only the screen; a rejected action changes nothing." (C1, C4) Try this once in the rehearsal.
 6. **Goals page.** Open `/goals`. Show one goal with its routine, "this week x of y" and its tasks. Tick a task done. (C2, C3)
 7. **Blocker: one rejected and one accepted input.** Settings, "Focus blocker": type `not a site` and add it. The app says "This is not a valid website". Then add `news.com`: it appears in the list. Adding `news.com` again says "Already on your list". (C1, C4)
 8. **Focus session with the blocker.** Open Focus, start a short session. In window 2, open a blocked site: Chrome shows the LockedIn block page. Say: "A website cannot block other sites, so the extension asks our server every 30 seconds whether a session is running." End the session and rate it. (C3)
-9. **Analytics and PDF.** Open Analytics, show the focus score and goal progress, then export the PDF report. Known: hour-goal numbers can be cut off in the PDF (#135). (C2, C3)
+9. **Analytics and PDF.** Open Analytics, show the focus score and goal progress, then export the PDF report. (C2, C3)
 10. **Coach (only if the demo account is Pro, or the coach is open to Free users).** Ask "Plan two study sessions for tomorrow afternoon". The coach answers with a draft; accept it, then show it in the calendar and undo it. Say: "Claude only proposes; the calendar changes only when the user accepts, and only after our checks pass." (C3, C5)
 11. **Outlook (optional).** Settings, Outlook: show "Last synced …" and an imported event in the calendar. (C3)
-12. **Close.** Say: "The code, the plan it was built from and about 295 test files are in the repository; we will show them now." (C6)
+12. **Close.** Say: "The code, the plan it was built from and about 295 test files are in the repository, and GitHub runs the tests on every pull request; we will show them now." (C6)
 
 Do not demo an upgrade to Pro: paying on the live site currently shows an error (#121). If the team fixes it, Stripe runs in test mode only (`.env.example`).
 

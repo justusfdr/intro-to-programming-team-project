@@ -68,12 +68,12 @@ Without a key in the environment the feature switches itself off: no Claude key 
 - **Fakes**: `test/support/app.ts` wires a fake sign-in (`auth/fake.ts`), fake Claude (`claude/fake.ts`), fake Outlook (`outlook/fake.ts`), fake Stripe (`stripe/fake.ts`), fake routing and weather, and a clock we can move. Tests never call real services and need no secrets.
 - **Accepted and rejected**: each rule has a test for both. For a rejection the test compares a snapshot of every table before and after, to prove nothing changed (R1, `snapshot()` in `test/support/app.ts`).
 - **Repository checks** (`test/repo/`): no secret in the code, Claude called from one module only, security headers, and a check for a JSON-parameter bug the test database cannot see.
+- **On GitHub**: since 18 Nov 2026 lint, typecheck and all tests run on every push to `main` and on every pull request (`.github/workflows/ci.yml`); a run takes about 9 minutes.
 - **Not tested, honestly**:
   - The real services (Supabase, Claude, Microsoft, Google, Stripe, Open-Meteo); only their fakes and request shapes.
   - No browser end-to-end tests: the screens have component tests (about 60 `.test.tsx` files), but no test clicks through the deployed site. We tested that by hand (QA of 18 Nov).
   - PGlite is close to Supabase's Postgres but not identical (`test/repo/jsonb-params.test.ts` exists because of one difference).
   - The Chrome extension has only 3 test files; blocking in Chrome itself is tested by hand.
-  - Tests do not run automatically on GitHub yet (no CI, issue #153); we run `npm run check` before a merge.
 
 ## 6. Security measures in the code
 
@@ -90,12 +90,10 @@ Without a key in the environment the feature switches itself off: no Claude key 
 ## 7. Known limits and open issues
 
 - **Pro payment on the live site shows an error** (#121). Stripe is test mode only. A late Stripe message can switch Pro back on (#133).
-- **Coach access**: the coach is open to Free users unless `CHAT_PRO_ONLY` is set on Vercel (#44). The coach shows the wrong error when Claude refuses (#148).
+- **Coach access**: the coach is open to Free users unless `CHAT_PRO_ONLY` is set on Vercel (#44); on the live site it is set.
 - **Content-Security-Policy has no `script-src`** (#47); sign-up reveals whether an e-mail already has an account (#45). Security fixes from the 18 Nov review are in an open pull request (#120).
-- **Process**: no CI (#153), too few teammate reviews (#155), open PRs to merge before 23 Nov (#152).
-- **Calendar bugs**: "Discard" after an overlap deletes a moved event (#157); same start and end makes a 24-hour event (#128); 12-hour time format ignored in the editor (#161).
-- **Display**: PDF cuts off hour-goal numbers (#135), squeezed all-day date picker (#159), only one sidebar widget fits on a laptop (#158).
-- **Privacy page** misses Open-Meteo and the Stripe customer (#146).
+- **Process**: too few teammate reviews (#155), open PRs to merge before 23 Nov (#152).
+- **Display**: only one sidebar widget fits on a small laptop window (#158).
 - **Design limits**: rate limits per server instance; the extension is loaded by hand (not in the Chrome Web Store); Outlook is the only calendar.
 
 ## 8. Likely questions
@@ -105,7 +103,7 @@ Without a key in the environment the feature switches itself off: no Claude key 
 2. **What happens if an external API is down?**
    Each call has a time limit and a fixed message from ontology section 7, for example "Travel time not available". Nothing is half-saved, and the rest of the app keeps working.
 3. **What do the tests cover, and what not?**
-   Actions, rules (accepted and rejected), the database schema and RLS, with a temporary Postgres and fakes. Not the real services, not the deployed site in a browser, and there is no CI yet.
+   Actions, rules (accepted and rejected), the database schema and RLS, with a temporary Postgres and fakes; GitHub runs them on every pull request. Not the real services, and not the deployed site in a browser.
 4. **How do you stop one user reading another user's events?**
    The browser cannot reach the database. The server runs each query as that user (`withUser`), and the RLS policies compare `user_id` with `auth.uid()`; tests in `test/db/` check it.
 5. **Why Next.js and not Python?**
@@ -117,6 +115,6 @@ Without a key in the environment the feature switches itself off: no Claude key 
 8. **How does the coach avoid changing the calendar by mistake?**
    Claude only returns a draft. Our checks run on it (R23); one failure rejects it. The calendar changes only when the user accepts, and the draft can be undone.
 9. **What would you change with more time?**
-   CI on every pull request, a full Content-Security-Policy, rate limits shared across servers, and the open bugs above.
+   Browser end-to-end tests, a full Content-Security-Policy, rate limits shared across servers, and the open points above.
 10. **How did you split the work and use AI tools?**
     Agree the honest answer as a team before the demo. Check before the demo.
