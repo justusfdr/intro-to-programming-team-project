@@ -363,13 +363,16 @@ export function allDayRowCount(events: readonly AllDayEvent[], dates: readonly s
 /**
  * All-day events (R29) in a row above the hours: on wider screens one bar per event across its days
  * of this week, on phones the chosen day's events. Each event is one button with its days in words.
+ * On wider screens the row is there even without all-day events, so a new one can be added with a click;
+ * on phones only when the chosen day has some.
  */
 function AllDayRow({ days, selectedDay, onOpenEvent, weekDates, weekAllDay, onCreateAllDay }: AllDayRowProps) {
   const events = [...new Map(days.flatMap((d) => d.allDay).map((e) => [e.id, e])).values()];
-  // The day view keeps the week's height for this row, even when the shown day has fewer bars or none.
+  // On wider screens the row is always there (a click on it adds an all-day event), at least one bar
+  // tall; the day view keeps the week's height, even when the shown day has fewer bars or none.
   const weekRows = weekDates && weekAllDay ? allDayRowCount(weekAllDay, weekDates) : 0;
-  if (events.length === 0 && weekRows === 0) return null;
-  const minHeight = weekRows > 0 ? weekRows * ALL_DAY_BAR_PX + (weekRows - 1) * ALL_DAY_GAP_PX + ALL_DAY_PAD_PX : undefined;
+  const rows = Math.max(1, weekRows);
+  const minHeight = rows * ALL_DAY_BAR_PX + (rows - 1) * ALL_DAY_GAP_PX + ALL_DAY_PAD_PX;
   const chosen = days.find((d) => d.date === selectedDay)?.allDay ?? [];
   const columnOf = (date: string) => days.findIndex((d) => d.date === date);
 
