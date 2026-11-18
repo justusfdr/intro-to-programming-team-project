@@ -1,6 +1,8 @@
 // The end picked on the wheel or typed in the editor: a time of day (00:00 to 23:59), on the start's day
 // when it is after the start, on the next day when it is at or before the start (an event past midnight).
 import { describe, expect, it } from "vitest";
+import { endProblem } from "@/lib/time/wheel";
+import { cannotSave } from "./useEventSave";
 import { endFromPicked, repeatSentence } from "./WhenSection";
 
 const at = (h: number, m = 0) => h * 60 + m;
@@ -12,11 +14,19 @@ describe("endFromPicked", () => {
     expect(endFromPicked(at(9), at(9, 15))).toBe(at(9, 15));
   });
 
-  it("puts an end at or before the start on the next day", () => {
+  it("puts an end before the start on the next day", () => {
     expect(endFromPicked(at(22), at(2))).toBe(at(26));
     expect(endFromPicked(at(22), at(0))).toBe(at(24));
-    // The same time as the start: a whole day.
-    expect(endFromPicked(at(9), at(9))).toBe(at(33));
+    expect(endFromPicked(at(9), at(8, 45))).toBe(at(32, 45));
+  });
+
+  // Issue #128: the same time as the start used to become a 24-hour event. Now it stays equal, so
+  // endProblem (and with it cannotSave) refuses it; an end on the next day stays allowed.
+  it("keeps an end equal to the start, which the editor then refuses", () => {
+    expect(endFromPicked(at(9), at(9))).toBe(at(9));
+    expect(endProblem(at(9), endFromPicked(at(9), at(9)))).toBe("The end must be at least 15 minutes after the start");
+    expect(cannotSave({ title: "x", notes: "", allDay: false, startMin: at(9), endMin: endFromPicked(at(9), at(9)) })).toBe(true);
+    expect(cannotSave({ title: "x", notes: "", allDay: false, startMin: at(22), endMin: endFromPicked(at(22), at(2)) })).toBe(false);
   });
 });
 
