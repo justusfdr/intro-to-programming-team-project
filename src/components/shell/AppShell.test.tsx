@@ -49,7 +49,8 @@ describe("app shell", () => {
     );
     expect(withPhoto).toMatch(/<a href="\/profile" class="[^"]*"><img src="\/api\/profiles\/u1\/photo\?v=1" alt=""[^>]*\/><span[^>]*>Lea<\/span><\/a>/);
     expect(render("/")).toMatch(/<a href="\/profile" aria-label="Your profile" class="[^"]*"><span aria-hidden="true"[^>]*><\/span><\/a>/);
-    expect(withMe).not.toMatch(/People|people|contact|invit/i);
+    // Spec 53: the one link to the People page is all there is about other people.
+    expect(withMe.replace(/<a href="\/people"[^]*?<\/a>/, "")).not.toMatch(/People|people|contact|invit/i);
     // Phones: no eighth tab; the profile is reached from Settings.
     const bar = withMe.slice(withMe.indexOf('aria-label="Tab bar"'));
     expect(bar).not.toContain("/profile");

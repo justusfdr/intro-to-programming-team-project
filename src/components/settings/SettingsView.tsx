@@ -1,7 +1,8 @@
 "use client";
 
 // The settings page's content (spec 12, layout from spec 52): the title, then a list of sections on the
-// left (your profile on top, then Planning, Focus and Account) and the open section's cards on the right.
+// left (your profile on top, on phones the People page under it (spec 53), then Planning, Focus and
+// Account) and the open section's cards on the right.
 // On phones the list fills the screen and a section opens on its own, with a way back. Which section is
 // open lives in the address (#calendar, #travel, #blocker, #account; the old #outlook opens Calendar), so
 // links from other pages keep working and the browser's back button returns to the list on a phone.
@@ -9,7 +10,7 @@
 // The page (src/app/settings/page.tsx) loads the data on the server.
 import Link from "next/link";
 import { useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
-import { CalendarDays, Car, ChevronLeft, ChevronRight, CreditCard, ShieldCheck, type LucideIcon } from "lucide-react";
+import { CalendarDays, Car, ChevronLeft, ChevronRight, CreditCard, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { PageHeader } from "@/components/ui/Card";
 import type { BlockerData } from "@/lib/blocker/types";
@@ -180,6 +181,18 @@ export function SettingsView({
               <ChevronRight className="size-4 shrink-0 text-ink-3" strokeWidth={1.8} aria-hidden="true" />
             </Link>
           )}
+          {/* Phones have no sidebar: the People page (spec 53) is reached from here. */}
+          <Link
+            href="/people"
+            className={`flex items-center gap-3 rounded-2xl border border-line-subtle bg-surface px-4 py-3 text-sm text-ink transition-colors hover:bg-raised/60 md:hidden ${FOCUS}`}
+          >
+            <Users className="size-[18px] shrink-0 text-ink-3" strokeWidth={1.8} aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">People</span>
+              <span className="block truncate text-xs text-ink-2">Contacts, invitations and sharing</span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-ink-3" strokeWidth={1.8} aria-hidden="true" />
+          </Link>
 
           {groups.map((group) => (
             <div key={group.title}>

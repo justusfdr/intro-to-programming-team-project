@@ -5,6 +5,7 @@
 // and folds when the mouse leaves; opened like that it lies over the page, so nothing on the page
 // jumps. The same button then keeps it open for good. The choice is remembered in this browser only.
 // At the bottom: Pricing, Settings, then the user's own row to their profile (spec 40), where "Sign out" is.
+// "People" (spec 53) follows the main navigation, with the number of open invitations to the user.
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
 import { ChevronsLeft, Pin } from "lucide-react";
@@ -13,7 +14,7 @@ import { getJson } from "@/lib/client/post-json";
 import type { SidebarMe } from "@/lib/profiles/types";
 import { keepFocusAfterCollapse } from "./collapse-focus";
 import { Logo, LogoMark } from "./Logo";
-import { NAV, PRICING, SETTINGS, type NavItem } from "./nav";
+import { NAV, PEOPLE, PRICING, SETTINGS, type NavItem } from "./nav";
 import { WidgetArea } from "@/components/widgets/WidgetArea";
 
 export const SIDEBAR_KEY = "lockedin:sidebar-folded:v1";
@@ -53,6 +54,50 @@ function SidebarLink({ item, on, wide }: { item: NavItem; on: boolean; wide: boo
     >
       <Icon className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
       {item.label}
+    </Link>
+  );
+}
+
+/**
+ * "People" (spec 53) with the number of open invitations to the user. A page that has read the number
+ * passes it; on every other page it is asked once from the server (a failure just shows no badge).
+ */
+function PeopleLink({ on, wide, invitations }: { on: boolean; wide: boolean; invitations?: number }) {
+  const [asked, setAsked] = useState<number | null>(null);
+  useEffect(() => {
+    if (invitations !== undefined) return;
+    let current = true;
+    void getJson("/api/contacts/invitations/count").then((answer) => {
+      const count = (answer.data as { count?: unknown } | undefined)?.count;
+      if (current && answer.ok && typeof count === "number") setAsked(count);
+    });
+    return () => {
+      current = false;
+    };
+  }, [invitations]);
+  const count = invitations ?? asked ?? 0;
+  const Icon = PEOPLE.icon;
+  const label = count > 0 ? `${PEOPLE.label}, ${count} open ${count === 1 ? "invitation" : "invitations"}` : PEOPLE.label;
+  return (
+    <Link
+      href={PEOPLE.href}
+      aria-current={on ? "page" : undefined}
+      aria-label={wide && count === 0 ? undefined : label}
+      title={wide ? undefined : label}
+      className={`relative flex h-9 items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg px-[9px] text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
+        wide ? "w-full" : "w-9"
+      } ${on ? "bg-raised font-medium text-ink" : "text-ink-2 hover:bg-raised/60 hover:text-ink"}`}
+    >
+      <Icon className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
+      {PEOPLE.label}
+      {count > 0 &&
+        (wide ? (
+          <span aria-hidden="true" className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1.5 text-[11px] font-semibold tabular text-white">
+            {count > 99 ? "99+" : count}
+          </span>
+        ) : (
+          <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-today" />
+        ))}
     </Link>
   );
 }
@@ -99,7 +144,7 @@ function ProfileLink({ on, wide, me }: { on: boolean; wide: boolean; me?: Sideba
   );
 }
 
-export function Sidebar({ current, me }: { current: string; me?: SidebarMe }) {
+export function Sidebar({ current, invitations, me }: { current: string; invitations?: number; me?: SidebarMe }) {
   // On the server (and in the first render) the sidebar is open.
   const folded = useSyncExternalStore(subscribe, readFolded, () => false);
   const [peek, setPeek] = useState(false);
@@ -165,6 +210,10 @@ export function Sidebar({ current, me }: { current: string; me?: SidebarMe }) {
             <SidebarLink key={item.href} item={item} on={current === item.href} wide={wide} />
           ))}
         </nav>
+        {/* Right below the main navigation, in a list of its own (spec 53). */}
+        <div className="mt-0.5 flex flex-col">
+          <PeopleLink on={current === PEOPLE.href || current.startsWith(`${PEOPLE.href}/`)} wide={wide} invitations={invitations} />
+        </div>
         {/* The widgets (spec 47), only while the sidebar is kept open; folded, the bottom links stay at the bottom. */}
         {!folded && <WidgetArea />}
         <div className="mt-auto flex flex-col gap-0.5">
