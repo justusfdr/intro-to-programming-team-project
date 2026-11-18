@@ -53,8 +53,11 @@ type Props = {
   nowMin: number | null;
   /** On phones only this day's column is shown (the day strip above chooses it). */
   selectedDay: string;
-  /** The week view shows weekday and date over each column, each a link to that day (the day view has its strip instead). */
+  /** Weekday and date over the grid, each a link to that day (wider screens; phones have the day strip). */
   dayHref?: (date: string) => string;
+  /** The day view: the week's seven dates to show over its one column, and today, so its head matches the week view's. */
+  weekDates?: string[];
+  today?: string;
   /** Events whose save is still running: they cannot be dragged until it is done. */
   pending?: ReadonlySet<string>;
   onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
@@ -378,6 +381,8 @@ export function TimeGrid({
   nowMin,
   selectedDay,
   dayHref,
+  weekDates,
+  today,
   pending = NO_PENDING,
   onOpenEvent,
   onCreate,
@@ -533,23 +538,28 @@ export function TimeGrid({
       >
         {/* The dates and the all-day events stay at the top while the hours scroll beneath them. */}
         <div data-grid-head className="sticky top-0 z-20 bg-surface">
-          {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip). */}
+          {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip).
+              Day: the same seven dates in the same place, the shown day marked, so nothing moves between the two. */}
           {dayHref && (
             <div className="hidden border-b border-line-subtle bg-surface md:flex">
               <div className="w-[52px] shrink-0" />
-              {days.map((day) => {
-                const parts = dayParts(day.date);
+              {(weekDates ?? days.map((d) => d.date)).map((date) => {
+                const parts = dayParts(date);
+                const isToday = weekDates ? date === today : days.some((d) => d.date === date && d.isToday);
+                const marked = weekDates !== undefined && date === selectedDay;
                 return (
                   <Link
-                    key={day.date}
-                    href={dayHref(day.date)}
-                    aria-label={`Open ${fmtDateLong(day.date)}`}
+                    key={date}
+                    href={dayHref(date)}
+                    // The week names its links "Open …"; the day view names them as its strip does.
+                    aria-label={weekDates ? `${fmtDateLong(date)}${isToday ? ", today" : ""}` : `Open ${fmtDateLong(date)}`}
+                    aria-current={marked ? "date" : undefined}
                     className="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md py-2 transition hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
                   >
                     <span className="text-[11px] font-medium text-ink-3">{parts.weekday}</span>
                     <span
-                      className={`flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular ${
-                        day.isToday ? "bg-today text-white" : "text-ink"
+                      className={`flex size-7 items-center justify-center rounded-full border text-sm font-semibold tabular ${
+                        isToday ? "border-transparent bg-today text-white" : marked ? "border-ink text-ink" : "border-transparent text-ink"
                       }`}
                     >
                       {parts.day}

@@ -348,7 +348,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
 
         {/* The day view's strip; on a phone a week's address shows its day, so the strip is there too. */}
         {(view === "day" || week.view === "week") && (
-          <DayStrip date={date} today={today} className={view === "day" ? "" : "md:hidden"} />
+          <DayStrip date={date} today={today} className="md:hidden" />
         )}
 
         <div className="relative min-h-0 flex-1">
@@ -369,7 +369,9 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               range={range}
               nowMin={nowMin}
               selectedDay={date}
-              dayHref={view === "week" ? dayHref : undefined}
+              dayHref={view === "week" || !coerced ? dayHref : undefined}
+              weekDates={view === "day" && !coerced ? visibleDays("week", date) : undefined}
+              today={today}
               goals={goals}
               pending={pending}
               onOpenEvent={(event, anchor) => setEditor({ mode: "edit", event, anchor })}
