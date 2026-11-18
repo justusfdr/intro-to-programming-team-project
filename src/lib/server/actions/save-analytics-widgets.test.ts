@@ -120,7 +120,8 @@ describe("save_analytics_widgets rejected: nothing changes", () => {
   });
 
   it("a layout that does not name exactly the six tabs", async () => {
-    const { streaks: _streaks, ...missing } = standardLayout();
+    const missing: Record<string, unknown> = standardLayout();
+    delete missing.streaks;
     await expectRefused({ layout: missing }, 400, "Widgets must be a list for each tab");
     await expectRefused({ layout: { ...standardLayout(), settings: [] } }, 400, "Widgets must be a list for each tab");
     await expectRefused({ layout: withTab("goals", "everything") }, 400, "Widgets must be a list for each tab");

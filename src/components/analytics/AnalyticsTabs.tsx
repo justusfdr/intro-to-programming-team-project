@@ -139,7 +139,7 @@ export function AnalyticsTabs({ report, layout, tab: firstTab, onEdit, onExport 
         role="tabpanel"
         id="analytics-panel"
         aria-labelledby={`analytics-tab-${tab}`}
-        className="mt-5 grid auto-rows-[18rem] grid-cols-1 gap-4 sm:grid-cols-2 lg:min-h-0 lg:flex-1 lg:grid-cols-4 lg:grid-rows-2"
+        className="mt-5 grid grid-flow-row-dense auto-rows-[18rem] grid-cols-1 gap-4 sm:grid-cols-2 lg:min-h-0 lg:flex-1 lg:grid-cols-4 lg:grid-rows-2"
       >
         {items.length === 0 && <p className="text-sm text-ink-2">No widgets on this tab. Add some with &ldquo;Edit widgets&rdquo;.</p>}
         {items.map((item, index) => {

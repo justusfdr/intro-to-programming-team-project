@@ -83,7 +83,8 @@ describe("a layout from outside", () => {
   });
 
   it("is refused when it is not one list per tab", () => {
-    const { focus: _focus, ...missing } = standardLayout();
+    const missing: Record<string, unknown> = standardLayout();
+    delete missing.focus;
     for (const bad of [null, "x", [], 7, missing, { ...standardLayout(), extra: [] }, withTab("goals", "nothing")]) {
       expect(checkLayout(bad)).toEqual({ ok: false, message: LAYOUT_MESSAGES.notALayout });
     }
