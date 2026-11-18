@@ -146,13 +146,19 @@ export function ChangePill({ text, direction, good, className = "" }: { text: st
   );
 }
 
-/** The pill and "vs last week" next to it. */
-export function VsLastWeek({ change }: { change: Change | null }) {
+/**
+ * What the shown week is compared with (issue #126). A running week only against last week up to the
+ * same moment, so Wednesday is not measured against a whole week.
+ */
+export const lastWeekName = (running: boolean) => (running ? "this time last week" : "last week");
+
+/** The pill and "vs last week" (or "vs this time last week" while the week runs) next to it. */
+export function VsLastWeek({ change, running = false }: { change: Change | null; running?: boolean }) {
   if (!change) return null;
   return (
     <span className="flex flex-wrap items-center gap-2">
       <ChangePill {...change} />
-      <span className="text-xs text-ink-3">vs last week</span>
+      <span className="text-xs text-ink-3">vs {lastWeekName(running)}</span>
     </span>
   );
 }

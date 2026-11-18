@@ -78,10 +78,12 @@ describe("the base week", () => {
 
 describe("focus: going well", () => {
   it("more minutes than last week, with the percent", () => {
-    expect(said(make({ focus: { lastWeek: week(100, 2), week: week(150) } }), "focus").good).toContain("2 h 30 min of focus, 50 % more than last week.");
+    expect(said(make({ focus: { lastWeek: week(100, 2), week: week(150) } }), "focus").good).toContain("2 h 30 min of focus, 50 % more than this time last week.");
   });
   it("is silent when last week was empty or not lower", () => {
     expect(said(make({ focus: { week: week(150) } }), "focus").good.join(" ")).not.toContain("more than last week");
+    // Issue #126: a week that is over is compared with the whole last week and says so.
+    expect(said(make({ isCurrentWeek: false, focus: { lastWeek: week(100, 2), week: week(150) } }), "focus").good).toContain("2 h 30 min of focus, 50 % more than last week.");
     expect(said(make({ focus: { lastWeek: week(150, 2), week: week(150) } }), "focus").good.join(" ")).not.toContain("more than last week");
   });
 
@@ -127,7 +129,7 @@ describe("focus: going well", () => {
 
 describe("focus: needs attention", () => {
   it("fewer minutes than last week", () => {
-    expect(said(make({ focus: { lastWeek: week(240, 3), week: week(120) } }), "focus").bad).toContain("2 h of focus, 50 % less than last week.");
+    expect(said(make({ focus: { lastWeek: week(240, 3), week: week(120) } }), "focus").bad).toContain("2 h of focus, 50 % less than this time last week.");
   });
   it("is silent when last week was empty", () => {
     expect(said(make({ focus: { week: week(60) } }), "focus").bad.join(" ")).not.toContain("less than last week");
@@ -257,7 +259,7 @@ describe("time", () => {
   const area = (id: string | null, minutes: number, lastWeekMinutes = 0) => ({ goal: id === null ? null : goalNumbers(id).goal, minutes, lastWeekMinutes });
 
   it("good: more done minutes than last week", () => {
-    expect(said(make({ time: { doneMinutes: 150, lastWeekDoneMinutes: 100 } }), "time").good).toContain("You got 2 h 30 min done, 50 % more than last week.");
+    expect(said(make({ time: { doneMinutes: 150, lastWeekDoneMinutes: 100 } }), "time").good).toContain("You got 2 h 30 min done, 50 % more than this time last week.");
   });
   it("is silent when last week had none or was higher", () => {
     expect(said(make({ time: { doneMinutes: 150, lastWeekDoneMinutes: 0 } }), "time").good.join(" ")).not.toContain("more than last week");
@@ -333,7 +335,7 @@ describe("streaks", () => {
 
 describe("distractions", () => {
   it("good: fewer visits than last week", () => {
-    expect(said(make({ blocked: { week: 1, lastWeek: 4 } }), "blocked").good).toContain("1 blocked visit, down from 4 last week.");
+    expect(said(make({ blocked: { week: 1, lastWeek: 4 } }), "blocked").good).toContain("1 blocked visit, down from 4 this time last week.");
     expect(said(make({ blocked: { week: 4, lastWeek: 4 } }), "blocked").good.join(" ")).not.toContain("down from");
   });
   it("good: the lowest of the 8 weeks", () => {
@@ -348,7 +350,7 @@ describe("distractions", () => {
   });
 
   it("bad: more visits than last week", () => {
-    expect(said(make({ focus: { lastWeek: BASE_LAST }, blocked: { week: 5, lastWeek: 2 } }), "blocked").bad).toContain("5 blocked visits, up from 2 last week.");
+    expect(said(make({ focus: { lastWeek: BASE_LAST }, blocked: { week: 5, lastWeek: 2 } }), "blocked").bad).toContain("5 blocked visits, up from 2 this time last week.");
     expect(said(make({ blocked: { week: 3, lastWeek: 3 } }), "blocked").bad.join(" ")).not.toContain("up from");
   });
   it("bad: no comparison when the week before is empty", () => {
@@ -384,7 +386,7 @@ describe("summaries", () => {
 
   it("a topic's summary is its strongest good and its strongest bad sentence", () => {
     const r = make({ focus: { week: week(150), lastWeek: week(100, 2), finishedAsPlanned: 0 } });
-    expect(said(r, "focus").summary).toBe("2 h 30 min of focus, 50 % more than last week. Only 0 of 4 sessions reached the planned length.");
+    expect(said(r, "focus").summary).toBe("2 h 30 min of focus, 50 % more than this time last week. Only 0 of 4 sessions reached the planned length.");
   });
 
   it("a topic with only a neutral fact says that", () => {
