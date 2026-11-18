@@ -91,6 +91,39 @@ describe("delete_account rejected: nothing changes (R1)", () => {
     expect(await app.snapshot()).toEqual(before);
   });
 
+  it("rejects a cancelled Pro and says when it ends (Issue #131)", async () => {
+    const alice = await app.signedInAs("alice@example.com", { timeZone: "Europe/Berlin" });
+    await app.db.admin("update app.profiles set plan = 'pro', stripe_customer_id = 'cus_Alice1' where id = $1", [alice]);
+    app.stripe.nextEnd = { ok: true, value: { endsAt: new Date("2026-12-16T23:30:00Z") } };
+    const before = await app.snapshot();
+    expect(await read(await send({ confirm: "DELETE" }))).toEqual({
+      status: 409,
+      body: { error: "cancel_pro", message: "Pro is cancelled and ends on 17 December 2026. You can delete your account after that." },
+    });
+    expect(app.stripe.endLookups).toEqual(["cus_Alice1"]);
+    expect(await app.snapshot()).toEqual(before);
+    expect(app.auth.session).not.toBeNull();
+  });
+
+  it("keeps 'Cancel Pro before deleting your account' while Pro still renews or Stripe is not set up", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    await app.db.admin("update app.profiles set plan = 'pro', stripe_customer_id = 'cus_Alice1' where id = $1", [alice]);
+    const before = await app.snapshot();
+    const cancelFirst = { status: 409, body: { error: "cancel_pro", message: "Cancel Pro before deleting your account" } };
+    expect(await read(await send({ confirm: "DELETE" }))).toEqual(cancelFirst);
+    app.stripe.nextEnd = { ok: true, value: { endsAt: new Date("2026-12-16T09:00:00Z") } };
+    expect(await read(await deleteAccount(postJson("/api/account/delete", { confirm: "DELETE" }), { ...app.deps, stripe: null }))).toEqual(cancelFirst);
+    app.stripe.nextEnd = { ok: false, reason: "timeout" };
+    expect(await read(await send({ confirm: "DELETE" }))).toEqual(cancelFirst);
+    expect(await app.snapshot()).toEqual(before);
+  });
+
+  it("does not ask Stripe for a Free user, whose delete goes through", async () => {
+    await app.signedInAs("alice@example.com");
+    expect((await send({ confirm: "DELETE" })).status).toBe(200);
+    expect(app.stripe.endLookups).toEqual([]);
+  });
+
   it("rejects a missing or malformed body as an invalid request", async () => {
     await app.signedInAs("alice@example.com");
     const before = await app.snapshot();
