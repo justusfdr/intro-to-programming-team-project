@@ -592,9 +592,12 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
   writeFileSync(join(OUT, "block-page.html"), blockedHtml);
   writeFileSync(join(OUT, "focus-running-phone.html"), phoneFrame("Focus", page("Focus", focusPage(focusStates[2][1]), styles)));
 
-  // The Analytics page (spec 06), from sessions and attempts saved the real way and read with loadAnalytics.
-  const { AnalyticsView } = await import("@/components/analytics/AnalyticsView");
-  const { loadAnalytics } = await import("@/lib/server/analytics/load");
+  // The Analytics page in tabs (spec 49). Once from sessions and attempts saved the real way and read
+  // with the page's own loader, once per tab from the sample report (a full week with goals), and empty.
+  const { AnalyticsTabs } = await import("@/components/analytics/AnalyticsTabs");
+  const { loadAnalyticsTabsPage } = await import("@/lib/server/pages/load");
+  const { sampleReport } = await import("@/lib/analytics/report-fixture");
+  const { STANDARD_LAYOUT, TABS } = await import("@/lib/analytics/report-types");
   const { seedSession } = await import("@test/support/sessions");
   const stats = await createTestApp();
   const learner = await stats.signedInAs("analytics@example.com", { timeZone: "Europe/Lisbon" });
@@ -621,18 +624,20 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
   await blockedAt("x.com", "18T11:05");
   await done("19T09:00", 30, 60);
   stats.advance(3 * 24 * 3_600_000 + 4 * 3_600_000); // Thursday 19 November, 13:00 UTC
-  const full = await loadAnalytics(stats.deps, learner);
+  const full = (await loadAnalyticsTabsPage(stats.deps, learner)).report;
   const fresh = await stats.signedInAs("new-account@example.com", { timeZone: "Europe/Lisbon" });
-  const empty = await loadAnalytics(stats.deps, fresh);
+  const empty = (await loadAnalyticsTabsPage(stats.deps, fresh)).report;
   await stats.close();
-  const analyticsPage = (data: typeof full) =>
+  const analyticsPage = (report: typeof full, tab: (typeof TABS)[number] = "overview") =>
     renderToStaticMarkup(
       <AppShell current="/analytics">
-        <AnalyticsView data={data} />
+        <AnalyticsTabs report={report} layout={STANDARD_LAYOUT} tab={tab} onEdit={() => {}} onExport={() => {}} />
       </AppShell>,
     );
-  const analyticsHtml = page("Analytics", analyticsPage(full), styles);
+  const analyticsHtml = page("Analytics", analyticsPage(sampleReport), styles);
   writeFileSync(join(OUT, "analytics.html"), analyticsHtml);
+  for (const tab of TABS) writeFileSync(join(OUT, `analytics-${tab}.html`), page("Analytics", analyticsPage(sampleReport, tab), styles));
+  writeFileSync(join(OUT, "analytics-from-database.html"), page("Analytics", analyticsPage(full, "focus"), styles));
   writeFileSync(join(OUT, "analytics-empty.html"), page("Analytics", analyticsPage(empty), styles));
   writeFileSync(join(OUT, "analytics-phone.html"), phoneFrame("Analytics", analyticsHtml));
 
