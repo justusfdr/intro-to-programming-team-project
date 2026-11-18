@@ -122,7 +122,7 @@ describe("Q2: how often and how long", () => {
     expect(html.match(/setup-dot-(on|off)/g)).toHaveLength(7);
     expect(checked(html).join("")).toContain('id="setup-often-minutes-60"');
     expect(radios(html)).toHaveLength(5);
-    for (const chip of [">30 min<", ">45 min<", ">1 h<", ">3 h<", ">Custom<"]) expect(html).toContain(chip);
+    for (const chip of [">30 min<", ">45 min<", ">1 h<", ">2 h<", ">Custom<"]) expect(html).toContain(chip);
     expect(html).toContain("3 × 60 min = <strong");
     expect(html).toContain("3 times 60 minutes is 3 h a week");
     expect(html).not.toContain("Make sure it fits");
