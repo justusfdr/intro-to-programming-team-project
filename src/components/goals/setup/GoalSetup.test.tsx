@@ -31,7 +31,6 @@ function render(screen: SetupScreen, answers: Partial<SetupAnswers> = {}, option
     <GoalSetup
       open={options.open ?? true}
       onClose={() => {}}
-      onUseForm={() => {}}
       goals={options.goals ?? []}
       places={[GYM_PLACE]}
       today={TODAY}
@@ -81,7 +80,7 @@ describe("the frame", () => {
 });
 
 describe("Q1: what it is about", () => {
-  it("offers five cards as one radio group, none chosen, and 'Use the form instead'; Continue waits", () => {
+  it("offers five cards as one radio group, none chosen, no way to a form; Continue waits", () => {
     const html = render("category");
     expect(html).toContain("What is this goal about?");
     expect(html).toMatch(/<div role="radiogroup" aria-labelledby="setup-category-title"/);
@@ -90,7 +89,7 @@ describe("Q1: what it is about", () => {
     for (const line of ["Training, running, the gym", "Studying, exams, a thesis", "A job, a project, a side business", "Reading, music, people, rest", "Anything else"]) {
       expect(html).toContain(line);
     }
-    expect(html).toContain(">Use the form instead</button>");
+    expect(html).not.toContain("Use the form instead");
     expect(continueButton(html)).toMatch(/disabled=""/);
     expect(html).not.toContain("Give it a name");
   });

@@ -5,14 +5,12 @@
 // column on phones, two from 768 px, three from 1280 px) with its tile, title, this week's bar and
 // rules, the strip of weeks, the countdown and its tasks. Each card can be collapsed, remembered in this browser as before (spec 10).
 // Ticking, adding and editing tasks show at once; the page re-reads in the background (Live.tsx).
-// Spec 42: "New goal" opens the guided questions (setup/GoalSetup.tsx); their first question offers
-// "Use the form instead", which opens the goal editor for a new goal. Editing a goal opens the editor.
+// Spec 42: "New goal" opens the guided questions (setup/GoalSetup.tsx). Editing a goal opens the editor.
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Plus } from "lucide-react";
 import { useLiveTasks } from "@/components/live/Live";
 import { Button } from "@/components/ui/Button";
 import { COLLAPSED_KEY, readCollapsed, toggleCollapsed } from "@/lib/goals/collapsed";
-import { nextGoalColor } from "@/lib/goals/style";
 import type { GoalView } from "@/lib/goals/types";
 import type { SavedPlace } from "@/lib/places/saved";
 import { openCount, sortTasks } from "@/lib/tasks/order";
@@ -28,8 +26,8 @@ type Props = {
   today: string;
   /** The saved places, offered as a goal's place (spec 42). */
   places?: SavedPlace[];
-  /** Previews and tests only: open with the questions or the form for a new goal. */
-  openOn?: "setup" | "form";
+  /** Previews and tests only: open with the questions for a new goal. */
+  openOn?: "setup";
   /** Spec 47: the goal a widget in the sidebar was clicked for; the page scrolls to it and marks it. */
   focusGoalId?: string;
 };
@@ -49,8 +47,7 @@ function groupTasks(tasks: TaskDto[]): Map<string, TaskDto[]> {
 export function GoalsPage({ goals, tasks: serverTasks, today, places = [], openOn, focusGoalId }: Props) {
   // The tasks with the changes of actions whose re-read has not arrived yet (components/live/Live.tsx).
   const tasks = useLiveTasks(serverTasks);
-  const newGoalState = (): GoalEditorState => ({ mode: "create", today, color: nextGoalColor(goals.map((goal) => goal.look.color)) });
-  const [editor, setEditor] = useState<GoalEditorState>(() => (openOn === "form" ? newGoalState() : null));
+  const [editor, setEditor] = useState<GoalEditorState>(null);
   const [setupOpen, setSetupOpen] = useState(openOn === "setup");
   const [collapsed, toggle] = useCollapsed(goals.map((goal) => goal.id));
   const byGoal = groupTasks(tasks);
@@ -115,10 +112,6 @@ export function GoalsPage({ goals, tasks: serverTasks, today, places = [], openO
       <GoalSetup
         open={setupOpen}
         onClose={() => setSetupOpen(false)}
-        onUseForm={() => {
-          setSetupOpen(false);
-          setEditor(newGoalState());
-        }}
         goals={goals}
         places={places}
         today={today}
