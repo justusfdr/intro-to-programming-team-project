@@ -7,7 +7,7 @@ import { widgetsFor } from "@/lib/analytics/layout";
 import { PART_LABELS, PARTS } from "@/lib/analytics/period";
 import { STANDARD_LAYOUT, TAB_LABELS, TABS, WIDGETS } from "@/lib/analytics/report-types";
 import { EditWidgetsDialog } from "./EditWidgetsDialog";
-import { ExportDialog } from "./ExportDialog";
+import { ExportDialog, weekName } from "./ExportDialog";
 
 const text = (markup: string) => markup.replace(/<!-- -->/g, "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ");
 const count = (markup: string, part: string) => markup.split(part).length - 1;
@@ -47,6 +47,16 @@ describe("Export window", () => {
     expect(open).not.toContain('value="2025-11-17"');
     expect(text(open)).toContain("Create PDF");
     expect(open).not.toMatch(/disabled=""[^>]*>(<svg[^>]*>.*?<\/svg>)?Create PDF/);
+  });
+});
+
+describe("Export week labels", () => {
+  it("add the year only for weeks outside the current year", () => {
+    expect(weekName("2026-11-16", "2026-11-16")).toBe("W47 · Nov 16 – 22");
+    expect(weekName("2025-11-24", "2026-11-16")).toBe("W48 · Nov 24 – 30, 2025");
+    const open = renderToStaticMarkup(<ExportDialog open onClose={() => {}} thisWeek="2026-11-16" />);
+    expect(open).toContain('<option value="2025-11-24">W48 · Nov 24 – 30, 2025</option>');
+    expect(open).toContain('<option value="2026-01-05">W2 · Jan 5 – 11</option>');
   });
 });
 
