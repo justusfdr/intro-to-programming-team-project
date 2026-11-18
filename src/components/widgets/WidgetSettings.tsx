@@ -8,7 +8,7 @@ import { Check, MapPin, Navigation, Trash2 } from "lucide-react";
 import { AddressField } from "@/components/places/AddressField";
 import { GoalTile } from "@/components/goals/GoalTile";
 import { buttonClass } from "@/components/ui/Button";
-import { pack } from "@/lib/widgets/layout";
+import { pack, resized } from "@/lib/widgets/layout";
 import { MAX_CITY_LENGTH, SIZES_OF, WIDGET_NAMES, type WidgetItem, type WidgetSize } from "@/lib/widgets/types";
 import { WidgetDialog } from "./Dialog";
 import { pxOf } from "./Gallery";
@@ -18,7 +18,7 @@ const SIZE_NAMES: Record<WidgetSize, string> = { "1x1": "Small", "3x1": "Wide", 
 
 /** The size can change to `size` when the list still fits the full grid and this widget this screen. */
 function sizeFits(list: WidgetItem[], index: number, size: WidgetSize, rows: number): boolean {
-  const changed = list.map((w, i) => (i === index ? { ...w, size } : w));
+  const changed = list.map((w, i) => (i === index ? resized(w, size) : w));
   return pack(changed).hidden.length === 0 && !pack(changed, rows).hidden.includes(index);
 }
 
@@ -105,7 +105,7 @@ function Body({
                   aria-pressed={on}
                   disabled={!fits}
                   title={fits ? undefined : "No room for this size on this screen"}
-                  onClick={() => onChange({ ...item, size })}
+                  onClick={() => onChange(resized(item, size))}
                   className={buttonClass(on ? "primary" : "secondary", "sm", "tabular")}
                 >
                   {SIZE_NAMES[size]} · {size.replace("x", "×")}

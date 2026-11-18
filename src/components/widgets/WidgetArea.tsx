@@ -5,21 +5,21 @@
 // lays the widgets out in the 3 × 6 grid, as many rows as fit (layout.ts). A click on a widget does what
 // grid.tsx says (the weather opens in detail). Editing: the pencil or a right-click; the free fields of
 // this screen show as "+"; a click on a widget opens its settings; remove, change size, drag (or arrow
-// keys) to move; "Add" opens the gallery, whose widgets are dragged into the grid (or clicked, which puts
+// keys) to move: the widget follows the pointer and the grid shows it in the field it would land in; "Add" opens the gallery, whose widgets are dragged into the grid (or clicked, which puts
 // them in the "+" field that opened the gallery, else at the end); "Done" saves the list with save_widgets (R47). A refusal shows
 // its message and puts the saved list back (R1).
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Pencil, Plus, X } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
 import { getJson, postJson } from "@/lib/client/post-json";
 import { msToNextMinute } from "@/lib/time/next-minute";
-import { insertAt, pack, rowsFor, spotFor } from "@/lib/widgets/layout";
-import { CELL_PX, DEFAULT_LAYOUT, GAP_PX, GRID_COLUMNS, SIZES_OF, WIDGET_NAMES, type WidgetItem, type WidgetsData } from "@/lib/widgets/types";
+import { nudge, pack, pinned, placeAt, rowsFor } from "@/lib/widgets/layout";
+import { CELL_PX, DEFAULT_LAYOUT, GAP_PX, GRID_COLUMNS, WIDGET_NAMES, type WidgetItem, type WidgetsData } from "@/lib/widgets/types";
 import type { WeatherAnswer } from "@/lib/widgets/weather";
 import type { TravelAnswer } from "@/lib/travel/types";
 import { remember, remembered } from "./cache";
 import { WidgetDialog } from "./Dialog";
-import { freeFields, Gallery, pxOf, type PickUp } from "./Gallery";
+import { DRAG_FROM, freeFields, Gallery, pxOf, type PickUp } from "./Gallery";
 import { GRID_STYLE, renderWidget, WidgetCell, type WidgetContext } from "./grid";
 import type { TripTravel } from "./tiles";
 import { WeatherDetail } from "./WeatherDetail";
@@ -184,13 +184,6 @@ function useCityWeather(cities: string[], enabled: boolean): Record<string, Weat
 
 const same = (a: WidgetItem[], b: WidgetItem[]) => JSON.stringify(a) === JSON.stringify(b);
 
-function move<T>(list: T[], from: number, to: number): T[] {
-  const next = [...list];
-  const [item] = next.splice(from, 1);
-  next.splice(Math.max(0, Math.min(next.length, to)), 0, item);
-  return next;
-}
-
 /** The fields of the first `rows` rows that no widget takes, top to bottom. */
 function freeCells(layout: WidgetItem[], rows: number): { row: number; col: number }[] {
   const taken = new Set<string>();
@@ -199,6 +192,15 @@ function freeCells(layout: WidgetItem[], rows: number): { row: number; col: numb
   for (let row = 0; row < rows; row++) for (let col = 0; col < GRID_COLUMNS; col++) if (!taken.has(`${row},${col}`)) cells.push({ row, col });
   return cells;
 }
+
+/**
+ * A widget being dragged: one picked up in the gallery, or one of the grid's own (`origin`: the list as it
+ * was, `from`: where the widget is in it), taken out of the list while it moves and put back as it was
+ * when it is let go where it cannot land.
+ */
+type Carry = PickUp & { origin?: WidgetItem[]; from?: number };
+/** Where a dragged widget would land: the list with it put there, and where it is in that list. */
+type Landing = { layout: WidgetItem[]; index: number };
 
 export function WidgetArea() {
   // What was shown last on the page before (cache.ts), so a page change does not start empty.
@@ -217,15 +219,16 @@ export function WidgetArea() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState(() => remembered().rows);
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
-  // A widget dragged in from the gallery: what, where the pointer is, and where it would land
+  // A widget being dragged: what, where the pointer is, and where it would land
   // (undefined: not over the grid; null: over it, but there is no room).
-  const [carry, setCarry] = useState<PickUp | null>(null);
+  const [carry, setCarry] = useState<Carry | null>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
-  const [landing, setLanding] = useState<number | null | undefined>(undefined);
+  const [landing, setLanding] = useState<Landing | null | undefined>(undefined);
   const [addCell, setAddCell] = useState<{ row: number; col: number } | null>(null);
   const gridBox = useRef<HTMLDivElement>(null);
   const gridEl = useRef<HTMLDivElement>(null);
+  // Set when a drag ends, so the click the browser sends after it does not open the widget's settings.
+  const dropped = useRef(false);
   const detailTitle = useId();
   const now = useMinuteClock();
 
@@ -261,7 +264,10 @@ export function WidgetArea() {
   const goalIds = useMemo(() => new Set(data?.goals.map((g) => g.id) ?? []), [data]);
   const shown = useCallback((list: WidgetItem[]) => list.filter((w) => w.kind !== "goal" || !w.goalId || goalIds.has(w.goalId)), [goalIds]);
   const saved = useMemo(() => (data ? shown(data.layout) : []), [data, shown]);
-  const layout = editing ? (carry && typeof landing === "number" ? insertAt(draft, carry.item, landing) : draft) : saved;
+  // While dragging, the widget is shown in the field it would land in; a widget of the grid that is
+  // not over a place it can land in is shown back where it came from.
+  const landingAt = carry ? (landing ? landing.index : carry.from) : undefined;
+  const layout = editing ? (carry ? (landing ? landing.layout : (carry.origin ?? draft)) : draft) : saved;
   const { placed, hidden } = useMemo(() => pack(layout, rows), [layout, rows]);
   const cities = useMemo(() => layout.flatMap((w) => (w.kind === "weather" && w.city ? [w.city] : [])), [layout]);
   const cityWeather = useCityWeather(cities, !off && ready);
@@ -295,11 +301,12 @@ export function WidgetArea() {
     }
   }, [data, draft, resetAsked, saved, setData]);
 
-  // Dragging a widget in from the gallery: the field under the widget's top left decides the place.
+  // Dragging a widget (in from the gallery, or one of the grid's own): the field under the widget's top
+  // left decides the place.
   useEffect(() => {
     if (!carry) return;
     const step = CELL_PX + GAP_PX;
-    const spotAt = (x: number, y: number): number | null | undefined => {
+    const spotAt = (x: number, y: number): Landing | null | undefined => {
       const grid = gridEl.current;
       if (!grid || rows === 0) return undefined;
       const box = grid.getBoundingClientRect();
@@ -311,9 +318,13 @@ export function WidgetArea() {
         row: Math.min(rows - 1, Math.max(0, Math.floor((top - box.top) / step))),
         col: Math.min(GRID_COLUMNS - 1, Math.max(0, Math.floor((left - box.left) / step))),
       };
-      return spotFor(draft, carry.item, rows, cell);
+      return placeAt(draft, carry.item, rows, cell);
     };
     const end = () => {
+      dropped.current = true;
+      window.setTimeout(() => {
+        dropped.current = false;
+      }, 0);
       setCarry(null);
       setPointer(null);
       setLanding(undefined);
@@ -325,9 +336,13 @@ export function WidgetArea() {
     };
     const onUp = (event: PointerEvent) => {
       const spot = spotAt(event.clientX, event.clientY);
-      if (typeof spot === "number") {
-        setDraft(insertAt(draft, carry.item, spot));
+      if (spot) {
+        setDraft(spot.layout);
         setMessage("");
+      } else if (carry.origin) {
+        // A widget of the grid let go beside it, or where there is no room: back where it was.
+        if (spot === null) setMessage("No room for this widget there on this screen");
+        setDraft(carry.origin);
       } else {
         // Let go beside the grid, or where there is no room: back to the gallery.
         if (spot === null) setMessage("No room for this widget there on this screen");
@@ -335,21 +350,25 @@ export function WidgetArea() {
       }
       end();
     };
+    const cancel = () => {
+      if (carry.origin) setDraft(carry.origin);
+      else setAdding(true);
+      end();
+    };
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.stopPropagation();
-      setAdding(true);
-      end();
+      cancel();
     };
     document.body.style.cursor = "grabbing";
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", end);
+    window.addEventListener("pointercancel", cancel);
     window.addEventListener("keydown", onKey, true);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", end);
+      window.removeEventListener("pointercancel", cancel);
       window.removeEventListener("keydown", onKey, true);
       document.body.style.removeProperty("cursor");
     };
@@ -379,22 +398,49 @@ export function WidgetArea() {
   const free = freeCells(layout, rows);
 
   const remove = (index: number) => setDraft((list) => list.filter((_, i) => i !== index));
-  const cycleSize = (index: number) =>
-    setDraft((list) => {
-      const item = list[index];
-      const sizes = SIZES_OF[item.kind];
-      const nextSize = sizes[(sizes.indexOf(item.size) + 1) % sizes.length];
-      const changed = list.map((w, i) => (i === index ? { ...w, size: nextSize } : w));
-      return pack(changed).hidden.length === 0 ? changed : list;
-    });
-  const onDrop = (event: DragEvent, to: number) => {
-    event.preventDefault();
-    if (dragFrom !== null && dragFrom !== to) setDraft((list) => move(list, dragFrom, to));
-    setDragFrom(null);
+  // A press on a widget becomes a drag once the pointer has moved a few px; until then a release is a
+  // click (its settings). The widget leaves the list while it moves, so the others make room for it.
+  const press = (index: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || carry) return;
+    event.preventDefault(); // no text selection while dragging; the click still comes
+    const box = event.currentTarget.getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const stop = () => {
+      window.removeEventListener("pointermove", moved);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+    const moved = (next: PointerEvent) => {
+      if (Math.hypot(next.clientX - startX, next.clientY - startY) < DRAG_FROM) return;
+      stop();
+      const item = draft[index];
+      if (!item) return;
+      setMessage("");
+      setSettingsOf(null);
+      // The others stay where they are now, also when the widget leaves a hole above them.
+      setDraft(pinned(draft, rows).filter((_, i) => i !== index));
+      setCarry({
+        item,
+        origin: draft,
+        from: index,
+        x: next.clientX,
+        y: next.clientY,
+        dx: Math.min(Math.max(startX - box.left, 0), box.width),
+        dy: Math.min(Math.max(startY - box.top, 0), box.height),
+      });
+      setPointer({ x: next.clientX, y: next.clientY });
+      setLanding(undefined);
+    };
+    window.addEventListener("pointermove", moved);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
   };
+  // The arrow keys move a widget one field; where it cannot go, nothing changes.
+  const ARROWS: Record<string, { row: number; col: number }> = { ArrowUp: { row: -1, col: 0 }, ArrowDown: { row: 1, col: 0 }, ArrowLeft: { row: 0, col: -1 }, ArrowRight: { row: 0, col: 1 } };
   const onTileKey = (event: KeyboardEvent, index: number) => {
-    if (event.key === "ArrowUp" || event.key === "ArrowLeft") setDraft((list) => move(list, index, index - 1));
-    else if (event.key === "ArrowDown" || event.key === "ArrowRight") setDraft((list) => move(list, index, index + 1));
+    const by = ARROWS[event.key];
+    if (by) setDraft((list) => nudge(list, index, rows, by) ?? list);
     else if (event.key === "Delete" || event.key === "Backspace") remove(index);
     else return;
     event.preventDefault();
@@ -474,14 +520,12 @@ export function WidgetArea() {
                 item={item}
                 place={place}
                 editing={editing}
-                dragging={dragFrom === index}
-                landing={carry !== null && landing === index}
+                landing={carry !== null && landingAt === index}
                 onRemove={() => remove(index)}
-                onCycleSize={() => cycleSize(index)}
-                onOpen={() => setSettingsOf(index)}
-                onDragStart={() => setDragFrom(index)}
-                onDragEnd={() => setDragFrom(null)}
-                onDrop={(event) => onDrop(event, index)}
+                onOpen={() => {
+                  if (!dropped.current) setSettingsOf(index);
+                }}
+                onPress={press(index)}
                 onKeyDown={(event) => onTileKey(event, index)}
               >
                 {renderWidget(item, ctx, editing)}
@@ -516,8 +560,8 @@ export function WidgetArea() {
         ctx={ctx}
         onAdd={(item) => {
           // Into the "+" field that opened the gallery when it fits there, else at the end.
-          const spot = addCell ? spotFor(draft, item, rows, addCell) : null;
-          setDraft(spot === null ? [...draft, item] : insertAt(draft, item, spot));
+          const spot = addCell ? placeAt(draft, item, rows, addCell) : null;
+          setDraft(spot ? spot.layout : [...draft, item]);
           setAdding(false);
         }}
         onPickUp={(pickUp) => {

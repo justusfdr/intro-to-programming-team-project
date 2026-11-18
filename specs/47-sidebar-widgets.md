@@ -26,7 +26,8 @@ Look (same as the rest of the app): Geist only; every widget a white tile with a
 icons at stroke 1.8. Colour as a surface only for "Time to leave" and a goal that is met.
 
 Editing: the pencil or a right-click on the grid. Widgets wiggle (not with reduced motion), each has a
-minus to remove it and a size tag to switch to its other size (if it still fits); dragging moves a widget;
+minus to remove it; its size is chosen in its settings (a click on it) or in the gallery (no size tag on
+the grid since 18 Nov 2026, asked for by the owner); dragging moves a widget (v4, below);
 "Add widget" opens a list of the kinds (goal widgets per goal) with their sizes, greyed out when there is
 no room; "Done" saves (`save_widgets`); "Reset" brings back the standard list. A refusal shows the message
 and puts the last saved list back (R1).
@@ -44,6 +45,17 @@ screen). Let go over the grid, it is added there; beside it or with no room, the
 A click on a preview still adds it: into the "+" field that opened the gallery, else at the end. The small
 "Time to leave" writes long times short ("5h 26m") so they fit, and so does the leave line in "Next up".
 
+Moving (v4, 18 Nov 2026, asked for by the owner): a widget of the grid is dragged with the pointer like
+a preview from the gallery, no longer with the browser's own drag and drop (which showed nothing while
+dragging and could not be let go over a free "+" field). While it moves it leaves the grid, the others
+make room, and the grid shows it in the field under its top left (`placeAt` in layout.ts); let go there,
+it stays there, also below free fields: the widget remembers its field (`at`, row and column of its top
+left). Widgets put in a field are placed first, the others fill from the top around them. A widget whose
+field is already taken by one put there, or is not on this screen (a shorter window), fills in like the
+others. Let go beside the grid or where there is no room (or Escape): it goes back where it was. Widgets
+from the gallery and from a "+" field also land in the field they are put in. The arrow keys move a widget
+one field; a wide widget that gets taller or wider stays in its row.
+
 ## Ontology changes (with this spec)
 
 - Concept **widget layout** (Saved, in `settings`): the user's list of widgets, each a kind, a size and for
@@ -51,7 +63,8 @@ A click on a preview still adds it: into the "+" field that opened the gallery, 
 - Action `save_widgets` (layout or "reset"), checked by R47. Action `widgets_data` (reads only). Action
   `weather` (reads only, nothing saved).
 - **R47** A widget list is saved only if every widget is one of the six kinds, in one of its sizes, only a
-  goal widget names a goal, and all fit together in the 3 × 6 grid (filled from the top, `pack`). Anything
+  goal widget names a goal, a field a widget was put in is one of the grid's (v4), and all fit together in
+  the 3 × 6 grid (widgets put in a field first, the others filled from the top, `pack`). Anything
   else changes nothing ("Choose a widget from the list" / "This widget does not come in that size" /
   "Choose one of your goals" / "The widgets do not fit. Remove one first"). A goal widget whose goal is
   gone is not shown. Tests: accepted a full grid and the empty list; rejected a 19th field, a wrong size,
