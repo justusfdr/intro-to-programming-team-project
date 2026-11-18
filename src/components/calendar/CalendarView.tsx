@@ -50,7 +50,7 @@ import { useDisplay } from "@/components/shell/DisplayProvider";
 import { useLive, useLiveWeek } from "@/components/live/Live";
 import { DateJumpTitle } from "./DateJump";
 import { EventEditor, SeriesQuestion, type EditorState } from "./EventEditor";
-import { dropText, isGuestsError, movedChange, recreateBody, savedEvent, savedEventChange, timesBody, withoutGuests, type Scope } from "./event-changes";
+import { deletedTodos, dropText, isGuestsError, movedChange, recreateBody, savedEvent, savedEventChange, timesBody, withoutGuests, type Scope } from "./event-changes";
 import { anchorOf, FloatingPanel, type Anchor } from "./FloatingPanel";
 import { MonthView } from "./MonthView";
 import { NewEventPopover } from "./NewEventPopover";
@@ -437,7 +437,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
       });
       if (!deleted.ok) return showToast(deleted.message);
       sendToOutlook();
-      onDeleted(event, []);
+      onDeleted(event, deletedTodos(deleted));
     },
     [currentOf, live, showToast, sendToOutlook, onDeleted],
   );
