@@ -33,12 +33,11 @@ import { FormMessage } from "@/components/account/FormMessage";
 import { useLive } from "@/components/live/Live";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { postJson, type PostResult } from "@/lib/client/post-json";
-import { weekdayOf, type Weekday } from "@/lib/events/repeat";
+import { defaultUntil, weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent } from "@/lib/events/types";
 import { MESSAGES } from "@/lib/messages";
 import { cleanTitle, hasRoom, moveTo, type TodoItem } from "@/lib/todos/list";
 import type { NewTodo } from "@/lib/todos/types";
-import { addDays } from "@/lib/time/zoned";
 import { useAnnounce } from "./Announcer";
 import { EditorChips } from "./editor/EditorChips";
 import { EditorHeader } from "./editor/EditorHeader";
@@ -345,7 +344,9 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
   const [values, setValues] = useState(() => newValues(draft));
   const [frequency, setFrequency] = useState<Frequency>(draft.repeat ?? "none");
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
-  const [until, setUntil] = useState(() => addDays(draft.start.slice(0, 10), 28));
+  // Issue #129: until the user picks an end date, it follows the repeat (defaultUntil).
+  const [pickedUntil, setUntil] = useState<string | null>(null);
+  const until = pickedUntil ?? (frequency === "none" ? values.date : defaultUntil(values.date, frequency, weekdays));
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PostResult | null>(null);
   // The new event's to-dos, kept here until "Add event" sends them with it (spec 21).
