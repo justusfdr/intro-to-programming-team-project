@@ -60,13 +60,17 @@ export async function readCalendar(
   const last = dates[dates.length - 1];
   const startsAt = startOfLocalDate(first, timeZone);
   const endsAt = startOfLocalDate(addDays(last, 1), timeZone);
+  // The day view also reads the all-day events of its whole week: its all-day row then keeps the
+  // week's height, so the hours do not move when switching between the two views.
+  const allDayFrom = view === "day" ? mondayOf(date) : first;
+  const allDayTo = view === "day" ? addDays(mondayOf(date), 6) : last;
 
   // One query for both kinds, so the days cost one round of questions to the database:
   // - timed events: events last at most 24 hours, so loading one day more on each side finds every
   //   event that overlaps an event of these days, also across their edges (for the conflict mark), and
   //   the events of the day before that run past midnight into the first day (drawn there);
   // - all-day events covering any of the days (R2: each day from the first to the last); they get
-  //   no conflict mark (R29).
+  //   no conflict mark (R29). The day view reads those of its whole week (see above).
   // Timed ones come first, by start, end, id; then all-day ones by first day, last day (longest first), title, id.
   const [both, outlook] = await Promise.all([
     query<EventRow>(
@@ -80,7 +84,7 @@ export async function readCalendar(
                  case when all_day then last_day end desc,
                  case when all_day then title end,
                  id`,
-      [new Date(startsAt.getTime() - DAY_MS), new Date(endsAt.getTime() + DAY_MS), first, last],
+      [new Date(startsAt.getTime() - DAY_MS), new Date(endsAt.getTime() + DAY_MS), allDayFrom, allDayTo],
     ),
     outlookRead,
   ]);
@@ -117,5 +121,6 @@ export async function readCalendar(
       allDay,
     ),
     lead: leadInto(shown, first),
+    ...(view === "day" ? { weekAllDay: allDay } : {}),
   };
 }

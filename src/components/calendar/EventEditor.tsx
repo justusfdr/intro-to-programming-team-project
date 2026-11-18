@@ -62,7 +62,7 @@ export type { Frequency } from "./editor/WhenSection";
 
 /** What the editor shows, and where it floats: a new event with what the small card filled in, or an existing event. */
 export type EditorState =
-  | { mode: "create"; start: string; end: string; repeat?: Frequency; title?: string; goalId?: string | null; anchor: Anchor }
+  | { mode: "create"; start: string; end: string; allDay?: boolean; repeat?: Frequency; title?: string; goalId?: string | null; anchor: Anchor }
   | { mode: "edit"; event: CalendarEvent; anchor: Anchor }
   | null;
 

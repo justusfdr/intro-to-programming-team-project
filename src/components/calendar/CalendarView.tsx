@@ -14,13 +14,13 @@
 // updated_at (R4); if the server refuses, the block goes back and the ontology's message shows. After a
 // move, a resize or a delete a toast offers "Undo" for 8 seconds. An event of a series asks "This
 // event / This and following" on drop.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { newEventSlot, nextFullHour } from "@/lib/events/new-event-day";
-import { gridRange, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
+import { clampHourPx, gridRange, HOUR_PX, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
 import { localAt, type Span } from "@/lib/events/drag";
 import type { CalendarEvent, WeekData, WeekEvent } from "@/lib/events/types";
 import {
@@ -71,6 +71,54 @@ type Props = {
 /** Minutes of lead time above "now" when today is shown, and above the earliest event otherwise. */
 const SCROLL_CONTEXT_MIN = 90;
 const SCROLL_LEAD_MIN = 30;
+/** Where this browser remembers the zoom of the hours (the height of one hour in pixels). */
+const HOUR_PX_KEY = "lockedin.calendar.hourPx";
+
+const HOUR_PX_CHANGED = "lockedin:calendar-zoom";
+/** The zoom when this browser cannot store it (private window, blocked site data): kept until the page is left. */
+let hourPxInMemory: number | null = null;
+
+function subscribeHourPx(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(HOUR_PX_CHANGED, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(HOUR_PX_CHANGED, onChange);
+  };
+}
+
+function readHourPx(): number {
+  try {
+    const raw = window.localStorage.getItem(HOUR_PX_KEY);
+    if (raw) return clampHourPx(Number(raw));
+  } catch {
+    // No storage: the zoom of this page visit, if any.
+  }
+  return hourPxInMemory ?? HOUR_PX;
+}
+
+function saveHourPx(px: number) {
+  hourPxInMemory = px;
+  try {
+    window.localStorage.setItem(HOUR_PX_KEY, String(px));
+  } catch {
+    // Not remembered; the zoom still works until the page is left.
+  }
+  window.dispatchEvent(new Event(HOUR_PX_CHANGED));
+}
+
+const noSubscription = () => () => {};
+
+/**
+ * The zoomed height of one hour, remembered in this browser (the normal height on the server and in the
+ * first render). `ready` is true once the browser's own value is in use, so the first scroll position
+ * is worked out with the right height.
+ */
+function useHourPx(): { hourPx: number; ready: boolean; setHourPx: (px: number) => void } {
+  const hourPx = useSyncExternalStore(subscribeHourPx, readHourPx, () => HOUR_PX);
+  const ready = useSyncExternalStore(noSubscription, () => true, () => false);
+  return { hourPx, ready, setHourPx: saveHourPx };
+}
 
 /**
  * The local time "now" (for the red line), refreshed right when the minute changes and when the tab
@@ -242,9 +290,10 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   // R27: when to leave for the shown events with a location (dashed blocks before them).
   const shownEvents = useMemo(() => placed.flat().map((b) => b.event), [placed]);
   const travel = useTravelTimes(shownEvents);
+  const zoom = useHourPx();
   const range = useMemo(
-    () => gridRange(placed, { startMin: dayStartHour * 60, endMin: dayEndHour * 60 }),
-    [placed, dayStartHour, dayEndHour],
+    () => ({ ...gridRange(placed, { startMin: dayStartHour * 60, endMin: dayEndHour * 60 }), hourPx: zoom.hourPx }),
+    [placed, dayStartHour, dayEndHour, zoom.hourPx],
   );
   const todayShown = days.some((d) => d.date === today);
   const nowMin = todayShown ? minuteOfLocal(now) : null;
@@ -257,7 +306,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
   const scrollKey = `${view}:${days[0]?.date}`;
   const scrolledFor = useRef<string | null>(null);
   useEffect(() => {
-    if (view === "month" || scrolledFor.current === scrollKey) return;
+    if (view === "month" || !zoom.ready || scrolledFor.current === scrollKey) return;
     scrolledFor.current = scrollKey;
     const grid = document.querySelector<HTMLElement>("[data-grid-scroll]");
     if (!grid) return;
@@ -265,7 +314,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
     const target = nowMin !== null ? nowMin - SCROLL_CONTEXT_MIN : starts.length > 0 ? Math.min(...starts) - SCROLL_LEAD_MIN : range.startMin;
     // Snapped to a full hour, so its line is not cut off.
     grid.scrollTop = Math.max(0, minuteToPx(Math.floor(target / 60) * 60, range));
-  }, [view, scrollKey, placed, nowMin, range]);
+  }, [view, scrollKey, placed, nowMin, range, zoom.ready]);
 
   // Keyboard shortcuts as in the prototype: D, W, M for the views, T for today, ← → to step.
   // Never while typing in a field, in a side column, or while a dialog is open.
@@ -371,6 +420,7 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               selectedDay={date}
               dayHref={view === "week" || !coerced ? dayHref : undefined}
               weekDates={view === "day" && !coerced ? visibleDays("week", date) : undefined}
+              weekAllDay={view === "day" && !coerced ? week.weekAllDay : undefined}
               today={today}
               goals={goals}
               pending={pending}
@@ -378,6 +428,11 @@ export function CalendarView({ week: serverWeek, nowLocal, goals, outlookAvailab
               onCreate={(day, span, anchor) => setPop({ kind: "new", date: day, span, anchor })}
               onDrop={onDrop}
               travel={travel}
+              onCreateAllDay={(day, anchor) => {
+                setPop(null);
+                setEditor({ mode: "create", start: `${day}T09:00`, end: `${day}T10:00`, allDay: true, anchor });
+              }}
+              onZoom={zoom.setHourPx}
             />
           )}
         </div>
