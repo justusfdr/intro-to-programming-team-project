@@ -39,6 +39,7 @@ export const MESSAGES = {
   goalTitleLength: "Title must be 1 to 80 characters",
   addRule: "Add at least one rule",
   deadlinePast: "The deadline cannot be in the past",
+  deadlineRequired: "Choose a deadline",
   countTarget: "Target must be 1 to 14 events",
   hoursTarget: "Target must be 0.5 to 60 hours",
   minMinutes: "Minimum length must be 15 to 240 minutes",

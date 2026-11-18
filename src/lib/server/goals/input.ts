@@ -111,6 +111,7 @@ export function checkGoalFields(fields: z.infer<typeof GoalFields>, today: Local
 
   // null: no end date (spec 41). A date is checked as before.
   if (fields.deadline !== null) {
+    if (fields.deadline === "") throw new ActionError(400, "deadline_required", MESSAGES.deadlineRequired);
     if (!isLocalDate(fields.deadline)) throw new ActionError(400, "bad_request", MESSAGES.badRequest);
     if (fields.deadline < today && fields.deadline !== kept?.deadline) {
       throw new ActionError(400, "deadline_past", MESSAGES.deadlinePast);
