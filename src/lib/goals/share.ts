@@ -48,3 +48,13 @@ export function weekShare(rules: Pick<RuleProgress, "text" | "status">[]): numbe
   if (rules.length === 0) return 0;
   return rules.reduce((sum, rule) => sum + ruleShare(rule), 0) / rules.length;
 }
+
+/**
+ * The numbers in a rule's words, "This week: 1 of 2 done" or "This week: 3.5 of 6 h" (ruleText in
+ * progress.ts): what is done, the target and whether it counts hours. Null for other words.
+ */
+export function ruleNumbers(text: string): { amount: string; target: string; hours: boolean } | null {
+  const match = /(\d+(?:\.\d+)?) of (\d+(?:\.\d+)?)( h)?/.exec(text);
+  if (!match) return null;
+  return { amount: match[1], target: match[2], hours: match[3] !== undefined };
+}

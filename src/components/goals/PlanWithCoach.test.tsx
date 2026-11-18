@@ -39,7 +39,8 @@ describe("the goal card's 'Plan with coach'", () => {
     expect(html).toContain('aria-label="Plan Gym with the coach"');
     expect(html).toContain(">Plan with coach</a>");
     const link = html.indexOf("Plan with coach");
-    for (const before of [">Gym</span>", "Routine of Gym", "This week: 0 of 3 done", "26 days left", "Auto-block on"]) {
+    // Changed 18 Nov 2026 with Emily's approval (spec 47): the rule now reads "of 3 sessions".
+    for (const before of [">Gym</span>", "Routine of Gym", "of 3 sessions", "26 days left", "Auto-block on"]) {
       expect(html.indexOf(before), before).toBeLessThan(link);
     }
     // Small and grey like the caption, no button look.
