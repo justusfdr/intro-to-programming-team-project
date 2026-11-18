@@ -44,6 +44,9 @@ function goal(id: string, extra: Partial<ReportGoal> = {}): ReportGoal {
   };
 }
 
+/** A moment after the shown week, so "last week" is the whole week before (issue #126). */
+const AFTER_WEEK = new Date("2026-11-30T12:00:00Z");
+
 function input(over: Partial<ReportInput> = {}): ReportInput {
   return { sessions: [], attempts: [], events: [], goals: [], now: NOW, monday: MONDAY, timeZone: "Europe/Lisbon", ...over };
 }
@@ -96,6 +99,7 @@ describe("focus numbers", () => {
     // Lisbon is on UTC in November: Monday 00:00 starts the week, Sunday 23:59 ends it.
     const f = focusNumbers(
       input({
+        now: AFTER_WEEK, // the week is over: the whole last week counts
         sessions: [
           session("2026-11-15T23:59:00Z", 10, 10), // Sunday before: last week
           session("2026-11-16T00:00:00Z", 10, 10), // Monday 00:00: this week, "before 9"
@@ -115,6 +119,7 @@ describe("focus numbers", () => {
     // New York is UTC-5 in November: Monday 00:00 there is 05:00 UTC.
     const f = focusNumbers(
       input({
+        now: AFTER_WEEK, // the week is over: the whole last week counts
         timeZone: "America/New_York",
         sessions: [
           session("2026-11-16T04:59:00Z", 10, 10), // Sunday 23:59 in New York: last week
@@ -482,5 +487,41 @@ describe("buildReport", () => {
 
   it("a later week is not over yet", () => {
     expect(buildReport(input({ monday: "2026-11-23" })).isCurrentWeek).toBe(true);
+  });
+});
+
+describe("last week while the week is still running (issue #126)", () => {
+  // Wednesday 18 November 2026, 12:00 in Lisbon (UTC in November).
+  const WEDNESDAY_NOON = new Date("2026-11-18T12:00:00Z");
+  const sessions = [
+    session("2026-11-09T09:00:00Z", 60, 60), // last Monday: counts
+    session("2026-11-11T11:00:00Z", 60, 60), // last Wednesday 11:00, before the same moment: counts
+    session("2026-11-11T13:00:00Z", 60, 60), // last Wednesday 13:00, after it: not yet
+    session("2026-11-14T09:00:00Z", 60, 60), // last Saturday: not yet
+    session("2026-11-16T09:00:00Z", 60, 60), // this Monday
+  ];
+
+  it("counts last week only up to the same moment, so Wednesday is not compared with a whole week", () => {
+    const f = focusNumbers(input({ now: WEDNESDAY_NOON, sessions }));
+    expect(f.week.sessions).toBe(1);
+    expect(f.lastWeek.sessions).toBe(2);
+    expect(f.lastWeek.focusedMinutes).toBe(120);
+  });
+
+  it("counts the whole last week once the shown week is over", () => {
+    const f = focusNumbers(input({ now: AFTER_WEEK, sessions }));
+    expect(f.lastWeek.sessions).toBe(4);
+  });
+
+  it("cuts blocked visits and done time of last week at the same moment", () => {
+    const attempts = [
+      { domain: "a.com", attemptedAt: new Date("2026-11-10T10:00:00Z") }, // counts
+      { domain: "a.com", attemptedAt: new Date("2026-11-13T10:00:00Z") }, // not yet
+    ];
+    expect(blockedNumbers(input({ now: WEDNESDAY_NOON, attempts })).lastWeek).toBe(1);
+    expect(blockedNumbers(input({ now: AFTER_WEEK, attempts })).lastWeek).toBe(2);
+    const events = [event("e1", "2026-11-10T10:00:00Z", 60, "done"), event("e2", "2026-11-13T10:00:00Z", 30, "done")];
+    expect(timeNumbers(input({ now: WEDNESDAY_NOON, events })).lastWeekDoneMinutes).toBe(60);
+    expect(timeNumbers(input({ now: AFTER_WEEK, events })).lastWeekDoneMinutes).toBe(90);
   });
 });

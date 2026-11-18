@@ -129,12 +129,29 @@ function weekTotals(sessions: ReportSession[], attempts: Attempt[], monday: Loca
   return weekAnalytics(own, attempts, monday, timeZone);
 }
 
+/**
+ * Issue #126: while the shown week is still running, "last week" only counts up to the same moment
+ * of last week (now minus 7 days). Wednesday noon is then compared with last Wednesday noon, not
+ * with a whole week. For a week that is over this returns null and the whole last week counts.
+ */
+export function lastWeekCutoff(monday: LocalDate, now: Date | undefined, timeZone: string): Date | null {
+  if (now === undefined) return null;
+  const end = startOfLocalDate(addDays(monday, 7), timeZone);
+  return now < end ? new Date(now.getTime() - 7 * 24 * 60 * MINUTE) : null;
+}
+
+/** The sessions and visits that happened before `cutoff`; all of them without a cutoff. */
+function before<T>(list: T[], at: (item: T) => Date, cutoff: Date | null): T[] {
+  return cutoff === null ? list : list.filter((item) => at(item) < cutoff);
+}
+
 // ---- Focus ----
 
-export function focusNumbers(input: Pick<ReportInput, "sessions" | "attempts" | "monday" | "timeZone">): FocusNumbers {
+export function focusNumbers(input: Pick<ReportInput, "sessions" | "attempts" | "monday" | "timeZone"> & { now?: Date }): FocusNumbers {
   const { sessions, attempts, monday, timeZone } = input;
   const current = weekTotals(sessions, attempts, monday, timeZone);
-  const last = weekTotals(sessions, attempts, addDays(monday, -7), timeZone);
+  const cutoff = lastWeekCutoff(monday, input.now, timeZone);
+  const last = weekTotals(before(sessions, (s) => s.startedAt, cutoff), before(attempts, (a) => a.attemptedAt, cutoff), addDays(monday, -7), timeZone);
   const weeks: WeekNumbers[] = weeksEnding(monday, WEEKS_SHOWN).map((m) => ({ monday: m, ...weekTotals(sessions, attempts, m, timeZone).week }));
   const averageMinutes = Math.round(weeks.reduce((sum, w) => sum + w.focusedMinutes, 0) / weeks.length);
 
@@ -384,7 +401,9 @@ function planKept(events: ReportEvent[], monday: LocalDate, now: Date, timeZone:
 export function timeNumbers(input: Pick<ReportInput, "events" | "goals" | "now" | "monday" | "timeZone">): TimeNumbers {
   const { events, goals, now, monday, timeZone } = input;
   const days = doneMinutesByGoal(events, goals, monday, timeZone);
-  const lastDays = doneMinutesByGoal(events, goals, addDays(monday, -7), timeZone);
+  const cutoff = lastWeekCutoff(monday, now, timeZone);
+  const lastEvents = before(events, (e) => e.startAt, cutoff);
+  const lastDays = doneMinutesByGoal(lastEvents, goals, addDays(monday, -7), timeZone);
 
   const total = (list: typeof days, goalId: string | null | "all") =>
     list.reduce((sum, d) => sum + (goalId === "all" ? d.minutes : (d.byGoal.get(goalId) ?? 0)), 0);
@@ -424,7 +443,7 @@ export function timeNumbers(input: Pick<ReportInput, "events" | "goals" | "now" 
     quietest,
     endedMinutes: kept.ended,
     planKept: kept.kept,
-    planKeptLastWeek: planKept(events, addDays(monday, -7), now, timeZone).kept,
+    planKeptLastWeek: planKept(lastEvents, addDays(monday, -7), cutoff ?? now, timeZone).kept,
   };
 }
 
@@ -463,10 +482,11 @@ export function streakNumbers(input: Pick<ReportInput, "sessions" | "events" | "
 
 // ---- Distractions ----
 
-export function blockedNumbers(input: Pick<ReportInput, "sessions" | "attempts" | "monday" | "timeZone">): BlockedNumbers {
+export function blockedNumbers(input: Pick<ReportInput, "sessions" | "attempts" | "monday" | "timeZone"> & { now?: Date }): BlockedNumbers {
   const { sessions, attempts, monday, timeZone } = input;
   const current = weekTotals(sessions, attempts, monday, timeZone);
-  const last = weekTotals(sessions, attempts, addDays(monday, -7), timeZone);
+  const cutoff = lastWeekCutoff(monday, input.now, timeZone);
+  const last = weekTotals(before(sessions, (s) => s.startedAt, cutoff), before(attempts, (a) => a.attemptedAt, cutoff), addDays(monday, -7), timeZone);
   const days = new Set(current.days.map((d) => d.date));
   const ofWeek = datedSessions(sessions, attempts, timeZone).filter((d) => days.has(d.date));
   const during = ofWeek.map((d) => attemptsDuring(d.session, attempts));

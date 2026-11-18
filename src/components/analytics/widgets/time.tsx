@@ -133,7 +133,7 @@ export function PlanKeptWidget({ report, size, onOpen }: WidgetProps) {
         {size !== "S" && planKept !== null && <span className="text-[15px] text-ink-2">of your planned time done</span>}
       </div>
       <div className="mt-2.5">
-        <VsLastWeek change={change} />
+        <VsLastWeek change={change} running={report.isCurrentWeek} />
       </div>
       {planKept === null ? (
         <Empty className="mt-auto">No planned time has ended this week yet</Empty>

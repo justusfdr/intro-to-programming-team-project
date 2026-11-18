@@ -14,7 +14,7 @@ export function BlockedVisitsWidget({ report, onOpen }: WidgetProps) {
     <WidgetCard title="Blocked visits" icon={Shield} tint="rose" onOpen={onOpen}>
       <Big className="mt-[18px]">{week}</Big>
       <div className="mt-2.5">
-        <VsLastWeek change={comparable ? countChange(week, lastWeek, false) : null} />
+        <VsLastWeek change={comparable ? countChange(week, lastWeek, false) : null} running={report.isCurrentWeek} />
       </div>
       <p className="mt-auto pt-3 text-xs text-ink-2">
         {week === 0 && report.focus.week.sessions === 0
