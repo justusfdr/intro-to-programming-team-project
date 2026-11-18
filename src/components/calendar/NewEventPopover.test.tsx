@@ -11,11 +11,12 @@ import { NewEventForm } from "./NewEventPopover";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
+const H24 = { ...DEFAULT_DISPLAY, timeFormat: "24h" as const }; // these tests pin HH:MM, the 24-hour display (issue #161: the default display is 12h)
 const GOALS = [{ id: "g1", title: "Run a half marathon", look: { color: "teal" as const, icon: "footprints" as const } }];
 
 function card(startMin: number, endMin: number) {
   return renderToStaticMarkup(
-    <DisplayProvider value={DEFAULT_DISPLAY}>
+    <DisplayProvider value={H24}>
       <NewEventForm date="2026-11-17" startMin={startMin} endMin={endMin} goals={GOALS} onClose={() => {}} onOpenEditor={() => {}} />
     </DisplayProvider>,
   );
@@ -86,7 +87,7 @@ describe("deleting in the editor", () => {
       endLocal: "2026-11-17T10:00",
     };
     const html = renderToStaticMarkup(
-      <DisplayProvider value={DEFAULT_DISPLAY}>
+      <DisplayProvider value={H24}>
         <EditEventCard event={event} anchor={null} goals={GOALS} timeZone="Europe/Lisbon" today="2026-11-16" onClose={() => {}} />
       </DisplayProvider>,
     );
@@ -96,7 +97,7 @@ describe("deleting in the editor", () => {
 
   it("'Add details' opens the editor with the card's title and goal", () => {
     const html = renderToStaticMarkup(
-      <DisplayProvider value={DEFAULT_DISPLAY}>
+      <DisplayProvider value={H24}>
         <NewEventCard
           draft={{ start: "2026-11-17T09:00", end: "2026-11-17T10:30", title: "Read chapter 4", goalId: "g1" }}
           anchor={null}

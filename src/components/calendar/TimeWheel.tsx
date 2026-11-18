@@ -12,17 +12,20 @@ import {
   HOURS,
   MINUTES,
   cyclicIndex,
-  formatHHMM,
+  formatClock,
+  hourFormat,
   homeScrollTop,
+  maskClockTyping12,
   maskTimeTyping,
   nearestScrollTop,
   needsRecentre,
   pad2,
-  parseHHMM,
+  parseClock,
   withHour,
   withMinute,
   wrapStep,
 } from "@/lib/time/wheel";
+import { useDisplay } from "@/components/shell/DisplayProvider";
 import { inputClass } from "./fields";
 
 /** Height of one row of the wheel, in pixels. Five rows are visible, the middle one is chosen. */
@@ -52,19 +55,21 @@ export function TimeField({
   open?: boolean;
 }) {
   const errorId = useId();
-  const [text, setText] = useState(formatHHMM(value));
+  const { timeFormat } = useDisplay();
+  const show = (min: number) => formatClock(min, timeFormat);
+  const [text, setText] = useState(show(value));
   const [error, setError] = useState<string | null>(null);
   // A new time from outside (the wheel, a length chip) replaces what is typed.
   const [seen, setSeen] = useState(value);
   if (seen !== value) {
     setSeen(value);
-    setText(formatHHMM(value));
+    setText(show(value));
     setError(null);
   }
 
   const commit = (typed: string) => {
-    if (typed === formatHHMM(value)) return setError(null);
-    const parsed = parseHHMM(typed);
+    if (typed === show(value)) return setError(null);
+    const parsed = parseClock(typed, timeFormat);
     if (!parsed.ok) return setError(parsed.message);
     setError(null);
     onChange(parsed.min);
@@ -75,10 +80,10 @@ export function TimeField({
       // Enter takes the time; it does not send the form.
       e.preventDefault();
       commit(text);
-    } else if (e.key === "Escape" && (error !== null || text !== formatHHMM(value))) {
+    } else if (e.key === "Escape" && (error !== null || text !== show(value))) {
       // Esc first undoes the typing; only the next Esc closes anything.
       e.preventDefault();
-      setText(formatHHMM(value));
+      setText(show(value));
       setError(null);
     }
   };
@@ -93,12 +98,20 @@ export function TimeField({
         data-open={open || undefined}
         aria-invalid={error !== null}
         aria-describedby={error ? errorId : undefined}
-        placeholder="HH:MM"
+        placeholder={timeFormat === "24h" ? "HH:MM" : "8:30am"}
         // No maxLength: a pasted " 09:30" must not be cut before the digits are picked out of it.
         value={text}
         onFocus={onOpen}
         onClick={onOpen}
         onChange={(e) => {
+          if (timeFormat === "12h") {
+            // 12h: taken at once only when it ends in am/pm; "10:30" may still become "10:30pm".
+            const shown = maskClockTyping12(e.target.value);
+            setText(shown);
+            if (/m$/.test(shown) && parseClock(shown, timeFormat).ok) commit(shown);
+            else setError(null);
+            return;
+          }
           const shown = maskTimeTyping(e.target.value);
           setText(shown);
           if (shown.length === 5) commit(shown);
@@ -119,13 +132,14 @@ export function TimeField({
 
 /** The two scrolling columns for one time: hours left, minutes right. */
 export function TimeWheel({ label, value, onChange }: { label: string; value: number; onChange: (min: number) => void }) {
+  const { timeFormat } = useDisplay();
   const hour = Math.floor(value / 60);
   const minute = value % 60;
   return (
     <div role="group" aria-label={`${label} time`} className="relative mx-auto flex items-center justify-center gap-1 select-none">
       {/* The band behind the middle row. */}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
-      <WheelColumn label={`${label} hour`} items={HOURS} selected={hour} onPick={(h) => onChange(withHour(value, h))} />
+      <WheelColumn label={`${label} hour`} items={HOURS} selected={hour} onPick={(h) => onChange(withHour(value, h))} format={hourFormat(timeFormat)} wide={timeFormat === "12h"} />
       <span aria-hidden className="relative text-lg font-medium text-ink">
         :
       </span>
@@ -145,6 +159,7 @@ export function WheelColumn({
   selected,
   onPick,
   format = pad2,
+  wide = false,
 }: {
   label: string;
   items: readonly number[];
@@ -152,6 +167,8 @@ export function WheelColumn({
   onPick: (item: number) => void;
   /** How a row shows its number; two digits unless told otherwise. */
   format?: (item: number) => string;
+  /** A little wider, for labels such as "12 am". */
+  wide?: boolean;
 }) {
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -230,7 +247,7 @@ export function WheelColumn({
         clearTimeout(timer.current);
         timer.current = setTimeout(settle, 120);
       }}
-      className="relative w-14 snap-y snap-mandatory overflow-y-auto overscroll-contain rounded-lg [scrollbar-width:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 [&::-webkit-scrollbar]:hidden"
+      className={`relative ${wide ? "w-[4.5rem]" : "w-14"} snap-y snap-mandatory overflow-y-auto overscroll-contain rounded-lg [scrollbar-width:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 [&::-webkit-scrollbar]:hidden`}
       style={{
         height: ROW * VISIBLE,
         paddingBlock: SIDE,
