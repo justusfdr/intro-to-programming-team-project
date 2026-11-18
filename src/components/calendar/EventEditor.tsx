@@ -33,7 +33,6 @@ import { FormMessage } from "@/components/account/FormMessage";
 import { useLive } from "@/components/live/Live";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { postJson, type PostResult } from "@/lib/client/post-json";
-import { notesTooLong } from "@/lib/events/notes";
 import { weekdayOf, type Weekday } from "@/lib/events/repeat";
 import type { CalendarEvent } from "@/lib/events/types";
 import { MESSAGES } from "@/lib/messages";
@@ -51,7 +50,7 @@ import { NotesSection } from "./editor/NotesSection";
 import { TravelLine } from "./editor/TravelLine";
 import { RouteSection } from "./editor/RouteSection";
 import { TodoList } from "./editor/TodoList";
-import { useEventSave } from "./editor/useEventSave";
+import { cannotSave, useEventSave } from "./editor/useEventSave";
 import { createBody, eventFromAnswer, newValues, type EventValues } from "./editor/values";
 import { RepeatFields, WhenSection, type Frequency } from "./editor/WhenSection";
 import { savedEventChange } from "./event-changes";
@@ -290,7 +289,7 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
   ) : save.changed ? (
     // Unsaved changes: Save or Discard first. Start focus and Mark done come back once they are saved.
     <>
-      <Button size="sm" disabled={save.saving || values.title.trim() === "" || notesTooLong(values.notes)} onClick={save.saveNow}>
+      <Button size="sm" disabled={save.saving || cannotSave(values)} onClick={save.saveNow}>
         {save.saving ? "Saving…" : "Save"}
       </Button>
       <Button size="sm" variant="ghost" disabled={save.saving} onClick={save.discard}>
@@ -361,6 +360,7 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
   const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);
 
   async function add() {
+    if (cannotSave(values)) return;
     const first = weekdayOf(values.date);
     const repeat =
       frequency === "none"
@@ -442,7 +442,7 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
   ];
 
   const footer = (
-    <Button size="sm" disabled={busy || values.title.trim() === "" || notesTooLong(values.notes)} onClick={() => void add()}>
+    <Button size="sm" disabled={busy || cannotSave(values)} onClick={() => void add()}>
       {busy ? "Adding…" : "Add event"}
     </Button>
   );
