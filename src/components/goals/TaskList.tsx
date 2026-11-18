@@ -300,7 +300,7 @@ export function TaskForm({
         onChange={(event) => setTitle(event.target.value)}
         aria-label="Task title"
         placeholder="Task title"
-        maxLength={200}
+        maxLength={100}
         enterKeyHint="done"
         aria-invalid={error ? true : undefined}
         className={inputClass}

@@ -89,6 +89,8 @@ describe("the small task form", () => {
     );
     expect(html).toContain('aria-label="Add task to Inbox"');
     expect(html).toContain('aria-label="Task title"');
+    // The field stops at 100 characters, the most the server takes (issue #137).
+    expect(html).toMatch(/aria-label="Task title"[^>]*maxLength="100"/);
     expect(html).not.toContain('type="date"');
     expect(html).toMatch(/<button type="button" aria-expanded="false" aria-label="Due date \(optional\)"[^>]*>.*<span class="[^"]*text-ink-3">Add due date<\/span><\/button>/);
     // Nothing to remove while there is no date.
