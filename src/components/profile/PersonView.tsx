@@ -17,9 +17,12 @@ export function PersonView({
   now,
   sections = false,
   relation = null,
+  viewerId = "",
 }: {
   person: ProfileCardData;
   now: string;
+  /** The signed-in user (for "Show in my calendar"). */
+  viewerId?: string;
   /** Show the sections under the card. */
   sections?: boolean;
   relation?: PersonRelation | null;
@@ -50,7 +53,7 @@ export function PersonView({
         <TimeZoneLine timeZone={person.timeZone} now={now} settingsLink={false} />
         <LinkedInLink url={person.linkedinUrl} />
       </Card>
-      {sections && <PersonSections person={asSharing} relation={relation} />}
+      {sections && <PersonSections person={asSharing} relation={relation} timeZone={person.timeZone} now={now} viewerId={viewerId} />}
     </div>
   );
 }

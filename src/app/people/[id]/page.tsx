@@ -25,7 +25,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   return (
     <Announcer>
       <AppShell current="/people" display={loaded.display} me={loaded.me}>
-        <PersonView person={loaded.person} now={loaded.now} sections relation={loaded.relation} />
+        <PersonView person={loaded.person} now={loaded.now} sections relation={loaded.relation} viewerId={userId} />
       </AppShell>
     </Announcer>
   );

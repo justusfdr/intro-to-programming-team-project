@@ -51,14 +51,17 @@ describe("the sections", () => {
     expect(html).toMatch(/aria-label="Remove Ana Silva"[^>]*>Remove contact<\/button>/);
     expect(html).toContain(">Ana Silva&#x27;s week</h2>");
     expect(html).toContain("Ana Silva does not share their calendar with you.");
+    expect(html).not.toContain("Show in my calendar");
     expect(html).not.toMatch(/focus chart/i);
   });
 
-  it("a contact who shares their calendar: the week section says so (the week itself comes with its own step)", () => {
+  it("a contact who shares their calendar: their week (read only, in their time zone) and Show in my calendar", () => {
     const html = renderToStaticMarkup(
-      <PersonView person={ANA} now={NOW} sections relation={{ contactId: "c1", out: { calendar: "none", focus: false }, shared: { calendar: "busy", focus: true } }} />,
+      <PersonView person={ANA} now={NOW} sections viewerId="me" relation={{ contactId: "c1", out: { calendar: "none", focus: false }, shared: { calendar: "busy", focus: true } }} />,
     );
-    expect(html).toContain("Ana Silva shares their calendar with you (free/busy).");
+    expect(html).toContain("Shows free/busy only · Times in Europe/Berlin, their time zone");
+    expect(html).toMatch(/<button[^>]*>Show in my calendar<\/button>/);
+    expect(html).toContain('aria-label="Previous week"');
     expect(html).not.toMatch(/focus chart/i);
   });
 
