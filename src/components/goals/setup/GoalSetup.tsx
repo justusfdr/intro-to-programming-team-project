@@ -52,8 +52,6 @@ type Direction = "forward" | "back";
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** "Use the form instead": closes the questions and opens the goal editor for a new goal. */
-  onUseForm: () => void;
   /** The saved goals: the next unused colour and the hint for all goals together. */
   goals: GoalView[];
   places: SavedPlace[];
@@ -66,7 +64,7 @@ type Props = {
 /** How long a chosen time of day stays on screen before the next question comes. */
 const AUTO_NEXT_MS = 420;
 
-export function GoalSetup({ open, onClose, onUseForm, goals, places, today, initialScreen, initialAnswers }: Props) {
+export function GoalSetup({ open, onClose, goals, places, today, initialScreen, initialAnswers }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   // The flow's way to close: it asks "Discard this goal?" first when something is answered.
   const requestClose = useRef<() => void>(() => {});
@@ -110,7 +108,6 @@ export function GoalSetup({ open, onClose, onUseForm, goals, places, today, init
             requestClose.current = close;
           }}
           onClose={onClose}
-          onUseForm={onUseForm}
           goals={goals}
           places={places}
           today={today}
@@ -134,7 +131,6 @@ function isQuestion(screen: SetupScreen): screen is SetupStep {
 function SetupFlow({
   onRegisterClose,
   onClose,
-  onUseForm,
   goals,
   places,
   today,
@@ -486,17 +482,7 @@ function SetupFlow({
             </div>
           ) : (
             <div className={`flex items-center justify-between gap-3 ${failure && screen === "review" ? "mt-3" : ""}`}>
-              {screen === "category" ? (
-                <button
-                  type="button"
-                  onClick={onUseForm}
-                  className={`-ml-1 min-h-11 rounded-md px-1 text-sm text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline ${focusRing}`}
-                >
-                  Use the form instead
-                </button>
-              ) : (
-                <span />
-              )}
+              <span />
               {screen === "review" ? (
                 <Button size="lg" onClick={create} disabled={busy} aria-busy={busy}>
                   {busy ? "Creating…" : "Create goal"}

@@ -434,7 +434,7 @@ dialog.goal-setup[open]{position:fixed;inset:auto 0 0 0;z-index:70}
   ];
   for (const [file, screen, answers] of setupScreens) {
     const setup = renderToStaticMarkup(
-      <GoalSetup open onClose={() => {}} onUseForm={() => {}} goals={goals} places={[gymPlace]} today="2026-11-17" initialScreen={screen} initialAnswers={answers} />,
+      <GoalSetup open onClose={() => {}} goals={goals} places={[gymPlace]} today="2026-11-17" initialScreen={screen} initialAnswers={answers} />,
     ).replace("<dialog", "<dialog open");
     const html = page("New goal", `${goalsPageMarkup}<div class="preview-dim"></div>${setup}`, styles, setupCss);
     writeFileSync(join(OUT, file), html);
