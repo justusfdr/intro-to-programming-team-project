@@ -129,7 +129,7 @@ describe("the weather in detail", () => {
   it("lists 7 days from today with the chance of rain from 30 % and credits Open-Meteo", () => {
     expect(page).toContain(">Today<");
     expect(page).toContain(">Wed<");
-    expect(page).toContain(">60%<");
+    expect(page).toContain(">60 %<");
     expect(page).toContain("https://open-meteo.com/");
   });
 });

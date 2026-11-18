@@ -117,7 +117,7 @@ function Chart({ tab, weather }: { tab: Tab; weather: WeatherDto }) {
             <g key={h.time}>
               <rect x={x(i) - 9} y={TOP + CHART_H - barH} width={18} height={barH} rx={4} className={h.rain >= RAIN_SHOWN_FROM ? "fill-sky-500" : "fill-sky-200"} />
               <text x={x(i)} y={TOP + CHART_H - barH - 6} textAnchor="middle" className={`tabular text-[11px] font-semibold ${h.rain >= RAIN_SHOWN_FROM ? "fill-sky-700" : "fill-ink-3"}`}>
-                {h.rain}%
+                {h.rain} %
               </text>
               {h.precip > 0 && (
                 <text x={x(i)} y={TOP + CHART_H + 13} textAnchor="middle" className="tabular fill-ink-3 text-[10.5px]">
@@ -187,7 +187,7 @@ function Days({ weather }: { weather: WeatherDto }) {
             <li key={day.date} className="tabular grid grid-cols-[3.5rem_1.25rem_2.75rem_2rem_1fr_2rem] items-center gap-2 border-b border-line-subtle py-2 text-sm last:border-b-0">
               <span className="font-medium">{i === 0 ? "Today" : dayParts(day.date).weekday}</span>
               <SkyIcon sky={day.sky} isDay className="size-4" />
-              <span className="text-xs font-semibold text-sky-700">{day.rain >= RAIN_SHOWN_FROM ? `${day.rain}%` : ""}</span>
+              <span className="text-xs font-semibold text-sky-700">{day.rain >= RAIN_SHOWN_FROM ? `${day.rain} %` : ""}</span>
               <span className="text-right text-ink-3">{day.low}°</span>
               <span className="relative h-1.5 rounded-full bg-muted">
                 <span className="absolute inset-y-0 rounded-full bg-linear-to-r from-sky-400 to-amber-400" style={{ left: `${left}%`, width: `${Math.min(width, 100 - left)}%` }} />

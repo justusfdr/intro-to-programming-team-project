@@ -28,7 +28,7 @@ export function TimeByDayWidget({ report, size, onOpen }: WidgetProps) {
   const best = topIndex(days.map((d) => d.minutes));
   const max = Math.max(1, ...days.map((d) => d.minutes));
   const top = areas[0];
-  const headline = top && doneMinutes > 0 ? `${nameOf(top.goal)} took ${Math.round((top.minutes / doneMinutes) * 100)}% of your time` : "";
+  const headline = top && doneMinutes > 0 ? `${nameOf(top.goal)} took ${Math.round((top.minutes / doneMinutes) * 100)} % of your time` : "";
   return (
     <WidgetCard title="Your time, day by day" icon={BarChart3} tint="indigo" onOpen={onOpen}>
       {doneMinutes === 0 ? (
@@ -129,7 +129,7 @@ export function PlanKeptWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Plan kept" icon={ListChecks} tint="teal" onOpen={onOpen}>
       <div className="mt-[18px] flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <Big>{planKept === null ? "–" : `${planKept}%`}</Big>
+        <Big>{planKept === null ? "–" : `${planKept} %`}</Big>
         {size !== "S" && planKept !== null && <span className="text-[15px] text-ink-2">of your planned time done</span>}
       </div>
       <div className="mt-2.5">
@@ -191,7 +191,7 @@ export function TimeOnGoalsWidget({ report, onOpen }: WidgetProps) {
             ))}
           </div>
           <p className="mt-2 text-xs text-ink-2">
-            {share}% went to a goal{doneMinutes > goalMinutes ? `, ${duration(doneMinutes - goalMinutes)} had none` : ""}.
+            {share} % went to a goal{doneMinutes > goalMinutes ? `, ${duration(doneMinutes - goalMinutes)} had none` : ""}.
           </p>
         </>
       ) : (

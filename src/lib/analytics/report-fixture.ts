@@ -171,7 +171,7 @@ export const sampleReport: AnalyticsReport = {
   },
   insights: {
     focus: {
-      good: ["19% more focus time than last week", "Your best week of the last 8", "Sessions on 6 of 7 days"],
+      good: ["19 % more focus time than last week", "Your best week of the last 8", "Sessions on 6 of 7 days"],
       bad: ["Sessions after 4 pm score lowest (64)", "Thursday had only 1h of focus"],
       summary: "Your strongest week in two months: 1h 50m more focus than last week, mostly in the morning.",
     },
@@ -181,7 +181,7 @@ export const sampleReport: AnalyticsReport = {
       summary: "Three goals on target. Applications is the one that keeps slipping.",
     },
     time: {
-      good: ["81% of your planned time done", "80% of your done time went to a goal"],
+      good: ["81 % of your planned time done", "80 % of your done time went to a goal"],
       bad: ["Saturday had nothing done"],
       summary: "Most of your time went to Thesis; Wednesday was the busiest day.",
     },
