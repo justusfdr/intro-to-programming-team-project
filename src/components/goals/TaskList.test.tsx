@@ -1,6 +1,6 @@
 // The tasks on the Goals page (spec 11): rows in R33's order with a real ring button, the date chip
 // (red with "overdue" for screen readers before today), done tasks struck through, the open count in
-// each header, "Add task" per section, and "Inbox" always last.
+// each header, "Add task" per section, and "Other to-dos" always last.
 // Rewritten for spec 39: the last part rendered the goals column (GoalsPanel inside PanelState); it now
 // renders the Goals page (GoalsPage), with the same promises about tasks.
 import { renderToStaticMarkup } from "react-dom/server";
@@ -74,7 +74,7 @@ describe("task rows", () => {
     expect(html).toMatch(/aria-label="Add task to Half marathon"[^>]*>.*Add task<\/button>/);
   });
 
-  it("draws Inbox rows in grey", () => {
+  it("draws Other to-dos rows in grey", () => {
     expect(list([task("Call mom back", { goalId: null })], null)).toContain("border-ink-3");
   });
 });
@@ -85,9 +85,9 @@ describe("task rows", () => {
 describe("the small task form", () => {
   it("adding: a title input and the due date as a quiet 'Add due date' button, Save and Close, no goal list", () => {
     const html = renderToStaticMarkup(
-      <TaskForm mode={{ kind: "add", sectionTitle: "Inbox" }} goalId={null} today={TODAY} goals={[]} onDone={() => {}} />,
+      <TaskForm mode={{ kind: "add", sectionTitle: "Other to-dos" }} goalId={null} today={TODAY} goals={[]} onDone={() => {}} />,
     );
-    expect(html).toContain('aria-label="Add task to Inbox"');
+    expect(html).toContain('aria-label="Add task to Other to-dos"');
     expect(html).toContain('aria-label="Task title"');
     expect(html).not.toContain('type="date"');
     expect(html).toMatch(/<button type="button" aria-expanded="false" aria-label="Due date \(optional\)"[^>]*>.*<span class="[^"]*text-ink-3">Add due date<\/span><\/button>/);
@@ -97,7 +97,7 @@ describe("the small task form", () => {
     expect(html).toContain(">Save<");
   });
 
-  it("editing: title, the due date in the app's format with a button to remove it, the goal list with Inbox, and Delete", () => {
+  it("editing: title, the due date in the app's format with a button to remove it, the goal list with Other to-dos, and Delete", () => {
     const html = renderToStaticMarkup(
       <TaskForm
         mode={{ kind: "edit", task: task("Later", { dueDate: "2026-11-20" }) }}
@@ -111,7 +111,7 @@ describe("the small task form", () => {
     expect(html).not.toContain('type="date"');
     expect(html).toMatch(/aria-label="Due date \(optional\): Fri, Nov 20"[^>]*>.*>Fri, Nov 20<\/span><\/button>/);
     expect(html).toMatch(/<button type="button" aria-label="Remove due date" title="Remove due date"/);
-    expect(html).toMatch(/<option value="">Inbox \(no goal\)<\/option><option value="g1" selected="">Half marathon<\/option>/);
+    expect(html).toMatch(/<option value="">Other to-dos \(no goal\)<\/option><option value="g1" selected="">Half marathon<\/option>/);
     expect(html).toContain('aria-label="Delete task Later"');
   });
 
@@ -143,7 +143,7 @@ describe("the Goals page with tasks", () => {
         task("Soon", { dueDate: "2026-11-18" }),
       ],
     );
-    const section = html.slice(html.indexOf('aria-label="Half marathon"'), html.indexOf('aria-label="Inbox"'));
+    const section = html.slice(html.indexOf('aria-label="Half marathon"'), html.indexOf('aria-label="Other to-dos"'));
     expect(section).toContain('<span class="sr-only">2 open tasks</span>');
     expect(section.indexOf(">Soon<")).toBeLessThan(section.indexOf(">No date<"));
     expect(section.indexOf(">No date<")).toBeLessThan(section.indexOf(">Done one<"));
@@ -151,19 +151,19 @@ describe("the Goals page with tasks", () => {
     expect(section.indexOf('aria-label="Weeks"')).toBeLessThan(section.indexOf(">Soon<"));
   });
 
-  it("shows Inbox at the bottom with a grey tile and its own 'Add task', also with no goals", () => {
+  it("shows Other to-dos at the bottom with a grey tile and its own 'Add task', also with no goals", () => {
     const html = render([], [task("Call mom back", { goalId: null })]);
-    const inbox = html.slice(html.indexOf('aria-label="Inbox"'));
+    const inbox = html.slice(html.indexOf('aria-label="Other to-dos"'));
     expect(inbox).toContain("bg-raised text-ink-3"); // the grey tile
-    expect(inbox).toContain(">Inbox</h2>");
+    expect(inbox).toContain(">Other to-dos</h2>");
     expect(inbox).toContain('<span class="sr-only">1 open task</span>');
     expect(inbox).toContain(">Call mom back<");
-    expect(inbox).toContain('aria-label="Add task to Inbox"');
+    expect(inbox).toContain('aria-label="Add task to Other to-dos"');
   });
 
   it("counts 0 when every task of a goal is done (A15)", () => {
     const html = render([GOAL], [task("Buy running shoes", { status: "done", doneAt: "2026-11-16T10:00:00.000Z" })]);
-    const section = html.slice(html.indexOf('aria-label="Half marathon"'), html.indexOf('aria-label="Inbox"'));
+    const section = html.slice(html.indexOf('aria-label="Half marathon"'), html.indexOf('aria-label="Other to-dos"'));
     expect(section).toContain('<span class="sr-only">0 open tasks</span>');
   });
 });

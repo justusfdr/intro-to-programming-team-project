@@ -160,7 +160,7 @@ it("writes the preview files", async () => {
   await app.db.admin("update app.events set outlook_id = 'AAMk-' || left(id::text, 8), outlook_sent_version = updated_at where source = 'app' and user_id = $1", [user]);
   await app.db.admin("update app.calendar_connections set last_synced_at = '2026-11-17T08:40:00Z'");
   await add("Thesis meeting", "11-18T11:00", "11-18T11:45");
-  // Spec 11: tasks under the goals and in the Inbox; "today" is Tuesday 17 November, so 16 November is overdue.
+  // Spec 11: tasks under the goals and under "Other to-dos"; "today" is Tuesday 17 November, so 16 November is overdue.
   const task = (title: string, goalId: string | null, dueDate: string | null, status: "open" | "done" = "open") =>
     app.db.admin("insert into app.tasks (user_id, title, goal_id, due_date, status) values ($1, $2, $3, $4, $5)", [user, title, goalId, dueDate, status]);
   await task("Read chapter 7 on regression", exam.id, "2026-11-16");
@@ -350,7 +350,7 @@ it("writes the preview files", async () => {
     ),
   );
 
-  // Spec 11: the small task forms, open for adding (Inbox) and for editing a task with a rejection.
+  // Spec 11: the small task forms, open for adding ("Other to-dos") and for editing a task with a rejection.
   const { TaskForm } = await import("@/components/goals/TaskList");
   const goalOptions = goals.map(({ id, title }) => ({ id, title }));
   const shoes = tasks.find((t) => t.title === "Buy running shoes")!;
@@ -360,7 +360,7 @@ it("writes the preview files", async () => {
       "Task forms",
       `<main class="flex flex-col gap-3 bg-canvas p-6" style="width:280px">${renderToStaticMarkup(
         <Announcer>
-          <TaskForm mode={{ kind: "add", sectionTitle: "Inbox" }} goalId={null} today="2026-11-17" goals={goalOptions} onDone={() => {}} />
+          <TaskForm mode={{ kind: "add", sectionTitle: "Other to-dos" }} goalId={null} today="2026-11-17" goals={goalOptions} onDone={() => {}} />
           <TaskForm mode={{ kind: "edit", task: shoes }} goalId={shoes.goalId} today="2026-11-17" goals={goalOptions} onDone={() => {}} />
         </Announcer>,
       )}</main>`,

@@ -44,7 +44,7 @@ describe("add_task accepted", () => {
     ]);
   });
 
-  it("saves a task without goal (Inbox) and without due date; empty fields mean none", async () => {
+  it("saves a task without goal (Other to-dos) and without due date; empty fields mean none", async () => {
     const alice = await app.signedInAs("alice@example.com");
     expect((await send({ title: "Call mom back" })).status).toBe(201);
     expect((await send({ title: "Renew passport", goalId: null, dueDate: null })).status).toBe(201);

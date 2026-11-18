@@ -96,7 +96,7 @@ describe("acceptance scenarios", () => {
     expect(openCount(after)).toBe(0);
   });
 
-  it("A17: deleting a goal with two tasks lists both under Inbox (no goal)", async () => {
+  it("A17: deleting a goal with two tasks lists both under Other to-dos (no goal)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     const goal = await seedGoal(app.db, alice, HALF_MARATHON);
     await seedTask(app.db, alice, { title: "Buy running shoes", goalId: goal.id });

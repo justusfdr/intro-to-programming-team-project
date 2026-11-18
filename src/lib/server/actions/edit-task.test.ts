@@ -38,7 +38,7 @@ describe("edit_task accepted", () => {
     expect(await tasksOf(app.db, alice)).toMatchObject([{ title: "Buy running shoes", goal_id: goal.id, due_date: "2026-11-20" }]);
   });
 
-  it("moves a task to Inbox and removes its due date", async () => {
+  it("moves a task to Other to-dos and removes its due date", async () => {
     const alice = await app.signedInAs("alice@example.com");
     const goal = await seedGoal(app.db, alice, HALF_MARATHON);
     const id = await seedTask(app.db, alice, { goalId: goal.id, dueDate: "2026-11-20" });

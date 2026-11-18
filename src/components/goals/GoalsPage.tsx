@@ -3,7 +3,7 @@
 // The Goals page (spec 39): what the goals column beside the calendar showed (specs 03, 10, 11, 13),
 // laid out for a whole page. The title "Goals" with "New goal"; one card per goal in a grid (one
 // column on phones, two from 768 px, three from 1280 px) with its tile, title, this week's bar and
-// rules, the strip of weeks, the countdown and its tasks; then "Inbox", tasks without a goal, as a
+// rules, the strip of weeks, the countdown and its tasks; then "Other to-dos", tasks without a goal, as a
 // card of its own. Each card can be collapsed, remembered in this browser as before (spec 10).
 // Ticking, adding and editing tasks show at once; the page re-reads in the background (Live.tsx).
 // Spec 42: "New goal" opens the guided questions (setup/GoalSetup.tsx); their first question offers
@@ -36,13 +36,13 @@ type Props = {
   focusGoalId?: string;
 };
 
-/** The key under which the Inbox card's collapsed state is remembered (next to goal ids). */
+/** The key under which the "Other to-dos" card's collapsed state is remembered (next to goal ids). */
 const INBOX_KEY = "inbox";
 
 /** The frame of every card on the page. */
 const CARD = "min-w-0 rounded-card border border-line-subtle bg-surface px-4 pt-3";
 
-/** Tasks per goal id, and the Inbox (no goal, or a goal this list does not know). Each in R33's order. */
+/** Tasks per goal id, and "Other to-dos" (no goal, or a goal this list does not know). Each in R33's order. */
 function groupTasks(goals: GoalView[], tasks: TaskDto[]): { byGoal: Map<string, TaskDto[]>; inbox: TaskDto[] } {
   const known = new Set(goals.map((goal) => goal.id));
   const byGoal = new Map<string, TaskDto[]>();
@@ -159,27 +159,27 @@ function InboxCard({
 }) {
   const bodyId = useId();
   return (
-    <section aria-label="Inbox" className={`${CARD} pb-4`}>
+    <section aria-label="Other to-dos" className={`${CARD} pb-4`}>
       <div className="flex min-h-9 items-center gap-1.5">
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={!collapsed}
           aria-controls={bodyId}
-          aria-label={`${collapsed ? "Expand" : "Collapse"} Inbox`}
+          aria-label={`${collapsed ? "Expand" : "Collapse"} other to-dos`}
           title={collapsed ? "Expand" : "Collapse"}
           className="-ml-1 flex size-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
         >
           <ChevronRight className={`size-3.5 transition-transform ${collapsed ? "" : "rotate-90"}`} strokeWidth={2.2} />
         </button>
         <GoalTile look={null} inbox />
-        <h2 className="ml-1 min-w-0 flex-1 truncate text-[15px] font-semibold tracking-snug text-ink">Inbox</h2>
+        <h2 className="ml-1 min-w-0 flex-1 truncate text-[15px] font-semibold tracking-snug text-ink">Other to-dos</h2>
         <OpenTaskCount count={openCount(tasks)} />
       </div>
       <div aria-hidden className="mt-1.5 h-[3px] rounded-full bg-muted" />
       {!collapsed && (
         <div id={bodyId}>
-          <TaskList tasks={tasks} goalId={null} color={null} sectionTitle="Inbox" today={today} goals={goals} />
+          <TaskList tasks={tasks} goalId={null} color={null} sectionTitle="Other to-dos" today={today} goals={goals} />
         </div>
       )}
     </section>

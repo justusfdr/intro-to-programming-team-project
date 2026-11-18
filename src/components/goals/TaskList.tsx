@@ -27,11 +27,11 @@ export type GoalOption = { id: string; title: string };
 type Props = {
   /** This section's tasks, already in R33's order. */
   tasks: TaskDto[];
-  /** The section's goal, or null for "Inbox". */
+  /** The section's goal, or null for "Other to-dos". */
   goalId: string | null;
-  /** The goal's colour, or null for the grey of "Inbox". */
+  /** The goal's colour, or null for the grey of "Other to-dos". */
   color: GoalColorName | null;
-  /** The section's name, for the names of its controls ("Add task to Inbox"). */
+  /** The section's name, for the names of its controls ("Add task to Other to-dos"). */
   sectionTitle: string;
   /** The user's local date, "2026-11-16". */
   today: string;
@@ -318,7 +318,7 @@ export function TaskForm({
         />
         {task && (
           <select value={goal} onChange={(event) => setGoal(event.target.value)} aria-label="Goal" className={inputClass}>
-            <option value="">Inbox (no goal)</option>
+            <option value="">Other to-dos (no goal)</option>
             {goals.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.title}

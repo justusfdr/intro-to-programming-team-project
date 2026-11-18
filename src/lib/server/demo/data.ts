@@ -4,7 +4,7 @@ import "server-only";
 // translated to our model: the three goals with their titles, colours, icons and reasons, each with a
 // deadline five weeks from today and one hours-per-week rule (6, 4 and 8 hours); the prototype's
 // tasks without its two habits, with due dates relative to today (its "Life admin" list does not
-// exist here, so those two tasks go to the Inbox); and its week of events for the current week.
+// exist here, so those two tasks go to "Other to-dos"); and its week of events for the current week.
 // Left out on purpose (decided): guests, milestones, ratings, focus history, locations, the coach.
 import type { GoalColorName, GoalIconName } from "@/lib/goals/style";
 import { addDays, type LocalDate } from "@/lib/time/zoned";

@@ -1,5 +1,5 @@
 // The small tinted tile that stands for a goal: the goal's own icon in its colour, as the prototype's
-// GoalIcon. Without a goal ("No goal") a grey tile with a briefcase, as in the prototype; the Inbox
+// GoalIcon. Without a goal ("No goal") a grey tile with a briefcase, as in the prototype; the "Other to-dos"
 // section draws an inbox tray. Decorative: the goal's name always stands next to it.
 import {
   BookOpen,
@@ -51,7 +51,7 @@ export function GoalTile({
   look: GoalLook | null;
   size?: keyof typeof SIZES;
   className?: string;
-  /** Draws an inbox tray instead (the Inbox section, spec 11). */
+  /** Draws an inbox tray instead (the "Other to-dos" section, spec 11). */
   inbox?: boolean;
 }) {
   const tint = look === null ? "bg-raised text-ink-3" : goalColor(look.color).tile;

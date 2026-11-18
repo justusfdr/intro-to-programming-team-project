@@ -1,5 +1,5 @@
 // The Goals page (spec 39): the title with "New goal", the goals as cards in a grid of one, two
-// (from 768 px) and three (from 1280 px) columns, the Inbox as the last card, and the empty state.
+// (from 768 px) and three (from 1280 px) columns, "Other to-dos" as the last card, and the empty state.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { GoalView } from "@/lib/goals/types";
@@ -50,16 +50,16 @@ describe("the Goals page", () => {
     expect(html).toContain('aria-label="Collapse Half marathon"');
   });
 
-  it("ends with the Inbox as a card of its own, after every goal", () => {
+  it("ends with Other to-dos as a card of its own, after every goal", () => {
     const html = render([goal("g1", "Half marathon", "teal")], [TASK]);
-    const inbox = html.indexOf('<section aria-label="Inbox" class="min-w-0 rounded-card border');
+    const inbox = html.indexOf('<section aria-label="Other to-dos" class="min-w-0 rounded-card border');
     expect(inbox).toBeGreaterThan(html.indexOf('aria-label="Half marathon"'));
     expect(html.slice(inbox)).toContain(">Call the bank<");
   });
 
-  it("without goals says so and still shows the Inbox", () => {
+  it("without goals says so and still shows Other to-dos", () => {
     const html = render([]);
     expect(html).toContain("No goals yet. Add one, link events to it, and see each week here.");
-    expect(html).toContain('aria-label="Add task to Inbox"');
+    expect(html).toContain('aria-label="Add task to Other to-dos"');
   });
 });
