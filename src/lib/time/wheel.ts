@@ -2,6 +2,8 @@
 // of minutes 00 to 59, or the time typed as "HH:MM". Times are minutes after midnight (0 to 1439).
 // Kept apart from the component so every rule can be tested on its own.
 
+import { fmtTime, type TimeFormat } from "./display";
+
 export const HOURS: readonly number[] = Array.from({ length: 24 }, (_, h) => h);
 export const MINUTES: readonly number[] = Array.from({ length: 60 }, (_, m) => m);
 
@@ -39,6 +41,48 @@ export function parseHHMM(text: string): Parsed {
   if (h > 23) return { ok: false, message: MESSAGES.hour };
   if (m > 59) return { ok: false, message: MESSAGES.minute };
   return { ok: true, min: h * 60 + m };
+}
+
+const MESSAGE_12H = "Enter the time like 8:30pm, or as 24-hour time like 20:30";
+
+/** 570 → "09:30" in 24h, "9:30am" in 12h (as everywhere else in the app). */
+export function formatClock(min: number, format: TimeFormat): string {
+  return format === "24h" ? formatHHMM(min) : fmtTime(min, "12h");
+}
+
+/**
+ * A typed clock time. 24h: as parseHHMM. 12h: "8pm", "8:30pm", "8:30 pm", "12am" (hour 1 to 12, am or pm,
+ * any case) and also 24-hour "20:30", because people paste both. "8:30" without am/pm is refused in 12h.
+ */
+export function parseClock(text: string, format: TimeFormat): Parsed {
+  if (format === "24h") return parseHHMM(text);
+  const typed = text.trim();
+  const match = /^([0-9]{1,2})(?::([0-9]{2}))?\s*(am|pm)$/i.exec(typed);
+  if (!match) {
+    const plain = parseHHMM(typed);
+    return plain.ok || /^[0-9]{2}:[0-9]{2}$/.test(typed) ? plain : { ok: false, message: MESSAGE_12H };
+  }
+  const h = Number(match[1]);
+  const m = Number(match[2] ?? 0);
+  if (h < 1 || h > 12) return { ok: false, message: "Hours go from 1 to 12" };
+  if (m > 59) return { ok: false, message: MESSAGES.minute };
+  return { ok: true, min: (h % 12) * 60 + (match[3].toLowerCase() === "pm" ? 720 : 0) + m };
+}
+
+/** What a 12h field shows while someone types: digits, a colon, a space and the letters of am/pm (at most 8 characters). */
+export function maskClockTyping12(typed: string): string {
+  return typed.toLowerCase().replace(/[^0-9:apm ]/g, "").slice(0, 8);
+}
+
+/** A row of the wheel's hour column in 12h: 0 → "12 am", 13 → "1 pm" (24 is the end of the day: "12 am"). */
+export function hourLabel12(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "am" : "pm"}`;
+}
+
+/** How the hour column labels its rows: two digits in 24h, "12 am" … "11 pm" in 12h. */
+export function hourFormat(format: TimeFormat): (hour: number) => string {
+  return format === "24h" ? pad2 : hourLabel12;
 }
 
 /**

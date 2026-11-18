@@ -43,7 +43,7 @@ const GOALS: GoalLabel[] = [
 ];
 
 const card = (event: WeekEvent) => <EditEventCard event={event} anchor={null} goals={GOALS} timeZone="Europe/Lisbon" today="2026-11-16" onClose={() => {}} />;
-const render = (event: WeekEvent) => renderToStaticMarkup(card(event));
+const render = (event: WeekEvent) => renderToStaticMarkup(<DisplayProvider value={{ ...DEFAULT_DISPLAY, timeFormat: "24h" }}>{card(event)}</DisplayProvider>);
 
 describe("event editor look", () => {
   it("offers 'No goal' and every goal as chips, with the event's goal pressed", () => {
