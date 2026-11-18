@@ -257,9 +257,8 @@ describe("send_message rejected", () => {
   });
 
   it.each([
-    ["a refusal", { kind: "failed", reason: "refusal" } as const],
-    ["an answer cut off", { kind: "failed", reason: "max_tokens" } as const],
     ["an answer that is not JSON", { kind: "failed", reason: "not_json" } as const],
+    ["an answer that ended for another reason", { kind: "failed", reason: "other_stop" } as const],
     ["a proposal for another user's goal", { kind: "answer", value: { ...A5_ANSWER, events: [{ ...A5_ANSWER.events[0], goalId: "00000000-0000-4000-8000-000000000000" }] } } as const],
     ["an all-day proposal", { kind: "answer", value: { ...A5_ANSWER, events: [{ title: "Exam", start: "2026-11-17", end: "2026-11-18", goalId: null }] } } as const],
     ["a proposal over an event that may not overlap", { kind: "answer", value: A5_ANSWER } as const],
@@ -272,6 +271,20 @@ describe("send_message rejected", () => {
     const answer = await read(await send({ text: A5_TEXT }));
 
     expect(answer.body.message).toBe("The assistant's answer failed our checks. Please try again");
+    expect(await snapshotWithoutCount()).toEqual(before);
+    expect(await sentToday(app.db, alice)).toBe(0);
+  });
+
+  // Issue #148: a refusal and an answer cut off at max_tokens say what happened (still 502, nothing saved or counted).
+  it.each([
+    ["a refusal", { kind: "failed", reason: "refusal" } as const, "answer_refused", "The coach cannot help with this request."],
+    ["an answer cut off", { kind: "failed", reason: "max_tokens" } as const, "answer_too_long", "That was too much for one answer. Ask for less at once, for example fewer days."],
+  ])("%s: its own message, nothing saved, nothing counted", async (_case, result, error, message) => {
+    const alice = await app.signedInAs("alice@example.com");
+    const before = await snapshotWithoutCount();
+    app.assistant.answer(result);
+
+    expect(await read(await send({ text: A5_TEXT }))).toEqual({ status: 502, body: { error, message } });
     expect(await snapshotWithoutCount()).toEqual(before);
     expect(await sentToday(app.db, alice)).toBe(0);
   });
