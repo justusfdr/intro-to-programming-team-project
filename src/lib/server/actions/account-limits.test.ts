@@ -1,4 +1,4 @@
-// Tests for the rate limits of the account actions (Issue #46): per e-mail address and per client
+// Tests for the rate limits of the account actions (Issue #46, spec 50): per e-mail address and per client
 // address, 15-minute window, answered with 429 and the same message whatever the address. The counts
 // live in the module's memory for the whole file, so every test uses its own addresses and client.
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,19 +38,52 @@ const resend = (email: string, client: string) =>
 const register = (email: string, client: string) =>
   signUp(postJson("/api/auth/sign-up", { email, password: "12345678" }, from(client)), app.deps);
 
-describe("sign_in: at most 10 per address per 15 minutes", () => {
-  it("refuses the 11th without asking the sign-in service; another address is not affected; works again after the window", async () => {
+const signInRight = (email: string, client: string) =>
+  signIn(postJson("/api/auth/sign-in", { email, password: "12345678" }, from(client)), app.deps);
+
+// Spec 50: only wrong passwords count, at most 10 per address from one client and 50 per address from
+// all clients, so a stranger cannot lock a person out of their account.
+describe("sign_in: at most 10 wrong passwords per address and client per 15 minutes", () => {
+  it("refuses the 11th from that client without asking the sign-in service; another address is not affected; works again after the window", async () => {
     await app.auth.addUser("ana@example.com", "12345678", { confirmed: true });
     const service = vi.spyOn(app.auth, "signIn");
     for (let i = 1; i <= 10; i++) expect((await signInAs("ana@example.com", "198.51.100.1")).status, `try ${i}`).toBe(401);
     // Any letter case is the same address.
-    expect(await read(await signInAs("ANA@Example.com", "198.51.100.2"))).toEqual(TOO_MANY);
+    expect(await read(await signInAs("ANA@Example.com", "198.51.100.1"))).toEqual(TOO_MANY);
+    // Even the right password waits from this client.
+    expect(await read(await signInRight("ana@example.com", "198.51.100.1"))).toEqual(TOO_MANY);
     expect(service).toHaveBeenCalledTimes(10);
 
     expect((await signInAs("bea@example.com", "198.51.100.1")).status).toBe(401);
 
     app.advance(FIFTEEN_MINUTES);
     expect((await signInAs("ana@example.com", "198.51.100.1")).status).toBe(401);
+  });
+
+  it("does not lock the owner out: after 10 wrong passwords from a stranger, the right password from another client works", async () => {
+    await app.auth.addUser("amy@example.com", "12345678", { confirmed: true });
+    for (let i = 0; i < 10; i++) await signInAs("amy@example.com", "198.51.100.20");
+    expect(await read(await signInAs("amy@example.com", "198.51.100.20"))).toEqual(TOO_MANY);
+
+    expect((await signInRight("amy@example.com", "198.51.100.21")).status).toBe(200);
+  });
+
+  it("does not count successful sign-ins or an unconfirmed account with the right password", async () => {
+    await app.auth.addUser("abe@example.com", "12345678", { confirmed: true });
+    await app.auth.addUser("ada@example.com", "12345678", { confirmed: false });
+    for (let i = 0; i < 12; i++) {
+      expect((await signInRight("abe@example.com", "198.51.100.22")).status, `sign-in ${i + 1}`).toBe(200);
+      expect((await signInRight("ada@example.com", "198.51.100.23")).status, `unconfirmed ${i + 1}`).toBe(403);
+    }
+  });
+
+  it("refuses every client after 50 wrong passwords for one address from many clients", async () => {
+    await app.auth.addUser("ari@example.com", "12345678", { confirmed: true });
+    for (let c = 0; c < 5; c++) {
+      for (let i = 0; i < 10; i++) expect((await signInAs("ari@example.com", `198.51.101.${c}`)).status).toBe(401);
+    }
+    expect(await read(await signInAs("ari@example.com", "198.51.101.99"))).toEqual(TOO_MANY);
+    expect((await signInAs("art@example.com", "198.51.101.99")).status).toBe(401);
   });
 
   it("answers an unknown address exactly like a registered one", async () => {

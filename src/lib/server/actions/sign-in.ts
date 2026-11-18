@@ -6,7 +6,7 @@ import "server-only";
 // "Email or password is wrong".
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
-import { checkAccountAttempt } from "@/lib/server/actions/account-limits";
+import { checkAccountAttempt, countWrongPassword } from "@/lib/server/actions/account-limits";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
@@ -32,6 +32,8 @@ export function signIn(request: Request, deps: Pick<Deps, "auth" | "now">): Prom
       case "signed_in":
         return jsonOk({ next: "/" });
       case "wrong_credentials":
+        // Spec 50: only wrong passwords count towards the sign-in limit.
+        countWrongPassword(request, email, deps.now());
         throw new ActionError(401, "wrong_credentials", MESSAGES.wrongCredentials);
       case "unconfirmed":
         throw new ActionError(403, "unconfirmed", MESSAGES.unconfirmed);

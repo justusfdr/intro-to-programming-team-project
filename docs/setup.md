@@ -64,7 +64,7 @@ Before step 1 is deployed we switch to our own e-mail sender (ontology, section 
 
 ## 8. Check Supabase's behaviour once
 Our code relies on these answers from Supabase. Check them once with two test addresses and tell the team if one differs:
-1. Sign up with an address that is already **confirmed**: the app shows "This email is already registered".
+1. Sign up with an address that is already **confirmed**: the app shows the same "We sent you a link. Open it to confirm your email." as for a new address (spec 50), and no e-mail arrives.
 2. Sign in with an **unconfirmed** account and the right password: "Confirm your email first. We sent you a link".
 3. Ask for a second confirmation link within 60 seconds: "Please wait a minute before asking again".
 4. Open a confirmation link twice: the second time shows "This link has expired. Ask for a new one".
