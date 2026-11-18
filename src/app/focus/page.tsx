@@ -3,8 +3,10 @@ import { redirect } from "next/navigation";
 import { Announcer } from "@/components/calendar/Announcer";
 import { FocusView } from "@/components/focus/FocusView";
 import { AppShell } from "@/components/shell/AppShell";
+import { tilesFor } from "@/lib/library/library";
 import { pageDeps } from "@/lib/server/deps";
 import { loadFocusPage } from "@/lib/server/pages/load";
+import { localDateOf } from "@/lib/time/zoned";
 import { isSessionLength } from "@/lib/focus/session-time";
 
 export const metadata: Metadata = { title: "Focus" };
@@ -26,7 +28,8 @@ export default async function FocusPage({ searchParams }: { searchParams: Promis
   return (
     <Announcer>
       <AppShell current="/focus" display={display}>
-        <FocusView data={data} blocker={blocker} startMinutes={startMinutes} />
+        {/* Seven articles of the library as tiles, the same all day in the user's time zone (specs 29 and 48). */}
+        <FocusView data={data} blocker={blocker} startMinutes={startMinutes} library={tilesFor(localDateOf(new Date(data.now), blocker.timeZone))} />
       </AppShell>
     </Announcer>
   );

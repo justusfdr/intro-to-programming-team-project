@@ -3,6 +3,7 @@
 import { Footer } from "./Footer";
 import { Hero } from "./Hero";
 import { LandingNav } from "./LandingNav";
+import { Research } from "./Research";
 import { Founder, LastCall, Plans, Questions, Tools } from "./Sections";
 import { Steps } from "./Steps";
 
@@ -13,6 +14,8 @@ export function Landing() {
       <main>
         <Hero />
         <Steps />
+        {/* What studies found about attention, with the articles to read (spec 48). */}
+        <Research />
         <Founder />
         <Tools />
         <Plans />

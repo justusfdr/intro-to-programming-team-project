@@ -500,6 +500,7 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
 
   // The Focus page in its states (spec 04). Sample sessions written by hand; times as the server sends them.
   const { FocusView } = await import("@/components/focus/FocusView");
+  const { tilesFor } = await import("@/lib/library/library");
   type FocusData = import("@/lib/focus/types").FocusData;
   type SessionDto = import("@/lib/focus/types").SessionDto;
   const focusNow = "2026-11-17T09:42:00.000Z";
@@ -551,7 +552,8 @@ dialog.welcome[open]{position:fixed;inset:auto 0 0 0;z-index:70;animation:none}
     renderToStaticMarkup(
       <Announcer>
         <AppShell current="/focus">
-          <FocusView data={data} blocker={blocker} />
+          {/* The library's tiles of the sample day (spec 48). */}
+          <FocusView data={data} blocker={blocker} library={tilesFor("2026-11-17")} />
         </AppShell>
       </Announcer>,
     );

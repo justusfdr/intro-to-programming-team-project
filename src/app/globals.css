@@ -484,3 +484,89 @@ dialog.goal-setup::backdrop {
     background: rgb(253 230 138 / 0);
   }
 }
+
+/* The Focus library (spec 29): bars grow from zero, steps arrive one after the other, and the
+   drawings on the tiles move once. Only for readers who have not asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .library-bar {
+    transform-origin: left;
+    animation: library-grow 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .library-step {
+    animation: library-arrive 420ms ease-out both;
+  }
+  .library-draw {
+    stroke-dasharray: 100;
+    animation: library-draw 1200ms ease-out both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  .library-nudge {
+    animation: library-nudge 900ms ease-out both;
+  }
+}
+
+@keyframes library-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes library-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes library-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+}
+
+@keyframes library-nudge {
+  from {
+    transform: translateY(22px);
+  }
+}
+
+/* The drawings and the list of spec 48: a dot that arrives, a dot that rolls up to a bump, and the
+   tick of a step in "Before you start". Each runs once; --d is its start in milliseconds. */
+@media (prefers-reduced-motion: no-preference) {
+  .library-pop {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: library-pop 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  .library-roll {
+    animation: library-roll 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
+  .start-step:has(:checked) .start-tick {
+    animation: library-pop 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  dialog.reader[open] {
+    animation: editor-in 200ms ease-out;
+  }
+}
+
+@keyframes library-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+@keyframes library-roll {
+  from {
+    transform: translateX(-110px);
+  }
+}
+
+/* The reading window of the landing page (spec 48): a native dialog, the page behind it dimmed
+   and slightly blurred like the welcome. */
+dialog.reader::backdrop {
+  background: rgb(16 16 16 / 0.3);
+  backdrop-filter: blur(2px);
+}

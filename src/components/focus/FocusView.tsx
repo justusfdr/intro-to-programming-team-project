@@ -5,12 +5,19 @@
 // left, the rating after it ended, and recent
 // sessions. It only sends the user's choices and shows the server's answers; the server decides
 // every state change (spec 04), including the end of a session at its planned length (R13).
+//
+// Since spec 48 the page also says why a session is worth it: next to the start card stands
+// "Before you start" (three steps, each with a study), and under both the library's articles as
+// tiles. Recent sessions open from a small button under the start card. While a session runs the
+// page shows the session only.
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { Button } from "@/components/ui/Button";
-import { Pause, Play } from "lucide-react";
+import { ArrowRight, ChevronDown, History, Pause, Play } from "lucide-react";
+import { clearFirstStep, useFirstStep } from "@/lib/client/first-step";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import {
   clockText,
@@ -28,6 +35,10 @@ import { fmtDateShort } from "@/lib/time/display";
 import { localDateOf } from "@/lib/time/zoned";
 import { GOAL_ICONS, GoalTile } from "@/components/goals/GoalTile";
 import { goalColor } from "@/lib/goals/colors";
+import { FOCUS_PATTERN, StudyBento } from "@/components/library/Bento";
+import { LIBRARY_HREF } from "@/lib/library/href";
+import type { Teaser, Tile } from "@/lib/library/types";
+import { BeforeYouStart } from "./BeforeYouStart";
 import { BlockerChip } from "./BlockerChip";
 import { FocusRing } from "./FocusRing";
 import { ROW, SIDE, WheelColumn } from "@/components/calendar/TimeWheel";
@@ -171,6 +182,15 @@ function StartCard({ forEvent, goal, startMinutes }: { forEvent: FocusData["forE
       <p className="mt-1 text-sm text-ink-2">
         {forEvent ? "Focus on this event." : "Focus without an event, or open an event in the calendar and choose Start focus."}
       </p>
+      {/* The chosen length in the ring the session will fill. The buttons below say the same in words. */}
+      <div aria-hidden="true" className="mt-5 flex justify-center">
+        <FocusRing progress={0} className="size-44" strokeClass={goal ? goalColor(goal.look.color).stroke : undefined}>
+          <div className="flex flex-col items-center text-center">
+            <p className="text-[34px] leading-10 font-semibold tracking-display tabular text-ink">{clockText(valid ? minutes * 60 : 0)}</p>
+            <p className="mt-0.5 text-xs font-medium text-ink-2">ready</p>
+          </div>
+        </FocusRing>
+      </div>
       <fieldset className="mt-5">
         <legend className={`${eyebrow} mb-2`}>Length</legend>
         <div className="inline-flex w-fit max-w-full flex-wrap rounded-full bg-raised p-1">
@@ -239,6 +259,12 @@ function RunningCard({ session, serverNow, goal }: { session: SessionDto; server
   const [confirmCancel, setConfirmCancel] = useState(false);
   const { run, busy, failure } = useSessionAction();
   const paused = session.status === "paused";
+  // The first step typed before the start (spec 48): shown under the timer, gone when the session is over.
+  const firstStep = useFirstStep();
+  const leave = async (path: string) => {
+    const answer = await run(path);
+    if (answer.ok) clearFirstStep();
+  };
 
   // Count on from the server's time at load, so a wrong clock on this computer does not matter.
   useEffect(() => {
@@ -256,6 +282,8 @@ function RunningCard({ session, serverNow, goal }: { session: SessionDto; server
   const stuck = waitingForEnd(left, paused);
   useEffect(() => {
     if (!stuck) return;
+    // The session reached its planned length: its first step has done its work.
+    clearFirstStep();
     const refresh = () => router.refresh();
     refresh();
     const id = window.setInterval(refresh, 5000);
@@ -297,12 +325,17 @@ function RunningCard({ session, serverNow, goal }: { session: SessionDto; server
           <p className="mt-1 text-xs font-medium text-ink-2">{paused ? "Paused" : "left"}</p>
         </div>
       </FocusRing>
+      {firstStep && (
+        <p className="mt-4 max-w-full rounded-lg bg-raised px-3 py-2 text-center text-sm text-ink-2">
+          First step: <span className="font-medium break-words text-ink">{firstStep}</span>
+        </p>
+      )}
       {failure && <FormMessage tone="error" text={failure.message} />}
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         {confirmCancel ? (
           <>
             <p className="w-full text-center text-sm font-medium">Cancel this session? Nothing will be saved.</p>
-            <Button variant="danger" size="sm" disabled={busy} onClick={() => run(`${base}/cancel`)} autoFocus>
+            <Button variant="danger" size="sm" disabled={busy} onClick={() => leave(`${base}/cancel`)} autoFocus>
               Yes, cancel
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setConfirmCancel(false)}>
@@ -322,7 +355,7 @@ function RunningCard({ session, serverNow, goal }: { session: SessionDto; server
                 Pause
               </Button>
             )}
-            <Button variant={paused ? "secondary" : "primary"} disabled={busy} onClick={() => run(`${base}/end`)}>
+            <Button variant={paused ? "secondary" : "primary"} disabled={busy} onClick={() => leave(`${base}/end`)}>
               End session
             </Button>
             <Button variant="ghost" disabled={busy} onClick={() => setConfirmCancel(true)}>
@@ -367,13 +400,21 @@ function RatingCard({ session }: { session: SessionDto & { focusedMinutes: numbe
   );
 }
 
+/**
+ * The finished sessions, behind a small button under the start card (spec 48): the page is for the
+ * next session, not for the old ones. A native disclosure, so it opens without any script and the
+ * list is part of the page either way.
+ */
 function RecentSessions({ sessions, timeZone }: { sessions: FocusData["recent"]; timeZone: string }) {
   const date = (iso: string) => fmtDateShort(localDateOf(new Date(iso), timeZone));
   return (
-    <section aria-labelledby="recent-title" className="mt-10">
-      <h2 id="recent-title" className={eyebrow}>
+    <details className="group">
+      <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-xs font-semibold text-ink-2 transition-colors select-none hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 [&::-webkit-details-marker]:hidden">
+        <History className="size-3.5" aria-hidden="true" />
         Recent sessions
-      </h2>
+        <span className="tabular font-medium text-ink-3">{sessions.length}</span>
+        <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
       {sessions.length === 0 ? (
         <p className="mt-3 text-sm text-ink-2">No finished sessions yet.</p>
       ) : (
@@ -389,11 +430,26 @@ function RecentSessions({ sessions, timeZone }: { sessions: FocusData["recent"];
           ))}
         </ul>
       )}
-    </section>
+    </details>
   );
 }
 
-export function FocusView({ data, blocker, startMinutes }: { data: FocusData; blocker: BlockerData; startMinutes?: number }) {
+/**
+ * `library`: the library's articles for today (spec 29: the day's three; spec 48: seven, as tiles),
+ * under the start card. Not shown while a session is running or paused: then the page is for the
+ * session only. `startMinutes`: the length the page opens with (from "Free time" in the sidebar).
+ */
+export function FocusView({
+  data,
+  blocker,
+  library = [],
+  startMinutes,
+}: {
+  data: FocusData;
+  blocker: BlockerData;
+  library?: readonly (Teaser | Tile)[];
+  startMinutes?: number;
+}) {
   const { timeFormat } = useDisplay();
   const goalById = (id: string | null) => (id ? (data.goals.find((goal) => goal.id === id) ?? null) : null);
   // The rating card appears for the newest finished session if it ended in the last 12 hours.
@@ -409,15 +465,37 @@ export function FocusView({ data, blocker, startMinutes }: { data: FocusData; bl
       <div className="mt-4">
         <BlockerChip data={blocker} format={timeFormat} />
       </div>
-      <div className="mt-6 flex max-w-xl flex-col gap-6">
-        {data.active ? (
-          <RunningCard session={data.active} serverNow={data.now} goal={goalById(data.active.eventGoalId)} />
-        ) : (
-          <StartCard forEvent={data.forEvent} goal={goalById(data.forEventGoalId)} startMinutes={startMinutes} />
-        )}
-        {rateLatest && <RatingCard session={latest} />}
+      {/* Before a session: the start card and "Before you start" side by side on wide screens. */}
+      <div className={`mt-6 grid gap-6 ${data.active ? "max-w-xl" : "lg:grid-cols-2 lg:items-start"}`}>
+        <div className="flex min-w-0 flex-col gap-4">
+          {data.active ? (
+            <RunningCard session={data.active} serverNow={data.now} goal={goalById(data.active.eventGoalId)} />
+          ) : (
+            <StartCard forEvent={data.forEvent} goal={goalById(data.forEventGoalId)} startMinutes={startMinutes} />
+          )}
+          {rateLatest && <RatingCard session={latest} />}
+          <RecentSessions sessions={data.recent} timeZone={blocker.timeZone} />
+        </div>
+        {!data.active && <BeforeYouStart />}
       </div>
-      <RecentSessions sessions={data.recent} timeZone={blocker.timeZone} />
+      {!data.active && library.length > 0 && (
+        <section aria-labelledby="library-title" className="mt-10">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 id="library-title" className={eyebrow}>
+              From the library
+            </h2>
+            <Link
+              href={LIBRARY_HREF}
+              className="inline-flex items-center gap-1 rounded text-sm font-semibold text-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
+            >
+              All articles
+              <ArrowRight className="size-3.5" strokeWidth={2.2} aria-hidden="true" />
+            </Link>
+          </div>
+          <p className="mt-1 mb-4 text-sm text-ink-2">What studies found about interruptions, phones and what helps. Every number has a source you can open.</p>
+          <StudyBento tiles={library} pattern={FOCUS_PATTERN} label="Articles from the library" />
+        </section>
+      )}
     </div>
   );
 }
