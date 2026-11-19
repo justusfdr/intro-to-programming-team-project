@@ -13,6 +13,10 @@
 // For screen readers and the keyboard, each day is a labelled list of its events in time order,
 // and each event is a button whose name says title, day, time and marks. The hour axis, the lines
 // and the empty slots are decoration. Everything a drag does can be done in the editor too.
+//
+// Spec 53 (from spec 29): other people's shared calendars, read only, on the right part of a day column
+// (the viewer's own blocks keep the left part, and only on days that have shared blocks). They never
+// take part in dragging, creating or the overlap marks (R10, R57).
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import { blockBox, clampHourPx, HOUR_PX, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, type GridRange, type Placed } from "@/lib/events/grid";
@@ -39,7 +43,9 @@ import { todoCountText } from "@/lib/todos/types";
 import { guestCountText } from "@/lib/events/guests";
 import { travelBlock, type TravelBlock } from "@/lib/travel/blocks";
 import type { TravelAnswer } from "@/lib/travel/types";
+import type { SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
 import { anchorOf, pointAnchor, type Anchor } from "./FloatingPanel";
+import { SharedAllDayChip, SharedBlockView, type OpenShared } from "./Shared";
 
 /** What the grid and the event editor need of a goal: its name, colour and icon. */
 export type GoalLabel = { id: string; title: string; look: GoalLook };
@@ -75,7 +81,20 @@ type Props = {
   onZoom?: (hourPx: number) => void;
   /** Issue #106: events whose trip runs into another event (they get the overlap mark too). */
   tripWarned?: ReadonlySet<string>;
+  /**
+   * Spec 53: other people's shared calendars, per shown day (read only, never dragged or edited; they
+   * sit on the right part of a column and leave the viewer's own blocks on the left).
+   */
+  shared?: SharedBlock[][];
+  sharedAllDay?: SharedAllDayItem[][];
+  /** The viewer's time zone, for the shared blocks' words. */
+  timeZone?: string;
+  onOpenShared?: (shared: OpenShared, anchor: Anchor) => void;
 };
+
+/** Spec 53: the part of a day column the viewer's own blocks keep when shared blocks are shown on that day. */
+const OWN_AREA = 0.62;
+const NO_SHARED: SharedBlock[] = [];
 
 type Gesture =
   | { kind: "create"; pointerId: number; dayIndex: number; x: number; y: number; anchorMin: number; active: boolean }
@@ -186,6 +205,8 @@ function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined,
 
 type BlockProps = {
   block: Placed;
+  /** The part of the column the viewer's own blocks use (1, or less when shared blocks are shown). */
+  area: number;
   range: GridRange;
   dayLong: string;
   dayIndex: number;
@@ -204,7 +225,7 @@ type BlockProps = {
  * Outlook event the calendar icon. Kept from our rules: the conflict edge and icon (R10) and "not sent
  * to Outlook" (R26). A block that may be dragged moves with the pointer; its bottom edge resizes it.
  */
-function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, warned, onOpen, onMoveStart, onResizeStart }: BlockProps) {
+function EventBlock({ block, area, range, dayLong, dayIndex, goal, draggable, dimmed, warned, onOpen, onMoveStart, onResizeStart }: BlockProps) {
   const { event } = block;
   const { timeFormat } = useDisplay();
   // Events of a goal take the goal's colour; others stay neutral. An overlap adds a yellow edge and an icon.
@@ -233,8 +254,8 @@ function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, 
       style={{
         top: top + 1,
         height: height - 2,
-        left: `calc(${(block.lane / block.lanes) * 100}% + 2px)`,
-        width: `calc(${100 / block.lanes}% - 4px)`,
+        left: `calc(${(block.lane / block.lanes) * area * 100}% + 2px)`,
+        width: `calc(${(100 * area) / block.lanes}% - 4px)`,
       }}
       className={`pointer-events-auto absolute z-[2] overflow-hidden rounded-lg border px-1.5 py-1 text-left transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40 ${
         colors
@@ -281,7 +302,7 @@ const TRAVEL_BY: Record<TravelBlock["mode"], string> = { driving: "by car", cycl
  * R27: the trip to an event, drawn as a dashed, striped block from the time to leave to the event's start,
  * in the event's lane. Only a picture: clicks go through to the grid, and the event's editor says it in words.
  */
-function TravelBox({ trip, block, range }: { trip: TravelBlock; block: Placed; range: GridRange }) {
+function TravelBox({ trip, block, range, area }: { trip: TravelBlock; block: Placed; range: GridRange; area: number }) {
   const { timeFormat } = useDisplay();
   if (trip.toMin <= range.startMin) return null;
   const top = minuteToPx(Math.max(trip.fromMin, range.startMin), range);
@@ -296,8 +317,8 @@ function TravelBox({ trip, block, range }: { trip: TravelBlock; block: Placed; r
       style={{
         top: top + 1,
         height: height - 1,
-        left: `calc(${(block.lane / block.lanes) * 100}% + 2px)`,
-        width: `calc(${100 / block.lanes}% - 4px)`,
+        left: `calc(${(block.lane / block.lanes) * area * 100}% + 2px)`,
+        width: `calc(${(100 * area) / block.lanes}% - 4px)`,
         backgroundImage: "repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, currentColor 9%, transparent) 6px 7px)",
       }}
     >
@@ -441,6 +462,41 @@ function AllDayRow({ days, selectedDay, onOpenEvent, weekDates, weekAllDay, onCr
 }
 
 /**
+ * Spec 53 (from spec 29): other people's all-day events, under the viewer's own all-day row, one small
+ * striped chip per event and day (on phones the chosen day only). Read only.
+ */
+function SharedAllDayRow({
+  days,
+  items,
+  selectedDay,
+  onOpen,
+}: {
+  days: WeekDay[];
+  items: SharedAllDayItem[][];
+  selectedDay: string;
+  onOpen: (shared: OpenShared, anchor: Anchor) => void;
+}) {
+  if (!items.some((list) => list.length > 0)) return null;
+  const chosen = days.findIndex((d) => d.date === selectedDay);
+  return (
+    <section aria-label="Shared, all day" className={`${items[chosen]?.length ? "flex" : "hidden"} border-b border-line-subtle md:flex`}>
+      <div aria-hidden className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] leading-[12px] font-medium text-ink-3">
+        Shared
+      </div>
+      {days.map((day, i) => (
+        <ul key={day.date} className={`${day.date === selectedDay ? "flex" : "hidden"} min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:flex`}>
+          {(items[i] ?? []).map((item) => (
+            <li key={item.key} className="min-w-0">
+              <SharedAllDayChip item={item} onOpen={onOpen} />
+            </li>
+          ))}
+        </ul>
+      ))}
+    </section>
+  );
+}
+
+/**
  * The smallest hour height: the visible area below the dates and the all-day row, shared by the shown
  * hours. Rounded down, so the hours never come out a fraction of a pixel too tall and start to scroll.
  */
@@ -467,6 +523,10 @@ export function TimeGrid({
   onCreateAllDay,
   onZoom,
   tripWarned,
+  shared,
+  sharedAllDay,
+  timeZone = "UTC",
+  onOpenShared,
 }: Props) {
   const { timeFormat } = useDisplay();
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
@@ -756,6 +816,7 @@ export function TimeGrid({
           )}
 
           <AllDayRow days={days} selectedDay={selectedDay} onOpenEvent={onOpenEvent} weekDates={weekDates} weekAllDay={weekAllDay} onCreateAllDay={onCreateAllDay} />
+          {sharedAllDay && onOpenShared && <SharedAllDayRow days={days} items={sharedAllDay} selectedDay={selectedDay} onOpen={onOpenShared} />}
         </div>
 
         {hasEarly && (
@@ -817,6 +878,9 @@ export function TimeGrid({
             const parts = { long: fmtDateLong(day.date) };
             const blocks = placed[i];
             const listed = blocks.filter((b) => !b.continuesBefore);
+            // Spec 53: shared blocks of this day within the shown hours; only then do the own blocks narrow.
+            const sharedHere = onOpenShared ? (shared?.[i] ?? NO_SHARED).filter((b) => b.endMin > range.startMin && b.startMin < range.endMin) : NO_SHARED;
+            const area = sharedHere.length > 0 ? OWN_AREA : 1;
             return (
               <section
                 key={day.date}
@@ -864,13 +928,24 @@ export function TimeGrid({
                 {travel &&
                   blocks.map((block) => {
                     const trip = travelBlock(block.event, block.startMin, block.continuesBefore, travel[block.event.id]);
-                    return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} />;
+                    return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} area={area} />;
                   })}
+                {/* Spec 53: others' blocks, under the viewer's own. Only a details block takes a click. */}
+                {sharedHere.length > 0 && onOpenShared && (
+                  <ul aria-label="Shared calendars" className="pointer-events-none absolute inset-0">
+                    {sharedHere.map((block) => (
+                      <li key={`${block.key}-${block.continuesBefore ? "after" : "start"}`}>
+                        <SharedBlockView block={block} range={range} left={OWN_AREA} width={1 - OWN_AREA} timeZone={timeZone} onOpen={onOpenShared} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <ul className="pointer-events-none absolute inset-0">
                   {blocks.filter((block) => !isBeforeGrid(block, range)).map((block) => (
                     <li key={`${block.event.id}-${block.continuesBefore ? "after" : "start"}`}>
                       <EventBlock
                         block={block}
+                        area={area}
                         range={range}
                         dayLong={parts.long}
                         dayIndex={i}

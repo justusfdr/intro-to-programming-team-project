@@ -1,9 +1,13 @@
 import "server-only";
 
-// GET /api/profiles/[id]/photo (spec 40, R43): the signed-in user's own photo. Only the user sees their
-// profile, so any other id is refused here, before the database is asked; the database function
-// app.profile_photo checks again who may see a photo. "No such user", "someone else", "no photo" and an
-// id that is not a uuid all get the very same 404, in body and headers.
+// GET /api/profiles/[id]/photo (spec 40, spec 53, R43): a user's photo, for the user themselves, their
+// contacts and the people they have an open invitation from. The database decides: app.profile_photo
+// checks its own rule, and the photo is served only when app.profile_card gives a row for the same id too.
+// The second check keeps the photo to R43 exactly: the live database's app.may_see_profile (behind
+// app.profile_photo) also lets people of the old shared lists and event invitations see each other, rows
+// this version of the app neither writes nor uses (docs/setup.md), while app.profile_card follows R43.
+// "No such user", "someone the user may not see", "no photo" and an id that is not a uuid all get the
+// very same 404, in body and headers.
 //
 // The photo is served as an image that can never run as a page: its stored type (decided from its
 // bytes), nosniff, a content security policy that allows nothing and sandboxes it, and only our own
@@ -53,14 +57,14 @@ export function deliverProfilePhoto(
   return handleAction(async () => {
     const userId = await requireUser(deps.auth);
     if (!UUID.test(id)) return photoNotFound();
-    // Only the user's own photo, whatever the database would allow: it may hold rows of the tables
-    // this version of the app neither writes nor uses (docs/setup.md), which app.profile_photo honours.
-    if (id.toLowerCase() !== userId.toLowerCase()) return photoNotFound();
 
     // version: the photo's time in microseconds, so two uploads in the same millisecond still differ.
+    // Only when app.profile_card also gives a row: the photo follows the card's rule (R43), see above.
     const [row] = await deps.withUser(userId, (query) =>
       query<{ mime: string; data: string; version: string }>(
-        "select mime, data, (extract(epoch from updated_at) * 1000000)::bigint::text as version from app.profile_photo($1::uuid)",
+        `select p.mime, p.data, (extract(epoch from p.updated_at) * 1000000)::bigint::text as version
+           from app.profile_photo($1::uuid) p
+          where exists (select 1 from app.profile_card($1::uuid))`,
         [id],
       ),
     );
