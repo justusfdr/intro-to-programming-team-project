@@ -9,12 +9,16 @@
 // city, and small marks of what they share with the user. No e-mail address on the cards; the sharing
 // controls and "Remove" live on the profile page. Invitations stay above the grid as compact rows; an
 // inviter is a PersonChip, a plain link to their profile page, where their address is shown (R53).
+// Spec 54 (changed 19 Nov 2026): above the contact invitations, the event invitations still to look at,
+// each answered here as on the calendar (Accept / Maybe / Decline, the same action).
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, type FormEvent, type ReactNode } from "react";
-import { Clock, Inbox, Mail, Send, UserPlus, Users } from "lucide-react";
+import { useCallback, useId, useState, type FormEvent, type ReactNode } from "react";
+import { CalendarClock, Clock, Inbox, Mail, Send, UserPlus, Users } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
+import { useRefreshOnReturn } from "@/components/live/useRefreshOnReturn";
+import { OpenInvitation } from "@/components/calendar/Invites";
 import { useMinuteClock } from "@/components/profile/parts";
 import { SettingsCardHeader, INPUT_CLASS } from "@/components/settings/fields";
 import { useDisplay } from "@/components/shell/DisplayProvider";
@@ -22,6 +26,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card, PageHeader } from "@/components/ui/Card";
 import { postJson } from "@/lib/client/post-json";
+import { answeredText, type GivenAnswer, type InviteAnswer, type InvitedEvent } from "@/lib/invites/types";
 import { bioLine, localTimeLabel } from "@/lib/people/present";
 import type { PeopleData, PersonFacts } from "@/lib/profiles/types";
 import { NOTHING_SHARED, type ContactShares, type ShareSetting } from "@/lib/shares/types";
@@ -88,12 +93,62 @@ export function ContactCard({ person, now }: { person: CardPerson; now: string }
   );
 }
 
+/**
+ * Spec 54 (changed 19 Nov 2026): the event invitations still to look at (not answered, or declined, of
+ * events that have not ended), as in the calendar's toolbar list. An answer is saved at once by the same
+ * action as on the calendar, shown at once, announced, and the page is read again. An accepted one
+ * leaves the list. Nothing when there are none.
+ */
+export function EventInvitations({ open, timeZone }: { open: readonly InvitedEvent[]; timeZone: string }) {
+  const router = useRouter();
+  const announce = useAnnounce();
+  const [answers, setAnswers] = useState<Readonly<Record<string, InviteAnswer>>>({});
+  const [answering, setAnswering] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const answerOf = (event: InvitedEvent): InviteAnswer => answers[event.inviteId] ?? event.answer;
+  const shown = open.filter((event) => answerOf(event) === "pending" || answerOf(event) === "declined");
+  if (shown.length === 0) return null;
+
+  async function answerInvite(event: InvitedEvent, answer: GivenAnswer) {
+    setAnswering(event.inviteId);
+    setError(null);
+    const result = await postJson(`/api/invites/${encodeURIComponent(event.inviteId)}/answer`, { answer });
+    setAnswering(null);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    setAnswers((current) => ({ ...current, [event.inviteId]: answer }));
+    announce(result.message || answeredText(answer));
+    router.refresh();
+  }
+
+  return (
+    <Section icon={CalendarClock} title="Event invitations" description="Events your contacts invited you to. Read only; you can change your answer until the event ends.">
+      <div aria-live="polite">{error && <FormMessage tone="error" text={error} />}</div>
+      <ul className="flex flex-col">
+        {shown.map((event) => (
+          <OpenInvitation
+            key={event.inviteId}
+            event={event}
+            answer={answerOf(event)}
+            busy={answering === event.inviteId}
+            timeZone={timeZone}
+            onAnswer={(answer) => void answerInvite(event, answer)}
+          />
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
 export function PeopleView({
   data,
   timeZone,
   shares = [],
   facts = [],
   now,
+  eventInvites = [],
 }: {
   data: PeopleData;
   timeZone: string;
@@ -102,9 +157,15 @@ export function PeopleView({
   facts?: PersonFacts[];
   /** When the page was read (ISO). */
   now?: string;
+  /** Spec 54: the event invitations still to look at, answered in their own section above the contact invitations. */
+  eventInvites?: readonly InvitedEvent[];
 }) {
   const router = useRouter();
   const announce = useAnnounce();
+  // Spec 54 (changed 19 Nov 2026): re-read when the window comes back (at most every 10 s), so a new
+  // invitation shows without Reload.
+  const refreshPage = useCallback(() => router.refresh(), [router]);
+  useRefreshOnReturn(refreshPage);
   const inputId = useId();
   const hintId = useId();
   const [busy, setBusy] = useState(false);
@@ -193,6 +254,8 @@ export function PeopleView({
             {sentNote}
           </p>
         </Section>
+
+        <EventInvitations open={eventInvites} timeZone={timeZone} />
 
         <Section icon={Inbox} title="Invitations for you">
           {data.received.length === 0 ? (

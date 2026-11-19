@@ -60,6 +60,7 @@ import type { NewTodo } from "@/lib/todos/types";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { useLive, useLiveWeek } from "@/components/live/Live";
+import { useRefreshOnReturn } from "@/components/live/useRefreshOnReturn";
 import { DateJumpTitle } from "./DateJump";
 import { EventEditor, SeriesQuestion, type EditorState } from "./EventEditor";
 import { deletedTodos, dropText, isGuestsError, movedChange, recreateBody, savedEvent, savedEventChange, timesBody, withoutGuests, type Scope } from "./event-changes";
@@ -236,6 +237,9 @@ export function CalendarView({
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
   const { dayStartHour, dayEndHour, timeFormat } = useDisplay();
   const live = useLive();
+  // Spec 54 (changed 19 Nov 2026): re-read the page when the window comes back (at most every 10 s), so
+  // a new invitation shows without Reload; the client's state stays.
+  useRefreshOnReturn(live.refresh);
   const outlookConnected = week.outlook.status === "connected";
   const closePop = useCallback(() => setPop(null), []);
   /**

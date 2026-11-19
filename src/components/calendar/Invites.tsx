@@ -216,8 +216,11 @@ export function InvitedEventCard({ anchor, onClose, ...body }: InvitedProps & { 
   );
 }
 
-/** One invitation in the toolbar's list: title, time, who invited, the three answers. */
-function OpenInvitation({ event, answer, busy, timeZone, onAnswer }: { event: InvitedEvent; answer: InviteAnswer; busy: boolean; timeZone: string; onAnswer: (a: GivenAnswer) => void }) {
+/**
+ * One invitation in the toolbar's list (and in the People page's "Event invitations", spec 54, changed
+ * 19 Nov 2026): title, time, place as text, who invited, the three answers.
+ */
+export function OpenInvitation({ event, answer, busy, timeZone, onAnswer }: { event: InvitedEvent; answer: InviteAnswer; busy: boolean; timeZone: string; onAnswer: (a: GivenAnswer) => void }) {
   const { timeFormat } = useDisplay();
   return (
     <li className="flex flex-col gap-2 border-b border-line-subtle py-3 last:border-b-0">
@@ -226,6 +229,8 @@ function OpenInvitation({ event, answer, busy, timeZone, onAnswer }: { event: In
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-ink">{event.title}</p>
           <p className="text-xs text-ink-2">{invitedWhen(event, timeZone, timeFormat)}</p>
+          {/* Other people's places are text only, never looked up anywhere. */}
+          {event.location && <p className="truncate text-xs text-ink-2">{event.location}</p>}
           <p className="truncate text-xs text-ink-3">Invited by {event.inviter.name}</p>
         </div>
         <span className="sr-only">Your answer: {answerWords(answer)}</span>

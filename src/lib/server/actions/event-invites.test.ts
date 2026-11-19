@@ -11,7 +11,7 @@ import { createTestApp, OWN_ORIGIN, postJson, read, type TestApp } from "@test/s
 import { setPlan } from "@test/support/chat";
 import { countingWithUser } from "@test/support/counting";
 import { readPeople } from "@/lib/server/profiles/cards";
-import { loadCalendarPage, loadCalendarPageWithInvites, loadCalendarPageWithShares } from "@/lib/server/pages/load";
+import { loadCalendarPage, loadCalendarPageWithInvites, loadCalendarPageWithShares, loadPeoplePage, loadPeoplePageWithInvites } from "@/lib/server/pages/load";
 import { INVITE_CONTACT_KEYS, INVITE_PERSON_CARD_KEYS, INVITE_PERSON_KEYS, INVITED_EVENT_KEYS } from "@/lib/invites/types";
 import { deliverProfilePhoto } from "./deliver-photo";
 import { answerEventInvite, eventInvitees, invitedEvents, invitePeople, pendingInviteCount, setEventInvites } from "./event-invites";
@@ -420,5 +420,45 @@ describe("the coach (R22, R63, S5)", () => {
     expect((await sendMessage(postJson("/api/chat/messages", { text: "What is on this week?" }), app.deps)).status).toBe(201);
     const bensRequest = JSON.stringify(app.assistant.requests.at(-1));
     for (const hidden of ["Group project meeting", ana, "ana@example.com"]) expect(bensRequest).not.toContain(hidden);
+  });
+});
+
+describe("the People page (spec 54, changed 19 Nov 2026)", () => {
+  it("one transaction: everything of the People page, the invitations still to look at and how many are not answered", async () => {
+    const { ana, ben, anaBen } = await cast();
+    const event = await seedEvent(ana, "Group project meeting");
+    await setInvites(event, [anaBen]);
+
+    const { withUser, transactions } = countingWithUser(app.db);
+    const page = await loadPeoplePageWithInvites({ withUser, now: app.deps.now }, ben);
+    expect(transactions).toHaveLength(1);
+    const { eventInvites, ...rest } = page;
+    expect(rest).toEqual(await loadPeoplePage(app.deps, ben));
+    expect(eventInvites.pending).toBe(1);
+    expect(eventInvites.open).toHaveLength(1);
+    expect(eventInvites.open[0]).toMatchObject({ title: "Group project meeting", location: "Library, room 4", answer: "pending", allDay: false, inviter: { userId: ana } });
+    for (const key of keysOf(eventInvites.open)) expect([...INVITED_EVENT_KEYS, ...INVITE_PERSON_CARD_KEYS] as readonly string[]).toContain(key);
+    const text = JSON.stringify(eventInvites);
+    for (const hidden of ["Secret notes", "Secret to-do", "lea@example.com", "@", event]) expect(text).not.toContain(hidden);
+
+    // Declined: still in the list, no longer counted. Accepted: neither.
+    await app.signedInAs("ben@example.com");
+    const inviteId = await inviteOf(ben);
+    expect((await answer(inviteId, "declined")).status).toBe(200);
+    const declined = (await loadPeoplePageWithInvites(app.deps, ben)).eventInvites;
+    expect([declined.open.map((e) => e.answer), declined.pending]).toEqual([["declined"], 0]);
+    expect((await answer(inviteId, "accepted")).status).toBe(200);
+    expect((await loadPeoplePageWithInvites(app.deps, ben)).eventInvites).toEqual({ open: [], pending: 0 });
+
+    // The owner has no invitations of her own to answer.
+    expect((await loadPeoplePageWithInvites(app.deps, ana)).eventInvites).toEqual({ open: [], pending: 0 });
+  });
+
+  it("loadPeoplePage returns exactly what it did: no invitations in it", async () => {
+    const { ana, ben, anaBen } = await cast();
+    await setInvites(await seedEvent(ana, "Group project meeting"), [anaBen]);
+    const plain = await loadPeoplePage(app.deps, ben);
+    expect(Object.keys(plain).sort()).toEqual(["display", "facts", "now", "people", "shares", "timeZone"]);
+    expect(JSON.stringify(plain)).not.toContain("Group project meeting");
   });
 });

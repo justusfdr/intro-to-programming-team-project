@@ -45,7 +45,7 @@ import { readPeople } from "@/lib/server/profiles/cards";
 import { isUserId, readProfileCard, readProfileCards } from "@/lib/server/profiles/profile-card";
 import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
 import { cardsOfContacts, inviteContactsOf, openInvitesOf, readInvitedEvents, readOpenInviteRows, readOwnInvitees, readPendingInviteCount } from "@/lib/server/invites/read";
-import type { CalendarInvites } from "@/lib/invites/types";
+import type { CalendarInvites, InvitedEvent } from "@/lib/invites/types";
 import { NOTHING_SHARED, type ContactShares, type PersonRelation, type SharingPerson } from "@/lib/shares/types";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readPlaces } from "@/lib/server/places/saved";
@@ -460,6 +460,47 @@ export async function loadPeoplePage(deps: Pick<Deps, "withUser"> & Partial<Pick
       shares,
       facts: cards.map((card) => ({ userId: card.userId, bio: card.bio, timeZone: card.timeZone })),
       now: now.toISOString(),
+    };
+  });
+}
+
+/** What the People page gets about event invitations (spec 54, changed 19 Nov 2026). */
+export type PeopleEventInvites = {
+  /** Invitations still to look at (not answered, or declined), of events that have not ended. */
+  open: InvitedEvent[];
+  /** How many are not answered yet (part of the number on "People" in the sidebar). */
+  pending: number;
+};
+
+/**
+ * The People page with the event invitations as well (spec 54, changed 19 Nov 2026 after the owner tried
+ * it with two accounts): everything of loadPeoplePage, plus the invitations still to look at and how many
+ * are not answered yet, in the same one transaction. loadPeoplePage itself returns exactly what it did.
+ */
+export async function loadPeoplePageWithInvites(
+  deps: Pick<Deps, "withUser"> & Partial<Pick<Deps, "now">>,
+  userId: string,
+): Promise<PeoplePageData & { eventInvites: PeopleEventInvites }> {
+  const now = deps.now?.() ?? new Date();
+  return deps.withUser(userId, async (query) => {
+    // Without parameters, so started first (see the top of this file).
+    const openRead = readOpenInviteRows(query);
+    const pendingRead = readPendingInviteCount(query);
+    const settingsRead = readSettings(query);
+    const peopleRead = readPeople(query);
+    const sharesRead = readSharesOverview(query);
+    const [openRows, pending, settings, people, shares] = await Promise.all([openRead, pendingRead, settingsRead, peopleRead, sharesRead]);
+    // One more question (with a parameter, so after the others): the cards of these people.
+    const cards = await readProfileCards(query, [...people.contacts, ...people.received].map((p) => p.userId));
+    return {
+      display: displayOf(settings),
+      timeZone: settings.timeZone,
+      people,
+      shares,
+      facts: cards.map((card) => ({ userId: card.userId, bio: card.bio, timeZone: card.timeZone })),
+      now: now.toISOString(),
+      // The inviter is always one of the user's contacts (R59): their name and photo from the contact card.
+      eventInvites: { open: openInvitesOf(openRows, cardsOfContacts(people.contacts)), pending },
     };
   });
 }

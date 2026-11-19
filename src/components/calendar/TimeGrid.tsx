@@ -251,6 +251,11 @@ function EventBlock({ block, area, range, dayLong, dayIndex, goal, draggable, di
     block.continuesBefore || block.continuesAfter
       ? `${block.continuesBefore ? "…" : fmtTime(event.startTime, timeFormat)} – ${fmtTime(event.endTime, timeFormat)}${block.continuesAfter ? "+1" : ""}`
       : fmtRange(event.startTime, event.endTime, timeFormat);
+  // Room for a row of its own under title and time (and place), at the bottom left (spec 24's guests icon).
+  const roomBelow = height >= (event.location ? 88 : 68);
+  // Spec 54: otherwise the invited people's avatars go into the time row; below 44 px there is no time
+  // row and no avatars (the block's accessible name and title say who).
+  const stackInTimeRow = people.length > 0 && height >= 44 && !roomBelow;
 
   return (
     <button
@@ -284,7 +289,19 @@ function EventBlock({ block, area, range, dayLong, dayIndex, goal, draggable, di
       >
         {event.title}
       </span>
-      {height >= 44 && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{time}</span>}
+      {height >= 44 &&
+        (stackInTimeRow ? (
+          // Spec 54 (changed 19 Nov 2026): no row of its own under title and time, so the invited people's
+          // avatars lead the time row ("[JF] 12:00 – 13:00") instead of lying on top of the time.
+          <span className="flex min-w-0 items-center gap-1 text-[10px] leading-[13px] opacity-80">
+            <span aria-hidden className="shrink-0">
+              <AvatarStack people={people} />
+            </span>
+            <span className="min-w-0 truncate tabular">{time}</span>
+          </span>
+        ) : (
+          <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{time}</span>
+        ))}
       {height >= 72 && event.location && <span className="block truncate pr-3 text-[10px] opacity-80">{event.location}</span>}
       {(warned || event.source === "outlook" || event.notSent) && (
         <span className="absolute right-1 top-1 flex items-center gap-0.5">
@@ -299,11 +316,12 @@ function EventBlock({ block, area, range, dayLong, dayIndex, goal, draggable, di
         done && <span className="absolute bottom-1 right-1 block size-1.5 rounded-full bg-success" />
       )}
       {/* Spec 24: a small people icon with the number of guests, when the block is tall enough. Spec 54:
-          before it, a stack of up to three avatars of the people invited in the app. */}
-      {(people.length > 0 && height >= 44) || (event.guests?.length && height >= (event.location ? 88 : 68)) ? (
+          before it, a stack of up to three avatars of the people invited in the app (in the time row
+          when the block has no room for a row of its own, see above). */}
+      {(people.length > 0 && roomBelow) || (event.guests?.length && roomBelow) ? (
         <span aria-hidden className="absolute bottom-1 left-1.5 flex items-center gap-1 text-[10px] tabular opacity-80">
           {people.length > 0 && <AvatarStack people={people} />}
-          {event.guests?.length && height >= (event.location ? 88 : 68) ? (
+          {event.guests?.length && roomBelow ? (
             <span className="flex items-center gap-0.5">
               <Users className="size-3" strokeWidth={2} />
               {event.guests.length}

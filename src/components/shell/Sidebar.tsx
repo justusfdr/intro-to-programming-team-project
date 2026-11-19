@@ -5,8 +5,9 @@
 // and folds when the mouse leaves; opened like that it lies over the page, so nothing on the page
 // jumps. The same button then keeps it open for good. The choice is remembered in this browser only.
 // At the bottom: Pricing, Settings, then the user's own row to their profile (spec 40), where "Sign out" is.
-// "People" (spec 53) follows the main navigation, with the number of open invitations to the user.
-// "Calendar" (spec 54, from spec 36) carries the number of event invitations not answered yet.
+// "People" (spec 53) follows the main navigation, with the number of open invitations to the user: since
+// spec 54 (changed 19 Nov 2026) one number for both kinds, contact invitations and event invitations not
+// answered yet. "Calendar" has no number.
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
 import { ChevronsLeft, Pin } from "lucide-react";
@@ -60,68 +61,32 @@ function SidebarLink({ item, on, wide }: { item: NavItem; on: boolean; wide: boo
 }
 
 /**
- * Spec 54 (from spec 36): "Calendar" with the number of event invitations the user has not answered yet.
- * A page that has read the number passes it (the calendar page); on every other page it is asked once
- * from the server (a failure just shows no badge). Without invitations it is the plain link.
+ * A number the page passes, or else asked once from the server (null until it is in). A failed request
+ * counts as 0.
  */
-function CalendarLink({ item, on, wide, pending }: { item: NavItem; on: boolean; wide: boolean; pending?: number }) {
+function useCount(given: number | undefined, path: string): number {
   const [asked, setAsked] = useState<number | null>(null);
   useEffect(() => {
-    if (pending !== undefined) return;
+    if (given !== undefined) return;
     let current = true;
-    void getJson("/api/invites/count").then((answer) => {
+    void getJson(path).then((answer) => {
       const count = (answer.data as { count?: unknown } | undefined)?.count;
-      if (current && answer.ok && typeof count === "number") setAsked(count);
+      if (current) setAsked(answer.ok && typeof count === "number" ? count : 0);
     });
     return () => {
       current = false;
     };
-  }, [pending]);
-  const count = pending ?? asked ?? 0;
-  if (count === 0) return <SidebarLink item={item} on={on} wide={wide} />;
-  const Icon = item.icon;
-  const label = `${item.label}, ${count} ${count === 1 ? "invitation" : "invitations"} to answer`;
-  return (
-    <Link
-      href={item.href}
-      aria-current={on ? "page" : undefined}
-      aria-label={label}
-      title={wide ? undefined : label}
-      className={`relative flex h-9 items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg px-[9px] text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
-        wide ? "w-full" : "w-9"
-      } ${on ? "bg-raised font-medium text-ink" : "text-ink-2 hover:bg-raised/60 hover:text-ink"}`}
-    >
-      <Icon className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
-      {item.label}
-      {wide ? (
-        <span aria-hidden="true" className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1.5 text-[11px] font-semibold tabular text-white">
-          {count > 99 ? "99+" : count}
-        </span>
-      ) : (
-        <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-today" />
-      )}
-    </Link>
-  );
+  }, [given, path]);
+  return given ?? asked ?? 0;
 }
 
 /**
- * "People" (spec 53) with the number of open invitations to the user. A page that has read the number
- * passes it; on every other page it is asked once from the server (a failure just shows no badge).
+ * "People" (spec 53) with the number of open invitations to the user: the contact invitations plus, since
+ * spec 54 (changed 19 Nov 2026), the event invitations not answered yet. A page that has read a part
+ * passes it; every other part is asked once from its own count route (a failure counts as 0).
  */
-function PeopleLink({ on, wide, invitations }: { on: boolean; wide: boolean; invitations?: number }) {
-  const [asked, setAsked] = useState<number | null>(null);
-  useEffect(() => {
-    if (invitations !== undefined) return;
-    let current = true;
-    void getJson("/api/contacts/invitations/count").then((answer) => {
-      const count = (answer.data as { count?: unknown } | undefined)?.count;
-      if (current && answer.ok && typeof count === "number") setAsked(count);
-    });
-    return () => {
-      current = false;
-    };
-  }, [invitations]);
-  const count = invitations ?? asked ?? 0;
+export function PeopleLink({ on, wide, invitations, pendingInvites }: { on: boolean; wide: boolean; invitations?: number; pendingInvites?: number }) {
+  const count = useCount(invitations, "/api/contacts/invitations/count") + useCount(pendingInvites, "/api/invites/count");
   const Icon = PEOPLE.icon;
   const label = count > 0 ? `${PEOPLE.label}, ${count} open ${count === 1 ? "invitation" : "invitations"}` : PEOPLE.label;
   return (
@@ -252,17 +217,13 @@ export function Sidebar({ current, invitations, me, pendingInvites }: { current:
           )}
         </div>
         <nav aria-label="Main navigation" className="mt-4 flex flex-col gap-0.5">
-          {NAV.map((item) =>
-            item.href === "/" ? (
-              <CalendarLink key={item.href} item={item} on={current === item.href} wide={wide} pending={pendingInvites} />
-            ) : (
-              <SidebarLink key={item.href} item={item} on={current === item.href} wide={wide} />
-            ),
-          )}
+          {NAV.map((item) => (
+            <SidebarLink key={item.href} item={item} on={current === item.href} wide={wide} />
+          ))}
         </nav>
         {/* Right below the main navigation, in a list of its own (spec 53). */}
         <div className="mt-0.5 flex flex-col">
-          <PeopleLink on={current === PEOPLE.href || current.startsWith(`${PEOPLE.href}/`)} wide={wide} invitations={invitations} />
+          <PeopleLink on={current === PEOPLE.href || current.startsWith(`${PEOPLE.href}/`)} wide={wide} invitations={invitations} pendingInvites={pendingInvites} />
         </div>
         {/* The widgets (spec 47), only while the sidebar is kept open; folded, the bottom links stay at the bottom. */}
         {!folded && <WidgetArea />}

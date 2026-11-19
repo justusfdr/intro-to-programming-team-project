@@ -24,7 +24,7 @@ type Props = {
   invitations?: number;
   /** The user's shown name and photo for the sidebar's last row (spec 40); the sidebar asks the server when left out. */
   me?: SidebarMe;
-  /** Spec 54: event invitations not answered yet, for the badge on "Calendar"; the sidebar asks the server when left out. */
+  /** Spec 54: event invitations not answered yet, added to the number on "People"; the sidebar asks the server when left out. */
   pendingInvites?: number;
 };
 
