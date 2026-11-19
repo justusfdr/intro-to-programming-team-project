@@ -4,8 +4,9 @@ import "server-only";
 // contacts and the people they have an open invitation from. The database decides: app.profile_photo
 // checks its own rule, and the photo is served only when app.profile_card gives a row for the same id too.
 // The second check keeps the photo to R43 exactly: the live database's app.may_see_profile (behind
-// app.profile_photo) also lets people of the old shared lists and event invitations see each other, rows
-// this version of the app neither writes nor uses (docs/setup.md), while app.profile_card follows R43.
+// app.profile_photo) also lets people of the old shared lists and of an event invitation see each other
+// (spec 54 uses invitations, but shows a co-invited person who is not a contact by name and initials
+// only), while app.profile_card follows R43.
 // "No such user", "someone the user may not see", "no photo" and an id that is not a uuid all get the
 // very same 404, in body and headers.
 //

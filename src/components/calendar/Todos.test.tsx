@@ -107,7 +107,8 @@ describe("its place in the editor", () => {
   // Rewritten for spec 24: GUESTS now sits between WHEN and TO-DOS, so it is seen without scrolling.
   it("an app event: TO-DOS under WHEN and GUESTS, before GOAL", () => {
     const html = renderToStaticMarkup(<EditEventCard event={event("e1", "Study", "2026-11-17T12:00", "2026-11-17T13:00")} {...COMMON} />);
-    expect(order(html).slice(0, 4)).toEqual(["When", "Guests", "To-dos", "Goal"]);
+    // Changed for spec 54: PEOPLE IN LOCKEDIN comes before the guests, now called "Guests by e-mail (Outlook)".
+    expect(order(html).slice(0, 5)).toEqual(["When", "People in LockedIn", "Guests by e-mail (Outlook)", "To-dos", "Goal"]);
   });
 
   it("an Outlook event has no to-dos (R11)", () => {
@@ -120,7 +121,8 @@ describe("its place in the editor", () => {
 
   it("a new event ('Add details') holds a list too", () => {
     const html = renderToStaticMarkup(<NewEventCard draft={{ start: "2026-11-17T12:00", end: "2026-11-17T13:00" }} {...COMMON} />);
-    expect(order(html).slice(0, 4)).toEqual(["When", "Guests", "To-dos", "Goal"]);
+    // Changed for spec 54: the same two sections for a new event (created first, then its people invited).
+    expect(order(html).slice(0, 5)).toEqual(["When", "People in LockedIn", "Guests by e-mail (Outlook)", "To-dos", "Goal"]);
   });
 });
 

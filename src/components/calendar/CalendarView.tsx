@@ -20,6 +20,12 @@
 // on the screen (src/lib/shares/place.ts): read only, never dragged, never in the editor, and never part
 // of the viewer's overlap marks or questions (R10: `shownEvents`, `timed`, `tripWarned` and `overlapAt`
 // are built from the viewer's own events only) or of what the coach gets (R22, R57).
+//
+// Spec 54 (from spec 36): events the viewer is invited to are drawn the same way, in the look of R61
+// (src/lib/shares/place.ts, invitedCalendars): read only, never one of the viewer's own events. A click
+// opens a small card at the block (spec 38) with Accept, Maybe, Decline; the toolbar's "N invitations"
+// lists those still to look at. An answer shows at once and the days are read again. When the inviter's
+// shared calendar is shown too, the shared copy of the same event is left out (withoutInvitedTwins).
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -54,6 +60,7 @@ import type { NewTodo } from "@/lib/todos/types";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { useLive, useLiveWeek } from "@/components/live/Live";
+import { useRefreshOnReturn } from "@/components/live/useRefreshOnReturn";
 import { DateJumpTitle } from "./DateJump";
 import { EventEditor, SeriesQuestion, type EditorState } from "./EventEditor";
 import { deletedTodos, dropText, isGuestsError, movedChange, recreateBody, savedEvent, savedEventChange, timesBody, withoutGuests, type Scope } from "./event-changes";
@@ -66,7 +73,9 @@ import { TimeGrid, type GoalLabel } from "./TimeGrid";
 import { ShareColors, SharedEventCard, SharedPeopleButton, type OpenShared, type SharedMonthEntry } from "./Shared";
 import { useSharedCalendars } from "./useSharedCalendars";
 import { shareColors } from "@/lib/shares/colors";
-import { placeShared, sharedAllDayByDay } from "@/lib/shares/place";
+import { invitedCalendars, placeShared, sharedAllDayByDay, withoutInvitedTwins } from "@/lib/shares/place";
+import { answeredText, NO_INVITES, type CalendarInvites, type GivenAnswer, type InviteAnswer, type InvitedEvent } from "@/lib/invites/types";
+import { InvitationsButton, InvitedEventCard } from "./Invites";
 import type { SharingPerson } from "@/lib/shares/types";
 import { MEDIA, useMediaQuery } from "./useMedia";
 
@@ -87,6 +96,8 @@ type Props = {
   sharing?: SharingPerson[];
   /** Spec 53: a person the address asks to show ("?share=<id>", from "Show in my calendar"). */
   showPerson?: string;
+  /** Spec 54: invitations (the events the user is invited to, the open ones, the people of their own events). */
+  invites?: CalendarInvites;
 };
 
 const NO_PEOPLE: SharingPerson[] = [];
@@ -206,6 +217,7 @@ export function CalendarView({
   viewerId = "",
   sharing = NO_PEOPLE,
   showPerson,
+  invites = NO_INVITES,
 }: Props) {
   const week = useLiveWeek(serverWeek);
   const router = useRouter();
@@ -225,6 +237,9 @@ export function CalendarView({
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
   const { dayStartHour, dayEndHour, timeFormat } = useDisplay();
   const live = useLive();
+  // Spec 54 (changed 19 Nov 2026): re-read the page when the window comes back (at most every 10 s), so
+  // a new invitation shows without Reload; the client's state stays.
+  useRefreshOnReturn(live.refresh);
   const outlookConnected = week.outlook.status === "connected";
   const closePop = useCallback(() => setPop(null), []);
   /**
@@ -385,13 +400,42 @@ export function CalendarView({
   // Spec 53: the shared calendars chosen for showing, read for the days the server sent. They stay in
   // their own arrays: nothing below that marks or asks about overlaps ever sees them (R10, R57).
   const shownDates = useMemo(() => week.days.map((d) => d.date), [week.days]);
-  const { chosen: shownPeople, toggle: togglePerson, calendars: sharedCalendars } = useSharedCalendars(viewerId, sharing, shownDates, week.timeZone, showPerson);
+  const { chosen: shownPeople, toggle: togglePerson, calendars: chosenCalendars } = useSharedCalendars(viewerId, sharing, shownDates, week.timeZone, showPerson);
   // Each shown person's colour, and the level their calendar had when it was last read (the list of
   // people is from the page's load; a level changed since then shows in the "People" menu at once).
   const shownColors = useMemo(() => shareColors(shownPeople), [shownPeople]);
-  const shownLevels = useMemo(() => Object.fromEntries(sharedCalendars.map((c) => [c.person.userId, c.level])), [sharedCalendars]);
+  const shownLevels = useMemo(() => Object.fromEntries(chosenCalendars.map((c) => [c.person.userId, c.level])), [chosenCalendars]);
+
+  // Spec 54: the answers given on this screen since the page was read (shown at once, R61), the one in
+  // flight, and the quiet line after answering.
+  const [answers, setAnswers] = useState<Readonly<Record<string, InviteAnswer>>>({});
+  const [answering, setAnswering] = useState<string | null>(null);
+  const [answerNote, setAnswerNote] = useState<{ inviteId: string; text: string } | null>(null);
+  const answerOf = useCallback((event: InvitedEvent): InviteAnswer => answers[event.inviteId] ?? event.answer, [answers]);
+  const answerInvite = useCallback(
+    async (event: InvitedEvent, answer: GivenAnswer) => {
+      setAnswering(event.inviteId);
+      const result = await postJson(`/api/invites/${encodeURIComponent(event.inviteId)}/answer`, { answer });
+      setAnswering(null);
+      if (!result.ok) return showToast(result.message);
+      setAnswers((current) => ({ ...current, [event.inviteId]: answer }));
+      setAnswerNote({ inviteId: event.inviteId, text: result.message || answeredText(answer) });
+      // Also as a toast: from the toolbar's list an accepted invitation leaves the list at once.
+      showToast(result.message || answeredText(answer));
+      live.refresh();
+    },
+    [showToast, live],
+  );
+  const inviteCalendars = useMemo(() => invitedCalendars(invites.invited, answerOf), [invites.invited, answerOf]);
+  // Invited events after the shared calendars, so they sit in the same right part of a day column.
+  const sharedCalendars = useMemo(() => [...withoutInvitedTwins(chosenCalendars, inviteCalendars), ...inviteCalendars], [chosenCalendars, inviteCalendars]);
+  const openInvites = useMemo(() => invites.open.filter((e) => answerOf(e) === "pending" || answerOf(e) === "declined"), [invites.open, answerOf]);
+  // The small read-only card of an event that is not the user's own, at the block that opened it. An
+  // invitation is kept by its id, so the card shows the answer given meanwhile.
   const [openShared, setOpenShared] = useState<{ shared: OpenShared; anchor: Anchor } | null>(null);
   const onOpenShared = (item: OpenShared, anchor: Anchor) => setOpenShared({ shared: item, anchor });
+  const cardInviteId = openShared?.shared.invite?.inviteId;
+  const cardInvite = cardInviteId ? (invites.invited.find((e) => e.inviteId === cardInviteId) ?? invites.open.find((e) => e.inviteId === cardInviteId) ?? null) : null;
   const gridDates = useMemo(() => days.map((d) => d.date), [days]);
   const sharedBlocks = useMemo(() => placeShared(sharedCalendars, gridDates, week.timeZone), [sharedCalendars, gridDates, week.timeZone]);
   const sharedAllDay = useMemo(() => sharedAllDayByDay(sharedCalendars, gridDates), [sharedCalendars, gridDates]);
@@ -625,6 +669,7 @@ export function CalendarView({
             </LinkButton>
             <ViewSwitch views={allowedViews(isPhone)} view={view} date={date} />
             <div className="ml-auto flex items-center gap-2">
+              <InvitationsButton open={openInvites} answerOf={answerOf} busyId={answering} timeZone={week.timeZone} onAnswer={(event, answer) => void answerInvite(event, answer)} />
               <SharedPeopleButton people={sharing} chosen={shownPeople} onToggle={togglePerson} levels={shownLevels} />
               <Button variant="secondary" size="icon" aria-label="New event" title="New event" className="@3xl:w-auto @3xl:px-4" onClick={(e) => addEvent(anchorOf(e.currentTarget))}>
                 <Plus className="size-4" strokeWidth={2} />
@@ -680,6 +725,7 @@ export function CalendarView({
               sharedAllDay={sharedCalendars.length > 0 ? sharedAllDay : undefined}
               timeZone={week.timeZone}
               onOpenShared={onOpenShared}
+              invitees={invites.own}
             />
           )}
         </div>
@@ -695,6 +741,7 @@ export function CalendarView({
         onDeleted={onDeleted}
         onRefused={showToast}
         onCreated={(event) => setEditor((current) => (current ? { mode: "edit", event, anchor: current.anchor } : null))}
+        invites={{ contacts: invites.contacts, own: invites.own }}
       />
       {pop?.kind === "new" && (
         <NewEventPopover
@@ -752,7 +799,19 @@ export function CalendarView({
           />
         </FloatingPanel>
       )}
-      {openShared && <SharedEventCard shared={openShared.shared} anchor={openShared.anchor} onClose={() => setOpenShared(null)} />}
+      {openShared && !openShared.shared.invite && <SharedEventCard shared={openShared.shared} anchor={openShared.anchor} onClose={() => setOpenShared(null)} />}
+      {openShared && cardInvite && (
+        <InvitedEventCard
+          event={cardInvite}
+          anchor={openShared.anchor}
+          answer={answerOf(cardInvite)}
+          busy={answering === cardInvite.inviteId}
+          note={answerNote?.inviteId === cardInvite.inviteId ? answerNote.text : null}
+          timeZone={week.timeZone}
+          onAnswer={(answer) => void answerInvite(cardInvite, answer)}
+          onClose={() => setOpenShared(null)}
+        />
+      )}
       {toast && <ToastBar key={toast.id} toast={toast} onDone={() => setToast(null)} />}
     </ShareColors.Provider>
   );

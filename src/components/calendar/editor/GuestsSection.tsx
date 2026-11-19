@@ -1,6 +1,7 @@
 "use client";
 
-// GUESTS (spec 24), right under WHEN (so it is seen without scrolling; the owner did not find it
+// GUESTS (spec 24; headed "Guests by e-mail (Outlook)" since spec 54, to keep them apart from the
+// contacts invited inside the app, "People in LockedIn", just above), right under WHEN (so it is seen without scrolling; the owner did not find it
 // further down), in the look of the other sections. Outlook does the inviting: the
 // guests are saved with the editor's Save button (or "Add event"), and Outlook sends each one an
 // invitation when the event reaches it.
@@ -52,7 +53,7 @@ export function GuestsSection(props: Props) {
   if (props.mode === "unavailable") {
     return (
       <section className="flex flex-col gap-1.5">
-        <Eyebrow>Guests</Eyebrow>
+        <Eyebrow>Guests by e-mail (Outlook)</Eyebrow>
         {props.guests && props.guests.length > 0 && (
           <ul aria-label="Guests" className="flex flex-wrap gap-1.5">
             {props.guests.map((address) => (
@@ -71,7 +72,7 @@ export function GuestsSection(props: Props) {
     if (!props.organizer && props.guests.length === 0) return null;
     return (
       <section className="flex flex-col gap-1.5">
-        <Eyebrow>Guests</Eyebrow>
+        <Eyebrow>Guests by e-mail (Outlook)</Eyebrow>
         <ul aria-label="Guests" className="flex flex-wrap gap-1.5">
           {props.organizer && <GuestChip address={props.organizer} note="Organizer" />}
           {props.guests.map((address) => (
@@ -84,7 +85,7 @@ export function GuestsSection(props: Props) {
   if (props.mode === "connect") {
     return (
       <section className="flex flex-col gap-1.5">
-        <Eyebrow>Guests</Eyebrow>
+        <Eyebrow>Guests by e-mail (Outlook)</Eyebrow>
         {props.guests.length > 0 && (
           <ul aria-label="Guests" className="flex flex-wrap gap-1.5">
             {props.guests.map((address) => (
@@ -129,7 +130,7 @@ function EditableGuests({ guests, onChange }: { guests: readonly string[]; onCha
 
   return (
     <section className="flex flex-col gap-1.5">
-      <Eyebrow>Guests</Eyebrow>
+      <Eyebrow>Guests by e-mail (Outlook)</Eyebrow>
       {guests.length > 0 && (
         <ul aria-label="Guests" className="flex flex-wrap gap-1.5">
           {guests.map((address) => (

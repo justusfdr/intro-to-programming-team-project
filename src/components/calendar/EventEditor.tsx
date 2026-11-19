@@ -25,6 +25,9 @@
 // in place, before it deletes an event with guests (Outlook tells them).
 // Notes (issue #5) wait for Save like the location; they stay in the app. Outlook events have none (R11),
 // so the section is left out for them. Notes over 2,000 characters keep Save disabled (the server refuses them too).
+// People in LockedIn (spec 54, from spec 36; R59): above the guests by e-mail, the user's contacts to tick.
+// They wait for Save like the other fields; Save then sends them with their own action, after the event's
+// fields. A new event is created first ("Add event"), then its people are invited.
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { guestCountText } from "@/lib/events/guests";
@@ -44,6 +47,8 @@ import { EditorHeader } from "./editor/EditorHeader";
 import { EventTodos } from "./editor/EventTodos";
 import { GoalSection } from "./editor/GoalSection";
 import { GuestsSection } from "./editor/GuestsSection";
+import { PeopleSection } from "./editor/PeopleSection";
+import { inviteBlockedReason, sameInvitees, type InviteAnswer, type InviteContact, type InvitePerson } from "@/lib/invites/types";
 import { LocationSection } from "./editor/LocationSection";
 import { NotesSection } from "./editor/NotesSection";
 import { TravelLine } from "./editor/TravelLine";
@@ -73,6 +78,8 @@ type Common = {
   /** Connected to Outlook: after a change the editor asks the server to send it right away (R26). */
   outlookConnected?: boolean;
   onClose: () => void;
+  /** Spec 54: the user's contacts to invite, and the people invited to their shown events (by event id). */
+  invites?: { contacts: readonly InviteContact[]; own: Readonly<Record<string, InvitePerson[]>> };
 };
 
 type Props = Common & {
@@ -95,7 +102,7 @@ export function EventEditor({ state, shown, onDeleted, onRefused, onCreated, ...
   if (state.mode === "edit") {
     return <EditEventCard key={state.event.id} event={state.event} anchor={state.anchor} shown={shown} onDeleted={onDeleted} onRefused={onRefused} {...common} />;
   }
-  return <NewEventCard key={`${state.start}-${state.end}`} draft={state} anchor={state.anchor} onCreated={onCreated} {...common} />;
+  return <NewEventCard key={`${state.start}-${state.end}`} draft={state} anchor={state.anchor} onCreated={onCreated} onRefused={onRefused} {...common} />;
 }
 
 /** The card's frame, as in the prototype: the sections, then the footer that sticks to the bottom. */
@@ -178,7 +185,7 @@ type EditProps = Common & {
 };
 
 /** An existing event: changes wait for the Save button. */
-export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, today, outlookConnected = false, onClose, onDeleted, onRefused }: EditProps) {
+export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, today, outlookConnected = false, onClose, onDeleted, onRefused, invites }: EditProps) {
   const router = useRouter();
   const save = useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose });
   const { event, values } = save;
@@ -186,6 +193,8 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
   // Whole days only (the editor knows today's date, not the time): an event that ended earlier today
   // still shows the field, and the server refuses with the same sentence.
   const endedBeforeToday = (event.allDay ? event.lastDay : event.endLocal.slice(0, 10)) < today;
+  const people = useInviteDraft(event.id, invites);
+  const inviteReason = inviteBlockedReason(event, endedBeforeToday);
   const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);
   // The question before deleting an event with guests (spec 24), in the footer like the series question.
   const [askDelete, setAskDelete] = useState(false);
@@ -206,6 +215,14 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
     />,
     <EditorChips key="chips" event={event} />,
     <WhenSection key="when" event={event} values={values} onChange={(patch) => save.change(patch)} todayKey={today} />,
+    // Spec 54: the people invited inside the app, above the guests by e-mail; saved with Save.
+    inviteReason ? (
+      <PeopleSection key="people" mode="unavailable" reason={inviteReason} people={people.saved} />
+    ) : people.contacts.length === 0 ? (
+      <PeopleSection key="people" mode="no_contacts" />
+    ) : (
+      <PeopleSection key="people" mode="edit" contacts={people.contacts} chosen={people.chosen} answers={people.answers} error={people.error} onToggle={people.toggle} />
+    ),
     // Spec 24: right under the time. An Outlook event shows its people read-only (R11); a demo event
     // and an event of a series cannot have guests and say so.
     fromOutlook ? (
@@ -285,13 +302,29 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
         Cancel
       </Button>
     </>
-  ) : save.changed ? (
+  ) : save.changed || people.changed ? (
     // Unsaved changes: Save or Discard first. Start focus and Mark done come back once they are saved.
+    // Spec 54: the invited people are saved by their own action, after the event's own fields.
     <>
-      <Button size="sm" disabled={save.saving || cannotSave(values)} onClick={save.saveNow}>
-        {save.saving ? "Saving…" : "Save"}
+      <Button
+        size="sm"
+        disabled={save.saving || people.saving || cannotSave(values)}
+        onClick={() => {
+          if (save.changed) save.saveNow();
+          if (people.changed) void people.save();
+        }}
+      >
+        {save.saving || people.saving ? "Saving…" : "Save"}
       </Button>
-      <Button size="sm" variant="ghost" disabled={save.saving} onClick={save.discard}>
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={save.saving || people.saving}
+        onClick={() => {
+          save.discard();
+          people.discard();
+        }}
+      >
         Discard
       </Button>
     </>
@@ -335,10 +368,12 @@ type NewProps = Common & {
   draft: { start: string; end: string; repeat?: Frequency; title?: string; goalId?: string | null };
   anchor: Anchor | null;
   onCreated?: (event: CalendarEvent) => void;
+  /** Spec 54: the event was created but its people could not be invited: the calendar shows the message. */
+  onRefused?: (message: string) => void;
 };
 
 /** A new event from "Add details": filled in here, then "Add event" creates it (create_event). */
-export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookConnected = false, onClose, onCreated }: NewProps) {
+export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookConnected = false, onClose, onCreated, onRefused, invites }: NewProps) {
   const live = useLive();
   const announce = useAnnounce();
   const [values, setValues] = useState(() => newValues(draft));
@@ -359,6 +394,10 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
     setTodoError("");
   };
   const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);
+  // Spec 54: the contacts ticked for the new event, invited once it exists.
+  const contacts = invites?.contacts ?? NO_CONTACTS;
+  const [chosen, setChosen] = useState<string[]>([]);
+  const series = !values.allDay && frequency !== "none";
 
   async function add() {
     if (cannotSave(values)) return;
@@ -374,8 +413,15 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
     if (answer.message) announce(answer.message);
     if (outlookConnected) void postJson("/api/outlook/send", {}).then(() => live.refresh());
     // A single event stays open in the editor, now saving each change; a series waits for the re-read.
-    const series = (answer.data as { count?: unknown } | undefined)?.count !== undefined;
-    const created = series ? null : eventFromAnswer(answer, timeZone);
+    const isSeries = (answer.data as { count?: unknown } | undefined)?.count !== undefined;
+    const created = isSeries ? null : eventFromAnswer(answer, timeZone);
+    // Spec 54: then the people ticked (only for a single event: a series cannot invite people).
+    if (created && chosen.length > 0) {
+      const invited = await postJson(`/api/events/${created.id}/invites`, { contacts: chosen });
+      if (!invited.ok) onRefused?.(invited.message);
+      else if (invited.message) announce(invited.message);
+      live.refresh();
+    }
     if (created && onCreated) onCreated(created);
     else onClose();
   }
@@ -398,6 +444,22 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
       )}
     </WhenSection>,
     // Spec 24: right under the time. A new series takes no guests (one invitation per date would flood them).
+    // Spec 54: the people invited inside the app, above the guests by e-mail; invited after "Add event".
+    series ? (
+      <PeopleSection key="people" mode="unavailable" reason="Events of a series cannot invite people" people={[]} />
+    ) : contacts.length === 0 ? (
+      <PeopleSection key="people" mode="no_contacts" />
+    ) : (
+      <PeopleSection
+        key="people"
+        mode="edit"
+        contacts={contacts}
+        chosen={chosen}
+        answers={NO_ANSWERS}
+        error=""
+        onToggle={(id) => setChosen((list) => (list.includes(id) ? list.filter((c) => c !== id) : [...list, id]))}
+      />
+    ),
     !values.allDay && frequency !== "none" ? (
       <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotInSeries}.`} />
     ) : outlookConnected ? (
@@ -453,4 +515,64 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
       <Card sections={sections} footer={footer} />
     </Frame>
   );
+}
+
+const NO_CONTACTS: readonly InviteContact[] = [];
+const NO_PEOPLE: readonly InvitePerson[] = [];
+const NO_ANSWERS: ReadonlyMap<string, InviteAnswer> = new Map();
+
+/**
+ * Spec 54: the people chosen in the editor for an existing event, apart from the event's own fields.
+ * Starts from the people invited now (from the calendar page, newer after each re-read), changes only in
+ * the editor, and is sent with Save to POST /api/events/[id]/invites; the answer is the new list with
+ * everyone's answers.
+ */
+function useInviteDraft(eventId: string, invites: Common["invites"]) {
+  const live = useLive();
+  const announce = useAnnounce();
+  const contacts = invites?.contacts ?? NO_CONTACTS;
+  const fromPage = invites?.own[eventId] ?? NO_PEOPLE;
+  // The list the last Save answered with, as long as the page has not been read again since.
+  const [answered, setAnswered] = useState<{ people: readonly InvitePerson[]; page: readonly InvitePerson[] } | null>(null);
+  const saved = answered && answered.page === fromPage ? answered.people : fromPage;
+  const savedIds = saved.flatMap((p) => contacts.find((c) => c.userId === p.userId)?.contactId ?? []);
+  const [draft, setDraft] = useState<readonly string[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const chosen = draft ?? savedIds;
+  const answers = new Map(saved.map((p) => [p.userId, p.answer]));
+  const changed = draft !== null && !sameInvitees(draft, savedIds);
+
+  async function save() {
+    if (draft === null) return;
+    setSaving(true);
+    const answer = await postJson(`/api/events/${eventId}/invites`, { contacts: draft });
+    setSaving(false);
+    if (!answer.ok) return setError(answer.message);
+    const list = (answer.data as { people?: InvitePerson[] } | undefined)?.people;
+    if (Array.isArray(list)) setAnswered({ people: list, page: fromPage });
+    setDraft(null);
+    setError("");
+    if (answer.message) announce(answer.message);
+    live.refresh();
+  }
+
+  return {
+    contacts,
+    saved,
+    chosen,
+    answers,
+    changed,
+    saving,
+    error,
+    toggle: (contactId: string) => {
+      setDraft(chosen.includes(contactId) ? chosen.filter((id) => id !== contactId) : [...chosen, contactId]);
+      setError("");
+    },
+    discard: () => {
+      setDraft(null);
+      setError("");
+    },
+    save,
+  };
 }

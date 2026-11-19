@@ -44,6 +44,8 @@ import { readOwnCard, readOwnProfile } from "@/lib/server/profiles/own-profile";
 import { readPeople } from "@/lib/server/profiles/cards";
 import { isUserId, readProfileCard, readProfileCards } from "@/lib/server/profiles/profile-card";
 import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
+import { cardsOfContacts, inviteContactsOf, openInvitesOf, readInvitedEvents, readOpenInviteRows, readOwnInvitees, readPendingInviteCount } from "@/lib/server/invites/read";
+import type { CalendarInvites, InvitedEvent } from "@/lib/invites/types";
 import { NOTHING_SHARED, type ContactShares, type PersonRelation, type SharingPerson } from "@/lib/shares/types";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readPlaces } from "@/lib/server/places/saved";
@@ -115,6 +117,48 @@ export async function loadCalendarPageWithShares(
     const sharingRead = readSharingPeople(query);
     const [page, sharing] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead]);
     return { ...page, sharing };
+  });
+}
+
+/**
+ * The calendar page with everything of loadCalendarPageWithShares, plus the event invitations (spec 54,
+ * from spec 36), in the same one transaction: the events of the shown days the user is invited to, the
+ * invitations still to look at, how many are not answered (the badge), the invited people of the user's
+ * own shown events (so the blocks and the editor need no extra request) and the user's contacts for the
+ * editor's list (contact row, name, photo; never an address). The other loaders are unchanged.
+ */
+export async function loadCalendarPageWithInvites(
+  deps: PageDeps,
+  userId: string,
+  requestedDate?: string,
+  requestedView?: View,
+): Promise<CalendarPageData & { sharing: SharingPerson[]; invites: CalendarInvites }> {
+  await settleTasks(deps, userId);
+  const now = deps.now();
+  return deps.withUser(userId, async (query) => {
+    // Without parameters, so started first (see the top of this file).
+    const sharingRead = readSharingPeople(query);
+    const openRead = readOpenInviteRows(query);
+    const pendingRead = readPendingInviteCount(query);
+    const peopleRead = readPeople(query);
+    const [page, sharing, openRows, pending, people] = await Promise.all([
+      readCalendarPage(query, now, requestedDate, requestedView),
+      sharingRead,
+      openRead,
+      pendingRead,
+      peopleRead,
+    ]);
+    const cards = cardsOfContacts(people.contacts);
+    const days = page.week.days.map((d) => d.date);
+    const from = startOfLocalDate(days[0], page.week.timeZone);
+    const to = startOfLocalDate(addDays(days[days.length - 1], 1), page.week.timeZone);
+    const ownIds = [...new Set([...page.week.days.flatMap((d) => [...d.events, ...d.allDay]), ...page.week.lead].map((e) => e.id))];
+    const [invited, own] = await Promise.all([readInvitedEvents(query, from, to, cards), readOwnInvitees(query, ownIds, cards)]);
+    return {
+      ...page,
+      sharing,
+      invites: { invited, open: openInvitesOf(openRows, cards), pending, own, contacts: inviteContactsOf(people.contacts) },
+    };
   });
 }
 
@@ -416,6 +460,47 @@ export async function loadPeoplePage(deps: Pick<Deps, "withUser"> & Partial<Pick
       shares,
       facts: cards.map((card) => ({ userId: card.userId, bio: card.bio, timeZone: card.timeZone })),
       now: now.toISOString(),
+    };
+  });
+}
+
+/** What the People page gets about event invitations (spec 54, changed 19 Nov 2026). */
+export type PeopleEventInvites = {
+  /** Invitations still to look at (not answered, or declined), of events that have not ended. */
+  open: InvitedEvent[];
+  /** How many are not answered yet (part of the number on "People" in the sidebar). */
+  pending: number;
+};
+
+/**
+ * The People page with the event invitations as well (spec 54, changed 19 Nov 2026 after the owner tried
+ * it with two accounts): everything of loadPeoplePage, plus the invitations still to look at and how many
+ * are not answered yet, in the same one transaction. loadPeoplePage itself returns exactly what it did.
+ */
+export async function loadPeoplePageWithInvites(
+  deps: Pick<Deps, "withUser"> & Partial<Pick<Deps, "now">>,
+  userId: string,
+): Promise<PeoplePageData & { eventInvites: PeopleEventInvites }> {
+  const now = deps.now?.() ?? new Date();
+  return deps.withUser(userId, async (query) => {
+    // Without parameters, so started first (see the top of this file).
+    const openRead = readOpenInviteRows(query);
+    const pendingRead = readPendingInviteCount(query);
+    const settingsRead = readSettings(query);
+    const peopleRead = readPeople(query);
+    const sharesRead = readSharesOverview(query);
+    const [openRows, pending, settings, people, shares] = await Promise.all([openRead, pendingRead, settingsRead, peopleRead, sharesRead]);
+    // One more question (with a parameter, so after the others): the cards of these people.
+    const cards = await readProfileCards(query, [...people.contacts, ...people.received].map((p) => p.userId));
+    return {
+      display: displayOf(settings),
+      timeZone: settings.timeZone,
+      people,
+      shares,
+      facts: cards.map((card) => ({ userId: card.userId, bio: card.bio, timeZone: card.timeZone })),
+      now: now.toISOString(),
+      // The inviter is always one of the user's contacts (R59): their name and photo from the contact card.
+      eventInvites: { open: openInvitesOf(openRows, cardsOfContacts(people.contacts)), pending },
     };
   });
 }
