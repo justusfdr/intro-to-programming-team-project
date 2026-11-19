@@ -66,9 +66,19 @@ export function inviteContactsOf(contacts: readonly PersonCard[]): InviteContact
   return contacts.map((c) => ({ contactId: c.id, userId: c.userId, name: stripHiddenCharacters(c.name), photoUrl: c.photoUrl }));
 }
 
-/** The events between `from` and `to` (at most 62 days) the user is invited to. The database refuses a longer window. */
+/** No calendar shows more invited events than this in one window (security review, 19 Nov 2026). */
+export const MAX_INVITED_EVENTS = 500;
+
+/**
+ * The events between `from` and `to` (at most 62 days) the user is invited to. The database refuses a
+ * longer window. At most MAX_INVITED_EVENTS, the earliest first (the function's own order): a contact who
+ * invites to thousands of events cannot make the invited person's calendar page huge and slow.
+ */
 export async function readInvitedEvents(query: Query, from: Date, to: Date, cards: ReadonlyMap<string, InvitePersonCard>): Promise<InvitedEvent[]> {
-  const rows = await query<InvitedRow>(`select ${INVITED_COLUMNS} from app.invited_events($1::timestamptz, $2::timestamptz)`, [from.toISOString(), to.toISOString()]);
+  const rows = await query<InvitedRow>(`select ${INVITED_COLUMNS} from app.invited_events($1::timestamptz, $2::timestamptz) limit ${MAX_INVITED_EVENTS}`, [
+    from.toISOString(),
+    to.toISOString(),
+  ]);
   return rows.map((row) => invitedOf(row, cards));
 }
 
@@ -105,30 +115,39 @@ type NameRow = { user_id: string; display_name: string | null; fallback_name: st
  * Cards of these people as the user may see them: a contact's card (name and photo), anyone else's
  * display name from app.invite_person_names and no photo (S4).
  */
-async function readCards(query: Query, userIds: readonly string[]): Promise<Map<string, InvitePersonCard>> {
-  if (userIds.length === 0) return new Map();
+async function readCards(query: Query, userIds: readonly string[]): Promise<{ cards: Map<string, InvitePersonCard>; contacts: ReadonlySet<string> }> {
+  if (userIds.length === 0) return { cards: new Map(), contacts: new Set() };
   // Without parameters, so started first (see src/lib/server/pages/load.ts).
   const peopleRead = readPeople(query);
   const rows = await query<NameRow>("select user_id, display_name, fallback_name from app.invite_person_names($1::uuid[])", [[...userIds]]);
   const contacts = cardsOfContacts((await peopleRead).contacts);
-  return new Map(
+  const cards = new Map(
     rows.map((r) => [
       r.user_id,
       contacts.get(r.user_id) ?? { userId: r.user_id, name: stripHiddenCharacters(r.display_name ?? r.fallback_name ?? UNKNOWN_PERSON), photoUrl: null },
     ]),
   );
+  return { cards, contacts: new Set(contacts.keys()) };
 }
 
 /** The owner: the people of one of their events. The database refuses with "Not found" otherwise. */
 export async function readEventInvitees(query: Query, eventId: string): Promise<InvitePerson[]> {
   const rows = await query<{ user_id: string; answer: InviteAnswer }>("select user_id, answer from app.event_invitees($1::uuid)", [eventId]);
-  const cards = await readCards(query, rows.map((r) => r.user_id));
+  const { cards } = await readCards(query, rows.map((r) => r.user_id));
   return rows.map((r) => ({ ...cardFrom(cards, r.user_id), answer: r.answer }));
 }
 
-/** The invited person: the other people of their invitation. The database refuses with "Not found" otherwise. */
+/**
+ * The invited person: the other people of their invitation. The database refuses with "Not found" otherwise.
+ * A person who is not one of the viewer's own contacts comes WITHOUT their user id (security review,
+ * 19 Nov 2026): the screen needs only a key for its list, so "invited-1", "invited-2", … stand in for it.
+ * The viewer's contacts keep their id (the viewer has it anyway, R43).
+ */
 export async function readInvitePeople(query: Query, inviteId: string): Promise<InvitePerson[]> {
   const rows = await query<{ user_id: string; answer: InviteAnswer }>("select user_id, answer from app.invite_people($1::uuid)", [inviteId]);
-  const cards = await readCards(query, rows.map((r) => r.user_id));
-  return rows.map((r) => ({ ...cardFrom(cards, r.user_id), answer: r.answer }));
+  const { cards, contacts } = await readCards(query, rows.map((r) => r.user_id));
+  return rows.map((r, i) => {
+    const card = cardFrom(cards, r.user_id);
+    return { ...(contacts.has(r.user_id) ? card : { ...card, userId: `invited-${i + 1}` }), answer: r.answer };
+  });
 }

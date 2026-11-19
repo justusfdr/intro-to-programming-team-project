@@ -11,7 +11,11 @@ export const INVITE_ANSWERS: readonly InviteAnswer[] = ["pending", "accepted", "
 export type GivenAnswer = Exclude<InviteAnswer, "pending">;
 export const GIVEN_ANSWERS: readonly GivenAnswer[] = ["accepted", "tentative", "declined"];
 
-/** Someone shown by name and photo. The photo is set only for the user's own contacts (R43). */
+/**
+ * Someone shown by name and photo. The photo is set only for the user's own contacts (R43). `userId` is
+ * the person's id for the user's own contacts; for a co-invited person who is not a contact it is only a
+ * key for the list ("invited-1"), never their id (src/lib/server/invites/read.ts).
+ */
 export type InvitePersonCard = { userId: string; name: string; photoUrl: string | null };
 
 /** One invited person of an event, with their answer. */

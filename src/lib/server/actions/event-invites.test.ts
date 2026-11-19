@@ -246,7 +246,10 @@ describe("what the invited person reads and answers (R60, R61, S1, S2)", () => {
     });
 
     const inviteId = await inviteOf(ben);
-    expect(await read(await people(inviteId))).toEqual({ status: 200, body: { people: [{ userId: dora, name: "Dora Dias", photoUrl: null, answer: "pending" }] } });
+    // Dora is not Ben's contact: her name, but a stand-in key instead of her user id.
+    const others = await read(await people(inviteId));
+    expect(others).toEqual({ status: 200, body: { people: [{ userId: "invited-1", name: "Dora Dias", photoUrl: null, answer: "pending" }] } });
+    expect(JSON.stringify(others.body)).not.toContain(dora);
     expect(await read(await pendingInviteCount(app.deps))).toEqual({ status: 200, body: { count: 1 } });
 
     expect(await read(await answer(inviteId, "tentative"))).toEqual({ status: 200, body: { message: "You answered maybe.", answer: "tentative" } });
@@ -326,8 +329,10 @@ describe("S4: people invited together who are not contacts", () => {
 
     await app.signedInAs("ben@example.com");
     const bens = await read(await people(await inviteOf(ben)));
-    expect(bens.body).toEqual({ people: [{ userId: dora, name: "Invited person", photoUrl: null, answer: "pending" }] });
+    expect(bens.body).toEqual({ people: [{ userId: "invited-1", name: "Invited person", photoUrl: null, answer: "pending" }] });
     expect(JSON.stringify(bens.body)).not.toContain("dora");
+    // Not her user id either (security review, 19 Nov 2026): nothing Ben could use anywhere else.
+    expect(JSON.stringify(bens.body)).not.toContain(dora);
     // The photo route keeps R43: the same 404 as for a made-up id.
     const photo = await deliverProfilePhoto(app.deps, dora);
     const madeUp = await deliverProfilePhoto(app.deps, UNKNOWN);
@@ -336,8 +341,9 @@ describe("S4: people invited together who are not contacts", () => {
 
     await app.signedInAs("dora@example.com");
     const doras = await read(await people(await inviteOf(dora)));
-    expect(doras.body).toEqual({ people: [{ userId: ben, name: "Ben Brown", photoUrl: null, answer: "pending" }] });
+    expect(doras.body).toEqual({ people: [{ userId: "invited-1", name: "Ben Brown", photoUrl: null, answer: "pending" }] });
     expect(JSON.stringify(doras.body)).not.toContain("@");
+    expect(JSON.stringify(doras.body)).not.toContain(ben);
     expect((await deliverProfilePhoto(app.deps, ben)).status).toBe(404);
     // Ana, their contact, gets both photos' addresses (R43).
     await app.signedInAs("ana@example.com");

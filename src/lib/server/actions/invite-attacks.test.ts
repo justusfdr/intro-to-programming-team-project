@@ -637,7 +637,9 @@ describe("5. what Ben receives", () => {
     expect(results.pending).toBe(1);
     expectKeysIn("window", [results.events, results.wide, results.open], [...INVITED_EVENT_KEYS, ...INVITE_PERSON_CARD_KEYS]);
     expectKeysIn("people", results.people, INVITE_PERSON_KEYS);
-    expect(results.people.map((p) => p.userId).sort()).toEqual([w.cleo, w.fay].sort());
+    // The other invited people are not Ben's contacts: a stand-in key each, never their user id.
+    expect(results.people.map((p) => p.userId).sort()).toEqual(["invited-1", "invited-2"]);
+    for (const id of [w.cleo, w.fay]) expect(text(results.people).includes(id), "a co-invited person's user id").toBe(false);
     const all = text(results);
     for (const hidden of [...neverForBen(), w.eventA, w.eventB, ...rowIds, "@"]) expect(all.includes(hidden), `contains "${hidden}"`).toBe(false);
     // The window the browser calls gives the same and nothing more.
@@ -697,10 +699,12 @@ describe("6. Ben and Cleo are not contacts", () => {
   it("Ben cannot load Cleo's photo, profile, shared calendar or People page data, and cannot invite her as his own contact from what the invitation shows", async () => {
     const w = await world();
     await as("ben@example.com");
-    // What the invitation shows him of Cleo: her display name and user id, no photo address.
+    // What the invitation shows him of Cleo: her display name only; no user id, no photo address.
     const shown = (await read(await people(w.benInvite))).body.people as { userId: string; name: string; photoUrl: string | null }[];
-    expect(shown.find((p) => p.userId === w.cleo)).toEqual({ userId: w.cleo, name: M.cleoName, photoUrl: null, answer: "pending" });
-    expect(shown.find((p) => p.userId === w.fay)?.photoUrl).toBeNull();
+    expect(shown.find((p) => p.name === M.cleoName)).toEqual({ userId: expect.stringMatching(/^invited-\d+$/), name: M.cleoName, photoUrl: null, answer: "pending" });
+    expect(shown.every((p) => p.photoUrl === null)).toBe(true);
+    for (const id of [w.cleo, w.fay]) expect(JSON.stringify(shown)).not.toContain(id);
+    // Even with her id (which Ben does not get from the app), nothing opens:
 
     // The photo answers exactly like a made-up id (status, headers and body), also with If-None-Match.
     const madeUp = await photoAnswer(await photo(UNKNOWN));
@@ -800,7 +804,7 @@ describe("7. what changes when the contact, the event or the time changes", () =
     // The others stay as they were; Ben no longer sees Fay among the people.
     expect((await invitesOf(w.eventA)).map((i) => i.invitee).sort()).toEqual([w.ben, w.cleo].sort());
     await as("ben@example.com");
-    expect(((await read(await people(w.benInvite))).body.people as { userId: string }[]).map((p) => p.userId)).toEqual([w.cleo]);
+    expect(((await read(await people(w.benInvite))).body.people as { name: string }[]).map((p) => p.name)).toEqual([M.cleoName]);
     await as("ana@example.com");
     expect(((await read(await owned(w.eventA))).body.people as { userId: string }[]).map((p) => p.userId).sort()).toEqual([w.ben, w.cleo].sort());
 

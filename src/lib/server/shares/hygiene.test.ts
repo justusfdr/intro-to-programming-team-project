@@ -88,6 +88,22 @@ describe("where the event invitation functions are named (spec 54, S7)", () => {
     }
   });
 
+  // Added after the security review of 19 Nov 2026: the two ways around the functions above.
+  it("no code reads or writes the invitations' table itself", () => {
+    // The signed-in role may read a few columns of app.event_invites; the app goes through the functions only.
+    const naming = codeFiles(SRC).filter((file) => /app\.event_invites(?![A-Za-z0-9_])/.test(readFileSync(file, "utf8"))).map(rel);
+    expect(naming).toEqual([]);
+  });
+
+  it("app.profile_photo is asked only by the photo route, which also asks app.profile_card", () => {
+    // app.profile_photo alone would hand a photo to people invited to the same event (the database's
+    // app.may_see_profile is wider than R43); the route's second check is what keeps it to R43.
+    const users = codeFiles(SRC).filter((file) => /from\s+app\.profile_photo\(/.test(readFileSync(file, "utf8"))).map(rel);
+    expect(users).toEqual(["src/lib/server/actions/deliver-photo.ts"]);
+    const route = readFileSync(join(ROOT, "src/lib/server/actions/deliver-photo.ts"), "utf8");
+    expect(route).toMatch(/from\s+app\.profile_photo\(\$1::uuid\)[\s\S]{0,200}exists\s*\(select 1 from app\.profile_card\(\$1::uuid\)\)/);
+  });
+
   it("the invitations' reader is imported only by the calendar page's loader and the invitation actions", () => {
     const importing = codeFiles(SRC)
       .filter((file) => /@\/lib\/server\/invites/.test(readFileSync(file, "utf8")))
