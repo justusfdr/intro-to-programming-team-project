@@ -41,9 +41,30 @@ export class ForbiddenStatementError extends Error {
 }
 
 /**
+ * How long a transaction may stay open, and how long it may sit between two statements. Why (19 Nov
+ * 2026): a server process that was frozen in the middle of a transaction (a serverless function whose
+ * caller had gone away) kept a lock on one profile row for 17 minutes; everything that needed the row
+ * waited 10 seconds and then failed ("Your data cannot be loaded right now"). The limit per statement
+ * does not help there: no statement was running, the database was waiting for the next one. With these
+ * limits the database ends such a transaction itself and frees its locks.
+ * Every transaction of the app takes well under a second; none waits for another service while open.
+ */
+export const TRANSACTION_LIMIT = "30s";
+export const IDLE_IN_TRANSACTION_LIMIT = "20s";
+
+/**
+ * The two limits as select-list items, local to the transaction. `transaction_timeout` exists since
+ * Postgres 17 (the app's database); an older Postgres (local work, the tests' in-process database) does
+ * not know the name, so it is set only where the database lists it.
+ */
+export const TRANSACTION_LIMITS = `set_config('idle_in_transaction_session_timeout', '${IDLE_IN_TRANSACTION_LIMIT}', true),
+                (select set_config('transaction_timeout', '${TRANSACTION_LIMIT}', true) from pg_settings where name = 'transaction_timeout')`;
+
+/**
  * The statement that makes the transaction the user's: the same settings Supabase's data API uses
- * (role, the JWT claims and the user id), and a 10-second limit per statement, so a stuck query
- * gives up (ontology section 7). All four are local to the transaction.
+ * (role, the JWT claims and the user id), a 10-second limit per statement, so a stuck query
+ * gives up (ontology section 7), and the limits for the whole transaction (above). All are local to
+ * the transaction.
  *
  * It has no parameters, so the driver can send it in the same round trip as the first query (with
  * parameters, the driver would first ask the database for their types: one more round trip). The
@@ -56,7 +77,8 @@ export function userSettingsStatement(userId: string): string {
   return `select set_config('role', 'authenticated', true),
                 set_config('request.jwt.claims', '${claims}', true),
                 set_config('request.jwt.claim.sub', '${userId}', true),
-                set_config('statement_timeout', '10s', true)`;
+                set_config('statement_timeout', '10s', true),
+                ${TRANSACTION_LIMITS}`;
 }
 
 /** Builds withUser on top of a driver. Production uses the Postgres driver; tests use the in-process one. */
