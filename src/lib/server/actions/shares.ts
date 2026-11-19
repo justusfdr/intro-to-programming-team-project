@@ -8,7 +8,8 @@ import "server-only";
 // that checks the share and the contact itself. A foreign, missing or malformed id gets the same
 // "Not found"; nothing is ever written of the owner's (R57).
 // The database's share also has a "focus" flag (the focus chart of spec 29, not offered by the app):
-// set_share needs it, and the screen always sends the stored value back unchanged.
+// set_share needs it, and the server always sends the STORED value back unchanged (R55): a "focus" in
+// the body is accepted but ignored (security review I4).
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { Deps } from "@/lib/server/deps";
@@ -28,7 +29,8 @@ type ActionDeps = Pick<Deps, "auth" | "withUser">;
 
 const ShareBody = z.object({
   calendar: z.enum(CALENDAR_LEVELS as [CalendarLevel, ...CalendarLevel[]]),
-  focus: z.boolean(),
+  /** Accepted for older screens, never used: the stored flag is kept. */
+  focus: z.boolean().optional(),
 });
 
 /** The database's refusals as answers; anything else goes on unchanged. */
@@ -49,14 +51,22 @@ export function setShare(request: Request, deps: ActionDeps, contactId: string):
     const body = await readJson(request, ShareBody);
     if (!body.ok) return body.response;
     if (!UUID.test(contactId)) throw notFound();
+    let focus = false;
     try {
-      await deps.withUser(userId, (query) =>
-        query("select app.set_share($1::uuid, $2::text, $3::boolean)", [contactId, body.data.calendar, body.data.focus]),
-      );
+      focus = await deps.withUser(userId, async (query) => {
+        // The flag as stored for this contact row (false without a row), read under the user's rights.
+        const stored = await query<{ focus: boolean }>(
+          "select focus from app.shares_overview() where direction = 'out' and contact_id = $1::uuid",
+          [contactId],
+        );
+        const kept = stored[0]?.focus ?? false;
+        await query("select app.set_share($1::uuid, $2::text, $3::boolean)", [contactId, body.data.calendar, kept]);
+        return kept;
+      });
     } catch (error) {
       shareRefusal(error);
     }
-    return jsonOk({ message: MESSAGES.shareSaved, calendar: body.data.calendar, focus: body.data.focus });
+    return jsonOk({ message: MESSAGES.shareSaved, calendar: body.data.calendar, focus });
   });
 }
 

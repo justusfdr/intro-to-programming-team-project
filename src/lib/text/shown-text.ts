@@ -23,3 +23,13 @@ export function cleanShownText(raw: string, max: number): string | null {
   if (length < 1 || length > max || FORBIDDEN.test(text) || INVISIBLE.test(text) || MARK_STACK.test(text)) return null;
   return text;
 }
+
+/**
+ * Another person's text as it may be shown (a shared event's title or place, security review L4): the
+ * same characters the rule above refuses (control characters, zero-width marks, direction overrides and
+ * isolates, characters that render blank or are invisible inside a word) are removed, so the text cannot
+ * read as something else. Everything else, letters and emoji included, stays as it is.
+ */
+export function stripHiddenCharacters(text: string): string {
+  return text.replace(new RegExp(FORBIDDEN.source, "g"), "").replace(new RegExp(INVISIBLE.source, "gu"), "");
+}

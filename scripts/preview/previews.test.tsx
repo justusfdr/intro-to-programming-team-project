@@ -220,6 +220,7 @@ it("writes the preview files", async () => {
   {
     const { PeopleView } = await import("@/components/people/PeopleView");
     const { PersonView } = await import("@/components/profile/PersonView");
+    const { ShowInMyCalendarButton } = await import("@/components/profile/PersonSections");
     const { WeekList } = await import("@/components/profile/PersonWeek");
     const { SharedEventDetails } = await import("@/components/calendar/Shared");
     const { placeShared, sharedAllDayByDay } = await import("@/lib/shares/place");
@@ -308,6 +309,10 @@ it("writes the preview files", async () => {
     const lucasHtml = personPage(lucas, "Physics at Nova. Climbing on weekends.", "Europe/Berlin", "details", lucasWeek);
     writeFileSync(join(OUT, "person-shares-details.html"), lucasHtml);
     writeFileSync(join(OUT, "person-shares-details-phone.html"), phoneFrame("Person", lucasHtml));
+    // "Show in my calendar" clicked while three calendars are shown already: the note, no navigation.
+    const showButton = renderToStaticMarkup(<ShowInMyCalendarButton full={false} onShow={() => {}} />);
+    if (!lucasHtml.includes(showButton)) throw new Error("The person page's button changed; update the preview.");
+    writeFileSync(join(OUT, "person-calendars-full.html"), lucasHtml.replace(showButton, renderToStaticMarkup(<ShowInMyCalendarButton full onShow={() => {}} />)));
     writeFileSync(join(OUT, "person-shares-nothing.html"), personPage({ ...emily, calendar: "none" }, "Group project lead, statistics tutor.", "Europe/Lisbon", "none", null));
 
     // The calendar with shared calendars shown (the People button counts them).

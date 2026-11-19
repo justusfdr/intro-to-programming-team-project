@@ -232,6 +232,17 @@ describe("invite_contact (R52)", () => {
     expect((await invite("same@example.com", { "x-forwarded-for": `10.2.${client}.2` })).status).toBe(200);
   });
 
+  it("has no brake per client address: two users behind one address cannot block a third (security review L2)", async () => {
+    const shared = { "x-forwarded-for": `10.3.${client}.1` };
+    for (const sender of ["alice@example.com", "bob@example.com"]) {
+      await app.signedInAs(sender);
+      // 20 each: the first 10 are sent, the rest meet the database's own limit (429) or the per-user brake.
+      for (let i = 1; i <= 20; i++) expect([200, 429]).toContain((await invite(`junk${i}@example.com`, shared)).status);
+    }
+    await app.signedInAs("carl@example.com");
+    expect(await read(await invite("dora@example.com", shared))).toEqual(NEUTRAL);
+  });
+
   it("accepts the other person's open invitation instead (both become contacts)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     const bob = await app.signedInAs("bob@example.com");

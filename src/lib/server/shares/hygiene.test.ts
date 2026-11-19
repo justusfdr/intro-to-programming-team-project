@@ -43,3 +43,33 @@ describe("where another user's calendar can be read (E12)", () => {
     expect(importing).toEqual([]);
   });
 });
+
+describe("database functions the app must not use (security review L1)", () => {
+  // Event invitations and the shared focus chart are not part of the app, but these functions are still
+  // granted in the database. As long as no code calls them, real contact rows cannot turn into
+  // event invitations or a focus chart that R43 and R56 do not allow.
+  const UNUSED = [
+    "set_event_invites",
+    "answer_event_invite",
+    "invited_events",
+    "open_event_invites",
+    "pending_invite_count",
+    "event_invitees",
+    "own_event_invitees",
+    "event_has_invites",
+    "invite_people",
+    "invite_person_names",
+    "chat_draft_remove_person",
+    "shared_focus",
+  ];
+
+  it("no code under src/ names any of them", () => {
+    const files = codeFiles(SRC);
+    expect(files.length).toBeGreaterThan(100);
+    const found = files.flatMap((file) => {
+      const text = readFileSync(file, "utf8");
+      return UNUSED.filter((name) => text.includes(name)).map((name) => `${rel(file)}: ${name}`);
+    });
+    expect(found).toEqual([]);
+  });
+});

@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { SharedBlock } from "@/lib/shares/place";
 import type { SharingPerson } from "@/lib/shares/types";
-import { SharedBlockView, SharedPeopleButton } from "./Shared";
+import { SharedBlockView, SharedEventDetails, SharedPeopleButton } from "./Shared";
 
 const ANA: SharingPerson = { userId: "a", name: "Ana Lopes", photoUrl: null, calendar: "busy", focus: false };
 const RANGE = { startMin: 7 * 60, endMin: 21 * 60 };
@@ -162,5 +162,15 @@ describe("E14: the calendar's overlap data comes from its own events only", () =
 
   it("builds shownEvents from the own placed events", () => {
     expect(statementOf("const shownEvents = useMemo(")).toContain("placed.flat()");
+  });
+});
+
+describe("the read-only details card", () => {
+  it("says \"From Lucas Meyer's calendar. Read only.\" with no space before 's", () => {
+    const lucas: SharingPerson = { userId: "l", name: "Lucas Meyer", photoUrl: null, calendar: "details", focus: false };
+    const html = renderToStaticMarkup(<SharedEventDetails shared={{ person: lucas, title: "Physics lab", location: null, when: "Tuesday, November 17, 1 – 2:30pm" }} />);
+    expect(html).toMatch(/<span class="min-w-0 truncate">Lucas Meyer<\/span><\/a><span>&#x27;s calendar\.<\/span><\/span><span>Read only\.<\/span>/);
+    const text = html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+    expect(text).toContain("|Lucas Meyer|&#x27;s calendar.|Read only.|");
   });
 });

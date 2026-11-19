@@ -2,8 +2,8 @@ import "server-only";
 
 // Action invite_contact (ontology section 5; spec 53, from spec 28; R52).
 //   1. same-origin check   2. signed in (R3)   3. read and shape-check the body
-//   4. a plain e-mail address ("Enter a valid email address"); the in-memory brake per user and per
-//      client (429, account-limits.ts)
+//   4. a plain e-mail address ("Enter a valid email address"); the in-memory brake per user
+//      (429, account-limits.ts)
 //   5. inside withUser: app.invite_contact, which refuses only what does not depend on the address
 //      (the user's own address, the user's limits) and does everything else silently
 //   6. always the same answer: "If this person uses LockedIn, they will see your invitation."

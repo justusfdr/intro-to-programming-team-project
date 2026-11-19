@@ -249,8 +249,12 @@ export function SharedEventDetails({ shared }: { shared: OpenShared }) {
       <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-ink-3">
         <span>From</span>
         {/* The person's name is a plain link to their profile (spec 53, from spec 33). */}
-        <PersonChip person={{ userId: shared.person.userId, name: shared.person.name, photoUrl: shared.person.photoUrl }} className="text-xs font-medium" />
-        <span>&apos;s calendar. Read only.</span>
+        {/* "'s" sits right after the name, without the gap between the other words. */}
+        <span className="inline-flex min-w-0 max-w-full items-center">
+          <PersonChip person={{ userId: shared.person.userId, name: shared.person.name, photoUrl: shared.person.photoUrl }} className="text-xs font-medium" />
+          <span>&apos;s calendar.</span>
+        </span>
+        <span>Read only.</span>
       </p>
     </div>
   );

@@ -4,6 +4,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ProfileCardData } from "@/lib/profiles/types";
+import { CALENDARS_FULL_NOTE, ShowInMyCalendarButton } from "./PersonSections";
 import { PersonView } from "./PersonView";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -70,5 +71,17 @@ describe("the sections", () => {
     expect(html).not.toContain("What you share with");
     expect(html).not.toContain("Remove contact");
     expect(html).toContain("Ana Silva does not share their calendar with you.");
+  });
+});
+
+describe("Show in my calendar with three calendars shown (R58)", () => {
+  it("shows the note next to the button only when there is no room", () => {
+    const full = renderToStaticMarkup(<ShowInMyCalendarButton full onShow={() => {}} />);
+    expect(CALENDARS_FULL_NOTE).toBe("You already show three calendars. Hide one in the calendar first.");
+    expect(full).toContain(`<span role="status" class="text-xs text-ink-3">${CALENDARS_FULL_NOTE}</span>`);
+    expect(full).toMatch(/<button[^>]*>Show in my calendar<\/button>/);
+    const room = renderToStaticMarkup(<ShowInMyCalendarButton full={false} onShow={() => {}} />);
+    expect(room).not.toContain("You already show");
+    expect(room).toMatch(/<button[^>]*>Show in my calendar<\/button>/);
   });
 });

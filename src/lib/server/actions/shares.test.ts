@@ -83,14 +83,14 @@ describe("set_share (R55)", () => {
   it("the owner saves what a contact sees; both directions are separate; the People page shows both", async () => {
     const { ana, ben, contact } = await contacts();
     await app.signedInAs("ana@example.com");
-    expect(await read(await share(contact, { calendar: "busy", focus: true }))).toEqual({
+    expect(await read(await share(contact, { calendar: "busy", focus: false }))).toEqual({
       status: 200,
-      body: { message: "Sharing saved.", calendar: "busy", focus: true },
+      body: { message: "Sharing saved.", calendar: "busy", focus: false },
     });
     const anaPage = await loadPeoplePage(app.deps, ana);
-    expect(anaPage.shares).toEqual([{ contactId: contact, userId: ben, out: { calendar: "busy", focus: true }, in: { calendar: "none", focus: false } }]);
+    expect(anaPage.shares).toEqual([{ contactId: contact, userId: ben, out: { calendar: "busy", focus: false }, in: { calendar: "none", focus: false } }]);
     const benPage = await loadPeoplePage(app.deps, ben);
-    expect(benPage.shares).toEqual([{ contactId: contact, userId: ana, out: { calendar: "none", focus: false }, in: { calendar: "busy", focus: true } }]);
+    expect(benPage.shares).toEqual([{ contactId: contact, userId: ana, out: { calendar: "none", focus: false }, in: { calendar: "busy", focus: false } }]);
     // Off again: nothing is shared.
     expect((await share(contact, { calendar: "none", focus: false })).status).toBe(200);
     expect((await loadPeoplePage(app.deps, ben)).shares).toEqual([]);
@@ -106,11 +106,50 @@ describe("set_share (R55)", () => {
     expect(await read(await share(UNKNOWN, { calendar: "details", focus: true }))).toEqual(NOT_FOUND);
     expect(await read(await share("not-an-id", { calendar: "details", focus: true }))).toEqual(NOT_FOUND);
     expect((await share(contact, { calendar: "everything", focus: true })).status).toBe(400);
-    expect((await share(contact, { calendar: "busy" })).status).toBe(400);
+    expect((await share(contact, { calendar: "busy", focus: "yes" })).status).toBe(400);
     expect((await share(contact, { calendar: "busy", focus: true }, CROSS_SITE)).status).toBe(403);
     expect(await app.snapshot()).toEqual(before);
     await app.auth.signOut();
     expect((await share(contact, { calendar: "busy", focus: true })).status).toBe(401);
+  });
+});
+
+describe("the focus flag stays as stored (R55, security review I4)", () => {
+  /** Ana's stored share towards Ben, straight from the table. */
+  const stored = async (ana: string) =>
+    app.db.admin<{ calendar: string; focus: boolean }>("select calendar, focus from app.shares where owner = $1", [ana]);
+
+  it("a body with focus: true does not switch the flag on; a body without focus is accepted", async () => {
+    const { ana, contact } = await contacts();
+    await app.signedInAs("ana@example.com");
+    expect(await read(await share(contact, { calendar: "busy", focus: true }))).toEqual({
+      status: 200,
+      body: { message: "Sharing saved.", calendar: "busy", focus: false },
+    });
+    expect(await stored(ana)).toEqual([{ calendar: "busy", focus: false }]);
+    expect(await read(await share(contact, { calendar: "details" }))).toEqual({
+      status: 200,
+      body: { message: "Sharing saved.", calendar: "details", focus: false },
+    });
+    expect(await stored(ana)).toEqual([{ calendar: "details", focus: false }]);
+    // Off with focus: true in the body: the row goes, the flag is not switched on.
+    expect((await share(contact, { calendar: "none", focus: true })).status).toBe(200);
+    expect(await stored(ana)).toEqual([]);
+  });
+
+  it("a stored flag that is true is kept when the level changes, also to none", async () => {
+    const { ana, ben, contact } = await contacts();
+    await app.db.admin("insert into app.shares (contact_id, owner, viewer, calendar, focus) values ($1, $2, $3, 'busy', true)", [contact, ana, ben]);
+    await app.signedInAs("ana@example.com");
+    expect(await read(await share(contact, { calendar: "details", focus: false }))).toEqual({
+      status: 200,
+      body: { message: "Sharing saved.", calendar: "details", focus: true },
+    });
+    expect(await stored(ana)).toEqual([{ calendar: "details", focus: true }]);
+    expect((await share(contact, { calendar: "none", focus: false })).status).toBe(200);
+    expect(await stored(ana)).toEqual([{ calendar: "none", focus: true }]);
+    expect((await share(contact, { calendar: "busy" })).status).toBe(200);
+    expect(await stored(ana)).toEqual([{ calendar: "busy", focus: true }]);
   });
 });
 
@@ -155,6 +194,24 @@ describe("reading a shared calendar (R56)", () => {
     for (const key of keysOf(answer.body)) expect([...SHARED_CALENDAR_KEYS, ...SHARED_EVENT_KEYS]).toContain(key);
     const text = JSON.stringify(answer.body);
     for (const secret of ["Bring the calculator", "lea@example.com", "Demo block", ana]) expect(text).not.toContain(secret);
+  });
+
+  it("removes invisible and direction-changing characters from titles and places; ordinary text stays (security review L4)", async () => {
+    const { ana, contact } = await contacts();
+    await app.db.admin(
+      `insert into app.events (user_id, title, start_at, end_at, location) values
+         ($1, $2, '2026-11-17T09:00:00Z', '2026-11-17T10:00:00Z', $3),
+         ($1, 'Café with Zoë 🎉', '2026-11-18T09:00:00Z', '2026-11-18T10:00:00Z', 'Nova SBE, Carcavelos')`,
+      [ana, "Lunch\u202Etxet\u200B break", "Room\u2066 B\uFEFF1"],
+    );
+    await app.signedInAs("ana@example.com");
+    await share(contact, { calendar: "details" });
+    await app.signedInAs("ben@example.com");
+    const answer = await read(await calendar(ana));
+    expect(answer.body.events).toEqual([
+      { allDay: false, startAt: "2026-11-17T09:00:00.000Z", endAt: "2026-11-17T10:00:00.000Z", title: "Lunchtxet break", location: "Room B1" },
+      { allDay: false, startAt: "2026-11-18T09:00:00.000Z", endAt: "2026-11-18T10:00:00.000Z", title: "Café with Zoë 🎉", location: "Nova SBE, Carcavelos" },
+    ]);
   });
 
   it("answers 'Not found' alike for no share, a third user, an unknown and a malformed id; refuses a long window", async () => {

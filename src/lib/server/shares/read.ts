@@ -9,6 +9,7 @@ import "server-only";
 import type { Query } from "@/lib/server/db";
 import { readPeople } from "@/lib/server/profiles/cards";
 import type { PersonCard } from "@/lib/profiles/types";
+import { stripHiddenCharacters } from "@/lib/text/shown-text";
 import {
   NOTHING_SHARED,
   type CalendarLevel,
@@ -79,7 +80,10 @@ export async function readSharedCalendar(query: Query, owner: string, from: Date
     (await query<{ calendar: "busy" | "details" }>("select calendar from app.shares where owner = $1::uuid and viewer = auth.uid()", [owner]))[0]?.calendar;
   const details = level === "details";
   const events: SharedEvent[] = rows.map((row) => {
-    const text = details ? { title: row.title ?? "", location: row.location } : {};
+    // Another person's words: without invisible or direction-changing characters (security review L4).
+    const text = details
+      ? { title: stripHiddenCharacters(row.title ?? ""), location: row.location === null ? null : stripHiddenCharacters(row.location) }
+      : {};
     return row.all_day
       ? { allDay: true, firstDay: row.first_day!, lastDay: row.last_day!, ...text }
       : { allDay: false, startAt: iso(row.start_at!), endAt: iso(row.end_at!), ...text };

@@ -78,23 +78,44 @@ function RemoveContact({ contactId, name }: { contactId: string; name: string })
   );
 }
 
+/** Said next to "Show in my calendar" when three calendars are shown already (R58). */
+export const CALENDARS_FULL_NOTE = "You already show three calendars. Hide one in the calendar first.";
+
+/** The button, and the note instead of a silent click when there is no room for another calendar. */
+export function ShowInMyCalendarButton({ full, onShow }: { full: boolean; onShow: () => void }) {
+  return (
+    <span className="flex flex-wrap items-center justify-end gap-2">
+      {full && (
+        <span role="status" className="text-xs text-ink-3">
+          {CALENDARS_FULL_NOTE}
+        </span>
+      )}
+      <Button size="sm" variant="secondary" onClick={onShow}>
+        Show in my calendar
+      </Button>
+    </span>
+  );
+}
+
 /**
  * "Show in my calendar": the person joins the signed-in user's shown calendars, then the calendar opens.
- * R58 allows three at once: when three are shown already, nobody is added (the People button there says so).
+ * R58 allows three at once: when three are shown already, nobody is added, the calendar does not open,
+ * and a short note says why.
  */
 function ShowInMyCalendar({ viewerId, userId }: { viewerId: string; userId: string }) {
   const router = useRouter();
+  const [full, setFull] = useState(false);
   return (
-    <Button
-      size="sm"
-      variant="secondary"
-      onClick={() => {
-        rememberShown(viewerId, userId);
+    <ShowInMyCalendarButton
+      full={full}
+      onShow={() => {
+        if (!rememberShown(viewerId, userId)) {
+          setFull(true);
+          return;
+        }
         router.push(`/?share=${encodeURIComponent(userId)}`);
       }}
-    >
-      Show in my calendar
-    </Button>
+    />
   );
 }
 
