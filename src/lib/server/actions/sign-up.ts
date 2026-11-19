@@ -37,7 +37,10 @@ export function signUp(request: Request, deps: Pick<Deps, "auth" | "now">): Prom
       case "created":
         return jsonOk({ message: MESSAGES.signUpDone }, 201);
       case "email_taken":
-        throw new ActionError(409, "email_taken", MESSAGES.emailTaken);
+        // Spec 50: the same answer as for a new address, so nobody can find out which e-mails have an
+        // account (like request_password_reset and resend_confirmation). Nothing is created and no mail is
+        // sent; the owner of the address signs in or resets the password.
+        return jsonOk({ message: MESSAGES.signUpDone }, 201);
       case "email_failed":
         throw new ActionError(503, "email_failed", MESSAGES.emailDown);
     }

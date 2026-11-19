@@ -72,14 +72,20 @@ describe("sign_up accepted", () => {
 });
 
 describe("sign_up rejected (nothing is created)", () => {
-  it("rejects an email that is already registered", async () => {
+  // Spec 50: an address that already has an account gets the same answer as a new one, so the answer
+  // does not tell anybody which addresses are registered. Nothing changes and no e-mail is sent.
+  it("answers an email that is already registered like a new one, but creates and sends nothing", async () => {
     await app.auth.addUser("dan@example.com", "an-old-password", { confirmed: true });
     const before = await snapshot();
 
-    const answer = await read(await send({ email: "dan@example.com", password: "12345678" }));
+    const taken = await read(await send({ email: "dan@example.com", password: "12345678" }));
 
-    expect(answer).toEqual({ status: 409, body: { error: "email_taken", message: "This email is already registered" } });
+    expect(taken).toEqual({ status: 201, body: { message: "We sent you a link. Open it to confirm your email." } });
     expect(await snapshot()).toEqual(before);
+    expect(app.auth.accounts().find((a) => a.email === "dan@example.com")?.password).toBe("an-old-password");
+
+    // A new address gets exactly the same answer.
+    expect(await read(await send({ email: "dan-new@example.com", password: "12345678" }))).toEqual(taken);
   });
 
   it("rejects a 7-character password", async () => {

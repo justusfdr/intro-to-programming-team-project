@@ -4,7 +4,6 @@
 
 export const MESSAGES = {
   // ontology, section 5 (accounts)
-  emailTaken: "This email is already registered",
   passwordTooShort: "Password needs at least 8 characters",
   linkExpired: "This link has expired. Ask for a new one",
   resendSent: "If this email needs confirming, we sent a link",
