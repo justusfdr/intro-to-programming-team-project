@@ -80,7 +80,8 @@ describe("withUser with pipelining", () => {
     const statement = userSettingsStatement(ALICE);
     expect(statement).toContain(`'${ALICE}'`);
     expect(statement).toContain(`'{"sub":"${ALICE}","role":"authenticated"}'`);
-    // Four quoted settings names and values, and nothing else in quotes.
-    expect(statement.match(/'/g)?.length).toBe(16);
+    // Changed 19 Nov 2026 (the limits for the whole transaction were added): six quoted settings names
+    // and values, the name asked from pg_settings, and nothing else in quotes. Before: four, 16 quotes.
+    expect(statement.match(/'/g)?.length).toBe(26);
   });
 });

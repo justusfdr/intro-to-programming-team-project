@@ -6,6 +6,7 @@ import "server-only";
 // tables. It offers exactly one operation, made of fixed statements, and nothing that gives raw access.
 // Call it only for a message whose Stripe signature was checked (src/lib/server/actions/billing.ts).
 import type { Driver } from "./with-user";
+import { TRANSACTION_LIMITS } from "./with-user";
 
 export type Plan = "free" | "pro";
 
@@ -37,6 +38,8 @@ export function createBillingStore(driver: Driver): BillingStore {
       if (user === null && customer === null) return null;
       if (plan !== "free" && plan !== "pro") throw new Error("applyPlan needs the plan free or pro.");
       return driver.transaction(async (run) => {
+        // The limits every transaction of the app has (with-user.ts): the database ends it if it hangs.
+        await run(`select ${TRANSACTION_LIMITS}`, []);
         // The user who has this customer comes first; otherwise the user named in the message.
         const [owner] = customer === null ? [] : await run("select id from app.profiles where stripe_customer_id = $1", [customer]);
         const target = (owner?.id as string | undefined) ?? user;
