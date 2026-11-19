@@ -71,18 +71,18 @@ describe("request_password_reset accepted", () => {
 
     expect(answer).toEqual({ status: 200, body: { message: "If this email is registered, we sent a link" } });
   });
-
-  it("gives an address that is not an email the same neutral message and sends nothing", async () => {
-    const before = await snapshot();
-
-    const answer = await read(await send({ email: "not an email" }));
-
-    expect(answer).toEqual({ status: 200, body: { message: NEUTRAL } });
-    expect(await snapshot()).toEqual(before);
-  });
 });
 
 describe("request_password_reset rejected (nothing changes)", () => {
+  it("answers 'Enter a valid email address' for an address that is not an email, and sends nothing", async () => {
+    const before = await snapshot();
+
+    const answer = await read(await send({ email: "abc" }));
+
+    expect(answer).toEqual({ status: 400, body: expect.objectContaining({ message: "Enter a valid email address" }) });
+    expect(await snapshot()).toEqual(before);
+  });
+
   it("answers 'We could not send the email. Try again later' when e-mail is down, and sends nothing", async () => {
     await app.auth.addUser("fay@example.com", PASSWORD, { confirmed: true });
     app.auth.emailDown = true;

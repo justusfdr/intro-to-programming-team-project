@@ -18,6 +18,8 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 type Rules = { good: (string | null)[]; bad: (string | null)[]; empty: string; neutral: string };
 
 const labelOf = (block: HourBlockId) => HOUR_BLOCKS.find((b) => b.id === block)!.label;
+/** Issue #126: a running week is compared with last week up to the same moment (report.ts). */
+const lastName = (r: ReportWithoutInsights) => (r.isCurrentWeek ? "this time last week" : "last week");
 const percentMore = (now: number, before: number) => Math.round((100 * Math.abs(now - before)) / before);
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 /** "3.5", "2": a number with at most one decimal. */
@@ -58,7 +60,7 @@ function focusRules(r: ReportWithoutInsights): Rules {
     neutral: `${minutesText(f.week.focusedMinutes)} of focus in ${f.week.sessions} ${plural(f.week.sessions, "session", "sessions")} this week.`,
     good: [
       hasLast && f.week.focusedMinutes > f.lastWeek.focusedMinutes
-        ? `${minutesText(f.week.focusedMinutes)} of focus, ${percentMore(f.week.focusedMinutes, f.lastWeek.focusedMinutes)} % more than last week.`
+        ? `${minutesText(f.week.focusedMinutes)} of focus, ${percentMore(f.week.focusedMinutes, f.lastWeek.focusedMinutes)} % more than ${lastName(r)}.`
         : null,
       f.week.focusedMinutes > 0 && others.some((w) => w.focusedMinutes > 0) && others.every((w) => f.week.focusedMinutes > w.focusedMinutes)
         ? `This is your best week of the last 8, with ${minutesText(f.week.focusedMinutes)} of focus.`
@@ -69,7 +71,7 @@ function focusRules(r: ReportWithoutInsights): Rules {
     ],
     bad: [
       hasLast && f.week.focusedMinutes < f.lastWeek.focusedMinutes
-        ? `${minutesText(f.week.focusedMinutes)} of focus, ${percentMore(f.week.focusedMinutes, f.lastWeek.focusedMinutes)} % less than last week.`
+        ? `${minutesText(f.week.focusedMinutes)} of focus, ${percentMore(f.week.focusedMinutes, f.lastWeek.focusedMinutes)} % less than ${lastName(r)}.`
         : null,
       f.bestDay !== null && lightest && lightest.date !== f.bestDay.date && lightest.focusedMinutes * 2 < mostMinutes
         ? `${weekdayName(lightest.date)} was your lightest day with ${minutesText(lightest.focusedMinutes)}, under half of ${weekdayName(f.bestDay.date)}.`
@@ -139,7 +141,7 @@ function timeRules(r: ReportWithoutInsights): Rules {
     neutral: `${minutesText(t.doneMinutes)} done this week.`,
     good: [
       t.lastWeekDoneMinutes > 0 && t.doneMinutes > t.lastWeekDoneMinutes
-        ? `You got ${minutesText(t.doneMinutes)} done, ${percentMore(t.doneMinutes, t.lastWeekDoneMinutes)} % more than last week.`
+        ? `You got ${minutesText(t.doneMinutes)} done, ${percentMore(t.doneMinutes, t.lastWeekDoneMinutes)} % more than ${lastName(r)}.`
         : null,
       share !== null && share >= 70 ? `${share} % of your done time went to your goals.` : null,
       t.planKept !== null && t.planKept >= 80 ? `You kept ${t.planKept} % of your plan.` : null,
@@ -185,14 +187,14 @@ function blockedRules(r: ReportWithoutInsights): Rules {
     empty: "No sessions and no blocked visits this week yet.",
     neutral: b.week === 0 ? "No blocked visits this week." : `${b.week} blocked ${plural(b.week, "visit", "visits")} this week.`,
     good: [
-      b.lastWeek > 0 && b.week < b.lastWeek ? `${b.week} blocked ${plural(b.week, "visit", "visits")}, down from ${b.lastWeek} last week.` : null,
+      b.lastWeek > 0 && b.week < b.lastWeek ? `${b.week} blocked ${plural(b.week, "visit", "visits")}, down from ${b.lastWeek} ${lastName(r)}.` : null,
       others.length > 0 && others.some((w) => w.sessions > 0 || w.attempts > 0) && others.every((w) => b.week < w.attempts)
         ? `${b.week} blocked ${plural(b.week, "visit", "visits")} is your lowest in 8 weeks.`
         : null,
       sessions > 0 && b.cleanSessions * 2 >= sessions ? `${b.cleanSessions} of ${sessions} ${plural(sessions, "session", "sessions")} had no blocked visit.` : null,
     ],
     bad: [
-      lastHasData && b.week > b.lastWeek ? `${b.week} blocked ${plural(b.week, "visit", "visits")}, up from ${b.lastWeek} last week.` : null,
+      lastHasData && b.week > b.lastWeek ? `${b.week} blocked ${plural(b.week, "visit", "visits")}, up from ${b.lastWeek} ${lastName(r)}.` : null,
       enough && b.worstBlock !== null && worstCount * 10 >= b.week * 4
         ? `${worstCount} of ${b.week} blocked visits came ${whenText(b.worstBlock)}.`
         : null,

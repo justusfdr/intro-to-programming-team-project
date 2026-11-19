@@ -8,6 +8,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AllDayEvent, CalendarEvent, WeekEvent } from "@/lib/events/types";
+import { DisplayProvider } from "@/components/shell/DisplayProvider";
+import { DEFAULT_DISPLAY, type Display } from "@/lib/time/display";
 import { EditEventCard, NewEventCard, SeriesQuestion } from "./EventEditor";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -52,12 +54,13 @@ const EXAM: AllDayEvent = {
   updatedAt: "2026-11-15T10:00:00.000Z",
 };
 
+const H24: Display = { ...DEFAULT_DISPLAY, timeFormat: "24h" }; // these tests pin HH:MM, the 24-hour display (issue #161: the default display is 12h)
 const GOALS = [{ id: "g1", title: "Run a half marathon", look: { color: "teal" as const, icon: "footprints" as const } }];
 const COMMON = { goals: GOALS, timeZone: "Europe/Lisbon", today: "2026-11-16", anchor: null, onClose: () => {} };
 
-const edit = (event: CalendarEvent) => renderToStaticMarkup(<EditEventCard event={event} {...COMMON} />);
+const edit = (event: CalendarEvent, display = H24) => renderToStaticMarkup(<DisplayProvider value={display}><EditEventCard event={event} {...COMMON} /></DisplayProvider>);
 const create = (draft: { start: string; end: string; title?: string; goalId?: string | null }) =>
-  renderToStaticMarkup(<NewEventCard draft={draft} {...COMMON} />);
+  renderToStaticMarkup(<DisplayProvider value={H24}><NewEventCard draft={draft} {...COMMON} /></DisplayProvider>);
 
 describe("an existing event", () => {
   it("shows no Save button while nothing was changed (spec 17)", () => {
@@ -120,7 +123,7 @@ describe("an existing event", () => {
   });
 
   it("an Outlook event shows title, time and location as text, its goal chips and Mark done, no bin (R11)", () => {
-    const html = edit({ ...TIMED, source: "outlook", location: "Nova SBE, Carcavelos" });
+    const html = edit({ ...TIMED, source: "outlook", location: "Nova SBE, Carcavelos" }, DEFAULT_DISPLAY);
     expect(html).toContain(">Statistics lecture</p>");
     expect(html).toContain(">Tue, Nov 17 · 9 – 10am</p>");
     expect(html).toContain(">Time and title are managed in Outlook.</p>");

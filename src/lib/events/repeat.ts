@@ -47,3 +47,16 @@ export function repeatDates(first: LocalDate, rule: RepeatRule): LocalDate[] | "
   }
   return dates;
 }
+
+/**
+ * The end date a new series gets until the user picks one (issue #129): daily for about 3 months
+ * (90 dates), weekly and monthly for a year (52 weeks, 12 months). Never more than 100 dates: a weekly
+ * series on several weekdays then ends on its 100th date.
+ */
+export function defaultUntil(first: LocalDate, frequency: Frequency, weekdays: Weekday[] = []): LocalDate {
+  const target = addDays(first, frequency === "daily" ? 89 : 363);
+  if (repeatDates(first, { frequency, weekdays, until: target }) !== "too_many") return target;
+  const days = new Set<Weekday>(frequency === "weekly" ? [...weekdays, weekdayOf(first)] : [1, 2, 3, 4, 5, 6, 7]);
+  let count = 0;
+  for (let date = first; ; date = addDays(date, 1)) if (days.has(weekdayOf(date)) && ++count === MAX_DATES) return date;
+}

@@ -10,7 +10,7 @@ export const MESSAGES = {
   resendTooSoon: "Please wait a minute before asking again",
   tooManyAttempts: "Too many attempts. Try again in a few minutes.",
   wrongCredentials: "Email or password is wrong",
-  unconfirmed: "Confirm your email first. We sent you a link",
+  unconfirmed: "Confirm your email first. Open the link from your sign-up email or ask for a new one",
   resetRequested: "If this email is registered, we sent a link",
   // ontology, section 5 (events) and R3, R4
   titleLength: "Title must be 1 to 100 characters",
@@ -38,6 +38,7 @@ export const MESSAGES = {
   goalTitleLength: "Title must be 1 to 80 characters",
   addRule: "Add at least one rule",
   deadlinePast: "The deadline cannot be in the past",
+  deadlineRequired: "Choose a deadline",
   countTarget: "Target must be 1 to 14 events",
   hoursTarget: "Target must be 0.5 to 60 hours",
   minMinutes: "Minimum length must be 15 to 240 minutes",
@@ -83,6 +84,8 @@ export const MESSAGES = {
   // ontology, section 5 (settings and account)
   bufferRange: "Buffer must be 0 to 120 minutes",
   cancelPro: "Cancel Pro before deleting your account",
+  /** Pro is cancelled but runs until the end of the paid period (Issue #131). */
+  deleteAfterProEnds: (date: string) => `Pro is cancelled and ends on ${date}. You can delete your account after that.`,
   // ontology, section 5 (upgrade_to_pro, cancel_pro) and section 7 (Stripe down), spec 24
   alreadyPro: "You already have Pro",
   notPro: "You do not have Pro",
@@ -94,6 +97,8 @@ export const MESSAGES = {
   chatGone: "This chat no longer exists",
   chatSearchLength: "A search can be at most 100 characters",
   chatFailedChecks: "The assistant's answer failed our checks. Please try again",
+  chatRefused: "The coach cannot help with this request.",
+  chatTooLong: "That was too much for one answer. Ask for less at once, for example fewer days.",
   chatUnavailable: "The assistant is not available right now. Your calendar is unchanged",
   draftNotOpen: "This draft is no longer open",
   draftOutOfDate: "This draft is out of date. Ask again",
@@ -111,6 +116,13 @@ export const MESSAGES = {
   photoSize: "A photo can be at most 200 KB",
   bio: "A bio must be 1 to 160 characters on one line, without control characters",
   linkedin: "Enter a LinkedIn profile link, like https://www.linkedin.com/in/your-name",
+  // ontology, section 5 (contacts and invitations, spec 53, R52 to R54)
+  invited: "If this person uses LockedIn, they will see your invitation.",
+  inviteSelf: "You cannot invite yourself",
+  tooManyInvitations: "You can have at most 20 open invitations",
+  invitationsPerHour: "You can send at most 10 invitations per hour",
+  tooManyContacts: "You can have at most 100 contacts",
+  theirContactsFull: "This person cannot add more contacts",
   // ontology, section 7 (when a service is down)
   databaseDown: "Your data cannot be loaded right now.",
   emailDown: "We could not send the email. Try again later",
@@ -162,6 +174,13 @@ export const MESSAGES = {
   profileSaved: "Profile saved.",
   photoSaved: "Photo saved.",
   photoRemoved: "Photo removed.",
+  invitationAccepted: "You are now contacts.",
+  invitationDeclined: "Invitation declined.",
+  invitationWithdrawn: "Invitation withdrawn.",
+  contactRemoved: "Contact removed.",
+  shareSaved: "Sharing saved.",
+  shareWindow: "Choose at most 62 days",
+  shareChoice: "Choose what to share",
   siteRemoved: "Removed from your block list.",
   placeSaved: "Place saved.",
   placeRemoved: "Place removed.",

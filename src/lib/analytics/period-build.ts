@@ -192,9 +192,9 @@ export function periodInsights(report: Omit<PeriodReport, "insights">): PeriodRe
   if (rising >= 3) {
     good.push(`Focus time grew ${rising} weeks in a row: ${weeks.slice(-Math.min(rising, 4)).map((w) => minutesText(w.focusedMinutes)).join(", ")}.`);
   } else if (growth !== null && growth > 0) {
-    good.push(`${growth}% more focus time than in the ${count} before.`);
+    good.push(`${growth} % more focus time than in the ${count} before.`);
   }
-  if (growth !== null && growth < 0) bad.push(`${-growth}% less focus time than in the ${count} before.`);
+  if (growth !== null && growth < 0) bad.push(`${-growth} % less focus time than in the ${count} before.`);
 
   // Focus score.
   if (firstScore !== null && lastScore !== null && lastScore - firstScore >= 5) good.push(`Your focus score rose from ${firstScore} to ${lastScore}.`);
@@ -229,7 +229,7 @@ export function periodInsights(report: Omit<PeriodReport, "insights">): PeriodRe
   const sentences: string[] = [];
   if (totals.sessions === 0) sentences.push(`No focus sessions in ${period.weeks === 1 ? "this week" : `these ${count}`}.`);
   else {
-    const compared = growth === null || growth === 0 ? "" : growth > 0 ? `, ${growth}% more than in the ${count} before` : `, ${-growth}% less than in the ${count} before`;
+    const compared = growth === null || growth === 0 ? "" : growth > 0 ? `, ${growth} % more than in the ${count} before` : `, ${-growth} % less than in the ${count} before`;
     sentences.push(`You focused ${minutesText(totals.focusedMinutes)} in ${plural(totals.sessions, "session")} over ${count}${compared}.`);
   }
   if (firstScore !== null && lastScore !== null && firstScore !== lastScore) sentences.push(`Your focus score went from ${firstScore} to ${lastScore}.`);

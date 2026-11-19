@@ -145,7 +145,11 @@ describe("readAnalyticsReport", () => {
     const r = await reportFor(alice);
     expect(r.timeZone).toBe("America/New_York");
     expect(r.focus.week.sessions).toBe(0);
-    expect(r.focus.lastWeek.sessions).toBe(1);
+    // It belongs to the week before. (While this week runs, "last week" only counts up to the same
+    // moment, issue #126, so the week itself is opened to see it.)
+    const before = await reportFor(alice, "2026-11-15");
+    expect(before.monday).toBe("2026-11-09");
+    expect(before.focus.week.sessions).toBe(1);
   });
 
   it("shows an earlier week when asked, with no 'today'", async () => {

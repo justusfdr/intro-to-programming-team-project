@@ -146,13 +146,19 @@ export function ChangePill({ text, direction, good, className = "" }: { text: st
   );
 }
 
-/** The pill and "vs last week" next to it. */
-export function VsLastWeek({ change }: { change: Change | null }) {
+/**
+ * What the shown week is compared with (issue #126). A running week only against last week up to the
+ * same moment, so Wednesday is not measured against a whole week.
+ */
+export const lastWeekName = (running: boolean) => (running ? "this time last week" : "last week");
+
+/** The pill and "vs last week" (or "vs this time last week" while the week runs) next to it. */
+export function VsLastWeek({ change, running = false }: { change: Change | null; running?: boolean }) {
   if (!change) return null;
   return (
     <span className="flex flex-wrap items-center gap-2">
       <ChangePill {...change} />
-      <span className="text-xs text-ink-3">vs last week</span>
+      <span className="text-xs text-ink-3">vs {lastWeekName(running)}</span>
     </span>
   );
 }
@@ -167,12 +173,12 @@ export function countChange(now: number, before: number, moreIsGood: boolean): C
   return { text: `${Math.abs(diff)} ${up ? "more" : "fewer"}`, direction: up ? "up" : "down", good: up === moreIsGood };
 }
 
-/** A percent change: "19%". */
+/** A percent change: "19 %". */
 export function percentChange(now: number, before: number): Change | null {
   if (before <= 0) return null;
   const percent = Math.round(((now - before) / before) * 100);
   if (percent === 0) return { text: "Same", direction: "same", good: false };
-  return { text: `${Math.abs(percent)}%`, direction: percent > 0 ? "up" : "down", good: percent > 0 };
+  return { text: `${Math.abs(percent)} %`, direction: percent > 0 ? "up" : "down", good: percent > 0 };
 }
 
 /** A change in points (score, percent of plan): "6 points". */

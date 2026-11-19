@@ -1,7 +1,13 @@
 // The end picked on the wheel or typed in the editor: a time of day (00:00 to 23:59), on the start's day
 // when it is after the start, on the next day when it is at or before the start (an event past midnight).
 import { describe, expect, it } from "vitest";
-import { endFromPicked, repeatSentence } from "./WhenSection";
+import { renderToStaticMarkup } from "react-dom/server";
+import { DisplayProvider } from "@/components/shell/DisplayProvider";
+import { DEFAULT_DISPLAY } from "@/lib/time/display";
+import { newValues } from "./values";
+import { endProblem } from "@/lib/time/wheel";
+import { cannotSave } from "./useEventSave";
+import { endFromPicked, repeatSentence, WhenSection } from "./WhenSection";
 
 const at = (h: number, m = 0) => h * 60 + m;
 
@@ -12,11 +18,19 @@ describe("endFromPicked", () => {
     expect(endFromPicked(at(9), at(9, 15))).toBe(at(9, 15));
   });
 
-  it("puts an end at or before the start on the next day", () => {
+  it("puts an end before the start on the next day", () => {
     expect(endFromPicked(at(22), at(2))).toBe(at(26));
     expect(endFromPicked(at(22), at(0))).toBe(at(24));
-    // The same time as the start: a whole day.
-    expect(endFromPicked(at(9), at(9))).toBe(at(33));
+    expect(endFromPicked(at(9), at(8, 45))).toBe(at(32, 45));
+  });
+
+  // Issue #128: the same time as the start used to become a 24-hour event. Now it stays equal, so
+  // endProblem (and with it cannotSave) refuses it; an end on the next day stays allowed.
+  it("keeps an end equal to the start, which the editor then refuses", () => {
+    expect(endFromPicked(at(9), at(9))).toBe(at(9));
+    expect(endProblem(at(9), endFromPicked(at(9), at(9)))).toBe("The end must be at least 15 minutes after the start");
+    expect(cannotSave({ title: "x", notes: "", allDay: false, startMin: at(9), endMin: endFromPicked(at(9), at(9)) })).toBe(true);
+    expect(cannotSave({ title: "x", notes: "", allDay: false, startMin: at(22), endMin: endFromPicked(at(22), at(2)) })).toBe(false);
   });
 });
 
@@ -34,5 +48,30 @@ describe("repeatSentence", () => {
       expect(repeatSentence("monthly", [], `2026-12-${day}`, "")).toBe(`Every month on the ${word}`);
     }
     expect(repeatSentence("daily", [], "2026-11-17", "2026-12-20")).toMatch(/^Every day · until .*20/);
+  });
+});
+
+// Issue #159: with "All day" on, First day and Last day are stacked in one column, so the calendar that
+// opens under a field gets the full row width (in two columns it only got half and looked cramped).
+describe("WhenSection, all-day dates", () => {
+  const render = (allDay: boolean) =>
+    renderToStaticMarkup(
+      <DisplayProvider value={DEFAULT_DISPLAY}>
+        <WhenSection event={null} values={newValues({ start: "2026-11-17T09:00", end: "2026-11-17T10:00", allDay })} onChange={() => {}} todayKey="2026-11-17" />
+      </DisplayProvider>,
+    );
+
+  it("stacks First day and Last day in one column", () => {
+    const html = render(true);
+    expect(html).toContain("First day");
+    expect(html).toContain("Last day");
+    expect(html).toContain('class="grid grid-cols-1 gap-2"');
+    expect(html).not.toContain("grid-cols-2");
+  });
+
+  it("shows the single full-width Date field for a timed event", () => {
+    const html = render(false);
+    expect(html).toContain('aria-label="Date: ');
+    expect(html).not.toContain("First day");
   });
 });

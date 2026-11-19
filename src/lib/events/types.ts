@@ -110,4 +110,6 @@ export type WeekData = {
    * day (R2) and are only drawn as their part after midnight.
    */
   lead: WeekEvent[];
+  /** The day view only: the all-day events of the whole week, so its all-day row is as tall as the week's. */
+  weekAllDay?: AllDayEvent[];
 };

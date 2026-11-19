@@ -1,13 +1,13 @@
 "use client";
 
 // Card "Focus blocker" in Settings, copied from the prototype's site-blocker card: status pill, the block
-// list with add and remove, and how to install the extension: a download of the extension set to this
+// list with add and remove, and how to install the extension (folded away, spec 52): a download of the extension set to this
 // app, and a guide in five steps (spec 18). Moved here from the Focus page (spec 12),
 // which keeps a small status chip. No on/off switch: when blocking runs is calculated (R15).
 // The server checks every rule (spec 05); this only sends the input and shows the answer.
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
-import { Check, Copy, Download, Lock, ShieldCheck, X } from "lucide-react";
+import { Check, ChevronDown, Copy, Download, Lock, ShieldCheck, X } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { useDisplay } from "@/components/shell/DisplayProvider";
@@ -264,15 +264,27 @@ function InstallSteps() {
   );
 }
 
+// Not connected yet: one row that opens the guide, instead of five steps filling the page (spec 52).
 function InstallSection({ connected }: { connected: boolean }) {
   if (!connected) {
     return (
-      <div>
-        <p className="text-sm font-medium text-ink">Install the extension</p>
-        <div className="mt-3">
+      <details className="group/guide rounded-2xl border border-line-subtle">
+        <summary
+          className={`flex cursor-pointer list-none items-center gap-3 rounded-2xl px-4 py-3 hover:bg-raised/60 [&::-webkit-details-marker]:hidden ${FOCUS}`}
+        >
+          <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-ink text-white">
+            <Download className="size-4" strokeWidth={2} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-ink">Install the extension</span>
+            <span className="block text-xs text-ink-2">Five steps, about two minutes, in Chrome.</span>
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-ink-3 transition-transform group-open/guide:rotate-180" strokeWidth={1.8} aria-hidden="true" />
+        </summary>
+        <div className="border-t border-line-subtle px-4 pb-4 pt-4">
           <InstallSteps />
         </div>
-      </div>
+      </details>
     );
   }
   return (

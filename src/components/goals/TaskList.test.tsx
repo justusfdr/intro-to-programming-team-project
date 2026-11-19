@@ -89,6 +89,8 @@ describe("the small task form", () => {
     );
     expect(html).toContain('aria-label="Add task to Inbox"');
     expect(html).toContain('aria-label="Task title"');
+    // The field stops at 100 characters, the most the server takes (issue #137).
+    expect(html).toMatch(/aria-label="Task title"[^>]*maxLength="100"/);
     expect(html).not.toContain('type="date"');
     expect(html).toMatch(/<button type="button" aria-expanded="false" aria-label="Due date \(optional\)"[^>]*>.*<span class="[^"]*text-ink-3">Add due date<\/span><\/button>/);
     // Nothing to remove while there is no date.
@@ -143,27 +145,25 @@ describe("the Goals page with tasks", () => {
         task("Soon", { dueDate: "2026-11-18" }),
       ],
     );
-    const section = html.slice(html.indexOf('aria-label="Half marathon"'), html.indexOf('aria-label="Inbox"'));
+    const section = html.slice(html.indexOf('aria-label="Half marathon"'));
     expect(section).toContain('<span class="sr-only">2 open tasks</span>');
     expect(section.indexOf(">Soon<")).toBeLessThan(section.indexOf(">No date<"));
     expect(section.indexOf(">No date<")).toBeLessThan(section.indexOf(">Done one<"));
     // The tasks come after the rules and the weeks.
-    expect(section.indexOf('aria-label="Weeks"')).toBeLessThan(section.indexOf(">Soon<"));
+    // Changed 18 Nov 2026 with Emily's approval (spec 47): there is no strip of weeks any more.
+    expect(section.indexOf('aria-label="This week"')).toBeGreaterThan(-1);
+    expect(section.indexOf('aria-label="This week"')).toBeLessThan(section.indexOf(">Soon<"));
   });
 
-  it("shows Inbox at the bottom with a grey tile and its own 'Add task', also with no goals", () => {
+  it("shows no Inbox card, so tasks without a goal are not listed", () => {
     const html = render([], [task("Call mom back", { goalId: null })]);
-    const inbox = html.slice(html.indexOf('aria-label="Inbox"'));
-    expect(inbox).toContain("bg-raised text-ink-3"); // the grey tile
-    expect(inbox).toContain(">Inbox</h2>");
-    expect(inbox).toContain('<span class="sr-only">1 open task</span>');
-    expect(inbox).toContain(">Call mom back<");
-    expect(inbox).toContain('aria-label="Add task to Inbox"');
+    expect(html).not.toContain("Inbox");
+    expect(html).not.toContain(">Call mom back<");
   });
 
   it("counts 0 when every task of a goal is done (A15)", () => {
     const html = render([GOAL], [task("Buy running shoes", { status: "done", doneAt: "2026-11-16T10:00:00.000Z" })]);
-    const section = html.slice(html.indexOf('aria-label="Half marathon"'), html.indexOf('aria-label="Inbox"'));
+    const section = html.slice(html.indexOf('aria-label="Half marathon"'));
     expect(section).toContain('<span class="sr-only">0 open tasks</span>');
   });
 });

@@ -62,6 +62,29 @@ export async function travelOf(event: EventRow, settings: SettingsData, routing:
   }
 }
 
+const MODES: readonly TravelMode[] = ["driving", "cycling", "walking", "transit"];
+const MAX_LOCATION = 200;
+
+/**
+ * The editor asks while the user is still changing the route, before Save: the address, the way of
+ * getting there and where the trip starts may come with the question (`location`, `mode`, `from`; an
+ * empty `mode` or `from` is the standard). They count for this answer only and are never saved. A value
+ * that is not a valid one is left out, and the saved one counts.
+ */
+export function withPreview(row: EventRow, url: URL): EventRow {
+  const params = url.searchParams;
+  const next = { ...row };
+  const location = params.get("location");
+  if (location !== null && location.length <= MAX_LOCATION) next.location = location.trim() === "" ? null : location;
+  const mode = params.get("mode");
+  if (mode === "") next.travel_mode = null;
+  else if (mode !== null && (MODES as readonly string[]).includes(mode)) next.travel_mode = mode as TravelMode;
+  const from = params.get("from");
+  if (from === "") next.travel_from = null;
+  else if (from !== null && travelFromOf(from)) next.travel_from = from;
+  return next;
+}
+
 export function travelTime(request: Request, deps: Pick<Deps, "auth" | "withUser">, id: string, routing: Routing = googleRouting()): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
@@ -71,8 +94,9 @@ export function travelTime(request: Request, deps: Pick<Deps, "auth" | "withUser
 
     // Only reading, and the database is left before the slow questions to the routing services.
     const { event, settings, start } = await deps.withUser(userId, async (query) => {
-      const [row] = await query<EventRow>(`select ${EVENT_COLUMNS} from app.events where id = $1`, [id]);
-      if (!row) throw notFound();
+      const [saved] = await query<EventRow>(`select ${EVENT_COLUMNS} from app.events where id = $1`, [id]);
+      if (!saved) throw notFound();
+      const row = withPreview(saved, new URL(request.url));
       const [settings, places, before] = await Promise.all([readSettings(query), readPlaces(query), readBefore(query, [row.id])]);
       return { event: row, settings, start: tripStart(row, settings, places, before.get(row.id) ?? []) };
     });

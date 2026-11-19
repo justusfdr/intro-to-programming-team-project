@@ -23,6 +23,7 @@ import {
   hasAnswers,
   LAST_DAY_MESSAGE,
   locationOf,
+  NAME_IDEAS,
   maxTimesPerWeek,
   oneGoalHint,
   previewTags,
@@ -468,5 +469,15 @@ describe("the own time window (Custom)", () => {
     expect(previewTags(a, "date", "24h").find((t) => t.key === "dayPart")?.text).toBe("6:30 – 8:00");
     expect(summaryLines(a, "24h").find((l) => l.step === "when")?.text).toBe("6:30 – 8:00");
     expect(answersSentence(a, "24h")).toContain("between 6:30 – 8:00");
+  });
+});
+
+describe("name ideas (issue #89)", () => {
+  it("offers only Reading for Personal, no Guitar", () => {
+    expect(NAME_IDEAS.personal).toEqual(["Reading"]);
+    expect(Object.values(NAME_IDEAS).flat()).not.toContain("Guitar");
+  });
+  it("keeps the other categories' ideas", () => {
+    expect(NAME_IDEAS.sport).toEqual(["Gym", "Running", "Half marathon"]);
   });
 });

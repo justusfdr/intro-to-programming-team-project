@@ -184,7 +184,13 @@ export function CoachView({ data, defaultText = "", defaultConfirmingDelete = fa
     setLive("Planning…");
     const answer = await postJson("/api/chat/messages", { text: sent, chatId: from ?? "new" });
     if (shownChat.current !== from) {
-      // The person moved to another chat meanwhile: leave it as it is; the list learns of the answer.
+      // The person moved to another chat meanwhile. Sent: leave it; the list learns of the answer.
+      // Not sent (issue #142): the text must not be lost, so it comes back into the field with a note.
+      if (!answer.ok) {
+        setText((typed) => (typed.trim() ? `${sent}\n${typed}` : sent));
+        setError(`Your last message was not sent: ${answer.message} It is back in the field.`);
+        setLive("");
+      }
       router.refresh();
       return;
     }

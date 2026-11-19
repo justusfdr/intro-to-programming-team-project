@@ -19,6 +19,7 @@ import {
   SrList,
   topIndex,
   VsLastWeek,
+  lastWeekName,
   weekdayLong,
   weekLabel,
   WidgetCard,
@@ -26,11 +27,11 @@ import {
 } from "./parts";
 
 /** "1h 50m more than last week"; null without a last week to compare with. */
-function heroChange(now: number, before: number, lastSessions: number): { text: string; up: boolean | null } | null {
+function heroChange(now: number, before: number, lastSessions: number, last: string): { text: string; up: boolean | null } | null {
   if (lastSessions === 0) return null;
   const diff = now - before;
-  if (diff === 0) return { text: "Same as last week", up: null };
-  return { text: `${duration(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than last week`, up: diff > 0 };
+  if (diff === 0) return { text: `Same as ${last}`, up: null };
+  return { text: `${duration(Math.abs(diff))} ${diff > 0 ? "more" : "less"} than ${last}`, up: diff > 0 };
 }
 
 export function FocusTimeWidget({ report, size, onOpen, hero }: WidgetProps) {
@@ -45,7 +46,7 @@ export function FocusTimeWidget({ report, size, onOpen, hero }: WidgetProps) {
   );
 
   if (hero) {
-    const change = heroChange(week.focusedMinutes, lastWeek.focusedMinutes, lastWeek.sessions);
+    const change = heroChange(week.focusedMinutes, lastWeek.focusedMinutes, lastWeek.sessions, lastWeekName(report.isCurrentWeek));
     const max = Math.max(1, ...days.map((d) => d.focusedMinutes));
     return (
       <WidgetCard title="Focus time" icon={Clock} tint="grey" tone="dark" onOpen={onOpen} bare row className="gap-5 px-6 py-[22px]">
@@ -87,7 +88,7 @@ export function FocusTimeWidget({ report, size, onOpen, hero }: WidgetProps) {
     <WidgetCard title="Focus time" icon={Clock} tint="grey" onOpen={onOpen}>
       <div className="mt-3.5 flex flex-wrap items-center gap-3">
         <Big>{duration(week.focusedMinutes)}</Big>
-        <VsLastWeek change={lastWeek.sessions > 0 ? percentChange(week.focusedMinutes, lastWeek.focusedMinutes) : null} />
+        <VsLastWeek change={lastWeek.sessions > 0 ? percentChange(week.focusedMinutes, lastWeek.focusedMinutes) : null} running={report.isCurrentWeek} />
       </div>
       {week.focusedMinutes > 0 ? (
         <>
@@ -119,7 +120,7 @@ export function FocusScoreWidget({ report, onOpen }: WidgetProps) {
   const blockedLine =
     blocked.lastWeek > 0 || lastWeek.sessions > 0
       ? `${plural(week.attempts, "blocked visit")}, ${
-          week.attempts === lastWeek.attempts ? "as many as last week" : `${Math.abs(week.attempts - lastWeek.attempts)} ${week.attempts < lastWeek.attempts ? "fewer" : "more"} than last week`
+          week.attempts === lastWeek.attempts ? `as many as ${lastWeekName(report.isCurrentWeek)}` : `${Math.abs(week.attempts - lastWeek.attempts)} ${week.attempts < lastWeek.attempts ? "fewer" : "more"} than ${lastWeekName(report.isCurrentWeek)}`
         }`
       : plural(week.attempts, "blocked visit");
   return (
@@ -129,7 +130,7 @@ export function FocusScoreWidget({ report, onOpen }: WidgetProps) {
         <span className="text-[13px] text-ink-3">of 100</span>
       </div>
       <div className="mt-2.5">
-        <VsLastWeek change={pointsChange(week.score, lastWeek.score)} />
+        <VsLastWeek change={pointsChange(week.score, lastWeek.score)} running={report.isCurrentWeek} />
       </div>
       <Progress share={(week.score ?? 0) / 100} fill="bg-violet-600" className="mt-auto" />
       <p className="mt-2 text-xs text-ink-2">{week.sessions > 0 ? blockedLine : NO_SESSIONS}</p>
@@ -148,7 +149,7 @@ export function SessionsWidget({ report, onOpen }: WidgetProps) {
     <WidgetCard title="Focus sessions" icon={Timer} tint="sky" onOpen={onOpen}>
       <Big className="mt-[18px]">{week.sessions}</Big>
       <div className="mt-2.5">
-        <VsLastWeek change={lastWeek.sessions > 0 ? countChange(week.sessions, lastWeek.sessions, true) : null} />
+        <VsLastWeek change={lastWeek.sessions > 0 ? countChange(week.sessions, lastWeek.sessions, true) : null} running={report.isCurrentWeek} />
       </div>
       {week.sessions > 0 ? (
         <dl className="mt-auto flex flex-col gap-1.5 pt-3 text-[13px]">

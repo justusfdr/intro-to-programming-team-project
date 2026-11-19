@@ -13,9 +13,13 @@
 // For screen readers and the keyboard, each day is a labelled list of its events in time order,
 // and each event is a button whose name says title, day, time and marks. The hour axis, the lines
 // and the empty slots are decoration. Everything a drag does can be done in the editor too.
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+//
+// Spec 53 (from spec 29): other people's shared calendars, read only, on the right part of a day column
+// (the viewer's own blocks keep the left part, and only on days that have shared blocks). They never
+// take part in dragging, creating or the overlap marks (R10, R57).
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
-import { blockBox, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, type GridRange, type Placed } from "@/lib/events/grid";
+import { blockBox, clampHourPx, HOUR_PX, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, type GridRange, type Placed } from "@/lib/events/grid";
 import {
   canDrag,
   clickSpan,
@@ -39,7 +43,9 @@ import { todoCountText } from "@/lib/todos/types";
 import { guestCountText } from "@/lib/events/guests";
 import { travelBlock, type TravelBlock } from "@/lib/travel/blocks";
 import type { TravelAnswer } from "@/lib/travel/types";
+import type { SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
 import { anchorOf, pointAnchor, type Anchor } from "./FloatingPanel";
+import { SharedAllDayChip, SharedBlockView, type OpenShared } from "./Shared";
 
 /** What the grid and the event editor need of a goal: its name, colour and icon. */
 export type GoalLabel = { id: string; title: string; look: GoalLook };
@@ -53,8 +59,13 @@ type Props = {
   nowMin: number | null;
   /** On phones only this day's column is shown (the day strip above chooses it). */
   selectedDay: string;
-  /** The week view shows weekday and date over each column, each a link to that day (the day view has its strip instead). */
+  /** Weekday and date over the grid, each a link to that day (wider screens; phones have the day strip). */
   dayHref?: (date: string) => string;
+  /** The day view: the week's seven dates to show over its one column, and today, so its head matches the week view's. */
+  weekDates?: string[];
+  /** The day view: the all-day events of its whole week (for the height of the all-day row). */
+  weekAllDay?: AllDayEvent[];
+  today?: string;
   /** Events whose save is still running: they cannot be dragged until it is done. */
   pending?: ReadonlySet<string>;
   onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
@@ -64,9 +75,26 @@ type Props = {
   onDrop?: (event: WeekEvent, date: string, span: Span, anchor: Anchor) => void;
   /** R27: the travel answers by event id; an event with a time to leave gets a dashed block before it. */
   travel?: Readonly<Record<string, TravelAnswer>>;
+  /** A click on a free spot of a day in the all-day row: a new all-day event on that day. */
+  onCreateAllDay?: (date: string, anchor: Anchor) => void;
+  /** Two fingers on a trackpad or a touch screen zoom the hours: the new height of one hour. */
+  onZoom?: (hourPx: number) => void;
   /** Issue #106: events whose trip runs into another event (they get the overlap mark too). */
   tripWarned?: ReadonlySet<string>;
+  /**
+   * Spec 53: other people's shared calendars, per shown day (read only, never dragged or edited; they
+   * sit on the right part of a column and leave the viewer's own blocks on the left).
+   */
+  shared?: SharedBlock[][];
+  sharedAllDay?: SharedAllDayItem[][];
+  /** The viewer's time zone, for the shared blocks' words. */
+  timeZone?: string;
+  onOpenShared?: (shared: OpenShared, anchor: Anchor) => void;
 };
+
+/** Spec 53: the part of a day column the viewer's own blocks keep when shared blocks are shown on that day. */
+const OWN_AREA = 0.62;
+const NO_SHARED: SharedBlock[] = [];
 
 type Gesture =
   | { kind: "create"; pointerId: number; dayIndex: number; x: number; y: number; anchorMin: number; active: boolean }
@@ -177,6 +205,8 @@ function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined,
 
 type BlockProps = {
   block: Placed;
+  /** The part of the column the viewer's own blocks use (1, or less when shared blocks are shown). */
+  area: number;
   range: GridRange;
   dayLong: string;
   dayIndex: number;
@@ -195,7 +225,7 @@ type BlockProps = {
  * Outlook event the calendar icon. Kept from our rules: the conflict edge and icon (R10) and "not sent
  * to Outlook" (R26). A block that may be dragged moves with the pointer; its bottom edge resizes it.
  */
-function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, warned, onOpen, onMoveStart, onResizeStart }: BlockProps) {
+function EventBlock({ block, area, range, dayLong, dayIndex, goal, draggable, dimmed, warned, onOpen, onMoveStart, onResizeStart }: BlockProps) {
   const { event } = block;
   const { timeFormat } = useDisplay();
   // Events of a goal take the goal's colour; others stay neutral. An overlap adds a yellow edge and an icon.
@@ -224,8 +254,8 @@ function EventBlock({ block, range, dayLong, dayIndex, goal, draggable, dimmed, 
       style={{
         top: top + 1,
         height: height - 2,
-        left: `calc(${(block.lane / block.lanes) * 100}% + 2px)`,
-        width: `calc(${100 / block.lanes}% - 4px)`,
+        left: `calc(${(block.lane / block.lanes) * area * 100}% + 2px)`,
+        width: `calc(${(100 * area) / block.lanes}% - 4px)`,
       }}
       className={`pointer-events-auto absolute z-[2] overflow-hidden rounded-lg border px-1.5 py-1 text-left transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40 ${
         colors
@@ -272,7 +302,7 @@ const TRAVEL_BY: Record<TravelBlock["mode"], string> = { driving: "by car", cycl
  * R27: the trip to an event, drawn as a dashed, striped block from the time to leave to the event's start,
  * in the event's lane. Only a picture: clicks go through to the grid, and the event's editor says it in words.
  */
-function TravelBox({ trip, block, range }: { trip: TravelBlock; block: Placed; range: GridRange }) {
+function TravelBox({ trip, block, range, area }: { trip: TravelBlock; block: Placed; range: GridRange; area: number }) {
   const { timeFormat } = useDisplay();
   if (trip.toMin <= range.startMin) return null;
   const top = minuteToPx(Math.max(trip.fromMin, range.startMin), range);
@@ -287,8 +317,8 @@ function TravelBox({ trip, block, range }: { trip: TravelBlock; block: Placed; r
       style={{
         top: top + 1,
         height: height - 1,
-        left: `calc(${(block.lane / block.lanes) * 100}% + 2px)`,
-        width: `calc(${100 / block.lanes}% - 4px)`,
+        left: `calc(${(block.lane / block.lanes) * area * 100}% + 2px)`,
+        width: `calc(${(100 * area) / block.lanes}% - 4px)`,
         backgroundImage: "repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, currentColor 9%, transparent) 6px 7px)",
       }}
     >
@@ -319,15 +349,55 @@ function allDayLabel(event: AllDayEvent): string {
 const allDayClass =
   "block w-full truncate rounded-md border border-line bg-raised px-1.5 py-0.5 text-left text-[11px] font-medium leading-[15px] text-ink hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40";
 
-type AllDayRowProps = { days: WeekDay[]; selectedDay: string; onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void };
+type AllDayRowProps = {
+  days: WeekDay[];
+  selectedDay: string;
+  onOpenEvent: (event: CalendarEvent, anchor: Anchor) => void;
+  /** The day view: its week's dates and all-day events, so the row is as tall as in the week view. */
+  weekDates?: string[];
+  weekAllDay?: AllDayEvent[];
+  /** A click on a free spot of a day in this row: a new all-day event on that day. */
+  onCreateAllDay?: (date: string, anchor: Anchor) => void;
+};
+
+/** Height of one all-day bar (border, padding and line of `allDayClass`), the gap between bars, and the row's padding. */
+const ALL_DAY_BAR_PX = 21;
+const ALL_DAY_GAP_PX = 2;
+const ALL_DAY_PAD_PX = 8;
+
+/**
+ * How many rows the week view needs for these all-day bars. Same order and the same first fit as the
+ * week's grid (`row dense`): each bar goes into the first row whose days are still free.
+ */
+export function allDayRowCount(events: readonly AllDayEvent[], dates: readonly string[]): number {
+  if (dates.length === 0) return 0;
+  // In the week's order: by the first shown day each event covers, then as the server sent them.
+  const ordered = [...new Map(dates.flatMap((date) => events.filter((e) => e.firstDay <= date && date <= e.lastDay)).map((e) => [e.id, e])).values()];
+  const end = dates.length - 1;
+  const rows: boolean[][] = [];
+  for (const event of ordered) {
+    const first = event.firstDay < dates[0] ? 0 : dates.indexOf(event.firstDay);
+    const last = event.lastDay > dates[end] ? end : dates.indexOf(event.lastDay);
+    let row = rows.findIndex((taken) => taken.slice(first, last + 1).every((t) => !t));
+    if (row === -1) row = rows.push(dates.map(() => false)) - 1;
+    for (let i = first; i <= last; i++) rows[row][i] = true;
+  }
+  return rows.length;
+}
 
 /**
  * All-day events (R29) in a row above the hours: on wider screens one bar per event across its days
  * of this week, on phones the chosen day's events. Each event is one button with its days in words.
+ * On wider screens the row is there even without all-day events, so a new one can be added with a click;
+ * on phones only when the chosen day has some.
  */
-function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
+function AllDayRow({ days, selectedDay, onOpenEvent, weekDates, weekAllDay, onCreateAllDay }: AllDayRowProps) {
   const events = [...new Map(days.flatMap((d) => d.allDay).map((e) => [e.id, e])).values()];
-  if (events.length === 0) return null;
+  // On wider screens the row is always there (a click on it adds an all-day event), at least one bar
+  // tall; the day view keeps the week's height, even when the shown day has fewer bars or none.
+  const weekRows = weekDates && weekAllDay ? allDayRowCount(weekAllDay, weekDates) : 0;
+  const rows = Math.max(1, weekRows);
+  const minHeight = rows * ALL_DAY_BAR_PX + (rows - 1) * ALL_DAY_GAP_PX + ALL_DAY_PAD_PX;
   const chosen = days.find((d) => d.date === selectedDay)?.allDay ?? [];
   const columnOf = (date: string) => days.findIndex((d) => d.date === date);
 
@@ -349,48 +419,124 @@ function AllDayRow({ days, selectedDay, onOpenEvent }: AllDayRowProps) {
           </li>
         ))}
       </ul>
-      {/* Wider screens: bars across the days, packed into as few rows as fit. */}
-      <ul
-        className="hidden min-w-0 flex-1 gap-y-0.5 border-l border-line-subtle py-1 [grid-auto-flow:row_dense] md:grid"
-        style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}
-      >
-        {events.map((event) => {
-          const end = days.length - 1;
-          const first = event.firstDay < days[0].date ? 0 : columnOf(event.firstDay);
-          const last = event.lastDay > days[end].date ? end : columnOf(event.lastDay);
-          return (
-            <li key={event.id} style={{ gridColumn: `${first + 1} / ${last + 2}` }} className="min-w-0 px-0.5">
-              <button type="button" aria-label={allDayLabel(event)} onClick={(e) => onOpenEvent(event, anchorOf(e.currentTarget))} className={allDayClass}>
-                <span className="flex items-center gap-1">
-                  <span className="min-w-0 truncate">{event.firstDay < days[0].date ? `… ${event.title}` : event.title}</span>
-                  <OutlookMark event={event} />
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      {/* Wider screens: bars across the days, packed into as few rows as fit. A click on a free spot
+          of a day starts a new all-day event on it (mouse only, like a click on free time below;
+          "New event" does the same for the keyboard). */}
+      <div className="relative hidden min-w-0 flex-1 border-l border-line-subtle md:block">
+        {onCreateAllDay && (
+          <div aria-hidden className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
+            {days.map((day) => (
+              <div
+                key={day.date}
+                data-all-day-slot={day.date}
+                title="New all-day event"
+                onClick={(e) => onCreateAllDay(day.date, pointAnchor(e.clientX, e.clientY))}
+                className="cursor-pointer transition-colors hover:bg-raised/60"
+              />
+            ))}
+          </div>
+        )}
+        <ul
+          className="pointer-events-none relative grid min-w-0 content-start gap-y-0.5 py-1 [grid-auto-flow:row_dense]"
+          style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`, minHeight }}
+        >
+          {events.map((event) => {
+            const end = days.length - 1;
+            const first = event.firstDay < days[0].date ? 0 : columnOf(event.firstDay);
+            const last = event.lastDay > days[end].date ? end : columnOf(event.lastDay);
+            return (
+              <li key={event.id} style={{ gridColumn: `${first + 1} / ${last + 2}` }} className="pointer-events-auto min-w-0 px-0.5">
+                <button type="button" aria-label={allDayLabel(event)} onClick={(e) => onOpenEvent(event, anchorOf(e.currentTarget))} className={allDayClass}>
+                  <span className="flex items-center gap-1">
+                    <span className="min-w-0 truncate">{event.firstDay < days[0].date ? `… ${event.title}` : event.title}</span>
+                    <OutlookMark event={event} />
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </section>
   );
+}
+
+/**
+ * Spec 53 (from spec 29): other people's all-day events, under the viewer's own all-day row, one small
+ * striped chip per event and day (on phones the chosen day only). Read only.
+ */
+function SharedAllDayRow({
+  days,
+  items,
+  selectedDay,
+  onOpen,
+}: {
+  days: WeekDay[];
+  items: SharedAllDayItem[][];
+  selectedDay: string;
+  onOpen: (shared: OpenShared, anchor: Anchor) => void;
+}) {
+  if (!items.some((list) => list.length > 0)) return null;
+  const chosen = days.findIndex((d) => d.date === selectedDay);
+  return (
+    <section aria-label="Shared, all day" className={`${items[chosen]?.length ? "flex" : "hidden"} border-b border-line-subtle md:flex`}>
+      <div aria-hidden className="w-[52px] shrink-0 pt-1.5 pr-2 text-right text-[10px] leading-[12px] font-medium text-ink-3">
+        Shared
+      </div>
+      {days.map((day, i) => (
+        <ul key={day.date} className={`${day.date === selectedDay ? "flex" : "hidden"} min-w-0 flex-1 flex-col gap-0.5 border-l border-line-subtle p-1 md:flex`}>
+          {(items[i] ?? []).map((item) => (
+            <li key={item.key} className="min-w-0">
+              <SharedAllDayChip item={item} onOpen={onOpen} />
+            </li>
+          ))}
+        </ul>
+      ))}
+    </section>
+  );
+}
+
+/**
+ * The smallest hour height: the visible area below the dates and the all-day row, shared by the shown
+ * hours. Rounded down, so the hours never come out a fraction of a pixel too tall and start to scroll.
+ */
+function fitHourPx(scroll: HTMLElement, body: HTMLElement, hoursShown: number): number {
+  return hoursShown > 0 ? Math.max(0, Math.floor(((scroll.clientHeight - body.offsetTop) / hoursShown) * 100) / 100) : 0;
 }
 
 export function TimeGrid({
   goals,
   days,
   placed,
-  range,
+  range: askedRange,
   nowMin,
   selectedDay,
   dayHref,
+  weekDates,
+  weekAllDay,
+  today,
   pending = NO_PENDING,
   onOpenEvent,
   onCreate,
   onDrop,
   travel,
+  onCreateAllDay,
+  onZoom,
   tripWarned,
+  shared,
+  sharedAllDay,
+  timeZone = "UTC",
+  onOpenShared,
 }: Props) {
   const { timeFormat } = useDisplay();
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
+  // The hours are never shorter than the visible area needs: zoomed out all the way, the last hour
+  // ends at the bottom edge, with no empty space below it (measured once the grid is on screen).
+  const [fitPx, setFitPx] = useState(0);
+  const range = useMemo(
+    () => ({ ...askedRange, hourPx: Math.max(askedRange.hourPx ?? HOUR_PX, fitPx) }),
+    [askedRange, fitPx],
+  );
   const height = rangeHeight(range);
   const hours = hourMarks(range);
   // After-midnight parts that end before the first visible hour: shown as strips above the grid.
@@ -407,6 +553,103 @@ export function TimeGrid({
   const dismissClickRef = useRef(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const hasPreview = preview !== null;
+
+  // Two-finger zoom. The time under the fingers stays where it is, so zooming feels anchored.
+  // Refs, because one pinch sends many events before React has drawn the new height.
+  const hourPx = range.hourPx;
+  const hoursShown = (askedRange.endMin - askedRange.startMin) / 60;
+  const zoomRef = useRef({ hourPx, hoursShown, startMin: range.startMin, onZoom });
+  // The minute that was under the fingers and its height in the visible grid, until the new height is drawn.
+  const zoomAnchorRef = useRef<{ minute: number; y: number } | null>(null);
+
+  useLayoutEffect(() => {
+    zoomRef.current = { hourPx, hoursShown, startMin: range.startMin, onZoom };
+    const anchor = zoomAnchorRef.current;
+    const sc = scrollRef.current;
+    const body = bodyRef.current;
+    zoomAnchorRef.current = null;
+    if (!anchor || !sc || !body) return;
+    sc.scrollTop = body.offsetTop + ((anchor.minute - range.startMin) / 60) * hourPx - anchor.y;
+  }, [hourPx, hoursShown, range.startMin, onZoom]);
+
+  // Keeps the smallest hour height up to date when the window or the head above the hours changes size.
+  useEffect(() => {
+    const sc = scrollRef.current;
+    const body = bodyRef.current;
+    if (!sc || !body || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setFitPx(fitHourPx(sc, body, hoursShown)));
+    observer.observe(sc);
+    const head = sc.querySelector("[data-grid-head]");
+    if (head) observer.observe(head);
+    return () => observer.disconnect();
+  }, [hoursShown, hasEarly]);
+
+  useEffect(() => {
+    const sc = scrollRef.current;
+    if (!sc) return;
+    const zoomTo = (clientY: number, next: number) => {
+      const z = zoomRef.current;
+      const body = bodyRef.current;
+      if (!body) return;
+      // Never further out than the hours that fill the visible area (measured now, so it is always current).
+      const px = Math.max(clampHourPx(next), fitHourPx(sc, body, z.hoursShown));
+      if (!z.onZoom || Math.abs(px - z.hourPx) < 0.01) return;
+      if (!zoomAnchorRef.current) {
+        const y = clientY - sc.getBoundingClientRect().top;
+        zoomAnchorRef.current = { minute: z.startMin + ((sc.scrollTop + y - body.offsetTop) / z.hourPx) * 60, y };
+      }
+      z.hourPx = px;
+      z.onZoom(px);
+    };
+    // Trackpad pinch (Chrome, Edge, Firefox): a wheel event with the Control key set.
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      zoomTo(e.clientY, zoomRef.current.hourPx * Math.exp(-e.deltaY * 0.01));
+    };
+    // Trackpad pinch in Safari: gesture events with a scale since the pinch began.
+    type SafariGesture = UIEvent & { scale: number; clientY: number };
+    let gestureStart = 0;
+    const onGestureStart = (e: Event) => {
+      e.preventDefault();
+      gestureStart = zoomRef.current.hourPx;
+    };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      zoomTo((e as SafariGesture).clientY, gestureStart * (e as SafariGesture).scale);
+    };
+    // Two fingers on a touch screen: the hour height follows the distance between them.
+    let pinch: { distance: number; hourPx: number } | null = null;
+    const spread = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const onTouchStart = (e: TouchEvent) => {
+      pinch = e.touches.length === 2 ? { distance: spread(e.touches), hourPx: zoomRef.current.hourPx } : null;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      const middle = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      zoomTo(middle, pinch.hourPx * (spread(e.touches) / pinch.distance));
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
+    sc.addEventListener("wheel", onWheel, { passive: false });
+    sc.addEventListener("gesturestart", onGestureStart);
+    sc.addEventListener("gesturechange", onGestureChange);
+    sc.addEventListener("touchstart", onTouchStart, { passive: true });
+    sc.addEventListener("touchmove", onTouchMove, { passive: false });
+    sc.addEventListener("touchend", onTouchEnd);
+    sc.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      sc.removeEventListener("wheel", onWheel);
+      sc.removeEventListener("gesturestart", onGestureStart);
+      sc.removeEventListener("gesturechange", onGestureChange);
+      sc.removeEventListener("touchstart", onTouchStart);
+      sc.removeEventListener("touchmove", onTouchMove);
+      sc.removeEventListener("touchend", onTouchEnd);
+      sc.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, []);
   const movingId = preview?.block ? preview.block.event.id : null;
 
   // Escape cancels a running gesture (only while a preview is shown).
@@ -530,32 +773,38 @@ export function TimeGrid({
         ref={scrollRef}
         data-grid-scroll
         className="scroll-thin relative min-h-0 flex-1 overflow-y-auto"
+        // The browser scrolls with one finger; a pinch with two is ours (zoom), not the page's.
+        style={onZoom ? { touchAction: "pan-x pan-y" } : undefined}
         // Runs before the block and column handlers: every new gesture starts with clean click flags.
         onPointerDownCapture={() => {
           suppressClickRef.current = false;
           dismissClickRef.current = false;
         }}
       >
-        {/* Pinned while the hours scroll, in the day and the week view alike: the dates (week) and the
-            all-day events. */}
-        <div className="sticky top-0 z-20 bg-surface">
-          {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip). */}
+        {/* The dates and the all-day events stay at the top while the hours scroll beneath them. */}
+        <div data-grid-head className="sticky top-0 z-20 bg-surface">
+          {/* Week: weekday and date over each column, a link to that day (wider screens; phones use the day strip).
+              Day: the same seven dates in the same place, the shown day marked, so nothing moves between the two. */}
           {dayHref && (
             <div className="hidden border-b border-line-subtle bg-surface md:flex">
               <div className="w-[52px] shrink-0" />
-              {days.map((day) => {
-                const parts = dayParts(day.date);
+              {(weekDates ?? days.map((d) => d.date)).map((date) => {
+                const parts = dayParts(date);
+                const isToday = weekDates ? date === today : days.some((d) => d.date === date && d.isToday);
+                const marked = weekDates !== undefined && date === selectedDay;
                 return (
                   <Link
-                    key={day.date}
-                    href={dayHref(day.date)}
-                    aria-label={`Open ${fmtDateLong(day.date)}`}
+                    key={date}
+                    href={dayHref(date)}
+                    // The week names its links "Open …"; the day view names them as its strip does.
+                    aria-label={weekDates ? `${fmtDateLong(date)}${isToday ? ", today" : ""}` : `Open ${fmtDateLong(date)}`}
+                    aria-current={marked ? "date" : undefined}
                     className="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md py-2 transition hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
                   >
                     <span className="text-[11px] font-medium text-ink-3">{parts.weekday}</span>
                     <span
-                      className={`flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular ${
-                        day.isToday ? "bg-today text-white" : "text-ink"
+                      className={`flex size-7 items-center justify-center rounded-full border text-sm font-semibold tabular ${
+                        isToday ? "border-transparent bg-today text-white" : marked ? "border-ink text-ink" : "border-transparent text-ink"
                       }`}
                     >
                       {parts.day}
@@ -566,7 +815,8 @@ export function TimeGrid({
             </div>
           )}
 
-          <AllDayRow days={days} selectedDay={selectedDay} onOpenEvent={onOpenEvent} />
+          <AllDayRow days={days} selectedDay={selectedDay} onOpenEvent={onOpenEvent} weekDates={weekDates} weekAllDay={weekAllDay} onCreateAllDay={onCreateAllDay} />
+          {sharedAllDay && onOpenShared && <SharedAllDayRow days={days} items={sharedAllDay} selectedDay={selectedDay} onOpen={onOpenShared} />}
         </div>
 
         {hasEarly && (
@@ -628,6 +878,9 @@ export function TimeGrid({
             const parts = { long: fmtDateLong(day.date) };
             const blocks = placed[i];
             const listed = blocks.filter((b) => !b.continuesBefore);
+            // Spec 53: shared blocks of this day within the shown hours; only then do the own blocks narrow.
+            const sharedHere = onOpenShared ? (shared?.[i] ?? NO_SHARED).filter((b) => b.endMin > range.startMin && b.startMin < range.endMin) : NO_SHARED;
+            const area = sharedHere.length > 0 ? OWN_AREA : 1;
             return (
               <section
                 key={day.date}
@@ -675,13 +928,24 @@ export function TimeGrid({
                 {travel &&
                   blocks.map((block) => {
                     const trip = travelBlock(block.event, block.startMin, block.continuesBefore, travel[block.event.id]);
-                    return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} />;
+                    return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} area={area} />;
                   })}
+                {/* Spec 53: others' blocks, under the viewer's own. Only a details block takes a click. */}
+                {sharedHere.length > 0 && onOpenShared && (
+                  <ul aria-label="Shared calendars" className="pointer-events-none absolute inset-0">
+                    {sharedHere.map((block) => (
+                      <li key={`${block.key}-${block.continuesBefore ? "after" : "start"}`}>
+                        <SharedBlockView block={block} range={range} left={OWN_AREA} width={1 - OWN_AREA} timeZone={timeZone} onOpen={onOpenShared} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <ul className="pointer-events-none absolute inset-0">
                   {blocks.filter((block) => !isBeforeGrid(block, range)).map((block) => (
                     <li key={`${block.event.id}-${block.continuesBefore ? "after" : "start"}`}>
                       <EventBlock
                         block={block}
+                        area={area}
                         range={range}
                         dayLong={parts.long}
                         dayIndex={i}

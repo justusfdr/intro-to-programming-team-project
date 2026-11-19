@@ -17,7 +17,7 @@ describe("an article as a tile", () => {
       slug: "a-small-speed-bump",
       topic: "helps",
       title: "A small speed bump",
-      figure: "36%",
+      figure: "36 %",
       meta: metaLine(bump),
       dek: bump.dek,
       label: "of attempts to open an app were dropped after a short pause",
@@ -86,7 +86,7 @@ describe("the tiles on the Focus page", () => {
 
 describe("tiles by address", () => {
   it("come in the order asked for", () => {
-    expect(tilesOf(["2-8-seconds", "a-small-speed-bump"]).map((tile) => tile.figure)).toEqual(["×2", "36%"]);
+    expect(tilesOf(["2-8-seconds", "a-small-speed-bump"]).map((tile) => tile.figure)).toEqual(["×2", "36 %"]);
   });
 
   it("leave out an address that names no article", () => {

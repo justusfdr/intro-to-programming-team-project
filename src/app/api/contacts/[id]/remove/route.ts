@@ -1,0 +1,8 @@
+import { removeContact } from "@/lib/server/actions/contacts";
+import { realDeps } from "@/lib/server/deps";
+
+// Thin wrapper: the action itself (and its tests) live in src/lib/server/actions/contacts.ts.
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+  const { id } = await params;
+  return removeContact(request, await realDeps(), id);
+}

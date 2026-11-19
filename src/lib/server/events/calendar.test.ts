@@ -149,3 +149,22 @@ describe("the calendar page's view", () => {
     expect(transactions).toHaveLength(2);
   });
 });
+
+describe("the day view's all-day row", () => {
+  it("day: also reads the all-day events of its whole week, but lists on the day only those covering it", async () => {
+    const alice = await app.signedInAs("alice@example.com", LISBON);
+    await seedAllDay(app.db, alice, { title: "Tuesday trip", firstDay: "2026-11-17", lastDay: "2026-11-17" });
+    await seedAllDay(app.db, alice, { title: "Exam week", firstDay: "2026-11-18", lastDay: "2026-11-20" });
+    await seedAllDay(app.db, alice, { title: "Next week", firstDay: "2026-11-23", lastDay: "2026-11-23" });
+    const day = await loadCalendar(app.deps, alice, "day", "2026-11-19");
+    expect(day.weekAllDay?.map((e) => e.title)).toEqual(["Tuesday trip", "Exam week"]);
+    expect(day.days[0].allDay.map((e) => e.title)).toEqual(["Exam week"]);
+  });
+
+  it("week and month: no extra list, their days already hold them", async () => {
+    const alice = await app.signedInAs("alice@example.com", LISBON);
+    await seedAllDay(app.db, alice, { title: "Exam week", firstDay: "2026-11-18", lastDay: "2026-11-20" });
+    expect((await loadCalendar(app.deps, alice, "week", "2026-11-19")).weekAllDay).toBeUndefined();
+    expect((await loadCalendar(app.deps, alice, "month", "2026-11-19")).weekAllDay).toBeUndefined();
+  });
+});

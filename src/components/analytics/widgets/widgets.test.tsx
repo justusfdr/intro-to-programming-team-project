@@ -23,7 +23,7 @@ function text(markup: string): string {
 }
 
 const SAMPLE: Record<WidgetKind, string[]> = {
-  focus_time: ["11h 30m", "19%", "vs last week", "14 sessions · 49 min on average"],
+  focus_time: ["11h 30m", "19 %", "vs last week", "14 sessions · 49 min on average"],
   focus_score: ["82", "of 100", "6 points", "23 blocked visits, 8 fewer than last week"],
   sessions: ["14", "2 more", "49 min", "10 of 14", "6 of 7"],
   weeks: ["Your best week of the last 8", "Average 8h 14m", "W39", "W46", "11h 30m"],
@@ -34,11 +34,11 @@ const SAMPLE: Record<WidgetKind, string[]> = {
   deadlines: ["Applications", "12 days", "18 days", "30 days", "No end date", "Mon, Nov 30"],
   plan: ["14 of 16 planned done", "Mon", "Sun", "Thesis , done", "Applications , not done", "2 of 3"],
   slipped: ["Applications session", "Wed 4pm · 45 min", "Fri 5:30pm · 45 min"],
-  time_by_day: ["Thesis took 49% of your time", "2h 30m", "Wednesday: 2h 30m (Thesis 1h 30m, No goal 35 min, Read more 25 min)"],
+  time_by_day: ["Thesis took 49 % of your time", "2h 30m", "Wednesday: 2h 30m (Thesis 1h 30m, No goal 35 min, Read more 25 min)"],
   top_areas: ["Thesis", "5h 40m", "50 min more", "No goal", "2h 15m", "Applications"],
-  plan_kept: ["81%", "of your planned time done", "4 points", "11h 30m done of 14h 10m planned"],
+  plan_kept: ["81 %", "of your planned time done", "4 points", "11h 30m done of 14h 10m planned"],
   busiest_day: ["Wednesday", "2h 30m in 3 events", "Saturday was the quietest, with nothing done."],
-  time_on_goals: ["9h 15m", "of 11h 30m done", "80% went to a goal, 2h 15m had none."],
+  time_on_goals: ["9h 15m", "of 11h 30m done", "80 % went to a goal, 2h 15m had none."],
   streak: ["9 days in a row", "5 more days to reach your record", "Record: 14 days"],
   heatmap: ["of 84 days with focus time", "Aug 24", "Nov 15", "Week of Nov 9: 11h 30m on 6 days"],
   weekdays: ["Wednesday is your strongest day", "47 sessions in 4 weeks", "Wednesday: 10"],
@@ -47,7 +47,7 @@ const SAMPLE: Record<WidgetKind, string[]> = {
   blocked_weeks: ["Your lowest in 8 weeks", "Down 5 weeks in a row", "Week 46: 23"],
   blocked_hours: ["Mostly after 4 pm", "10 of 23 blocked visits", "After 4 pm: 10"],
   top_sites: ["instagram.com", "9 visits", "x.com", "1 visit"],
-  week_in_short: [sampleReport.summary, "Going well", "19% more focus time than last week", "Needs attention", "Applications: 2 sessions short"],
+  week_in_short: [sampleReport.summary, "Going well", "19 % more focus time than last week", "Needs attention", "Applications: 2 sessions short"],
 };
 
 const EMPTY: Record<WidgetKind, string> = {

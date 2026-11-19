@@ -9,7 +9,7 @@ import { Welcome } from "@/components/shell/Welcome";
 import { outlookConfigured } from "@/lib/server/config";
 import { pageDeps } from "@/lib/server/deps";
 import { readAddress } from "@/lib/events/views";
-import { loadCalendarPage } from "@/lib/server/pages/load";
+import { loadCalendarPageWithShares } from "@/lib/server/pages/load";
 import { localDateTimeOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -20,12 +20,15 @@ export const metadata: Metadata = { title: "Calendar" };
 // the screen shows the answer at once and router.refresh() runs this page again in the background.
 // The goals are read for their names and colours (event blocks, the editor's goal chips); their
 // progress and tasks have a page of their own since spec 39 (src/app/goals/page.tsx).
+// Spec 53: also the contacts who share their calendar with the user (the "People" button); their events
+// are read by the browser for the shown days. `&share=<id>` is only a hint which person to show: the
+// calendar keeps it only for someone in that list, and the server checks every read again.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string | string[]; date?: string | string[]; week?: string | string[]; event?: string | string[] }>;
+  searchParams: Promise<{ view?: string | string[]; date?: string | string[]; week?: string | string[]; event?: string | string[]; share?: string | string[] }>;
 }) {
   const deps = await pageDeps();
   // The proxy already sends signed-out visitors away; the page checks again (R3).
@@ -36,7 +39,7 @@ export default async function CalendarPage({
   const address = readAddress(params);
   // Spec 47: `&event=<id>` from "Next up" in the sidebar opens that event's editor.
   const openEventId = typeof params.event === "string" && UUID.test(params.event) ? params.event : undefined;
-  const { display, week, goals, showWelcome, places, home, travelMode } = await loadCalendarPage(deps, userId, address.date, address.view);
+  const { display, week, goals, showWelcome, places, home, travelMode, sharing } = await loadCalendarPageWithShares(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
@@ -51,6 +54,9 @@ export default async function CalendarPage({
               goals={goals.map(({ id, title, look }) => ({ id, title, look }))}
               outlookAvailable={outlookConfigured()}
               openEventId={openEventId}
+              viewerId={userId}
+              sharing={sharing.filter((p) => p.calendar !== "none")}
+              showPerson={typeof params.share === "string" ? params.share : undefined}
             />
           </SavedPlacesProvider>
         </AppShell>

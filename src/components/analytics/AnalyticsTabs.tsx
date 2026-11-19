@@ -82,9 +82,16 @@ export function AnalyticsTabs({ report, layout, tab: firstTab, onEdit, onExport 
           <LinkButton href={analyticsHref(report.previous, tab)} variant="secondary" size="icon" aria-label="Previous week" title="Previous week">
             <ChevronLeft className="size-4" />
           </LinkButton>
-          <LinkButton href={analyticsHref(report.next, tab)} variant="secondary" size="icon" aria-label="Next week" title="Next week">
-            <ChevronRight className="size-4" />
-          </LinkButton>
+          {/* No weeks after this one: they have not started, so there is nothing to show. */}
+          {report.monday >= report.thisWeek ? (
+            <Button variant="secondary" size="icon" disabled aria-label="Next week" title="This is the current week">
+              <ChevronRight className="size-4" />
+            </Button>
+          ) : (
+            <LinkButton href={analyticsHref(report.next, tab)} variant="secondary" size="icon" aria-label="Next week" title="Next week">
+              <ChevronRight className="size-4" />
+            </LinkButton>
+          )}
           <LinkButton href={analyticsHref(report.thisWeek, tab)} variant="secondary" aria-current={report.monday === report.thisWeek ? "page" : undefined}>
             This week
           </LinkButton>

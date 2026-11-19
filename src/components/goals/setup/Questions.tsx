@@ -53,9 +53,9 @@ import {
   type DisplayLike,
   type SetupAnswers,
 } from "@/lib/goals/setup";
-import { fmtRange } from "@/lib/time/display";
+import { fmtRange, type TimeFormat } from "@/lib/time/display";
 import { ROW, SIDE, WheelColumn } from "@/components/calendar/TimeWheel";
-import { MINUTES, withHour, withMinute } from "@/lib/time/wheel";
+import { hourFormat, MINUTES, withHour, withMinute } from "@/lib/time/wheel";
 import type { SavedPlace } from "@/lib/places/saved";
 import type { LocalDate } from "@/lib/time/zoned";
 import { ChoiceGroup, chipClass, focusRing, prefersReducedMotion, QuestionTitle, Stepper, stagger, useCountUp, type Choice } from "./parts";
@@ -439,7 +439,8 @@ export function QuestionWhen({
  * One end of the own window: hours and minutes as scrolling columns, the hours only those of the visible
  * day (the settings' first to last hour; the last one only as :00).
  */
-function WindowWheel({ label, value, display, onChange }: { label: string; value: number; display: { dayStartHour: number; dayEndHour: number }; onChange: (minutes: number) => void }) {
+function WindowWheel({ label, value, display, onChange }: { label: string; value: number; display: { dayStartHour: number; dayEndHour: number; timeFormat: TimeFormat }; onChange: (minutes: number) => void }) {
+  const timeFormat = display.timeFormat;
   const first = display.dayStartHour;
   const last = display.dayEndHour;
   // The same list on every render: a new one would make the column jump back to the chosen row while
@@ -454,7 +455,7 @@ function WindowWheel({ label, value, display, onChange }: { label: string; value
       <span className={labelClass}>{label}</span>
       <div role="group" aria-label={`${label} time`} className="relative flex items-center justify-center gap-1 select-none">
         <div aria-hidden className="pointer-events-none absolute -inset-x-2 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
-        <WheelColumn label={`${label} hour`} items={hours} selected={Math.floor(value / 60)} onPick={(h) => onChange(atHour(h))} />
+        <WheelColumn label={`${label} hour`} items={hours} selected={Math.floor(value / 60)} onPick={(h) => onChange(atHour(h))} format={hourFormat(timeFormat)} wide={timeFormat === "12h"} />
         <span aria-hidden className="relative text-lg font-medium text-ink">
           :
         </span>
