@@ -6,7 +6,8 @@
 // "Add task" opens a one-line input with an optional due date: Enter saves, Escape closes. The due
 // date is the event editor's date field ("Sun, Nov 15" and the small month calendar; "Add due date"
 // while empty, with a button to remove it again), so no browser date input shows its own format.
-// Clicking a task's title opens the same small form to change title, due date and goal, with Delete.
+// Clicking a task's title opens the same small form to change title and due date, with Delete. The task
+// keeps its goal; there is no goal list in the form.
 // It only collects the input and shows the server's answer; the server checks every rule.
 // A tick shows at once and goes back if the server rejects it; a saved task shows as soon as the answer
 // arrives; the page re-reads in the background (components/live/Live.tsx).
@@ -212,13 +213,13 @@ export function TaskForm({
   mode,
   goalId,
   today,
-  goals,
   onDone,
 }: {
   mode: FormMode;
   goalId: string | null;
   today: string;
-  goals: GoalOption[];
+  /** No longer used: the form has no goal list. */
+  goals?: GoalOption[];
   onDone: () => void;
 }) {
   const live = useLive();
@@ -226,7 +227,8 @@ export function TaskForm({
   const task = mode.kind === "edit" ? mode.task : null;
   const [title, setTitle] = useState(task?.title ?? "");
   const [dueDate, setDueDate] = useState(task?.dueDate ?? "");
-  const [goal, setGoal] = useState(task?.goalId ?? goalId ?? "");
+  // The task stays under the goal it has; the form does not offer to change it.
+  const goal = task ? task.goalId : goalId;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const titleInput = useRef<HTMLInputElement>(null);
@@ -240,7 +242,7 @@ export function TaskForm({
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
-    const body = { title, dueDate: dueDate === "" ? null : dueDate, goalId: goal === "" ? null : goal };
+    const body = { title, dueDate: dueDate === "" ? null : dueDate, goalId: goal ?? null };
     const answer = await live.run({
       send: () => (task ? postJson(`/api/tasks/${task.id}/edit`, body) : postJson("/api/tasks", body)),
       // Shown as soon as the answer arrives, with what the server saved.
@@ -316,16 +318,6 @@ export function TaskForm({
           clear={{ label: "Remove due date", onClear: () => setDueDate("") }}
           tall
         />
-        {task && (
-          <select value={goal} onChange={(event) => setGoal(event.target.value)} aria-label="Goal" className={inputClass}>
-            <option value="">Inbox (no goal)</option>
-            {goals.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.title}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
       {error && <ErrorLine text={error} />}
       <div className="mt-2 flex items-center gap-1.5">

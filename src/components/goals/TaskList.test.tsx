@@ -99,7 +99,7 @@ describe("the small task form", () => {
     expect(html).toContain(">Save<");
   });
 
-  it("editing: title, the due date in the app's format with a button to remove it, the goal list with Inbox, and Delete", () => {
+  it("editing: title, the due date in the app's format with a button to remove it, no goal list, and Delete", () => {
     const html = renderToStaticMarkup(
       <TaskForm
         mode={{ kind: "edit", task: task("Later", { dueDate: "2026-11-20" }) }}
@@ -113,7 +113,7 @@ describe("the small task form", () => {
     expect(html).not.toContain('type="date"');
     expect(html).toMatch(/aria-label="Due date \(optional\): Fri, Nov 20"[^>]*>.*>Fri, Nov 20<\/span><\/button>/);
     expect(html).toMatch(/<button type="button" aria-label="Remove due date" title="Remove due date"/);
-    expect(html).toMatch(/<option value="">Inbox \(no goal\)<\/option><option value="g1" selected="">Half marathon<\/option>/);
+    expect(html).not.toContain('aria-label="Goal"');
     expect(html).toContain('aria-label="Delete task Later"');
   });
 
