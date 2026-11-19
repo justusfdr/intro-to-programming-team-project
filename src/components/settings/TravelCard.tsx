@@ -27,7 +27,7 @@ const MODE_OPTIONS: FieldOption<TravelMode>[] = [
   { value: "transit", label: "Public transport" },
 ];
 
-const BUFFER_OPTIONS: FieldOption<number>[] = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120].map((min) => ({
+const BUFFER_OPTIONS: FieldOption<number>[] = Array.from({ length: 60 }, (_, min) => min).map((min) => ({
   value: min,
   label: min === 0 ? "No buffer" : `${min} min`,
 }));

@@ -66,7 +66,7 @@ export function updateSettings(request: Request, deps: Pick<Deps, "auth" | "with
     }
 
     const buffer = patch.travelBufferMinutes;
-    if (buffer !== undefined && !(Number.isInteger(buffer) && buffer >= 0 && buffer <= 120)) {
+    if (buffer !== undefined && !(Number.isInteger(buffer) && buffer >= 0 && buffer <= 59)) {
       throw new ActionError(400, "buffer_range", MESSAGES.bufferRange);
     }
 

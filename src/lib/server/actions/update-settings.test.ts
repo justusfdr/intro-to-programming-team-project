@@ -74,13 +74,13 @@ describe("update_settings accepted", () => {
     expect((await settingsOf(alice)).time_zone).toBe("America/New_York");
   });
 
-  it("saves the travel details: address (trimmed, up to 200 characters), mode, buffer 0 and 120", async () => {
+  it("saves the travel details: address (trimmed, up to 200 characters), mode, buffer 0 and 59", async () => {
     const alice = await app.signedInAs("alice@example.com", { timeZone: "Europe/Berlin" });
     const address = "a".repeat(200);
     expect((await send({ homeAddress: `  ${address}  `, travelMode: "cycling", travelBufferMinutes: 0 })).status).toBe(200);
     expect(await settingsOf(alice)).toMatchObject({ home_address: address, travel_mode: "cycling", travel_buffer_minutes: 0 });
-    expect((await send({ travelBufferMinutes: 120 })).status).toBe(200);
-    expect((await settingsOf(alice)).travel_buffer_minutes).toBe(120);
+    expect((await send({ travelBufferMinutes: 59 })).status).toBe(200);
+    expect((await settingsOf(alice)).travel_buffer_minutes).toBe(59);
   });
 
   it("accepts public transport as the travel mode", async () => {
@@ -134,9 +134,9 @@ describe("update_settings rejected: nothing changes (R1)", () => {
     expect(await app.snapshot()).toEqual(before);
   }
 
-  it("rejects a buffer of 121, -1 or 7.5 with 'Buffer must be 0 to 120 minutes'", async () => {
-    const answer = { status: 400, body: { error: "buffer_range", message: "Buffer must be 0 to 120 minutes" } };
-    await rejected({ travelBufferMinutes: 121 }, answer);
+  it("rejects a buffer of 60, -1 or 7.5 with 'Buffer must be 0 to 59 minutes'", async () => {
+    const answer = { status: 400, body: { error: "buffer_range", message: "Buffer must be 0 to 59 minutes" } };
+    await rejected({ travelBufferMinutes: 60 }, answer);
     await rejected({ travelBufferMinutes: -1 }, answer);
     await rejected({ travelBufferMinutes: 7.5 }, answer);
   });
