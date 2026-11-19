@@ -162,15 +162,13 @@ export function TravelCard({ settings: serverSettings, places = [] }: { settings
           />
         </FieldRow>
 
-        <FieldRow label="Buffer" labelId={ids.buffer} hintId={ids.bufferHint} hint="Extra minutes added to each trip.">
-          <BufferField
-            value={settings.travelBufferMinutes}
-            labelledBy={ids.buffer}
-            describedBy={ids.bufferHint}
-            disabled={busy}
-            onSave={(travelBufferMinutes) => save({ travelBufferMinutes })}
-          />
-        </FieldRow>
+        <BufferField
+          value={settings.travelBufferMinutes}
+          labelId={ids.buffer}
+          hintId={ids.bufferHint}
+          disabled={busy}
+          onSave={(travelBufferMinutes) => save({ travelBufferMinutes })}
+        />
       </div>
       {failure && <FormMessage tone="error" text={failure.message} />}
       {/* Google's terms ask for this credit where its data is shown without a Google map. */}

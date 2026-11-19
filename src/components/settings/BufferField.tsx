@@ -7,7 +7,7 @@
 // The wheel saves a moment after it stops, so stepping through ten minutes with the arrow keys is one save.
 import { useEffect, useRef, useState } from "react";
 import { ROW, SIDE, WheelColumn } from "@/components/calendar/TimeWheel";
-import { SegmentedField, type FieldOption } from "./fields";
+import { FieldRow, SegmentedField, type FieldOption } from "./fields";
 
 /** The chips' minutes. */
 export const BUFFER_CHIPS = [5, 10, 15] as const;
@@ -23,19 +23,22 @@ const OPTIONS: FieldOption<Choice>[] = [...BUFFER_CHIPS.map((min) => ({ value: m
 /** Whether a saved buffer is one of the chips (otherwise it shows as "Custom"). */
 export const isBufferChip = (min: number) => (BUFFER_CHIPS as readonly number[]).includes(min);
 
+/** The row "Buffer" of the Travel card: label and chips, and under them the wheel while Custom is chosen. */
 export function BufferField({
   value,
   onSave,
-  labelledBy,
-  describedBy,
+  labelId,
+  hintId,
   disabled = false,
 }: {
   /** The saved buffer in minutes. */
   value: number;
   /** Saves a new buffer; resolves once the answer is there. */
   onSave: (minutes: number) => Promise<unknown>;
-  labelledBy: string;
-  describedBy?: string;
+  /** id of the row's label, which names the chips. */
+  labelId: string;
+  /** id of the row's hint. */
+  hintId: string;
   disabled?: boolean;
 }) {
   // "Custom" stays chosen after a click, even when the wheel then lands on 5, 10 or 15.
@@ -61,21 +64,29 @@ export function BufferField({
   }, [pending, value]);
 
   return (
-    <div className="flex flex-col items-start gap-4 sm:items-end">
-      <SegmentedField<Choice>
-        value={custom ? "custom" : value}
-        options={OPTIONS}
-        labelledBy={labelledBy}
-        describedBy={describedBy}
-        disabled={disabled}
-        onChange={(choice) => {
-          if (choice === "custom") return setCustomOpen(true);
-          setCustomOpen(false);
-          setPending(null);
-          void onSave(choice);
-        }}
-      />
-      {custom && <BufferWheel value={shown} onChange={setPending} />}
+    // One block, so the card's dividers do not come between the chips and the wheel.
+    <div>
+      <FieldRow label="Buffer" labelId={labelId} hintId={hintId} hint="Extra minutes added to each trip.">
+        <SegmentedField<Choice>
+          value={custom ? "custom" : value}
+          options={OPTIONS}
+          labelledBy={labelId}
+          describedBy={hintId}
+          disabled={disabled}
+          onChange={(choice) => {
+            if (choice === "custom") return setCustomOpen(true);
+            setCustomOpen(false);
+            setPending(null);
+            void onSave(choice);
+          }}
+        />
+      </FieldRow>
+      {/* Under the chips: on the left on phones, on the right on wider screens, as the chips. */}
+      {custom && (
+        <div className="flex pb-4 sm:justify-end">
+          <BufferWheel value={shown} onChange={setPending} />
+        </div>
+      )}
     </div>
   );
 }

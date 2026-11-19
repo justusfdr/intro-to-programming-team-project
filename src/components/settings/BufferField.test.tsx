@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { BUFFER_MINUTES, BufferField, isBufferChip } from "./BufferField";
 
-const render = (value: number) => renderToStaticMarkup(<BufferField value={value} labelledBy="buffer" describedBy="buffer-hint" onSave={async () => true} />);
+const render = (value: number) => renderToStaticMarkup(<BufferField value={value} labelId="buffer" hintId="buffer-hint" onSave={async () => true} />);
 
 /** The radio that is checked, by its value. */
 const checked = (html: string) => /<input type="radio"[^>]*checked=""[^>]*value="([^"]+)"/.exec(html)?.[1];
