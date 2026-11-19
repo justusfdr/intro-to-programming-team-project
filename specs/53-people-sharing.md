@@ -41,6 +41,13 @@ Asked for by the owner after trying it with two accounts (translated): "I don't 
 - [x] The People menu's level ("free/busy", "details") follows the last read of that person's calendar, which happens when the days change and when the window gets the focus back. Before, it kept the level of the page's load. The list of people itself is still from the page's load: a person who started or stopped sharing shows after a reload.
 - Tests: `src/lib/shares/colors.test.ts` (new); `src/components/calendar/Shared.test.tsx` (the "striped" case now expects the colour and no stripes; new cases for two people's colours and for the menu).
 
+## Free/busy blocks open a card too, added 19 Nov 2026
+Asked for by the owner (translated): when another person's shared calendar is shown and I hover or click one of their events, the grid treated the slot as empty. I want to click their event and see a card with its details, read only, like my own.
+- [x] A free/busy block is a button like a details block: it opens the read-only card with the person (avatar and name, a link to their page), "Busy", the date and time, and the line "<first name> shares free/busy only." so it is clear why there is no title. No title or place exists at this level and the server still never sends them (R56).
+- [x] The part after midnight of a block that runs past midnight takes the click too (same card); it stays hidden from screen readers and is not a second tab stop.
+- [x] A click or pointer press on any shared block, timed, all-day or in the month, stops there: it never reaches the grid's empty area, so it never starts a new event. The details card is unchanged (title, date and time, place if any, person).
+- Tests: `src/components/calendar/Shared.test.tsx` (the busy test no longer expects a note but a button; new cases for the busy card, no title or place, the card of a details block, the part after midnight, the click staying on the block).
+
 ## Out of scope
 Left out on purpose, each to keep this change small and safe before the deadline:
 - **Demo contacts** (spec 32): about 600 more lines touching every read path; one real second account does the same job.

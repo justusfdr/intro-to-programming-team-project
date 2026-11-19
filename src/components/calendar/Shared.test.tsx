@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { preferredColor, shareColor, shareColors } from "@/lib/shares/colors";
 import type { SharedBlock } from "@/lib/shares/place";
 import type { SharingPerson } from "@/lib/shares/types";
-import { ShareColors, SharedBlockView, SharedEventDetails, SharedPeopleButton, SharedPeopleList } from "./Shared";
+import { ShareColors, SharedBlockView, SharedEventDetails, openSharedOf, SharedPeopleButton, SharedPeopleList } from "./Shared";
 
 const ANA: SharingPerson = { userId: "a", name: "Ana Lopes", photoUrl: null, calendar: "busy", focus: false };
 const RANGE = { startMin: 7 * 60, endMin: 21 * 60 };
@@ -37,11 +37,10 @@ const render = (b: SharedBlock) =>
   renderToStaticMarkup(<SharedBlockView block={b} range={RANGE} left={0.62} width={0.38} timeZone="Europe/Lisbon" onOpen={() => {}} />);
 
 describe("shared blocks", () => {
-  it("busy: says Busy, is not a button, has no title, and reads out whose calendar it is", () => {
+  it("busy: says Busy, is a button (changed 19 Nov 2026, asked for by the owner), has no title, and reads out whose calendar it is", () => {
     const html = render(block("busy", null));
-    expect(html).not.toContain("<button");
     expect(html).toContain(">Busy</span>");
-    expect(html).toMatch(/role="note" aria-label="Busy, Tuesday, November 17, 9 – 11am, Ana Lopes&#x27;s calendar, read only"/);
+    expect(html).toMatch(/<button type="button" data-shared="true" aria-label="Busy, Tuesday, November 17, 9 – 11am, Ana Lopes&#x27;s calendar, read only"/);
     expect(html).not.toContain("cursor-grab");
     expect(html).not.toContain("ns-resize");
   });
@@ -217,5 +216,61 @@ describe("the read-only details card", () => {
     expect(html).toMatch(/<span class="min-w-0 truncate">Lucas Meyer<\/span><\/a><span>&#x27;s calendar\.<\/span><\/span><span>Read only\.<\/span>/);
     const text = html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
     expect(text).toContain("|Lucas Meyer|&#x27;s calendar.|Read only.|");
+  });
+});
+
+// Added 19 Nov 2026 (asked for by the owner): a click on any shared block opens its card and never
+// reaches the empty area of the grid, which would start a new event.
+describe("a click on a busy shared block", () => {
+  it("opens a card with the person, Busy, the date and time, and why there is no title; no title or place exist", () => {
+    const opened = openSharedOf(block("busy", null), "Europe/Lisbon", "12h");
+    expect(opened).toMatchObject({ title: "Busy", location: null, busy: true, person: ANA });
+    expect(opened.when).toBe("Tuesday, November 17, 9 – 11am");
+    const html = renderToStaticMarkup(<SharedEventDetails shared={opened} />);
+    expect(html).toContain("Busy");
+    expect(html).toContain("Tuesday, November 17, 9 – 11am");
+    expect(html).toContain("Ana Lopes");
+    expect(html).toContain("Ana shares free/busy only.");
+  });
+
+  it("never carries a title or a place, even if the block had them", () => {
+    const opened = openSharedOf({ ...block("busy", "Secret exam"), location: "Nova SBE" }, "Europe/Lisbon", "12h");
+    expect(opened.title).toBe("Busy");
+    expect(opened.location).toBeNull();
+    expect(JSON.stringify(opened)).not.toContain("Secret exam");
+  });
+
+  it("a details card keeps title, time, place and person, and has no free/busy line", () => {
+    const opened = openSharedOf({ ...block("details", "Statistics exam"), location: "Nova SBE" }, "Europe/Lisbon", "12h");
+    expect(opened).toMatchObject({ title: "Statistics exam", location: "Nova SBE" });
+    const html = renderToStaticMarkup(<SharedEventDetails shared={opened} />);
+    expect(html).toContain("Statistics exam");
+    expect(html).toContain("Nova SBE");
+    expect(html).toContain("Tuesday, November 17, 9 – 11am");
+    expect(html).toContain("Ana Lopes");
+    expect(html).not.toContain("shares free/busy only");
+  });
+
+  it("the part after midnight is a button too: takes the click, not read twice, not a second tab stop", () => {
+    const html = render({ ...block("busy", null), continuesBefore: true, startMin: 0, endMin: 120 });
+    expect(html).toMatch(/<button type="button" data-shared="true" aria-hidden="true" tabindex="-1"/);
+    expect(html).not.toContain("pointer-events-none");
+    expect(html).toContain("pointer-events-auto");
+  });
+
+  it("every shared block stops the pointer and the click, so the grid starts no new event", () => {
+    const code = readFileSync(join(__dirname, "Shared.tsx"), "utf8");
+    const part = code.slice(code.indexOf("export function SharedBlockView"), code.indexOf("export function openSharedOf"));
+    expect(part).toContain("onPointerDown={(e) => e.stopPropagation()}");
+    expect(part).toContain("e.stopPropagation();");
+    expect(part).not.toContain('role="note"');
+    // The grid's empty area only reacts to a click on itself, never on something above it.
+    const grid = readFileSync(join(__dirname, "TimeGrid.tsx"), "utf8");
+    expect(grid).toContain("if (e.target !== e.currentTarget) return;");
+  });
+
+  it("no shared chip or month row is a plain note any more", () => {
+    const code = readFileSync(join(__dirname, "Shared.tsx"), "utf8");
+    expect(code).not.toContain('role="note"');
   });
 });
