@@ -17,7 +17,7 @@ import { withEventChange, withEventStatus } from "@/lib/events/week-view";
 import { useAnnounce } from "../Announcer";
 import { deletedTodos, savedEventChange, type Scope } from "../event-changes";
 import type { NewTodo } from "@/lib/todos/types";
-import { editBody, editedChange, eventFromAnswer, isChanged, newer, untouchedPatch, valuesOf, type EventValues } from "./values";
+import { editBody, editedChange, eventFromAnswer, isChanged, newer, untouchedPatch, valuesAfterReread, valuesOf, type EventValues } from "./values";
 
 /** What the footer asks before a change or a delete of an event of a series. */
 export type SeriesAsk = { kind: "save" } | { kind: "delete" } | null;
@@ -85,11 +85,23 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
     setValues(valuesRef.current);
   }, []);
 
+  // The event the fields were last filled from. A newer copy from the calendar's re-read (another
+  // device, or since spec 55 someone who accepted an invitation and changed the shared notes) fills the
+  // fields the user has not touched since; what the user typed stays.
+  const filledFrom = useRef(initial);
+  useEffect(() => {
+    const patch = valuesAfterReread(filledFrom.current, valuesRef.current, shown);
+    if (!patch || !shown) return;
+    filledFrom.current = shown;
+    show(patch);
+  }, [shown, show]);
+
   const afterSave = useCallback(
     (answer: PostResult, before: CalendarEvent, sent: EventValues) => {
       const next = eventFromAnswer(answer, timeZone, before);
       if (next) {
         saved.current = next;
+        filledFrom.current = next;
         setEvent(next);
         // The saved event is what the fields show now (the server trims the title and the location),
         // except for fields the user changed while the save was on its way: those keep their typing.
@@ -147,7 +159,8 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
 
   /** Discard: the fields go back to the saved event. */
   const discard = useCallback(() => {
-    show(valuesOf(latest()));
+    filledFrom.current = latest();
+    show(valuesOf(filledFrom.current));
     setResult(null);
   }, [show, latest]);
 

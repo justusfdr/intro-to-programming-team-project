@@ -33,13 +33,18 @@ type Props = {
   timeZone: string;
   /** The route in the editor; left out for events whose route cannot be changed here (Outlook). */
   route?: RoutePreview;
+  /**
+   * Spec 55: where to ask instead of the own event's travel answer (an accepted invitation asks
+   * /api/invites/<id>/travel, with the invited person's own way and start; the place is the owner's).
+   */
+  path?: string;
 };
 
 /** The question's address: the event's travel answer, with the route as it is in the editor. */
-export function travelUrl(eventId: string, route?: RoutePreview): string {
-  if (!route) return `/api/events/${eventId}/travel`;
+export function travelUrl(eventId: string, route?: RoutePreview, path = `/api/events/${eventId}/travel`): string {
+  if (!route) return path;
   const params = new URLSearchParams({ location: route.location, mode: route.mode ?? "", from: route.from ?? "" });
-  return `/api/events/${eventId}/travel?${params.toString()}`;
+  return `${path}?${params.toString()}`;
 }
 
 /** The line as text, for the screen and the tests. */
@@ -51,11 +56,11 @@ export function travelText(travel: TravelAnswer, timeZone: string, format: "12h"
   return { main: `Leave at ${leave}`, detail: `${fmtMinutes(travel.minutes)} ${BY[travel.mode]}${from}${buffer}` };
 }
 
-export function TravelLine({ eventId, savedAt, timeZone, route }: Props) {
+export function TravelLine({ eventId, savedAt, timeZone, route, path }: Props) {
   const { timeFormat } = useDisplay();
   const [answer, setAnswer] = useState<{ for: string; travel: TravelAnswer | null; failed: boolean } | null>(null);
   // A changed route is asked about after a short pause, so typing an address does not ask at every key.
-  const wanted = travelUrl(eventId, route);
+  const wanted = travelUrl(eventId, route, path);
   const [url, setUrl] = useState(wanted);
   useEffect(() => {
     if (wanted === url) return;

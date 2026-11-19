@@ -7,6 +7,7 @@
 // list back and shows the ontology's message (R1). Not shown for Outlook events (R11; the caller).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLive } from "@/components/live/Live";
+import { useRefreshOnReturn } from "@/components/live/useRefreshOnReturn";
 import { getJson, postJson, type PostResult } from "@/lib/client/post-json";
 import { withEventTodos } from "@/lib/events/week-view";
 import { MESSAGES } from "@/lib/messages";
@@ -35,6 +36,9 @@ export function EventTodos({ eventId }: { eventId: string }) {
     setTodos(list);
   }, []);
 
+  // Changes on their way: a re-read waits for them (their answers carry the newer list anyway).
+  const pending = useRef(0);
+
   useEffect(() => {
     let open = true;
     void getJson(`/api/events/${eventId}/todos`).then((answer) => {
@@ -48,12 +52,24 @@ export function EventTodos({ eventId }: { eventId: string }) {
     };
   }, [eventId, show]);
 
+  // Spec 55: people who accepted an invitation share this list; their changes show when the window
+  // comes back (at most every 10 seconds), as the rest of the calendar does.
+  const reread = useCallback(() => {
+    if (pending.current > 0) return;
+    void getJson(`/api/events/${eventId}/todos`).then((answer) => {
+      const list = itemsOf(answer);
+      if (list && pending.current === 0) show(list);
+    });
+  }, [eventId, show]);
+  useRefreshOnReturn(reread);
+
   /** One change: shown at once (`next`), sent after the ones before it, then the server's list. */
   const change = useCallback(
     (path: string, body: unknown, next: ((list: TodoItem[]) => TodoItem[]) | null) => {
       const step = async () => {
         const before = listRef.current;
         if (next) show(next(before));
+        pending.current += 1;
         const answer = await live.run({
           send: () => postJson(path, body),
           fromAnswer: (a) => {
@@ -63,6 +79,7 @@ export function EventTodos({ eventId }: { eventId: string }) {
             return { week: (week) => withEventTodos(week, eventId, todoCount, todosDone) };
           },
         });
+        pending.current -= 1;
         if (!answer.ok) {
           show(before);
           setError(answer.message);

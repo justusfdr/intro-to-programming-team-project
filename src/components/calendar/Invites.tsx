@@ -122,7 +122,7 @@ function Part({ icon, title, children }: { icon: ReactNode; title: string; child
 }
 
 /** The other people of an invitation, asked once when the card opens. Null while loading. */
-function useInvitePeople(inviteId: string): InvitePerson[] | null {
+export function useInvitePeople(inviteId: string): InvitePerson[] | null {
   const [answer, setAnswer] = useState<{ id: string; people: InvitePerson[] } | null>(null);
   useEffect(() => {
     let current = true;
