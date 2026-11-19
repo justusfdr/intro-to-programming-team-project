@@ -55,10 +55,18 @@ function subscribe(onChange: () => void) {
 const readHash = () => window.location.hash;
 const noHash = () => "";
 
-/** Opens a section (or the list, with null) as a new history entry, without the jump to an anchor. */
-function go(section: SectionKey | null) {
+/**
+ * Opens a section (or the list, with null) as a new history entry, without the jump to an anchor.
+ *
+ * The state passed is null on purpose. Next.js watches pushState: a call that hands over its own state
+ * (the current `history.state`, marked as Next.js's) is taken as one of its own writes, so the router
+ * never learns the new address. The next re-read of the page (every save in a settings card calls
+ * router.refresh()) then writes the router's old address back, without the #part, and the page jumped
+ * back to Calendar. With null, Next.js copies its state in itself and keeps the #part from now on.
+ */
+export function go(section: SectionKey | null) {
   const { pathname, search } = window.location;
-  window.history.pushState(window.history.state, "", section ? `#${section}` : `${pathname}${search}`);
+  window.history.pushState(null, "", section ? `#${section}` : `${pathname}${search}`);
   window.dispatchEvent(new Event(CHANGED));
   window.scrollTo({ top: 0 });
 }
