@@ -416,6 +416,8 @@ export function CalendarView({
       if (!result.ok) return showToast(result.message);
       setAnswers((current) => ({ ...current, [event.inviteId]: answer }));
       setAnswerNote({ inviteId: event.inviteId, text: result.message || answeredText(answer) });
+      // Also as a toast: from the toolbar's list an accepted invitation leaves the list at once.
+      showToast(result.message || answeredText(answer));
       live.refresh();
     },
     [showToast, live],
