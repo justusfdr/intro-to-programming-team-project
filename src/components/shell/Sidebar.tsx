@@ -6,6 +6,7 @@
 // jumps. The same button then keeps it open for good. The choice is remembered in this browser only.
 // At the bottom: Pricing, Settings, then the user's own row to their profile (spec 40), where "Sign out" is.
 // "People" (spec 53) follows the main navigation, with the number of open invitations to the user.
+// "Calendar" (spec 54, from spec 36) carries the number of event invitations not answered yet.
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type FocusEvent } from "react";
 import { ChevronsLeft, Pin } from "lucide-react";
@@ -54,6 +55,51 @@ function SidebarLink({ item, on, wide }: { item: NavItem; on: boolean; wide: boo
     >
       <Icon className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
       {item.label}
+    </Link>
+  );
+}
+
+/**
+ * Spec 54 (from spec 36): "Calendar" with the number of event invitations the user has not answered yet.
+ * A page that has read the number passes it (the calendar page); on every other page it is asked once
+ * from the server (a failure just shows no badge). Without invitations it is the plain link.
+ */
+function CalendarLink({ item, on, wide, pending }: { item: NavItem; on: boolean; wide: boolean; pending?: number }) {
+  const [asked, setAsked] = useState<number | null>(null);
+  useEffect(() => {
+    if (pending !== undefined) return;
+    let current = true;
+    void getJson("/api/invites/count").then((answer) => {
+      const count = (answer.data as { count?: unknown } | undefined)?.count;
+      if (current && answer.ok && typeof count === "number") setAsked(count);
+    });
+    return () => {
+      current = false;
+    };
+  }, [pending]);
+  const count = pending ?? asked ?? 0;
+  if (count === 0) return <SidebarLink item={item} on={on} wide={wide} />;
+  const Icon = item.icon;
+  const label = `${item.label}, ${count} ${count === 1 ? "invitation" : "invitations"} to answer`;
+  return (
+    <Link
+      href={item.href}
+      aria-current={on ? "page" : undefined}
+      aria-label={label}
+      title={wide ? undefined : label}
+      className={`relative flex h-9 items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-lg px-[9px] text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
+        wide ? "w-full" : "w-9"
+      } ${on ? "bg-raised font-medium text-ink" : "text-ink-2 hover:bg-raised/60 hover:text-ink"}`}
+    >
+      <Icon className={`size-[18px] shrink-0 ${on ? "text-ink" : "text-ink-3"}`} strokeWidth={on ? 2.2 : 1.8} />
+      {item.label}
+      {wide ? (
+        <span aria-hidden="true" className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1.5 text-[11px] font-semibold tabular text-white">
+          {count > 99 ? "99+" : count}
+        </span>
+      ) : (
+        <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-today" />
+      )}
     </Link>
   );
 }
@@ -144,7 +190,7 @@ function ProfileLink({ on, wide, me }: { on: boolean; wide: boolean; me?: Sideba
   );
 }
 
-export function Sidebar({ current, invitations, me }: { current: string; invitations?: number; me?: SidebarMe }) {
+export function Sidebar({ current, invitations, me, pendingInvites }: { current: string; invitations?: number; me?: SidebarMe; pendingInvites?: number }) {
   // On the server (and in the first render) the sidebar is open.
   const folded = useSyncExternalStore(subscribe, readFolded, () => false);
   const [peek, setPeek] = useState(false);
@@ -206,9 +252,13 @@ export function Sidebar({ current, invitations, me }: { current: string; invitat
           )}
         </div>
         <nav aria-label="Main navigation" className="mt-4 flex flex-col gap-0.5">
-          {NAV.map((item) => (
-            <SidebarLink key={item.href} item={item} on={current === item.href} wide={wide} />
-          ))}
+          {NAV.map((item) =>
+            item.href === "/" ? (
+              <CalendarLink key={item.href} item={item} on={current === item.href} wide={wide} pending={pendingInvites} />
+            ) : (
+              <SidebarLink key={item.href} item={item} on={current === item.href} wide={wide} />
+            ),
+          )}
         </nav>
         {/* Right below the main navigation, in a list of its own (spec 53). */}
         <div className="mt-0.5 flex flex-col">

@@ -9,7 +9,7 @@ import { Welcome } from "@/components/shell/Welcome";
 import { outlookConfigured } from "@/lib/server/config";
 import { pageDeps } from "@/lib/server/deps";
 import { readAddress } from "@/lib/events/views";
-import { loadCalendarPageWithShares } from "@/lib/server/pages/load";
+import { loadCalendarPageWithInvites } from "@/lib/server/pages/load";
 import { localDateTimeOf } from "@/lib/time/zoned";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -39,14 +39,16 @@ export default async function CalendarPage({
   const address = readAddress(params);
   // Spec 47: `&event=<id>` from "Next up" in the sidebar opens that event's editor.
   const openEventId = typeof params.event === "string" && UUID.test(params.event) ? params.event : undefined;
-  const { display, week, goals, showWelcome, places, home, travelMode, sharing } = await loadCalendarPageWithShares(deps, userId, address.date, address.view);
+  // Spec 54: also the event invitations (the events the user is invited to, the open ones, the badge's
+  // number and the people of the user's own events), in the same one transaction.
+  const { display, week, goals, showWelcome, places, home, travelMode, sharing, invites } = await loadCalendarPageWithInvites(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
   return (
     <Announcer>
       <LiveProvider>
-        <AppShell current="/" display={display}>
+        <AppShell current="/" display={display} pendingInvites={invites.pending}>
           <SavedPlacesProvider places={places} home={home} travelMode={travelMode}>
             <CalendarView
               week={week}
@@ -57,6 +59,7 @@ export default async function CalendarPage({
               viewerId={userId}
               sharing={sharing.filter((p) => p.calendar !== "none")}
               showPerson={typeof params.share === "string" ? params.share : undefined}
+              invites={invites}
             />
           </SavedPlacesProvider>
         </AppShell>

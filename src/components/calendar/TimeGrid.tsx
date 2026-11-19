@@ -16,7 +16,11 @@
 //
 // Spec 53 (from spec 29): other people's shared calendars, read only, on the right part of a day column
 // (the viewer's own blocks keep the left part, and only on days that have shared blocks). They never
-// take part in dragging, creating or the overlap marks (R10, R57).
+// take part in dragging, creating or the overlap marks (R10, R57). Since spec 54 (commit b3eb6c0 of the
+// source branch) only the blocks that run at the same time as a shared block give up width for it.
+// Spec 54 (from spec 36): events the viewer is invited to are drawn the same way (src/components/calendar/
+// Shared.tsx); the viewer's own blocks with people invited in the app show up to 3 of their avatars, and
+// their name and title list each person with their answer.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import { blockBox, clampHourPx, HOUR_PX, hourMarks, isBeforeGrid, minuteToPx, rangeHeight, type GridRange, type Placed } from "@/lib/events/grid";
@@ -43,9 +47,11 @@ import { todoCountText } from "@/lib/todos/types";
 import { guestCountText } from "@/lib/events/guests";
 import { travelBlock, type TravelBlock } from "@/lib/travel/blocks";
 import type { TravelAnswer } from "@/lib/travel/types";
-import type { SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
+import { splitBeside, type SharedAllDayItem, type SharedBlock } from "@/lib/shares/place";
+import { inviteesSummary, type InvitePerson } from "@/lib/invites/types";
 import { anchorOf, pointAnchor, type Anchor } from "./FloatingPanel";
 import { SharedAllDayChip, SharedBlockView, type OpenShared } from "./Shared";
+import { AvatarStack } from "./Invites";
 
 /** What the grid and the event editor need of a goal: its name, colour and icon. */
 export type GoalLabel = { id: string; title: string; look: GoalLook };
@@ -90,7 +96,11 @@ type Props = {
   /** The viewer's time zone, for the shared blocks' words. */
   timeZone?: string;
   onOpenShared?: (shared: OpenShared, anchor: Anchor) => void;
+  /** Spec 54: the people the user invited to their own shown events, with their answers, by event id. */
+  invitees?: Readonly<Record<string, InvitePerson[]>>;
 };
+
+const NO_INVITEES: readonly InvitePerson[] = [];
 
 /** Spec 53: the part of a day column the viewer's own blocks keep when shared blocks are shown on that day. */
 const OWN_AREA = 0.62;
@@ -189,7 +199,7 @@ function OutlookMark({ event }: { event: CalendarEvent }) {
 }
 
 /** The block's accessible name: everything the block shows, in words. */
-function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined, format: TimeFormat, warned: boolean): string {
+function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined, format: TimeFormat, warned: boolean, people: readonly InvitePerson[] = NO_INVITEES): string {
   const { event } = block;
   const endTime = fmtTime(event.endTime, format);
   const end = event.endDay ? `${endTime} the next day` : endTime;
@@ -199,6 +209,8 @@ function blockLabel(block: Placed, dayLong: string, goal: GoalLabel | undefined,
   if (event.status === "done") parts.push("done");
   if (event.todoCount) parts.push(`${event.todosDone ?? 0} of ${event.todoCount} to-dos done`);
   if (event.guests?.length) parts.push(guestCountText(event.guests.length));
+  // Spec 54: who is invited in the app, each with their answer ("2 invited: Emily Lea accepted, …").
+  if (people.length > 0) parts.push(inviteesSummary(people));
   parts.push(...outlookWords(event));
   return parts.join(", ");
 }
@@ -218,6 +230,8 @@ type BlockProps = {
   onOpen: (detail: number, anchor: Anchor) => void;
   onMoveStart: (e: ReactPointerEvent<HTMLButtonElement>, block: Placed, dayIndex: number) => void;
   onResizeStart: (e: ReactPointerEvent<HTMLSpanElement>, block: Placed, dayIndex: number) => void;
+  /** Spec 54: the people invited to this event in the app, with their answers. */
+  people?: readonly InvitePerson[];
 };
 
 /**
@@ -225,7 +239,7 @@ type BlockProps = {
  * Outlook event the calendar icon. Kept from our rules: the conflict edge and icon (R10) and "not sent
  * to Outlook" (R26). A block that may be dragged moves with the pointer; its bottom edge resizes it.
  */
-function EventBlock({ block, area, range, dayLong, dayIndex, goal, draggable, dimmed, warned, onOpen, onMoveStart, onResizeStart }: BlockProps) {
+function EventBlock({ block, area, range, dayLong, dayIndex, goal, draggable, dimmed, warned, onOpen, onMoveStart, onResizeStart, people = NO_INVITEES }: BlockProps) {
   const { event } = block;
   const { timeFormat } = useDisplay();
   // Events of a goal take the goal's colour; others stay neutral. An overlap adds a yellow edge and an icon.
@@ -247,7 +261,9 @@ function EventBlock({ block, area, range, dayLong, dayIndex, goal, draggable, di
         e.stopPropagation();
         onOpen(e.detail, anchorOf(e.currentTarget));
       }}
-      aria-label={blockLabel(block, dayLong, goal, timeFormat, warned)}
+      aria-label={blockLabel(block, dayLong, goal, timeFormat, warned, people)}
+      // Spec 54: the invited people with their answers for a mouse too (a plain title, no hover card).
+      title={people.length > 0 ? inviteesSummary(people) : undefined}
       // The part after midnight repeats an event already in the list: mouse only, not a second tab stop.
       tabIndex={block.continuesBefore ? -1 : undefined}
       aria-hidden={block.continuesBefore || undefined}
@@ -282,11 +298,17 @@ function EventBlock({ block, area, range, dayLong, dayIndex, goal, draggable, di
       ) : (
         done && <span className="absolute bottom-1 right-1 block size-1.5 rounded-full bg-success" />
       )}
-      {/* Spec 24: a small people icon with the number of guests, when the block is tall enough. */}
-      {event.guests?.length && height >= (event.location ? 88 : 68) ? (
-        <span aria-hidden className="absolute bottom-1 left-1.5 flex items-center gap-0.5 text-[10px] tabular opacity-80">
-          <Users className="size-3" strokeWidth={2} />
-          {event.guests.length}
+      {/* Spec 24: a small people icon with the number of guests, when the block is tall enough. Spec 54:
+          before it, a stack of up to three avatars of the people invited in the app. */}
+      {(people.length > 0 && height >= 44) || (event.guests?.length && height >= (event.location ? 88 : 68)) ? (
+        <span aria-hidden className="absolute bottom-1 left-1.5 flex items-center gap-1 text-[10px] tabular opacity-80">
+          {people.length > 0 && <AvatarStack people={people} />}
+          {event.guests?.length && height >= (event.location ? 88 : 68) ? (
+            <span className="flex items-center gap-0.5">
+              <Users className="size-3" strokeWidth={2} />
+              {event.guests.length}
+            </span>
+          ) : null}
         </span>
       ) : null}
       {draggable && (
@@ -527,6 +549,7 @@ export function TimeGrid({
   sharedAllDay,
   timeZone = "UTC",
   onOpenShared,
+  invitees,
 }: Props) {
   const { timeFormat } = useDisplay();
   const goalOf = (id: string | null) => (id ? goals.find((g) => g.id === id) : undefined);
@@ -880,7 +903,9 @@ export function TimeGrid({
             const listed = blocks.filter((b) => !b.continuesBefore);
             // Spec 53: shared blocks of this day within the shown hours; only then do the own blocks narrow.
             const sharedHere = onOpenShared ? (shared?.[i] ?? NO_SHARED).filter((b) => b.endMin > range.startMin && b.startMin < range.endMin) : NO_SHARED;
-            const area = sharedHere.length > 0 ? OWN_AREA : 1;
+            // Spec 54 (b3eb6c0): only blocks that run at the same time as a shared or invited block give up width for it.
+            const beside = sharedHere.length > 0 ? splitBeside(blocks, sharedHere) : null;
+            const areaOf = (block: Placed) => (beside?.own[blocks.indexOf(block)] ? OWN_AREA : 1);
             return (
               <section
                 key={day.date}
@@ -928,16 +953,26 @@ export function TimeGrid({
                 {travel &&
                   blocks.map((block) => {
                     const trip = travelBlock(block.event, block.startMin, block.continuesBefore, travel[block.event.id]);
-                    return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} area={area} />;
+                    return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} area={areaOf(block)} />;
                   })}
                 {/* Spec 53: others' blocks, under the viewer's own. Only a details block takes a click. */}
                 {sharedHere.length > 0 && onOpenShared && (
                   <ul aria-label="Shared calendars" className="pointer-events-none absolute inset-0">
-                    {sharedHere.map((block) => (
-                      <li key={`${block.key}-${block.continuesBefore ? "after" : "start"}`}>
-                        <SharedBlockView block={block} range={range} left={OWN_AREA} width={1 - OWN_AREA} timeZone={timeZone} onOpen={onOpenShared} />
-                      </li>
-                    ))}
+                    {sharedHere.map((block, n) => {
+                      const besideOwn = beside?.shared[n] ?? false;
+                      return (
+                        <li key={`${block.key}-${block.continuesBefore ? "after" : "start"}`}>
+                          <SharedBlockView
+                            block={block}
+                            range={range}
+                            left={besideOwn ? OWN_AREA : 0}
+                            width={besideOwn ? 1 - OWN_AREA : 1}
+                            timeZone={timeZone}
+                            onOpen={onOpenShared}
+                          />
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
                 <ul className="pointer-events-none absolute inset-0">
@@ -945,7 +980,7 @@ export function TimeGrid({
                     <li key={`${block.event.id}-${block.continuesBefore ? "after" : "start"}`}>
                       <EventBlock
                         block={block}
-                        area={area}
+                        area={areaOf(block)}
                         range={range}
                         dayLong={parts.long}
                         dayIndex={i}
@@ -956,6 +991,7 @@ export function TimeGrid({
                         onOpen={(detail, anchor) => openBlock(block.event, detail, anchor)}
                         onMoveStart={beginMove}
                         onResizeStart={beginResize}
+                        people={invitees?.[block.event.id]}
                       />
                     </li>
                   ))}

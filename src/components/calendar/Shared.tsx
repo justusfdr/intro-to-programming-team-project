@@ -6,7 +6,11 @@
 // left edge and the person's avatar; "busy" blocks say "Busy" and are not buttons; a "details" block
 // opens a small card with title, time, place and whose calendar it is. Placement maths:
 // src/lib/shares/place.ts.
-import { createContext, useContext, useId, useState } from "react";
+// Spec 54 (from spec 36): an event the viewer is invited to goes through the same placement, carrying its
+// invitation (`invite`). It is drawn in the look of R61 instead of a person's colour: no answer yet white
+// with a dashed border in ink, maybe the same with lighter text and "Maybe", accepted solid like one of
+// the viewer's own events; always with the inviter's avatar. A click opens the invitation's card.
+import { createContext, useContext, useId, useState, type CSSProperties } from "react";
 import { Users } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { PersonChip } from "@/components/people/PersonChip";
@@ -14,7 +18,8 @@ import { Button } from "@/components/ui/Button";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { blockBox, type GridRange } from "@/lib/events/grid";
 import { preferredColor, shareColor, type ShareColor, type ShareColorName } from "@/lib/shares/colors";
-import type { SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
+import type { InviteMark, SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
+import { answerWords, inviteClass } from "@/lib/invites/types";
 import { MAX_SHOWN_CALENDARS, levelText, type CalendarLevel, type SharingPerson } from "@/lib/shares/types";
 import { fmtDateLong, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { localDateTimeOf } from "@/lib/time/zoned";
@@ -42,7 +47,17 @@ export type OpenShared = {
   location: string | null;
   /** "Monday, November 16, 9 – 11am" or "Monday, November 16 to Wednesday, November 18 (all day)". */
   when: string;
+  /** Spec 54: an event the viewer is invited to (the person is who invited them). */
+  invite?: InviteMark;
 };
+
+/** "Group project meeting, Friday, November 20, 11am – 12pm, invited by Ana, your answer: maybe". */
+function inviteLabel(title: string, when: string, person: SharingPerson, invite: InviteMark): string {
+  return `${title}, ${when}, invited by ${person.name}, your answer: ${answerWords(invite.answer)}`;
+}
+
+/** The focus ring and hover of every invited block, chip and row. */
+const INVITE_FOCUS = "cursor-pointer hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40";
 
 /** "Monday, November 16, 9 – 11am" for a shared timed event, in the viewer's zone. */
 export function sharedWhen(startAt: string, endAt: string, timeZone: string, format: TimeFormat): string {
@@ -222,6 +237,7 @@ export function SharedBlockView({
     left: `calc(${(left + block.lane * laneWidth) * 100}% + 2px)`,
     width: `calc(${laneWidth * 100}% - 4px)`,
   };
+  if (block.invite) return <InvitedBlockView block={block} invite={block.invite} style={style} height={height} timeZone={timeZone} onOpen={onOpen} />;
   const text = block.level === "details" ? block.title || "Busy" : "Busy";
   const time = fmtRange(block.startMin, block.endMin, timeFormat);
   const inner = (
@@ -270,11 +286,79 @@ export function SharedBlockView({
   );
 }
 
+/**
+ * Spec 54: an event the viewer is invited to, as a read-only block in a day column: the inviter's small
+ * avatar, the title, "Maybe" when that is the answer. A click opens its card; it is never dragged,
+ * resized or opened in the editor (R63).
+ */
+function InvitedBlockView({
+  block,
+  invite,
+  style,
+  height,
+  timeZone,
+  onOpen,
+}: {
+  block: SharedBlock;
+  invite: InviteMark;
+  style: CSSProperties;
+  height: number;
+  timeZone: string;
+  onOpen: (shared: OpenShared, anchor: Anchor) => void;
+}) {
+  const { timeFormat } = useDisplay();
+  const title = block.title || "Invitation";
+  const when = sharedWhen(block.startAt, block.endAt, timeZone, timeFormat);
+  const time = fmtRange(block.startMin, block.endMin, timeFormat);
+  return (
+    <button
+      type="button"
+      data-invite={invite.answer}
+      aria-label={inviteLabel(title, when, block.person, invite)}
+      // The part after midnight repeats a block of the day before: not a second tab stop.
+      tabIndex={block.continuesBefore ? -1 : undefined}
+      aria-hidden={block.continuesBefore || undefined}
+      style={style}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen({ person: block.person, title, location: block.location, when, invite }, anchorOf(e.currentTarget));
+      }}
+      className={`pointer-events-auto absolute z-[1] overflow-hidden rounded-lg px-1 py-0.5 text-left ${INVITE_FOCUS} ${inviteClass(invite.answer)}`}
+    >
+      <span className="flex items-center gap-1">
+        <Avatar name={block.person.name} photoUrl={block.person.photoUrl} size={16} />
+        <span className="min-w-0 truncate text-[11px] font-medium leading-[14px]">{title}</span>
+      </span>
+      {height >= 44 && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{invite.answer === "tentative" ? `Maybe · ${time}` : time}</span>}
+      {height < 44 && invite.answer === "tentative" && <span className="sr-only">Maybe</span>}
+    </button>
+  );
+}
+
 /** A shared all-day event as a small chip in the person's colour (all-day row and month view). */
 export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onOpen: (shared: OpenShared, anchor: Anchor) => void }) {
   const color = useShareColor(item.person.userId);
   const text = item.level === "details" ? item.event.title || "Busy" : "Busy";
   const when = allDayWhen(item.event.firstDay, item.event.lastDay);
+  const invite = item.event.invite;
+  if (invite) {
+    return (
+      <button
+        type="button"
+        data-invite={invite.answer}
+        aria-label={inviteLabel(text, when, item.person, invite)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen({ person: item.person, title: text, location: item.event.location ?? null, when, invite }, anchorOf(e.currentTarget));
+        }}
+        className={`flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${INVITE_FOCUS} ${inviteClass(invite.answer)}`}
+      >
+        <Avatar name={item.person.name} photoUrl={item.person.photoUrl} size={16} />
+        <span className="min-w-0 truncate">{invite.answer === "tentative" ? `Maybe · ${text}` : text}</span>
+      </button>
+    );
+  }
   const label = `${text}, ${when}, ${whose(item.person)}, read only`;
   const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_BAR} ${color.block}`;
   const inner = (
@@ -353,6 +437,26 @@ function SharedMonthBlock({ block, timeZone, onOpen }: { block: SharedBlock; tim
   const { timeFormat } = useDisplay();
   const color = useShareColor(block.person.userId);
   const text = block.level === "details" ? block.title || "Busy" : "Busy";
+  if (block.invite) {
+    const invite = block.invite;
+    const when = sharedWhen(block.startAt, block.endAt, timeZone, timeFormat);
+    return (
+      <button
+        type="button"
+        data-invite={invite.answer}
+        aria-label={inviteLabel(text, when, block.person, invite)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen({ person: block.person, title: text, location: block.location, when, invite }, anchorOf(e.currentTarget));
+        }}
+        className={`flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${INVITE_FOCUS} ${inviteClass(invite.answer)}`}
+      >
+        <Avatar name={block.person.name} photoUrl={block.person.photoUrl} size={16} />
+        <span className="shrink-0 tabular opacity-80">{fmtTime(block.startMin, timeFormat)}</span>
+        <span className="min-w-0 truncate">{invite.answer === "tentative" ? `Maybe · ${text}` : text}</span>
+      </button>
+    );
+  }
   const label = blockLabel(block, timeZone, timeFormat);
   const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_BAR} ${color.block}`;
   const inner = (
