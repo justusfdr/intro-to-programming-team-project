@@ -20,7 +20,7 @@ type Category = { id: string; name: string; icon: LucideIcon; entries: Entry[] }
 export type PickUp = { item: WidgetItem; x: number; y: number; dx: number; dy: number };
 
 /** How far the pointer moves before a press on a preview becomes a drag, in px. */
-const DRAG_FROM = 5;
+export const DRAG_FROM = 5;
 
 const SIZE_NAMES: Record<WidgetSize, string> = { "1x1": "Small", "3x1": "Wide", "3x2": "Medium", "3x4": "Large" };
 

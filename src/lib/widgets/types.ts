@@ -14,7 +14,10 @@ export type WidgetSize = (typeof WIDGET_SIZES)[number];
  * One widget in the user's list. A goal widget names its goal; without one it shows the first goal.
  * A weather widget may name a city to always show; without one it follows the user (R48).
  */
-export type WidgetItem = { kind: WidgetKind; size: WidgetSize; goalId?: string | null; city?: string | null };
+/** A field of the grid: row 0 to 5 from the top, column 0 to 2 from the left. */
+export type WidgetCellAt = { row: number; col: number };
+/** `at`: the field the user put the widget in (its top left); without it, it takes the first free place. */
+export type WidgetItem = { kind: WidgetKind; size: WidgetSize; goalId?: string | null; city?: string | null; at?: WidgetCellAt };
 
 /** A weather widget's city: 1 to 80 characters after trimming, on one line. */
 export const MAX_CITY_LENGTH = 80;

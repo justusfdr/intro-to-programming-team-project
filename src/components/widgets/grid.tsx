@@ -1,12 +1,12 @@
 // The grid of widgets without any state (spec 47): which tile a widget is, and the cell it sits in, with
-// the minus and the size tag while editing. WidgetArea holds the state and passes everything in; the
+// the minus while editing (the size is chosen in its settings or the gallery). WidgetArea holds the state and passes everything in; the
 // preview tool renders the same pieces with sample data.
-import type { DragEvent, KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import Link from "next/link";
 import { localDateOf } from "@/lib/time/zoned";
 import { Minus } from "lucide-react";
 import type { Placement } from "@/lib/widgets/layout";
-import { CELL_PX, GAP_PX, GRID_COLUMNS, SIZES_OF, WIDGET_NAMES, type WidgetItem, type WidgetsData } from "@/lib/widgets/types";
+import { CELL_PX, GAP_PX, GRID_COLUMNS, WIDGET_NAMES, type WidgetItem, type WidgetsData } from "@/lib/widgets/types";
 import type { WeatherAnswer } from "@/lib/widgets/weather";
 import { FocusWidget, FreeWidget, GoalWidget, LeaveWidget, NextWidget, routeLink, WeatherWidget, type Clock, type TripTravel } from "./tiles";
 
@@ -99,35 +99,28 @@ export const GRID_STYLE = { gridTemplateColumns: `repeat(${GRID_COLUMNS}, ${CELL
 
 const sizeWords = (item: WidgetItem) => item.size.replace("x", " by ");
 
-/** One cell of the grid. While editing: it wiggles, can be dragged or moved with the keys, has a minus and a size tag. */
+/** One cell of the grid. While editing: it wiggles, can be dragged (WidgetArea) or moved with the keys, has a minus. */
 export function WidgetCell({
   item,
   place,
   editing,
-  dragging = false,
   landing = false,
   onRemove,
-  onCycleSize,
   onOpen,
-  onDragStart,
-  onDragEnd,
-  onDrop,
+  onPress,
   onKeyDown,
   children,
 }: {
   item: WidgetItem;
   place: Placement;
   editing: boolean;
-  dragging?: boolean;
-  /** The widget being dragged in from the gallery, shown where it will land. */
+  /** The widget being dragged (from the grid or the gallery), shown in the field where it will land. */
   landing?: boolean;
   onRemove?: () => void;
-  onCycleSize?: () => void;
   /** While editing: a click on the widget opens its settings. */
   onOpen?: () => void;
-  onDragStart?: () => void;
-  onDragEnd?: () => void;
-  onDrop?: (event: DragEvent) => void;
+  /** While editing: a press on the widget, which becomes a drag once the pointer moves (WidgetArea). */
+  onPress?: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onKeyDown?: (event: KeyboardEvent) => void;
   children: ReactNode;
 }) {
@@ -135,17 +128,14 @@ export function WidgetCell({
   return (
     <div
       style={{ gridRow: `${row + 1} / span ${h}`, gridColumn: `${col + 1} / span ${w}`, animationDelay: index % 2 ? "-0.15s" : undefined }}
-      className={`relative min-w-0 ${landing ? "rounded-card opacity-60 ring-2 ring-ink/30" : ""} ${editing && !landing ? "widget-wiggle cursor-grab rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30" : ""} ${dragging ? "opacity-40" : ""}`}
-      draggable={editing}
+      className={`relative min-w-0 ${landing ? "rounded-card opacity-60 ring-2 ring-ink/30" : ""} ${editing && !landing ? "widget-wiggle cursor-grab touch-none rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30" : ""}`}
       tabIndex={editing ? 0 : undefined}
       aria-label={editing ? `${WIDGET_NAMES[item.kind]}, ${sizeWords(item)}. Enter opens its settings, arrow keys move it, Delete removes it` : undefined}
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "move";
-        onDragStart?.();
+      onPointerDown={(event) => {
+        // The minus is a button of its own, not a handle to drag by.
+        if (!editing || (event.target as HTMLElement).closest("button")) return;
+        onPress?.(event);
       }}
-      onDragEnd={onDragEnd}
-      onDragOver={(event) => editing && event.preventDefault()}
-      onDrop={onDrop}
       onKeyDown={(event) => {
         if (!editing) return;
         if (event.key === "Enter" && event.target === event.currentTarget) {
@@ -169,19 +159,6 @@ export function WidgetCell({
           >
             <Minus aria-hidden className="size-3" strokeWidth={2.6} />
           </button>
-          {SIZES_OF[item.kind].length > 1 && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onCycleSize?.();
-              }}
-              aria-label={`Size ${sizeWords(item)}. Change size`}
-              className={`tabular absolute ${w === 1 ? "-top-1.5" : "-bottom-1.5"} -right-1.5 z-10 rounded-full bg-ink px-1.5 text-[10.5px] font-semibold leading-5 text-white shadow-float`}
-            >
-              {item.size.replace("x", "×")}
-            </button>
-          )}
         </>
       )}
     </div>
