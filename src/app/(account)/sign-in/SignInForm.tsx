@@ -3,15 +3,14 @@
 // Form of sign_in. It only collects the input and shows the server's answer;
 // all rules are checked by the server (src/lib/server/actions/sign-in.ts).
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Field } from "@/components/account/Field";
 import { FormMessage } from "@/components/account/FormMessage";
 import { Button } from "@/components/ui/Button";
+import { openFresh } from "@/lib/client/fresh-page";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 
 export function SignInForm() {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PostResult | null>(null);
 
@@ -24,9 +23,9 @@ export function SignInForm() {
       password: String(form.get("password") ?? ""),
     });
     if (answer.ok) {
-      // The server sends the user on to the start page. Refresh first, so the next page reads the new session cookie.
-      router.refresh();
-      router.push("/");
+      // On to the start page, loaded in full so it reads the new session cookie (src/lib/client/fresh-page.ts).
+      // The button keeps saying "Signing in…" until the calendar is there.
+      openFresh("/");
       return;
     }
     setResult(answer);
