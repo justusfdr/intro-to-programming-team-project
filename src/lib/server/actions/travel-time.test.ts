@@ -282,6 +282,22 @@ describe("travel_time: where the trip starts (travel_from)", () => {
     expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Last event" });
   });
 
+  it("has no travel time (no trip, no buffer) when the event before is at the same place", async () => {
+    const user = await alice();
+    const id = await lecture(user);
+    await before(user, "nova sbe,  Carcavelos");
+    expect((await read(await ask(id))).body).toEqual({ travel: null });
+    expect(routing.asked).toEqual([]);
+  });
+
+  it("has no travel time when the event before is the same place written another way (under 50 m apart)", async () => {
+    const user = await alice();
+    const id = await lecture(user);
+    routing.places.set("nova school of business, carcavelos", { lat: 38.6798, lon: -9.3198 });
+    await before(user, "Nova School of Business, Carcavelos");
+    expect((await read(await ask(id))).body).toEqual({ travel: null });
+  });
+
   it("skips an event before that ended more than 12 hours earlier, has no address or is a web link", async () => {
     const user = await alice();
     const id = await lecture(user);

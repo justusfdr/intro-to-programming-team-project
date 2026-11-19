@@ -11,6 +11,8 @@ import "server-only";
 // 12 hours before this one starts and has an address (not a web link).
 // leave_at = start − travel minutes − buffer. By public transport, the trip is the latest one that
 // arrives in time, so leave_at = its departure − buffer.
+// When the trip would start where the event is (the event before is at the same place: the same text,
+// or two points under 50 m apart), there is no travel time at all: no block, no buffer, no warning.
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import type { TravelMode } from "@/lib/settings/types";
@@ -25,7 +27,7 @@ import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { googleMapsBrowserKey } from "@/lib/server/config";
 import { routeMapUrl } from "@/lib/server/google/map";
 import { googleRouting } from "@/lib/server/google/routes";
-import type { Routing } from "@/lib/server/routing/types";
+import type { Point, Routing } from "@/lib/server/routing/types";
 import { requireUser } from "@/lib/server/session";
 import { readSettings } from "@/lib/server/settings";
 import { readPlaces } from "@/lib/server/places/saved";
@@ -47,10 +49,13 @@ export async function travelOf(event: EventRow, settings: SettingsData, routing:
   const mode: TravelMode = event.travel_mode ?? settings.travelMode;
   const from = start ?? { label: "Home", address: settings.homeAddress.trim() };
   if (from.address === "") return { status: "no_home", mode, message: MESSAGES.addHomeAddress };
+  // Already there (the event before is at the same place, say): no trip and no buffer, so no travel time.
+  if (sameAddress(from.address, location)) return null;
   try {
     const home = await routing.geocode(from.address);
     const there = await routing.geocode(location);
     if (!home || !there) return { status: "not_found", mode, message: MESSAGES.addressNotFound };
+    if (samePlace(home, there)) return null;
     const trip = await routing.trip(mode, home, there, new Date(event.start_at));
     if (!trip) return { status: "unavailable", mode, message: MESSAGES.travelUnavailable };
     const buffer = settings.travelBufferMinutes;
@@ -60,6 +65,20 @@ export async function travelOf(event: EventRow, settings: SettingsData, routing:
     // A routing service that cannot be reached changes nothing; the event stays as it is.
     return { status: "unavailable", mode, message: MESSAGES.travelUnavailable };
   }
+}
+
+/** Two addresses written the same way (case, spaces and commas aside). */
+export function sameAddress(a: string, b: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[\s,]+/g, " ").trim();
+  return norm(a) === norm(b);
+}
+
+/** Two points closer than about 50 metres: one place, written in two ways. */
+export function samePlace(a: Point, b: Point): boolean {
+  const metresPerDegree = 111_320;
+  const dLat = (a.lat - b.lat) * metresPerDegree;
+  const dLon = (a.lon - b.lon) * metresPerDegree * Math.cos((a.lat * Math.PI) / 180);
+  return Math.hypot(dLat, dLon) < 50;
 }
 
 const MODES: readonly TravelMode[] = ["driving", "cycling", "walking", "transit"];
