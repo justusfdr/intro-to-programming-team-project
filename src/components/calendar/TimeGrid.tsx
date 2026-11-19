@@ -973,7 +973,7 @@ export function TimeGrid({
                     const trip = travelBlock(block.event, block.startMin, block.continuesBefore, travel[block.event.id]);
                     return trip && <TravelBox key={`travel-${block.event.id}`} trip={trip} block={block} range={range} area={areaOf(block)} />;
                   })}
-                {/* Spec 53: others' blocks, under the viewer's own. Only a details block takes a click. */}
+                {/* Spec 53: others' blocks, under the viewer's own. Every shared block takes the click (a card), so none falls through to the empty area. */}
                 {sharedHere.length > 0 && onOpenShared && (
                   <ul aria-label="Shared calendars" className="pointer-events-none absolute inset-0">
                     {sharedHere.map((block, n) => {

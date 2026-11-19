@@ -49,6 +49,8 @@ export type OpenShared = {
   when: string;
   /** Spec 54: an event the viewer is invited to (the person is who invited them). */
   invite?: InviteMark;
+  /** A free/busy share: no title and no place exist, so the card says "Busy" and why (the owner's request of 19 Nov 2026). */
+  busy?: boolean;
 };
 
 /** "Group project meeting, Friday, November 20, 11am – 12pm, invited by Ana, your answer: maybe". */
@@ -250,40 +252,34 @@ export function SharedBlockView({
     </>
   );
   const className = `absolute z-[1] overflow-hidden rounded-lg px-1 py-0.5 text-left ${SHARED_BAR} ${color.block}`;
-  // The part after midnight repeats a block of the day before: not read out twice.
-  if (block.level !== "details" || block.continuesBefore) {
-    return (
-      <div
-        data-shared
-        role={block.continuesBefore ? undefined : "note"}
-        aria-hidden={block.continuesBefore || undefined}
-        aria-label={block.continuesBefore ? undefined : blockLabel(block, timeZone, timeFormat)}
-        style={style}
-        className={`pointer-events-none ${className}`}
-      >
-        {inner}
-      </div>
-    );
-  }
+  // Every shared block is a button, so a click opens its card and never falls through to the empty
+  // area of the grid, which would start a new event. The part after midnight repeats a block of the day
+  // before: it takes the click too, but is not read out twice and not a second tab stop.
   return (
     <button
       type="button"
       data-shared
-      aria-label={blockLabel(block, timeZone, timeFormat)}
+      aria-label={block.continuesBefore ? undefined : blockLabel(block, timeZone, timeFormat)}
+      aria-hidden={block.continuesBefore || undefined}
+      tabIndex={block.continuesBefore ? -1 : undefined}
       style={style}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
-        onOpen(
-          { person: block.person, title: block.title || "Busy", location: block.location, when: sharedWhen(block.startAt, block.endAt, timeZone, timeFormat) },
-          anchorOf(e.currentTarget),
-        );
+        onOpen(openSharedOf(block, timeZone, timeFormat), anchorOf(e.currentTarget));
       }}
       className={`pointer-events-auto cursor-pointer hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40 ${className}`}
     >
       {inner}
     </button>
   );
+}
+
+/** What the card of a shared timed block shows; at "busy" there is no title and no place to show. */
+export function openSharedOf(block: SharedBlock, timeZone: string, format: TimeFormat): OpenShared {
+  const when = sharedWhen(block.startAt, block.endAt, timeZone, format);
+  if (block.level === "details") return { person: block.person, title: block.title || "Busy", location: block.location, when };
+  return { person: block.person, title: "Busy", location: null, when, busy: true };
 }
 
 /**
@@ -367,22 +363,20 @@ export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onO
       <span className="min-w-0 truncate">{text}</span>
     </>
   );
-  if (item.level !== "details") {
-    return (
-      <div role="note" aria-label={label} className={className}>
-        {inner}
-      </div>
-    );
-  }
   return (
     <button
       type="button"
       aria-label={label}
       onClick={(e) => {
         e.stopPropagation();
-        onOpen({ person: item.person, title: text, location: item.event.location ?? null, when }, anchorOf(e.currentTarget));
+        onOpen(
+          item.level === "details"
+            ? { person: item.person, title: text, location: item.event.location ?? null, when }
+            : { person: item.person, title: "Busy", location: null, when, busy: true },
+          anchorOf(e.currentTarget),
+        );
       }}
-      className={`${className} hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40`}
+      className={`${className} cursor-pointer hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40`}
     >
       {inner}
     </button>
@@ -400,6 +394,7 @@ export function SharedEventDetails({ shared }: { shared: OpenShared }) {
       </p>
       <p className="text-sm text-ink-2">{shared.when}</p>
       {shared.location && <p className="text-sm text-ink-2">{shared.location}</p>}
+      {shared.busy && <p className="text-sm text-ink-2">{shared.person.name.split(" ")[0]} shares free/busy only.</p>}
       <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-ink-3">
         <span>From</span>
         {/* The person's name is a plain link to their profile (spec 53, from spec 33). */}
@@ -466,22 +461,15 @@ function SharedMonthBlock({ block, timeZone, onOpen }: { block: SharedBlock; tim
       <span className="min-w-0 truncate">{text}</span>
     </>
   );
-  if (block.level !== "details") {
-    return (
-      <div role="note" aria-label={label} className={className}>
-        {inner}
-      </div>
-    );
-  }
   return (
     <button
       type="button"
       aria-label={label}
       onClick={(e) => {
         e.stopPropagation();
-        onOpen({ person: block.person, title: text, location: block.location, when: sharedWhen(block.startAt, block.endAt, timeZone, timeFormat) }, anchorOf(e.currentTarget));
+        onOpen(openSharedOf(block, timeZone, timeFormat), anchorOf(e.currentTarget));
       }}
-      className={`${className} hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40`}
+      className={`${className} cursor-pointer hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40`}
     >
       {inner}
     </button>
