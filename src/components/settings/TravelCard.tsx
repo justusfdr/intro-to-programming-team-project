@@ -1,6 +1,7 @@
 "use client";
 
-// Card "Travel", copied from the prototype's travel card: home address, how you get there, buffer.
+// Card "Travel", copied from the prototype's travel card: home address, how you get there, buffer
+// (chips and a custom wheel, BufferField.tsx).
 // The values are saved now; when to leave is calculated in a later step, so this card does not talk
 // about leaving times yet (no switch, no routing service, no attribution).
 // The home address is checked before it is saved: suggestions appear while typing, and "Confirm" looks the
@@ -16,7 +17,8 @@ import type { PlaceSuggestion } from "@/lib/places/places";
 import type { SavedPlace } from "@/lib/places/saved";
 import type { SettingsData, TravelMode } from "@/lib/settings/types";
 import { Button } from "@/components/ui/Button";
-import { FieldRow, INPUT_CLASS, SegmentedField, SelectField, SettingsCardHeader, type FieldOption } from "./fields";
+import { BufferField } from "./BufferField";
+import { FieldRow, INPUT_CLASS, SegmentedField, SettingsCardHeader, type FieldOption } from "./fields";
 import { PlacesRow } from "./PlacesDialog";
 import { useSaveSettings } from "./useSaveSettings";
 
@@ -26,17 +28,6 @@ const MODE_OPTIONS: FieldOption<TravelMode>[] = [
   { value: "walking", label: "Walking" },
   { value: "transit", label: "Public transport" },
 ];
-
-const BUFFER_OPTIONS: FieldOption<number>[] = Array.from({ length: 60 }, (_, min) => min).map((min) => ({
-  value: min,
-  label: min === 0 ? "No buffer" : `${min} min`,
-}));
-
-/** Buffer choices; a saved value that is not in the list is added to it. */
-function bufferOptionsFor(value: number): FieldOption<number>[] {
-  if (BUFFER_OPTIONS.some((o) => o.value === value)) return BUFFER_OPTIONS;
-  return [...BUFFER_OPTIONS, { value, label: `${value} min` }].sort((a, b) => a.value - b.value);
-}
 
 export function TravelCard({ settings: serverSettings, places = [] }: { settings: SettingsData; places?: SavedPlace[] }) {
   // The saved values, with a change that is on its way shown at once.
@@ -171,14 +162,13 @@ export function TravelCard({ settings: serverSettings, places = [] }: { settings
           />
         </FieldRow>
 
-        <FieldRow label="Buffer" htmlFor={ids.buffer} hintId={ids.bufferHint} hint="Extra minutes added to each trip.">
-          <SelectField
-            id={ids.buffer}
+        <FieldRow label="Buffer" labelId={ids.buffer} hintId={ids.bufferHint} hint="Extra minutes added to each trip.">
+          <BufferField
             value={settings.travelBufferMinutes}
-            options={bufferOptionsFor(settings.travelBufferMinutes)}
-            ariaDescribedBy={ids.bufferHint}
+            labelledBy={ids.buffer}
+            describedBy={ids.bufferHint}
             disabled={busy}
-            onChange={(travelBufferMinutes) => void save({ travelBufferMinutes })}
+            onSave={(travelBufferMinutes) => save({ travelBufferMinutes })}
           />
         </FieldRow>
       </div>
