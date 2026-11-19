@@ -158,8 +158,11 @@ export function Gallery({
         </>
       }
     >
-      <div className="grid min-h-[26rem] grid-cols-[10.5rem_1fr]">
-        <nav aria-label="Widget categories" className="flex flex-col gap-0.5 border-r border-line-subtle px-3 py-2">
+      {/* The body always has the height the Weather page needs (26rem), whatever category is shown, so the
+          window never grows, shrinks or jumps. A page with more previews scrolls inside the right panel.
+          On a short screen it takes the room that is left, still the same for every category. */}
+      <div className="grid h-[min(26rem,calc(100dvh-11rem))] grid-cols-[10.5rem_1fr]">
+        <nav aria-label="Widget categories" className="scroll-thin flex flex-col gap-0.5 overflow-y-auto border-r border-line-subtle px-3 py-2">
           {all.map((c) => {
             const Icon = c.icon;
             const on = c.id === category.id;
@@ -179,7 +182,7 @@ export function Gallery({
             );
           })}
         </nav>
-        <div className="flex flex-col gap-6 px-5 py-3">
+        <div className="scroll-thin flex min-h-0 flex-col gap-6 overflow-y-auto px-5 py-3">
           {category.entries.map((entry) => (
             <section key={entry.key} aria-label={entry.name} className="flex flex-col gap-3">
               <div>
