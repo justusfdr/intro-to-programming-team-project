@@ -181,6 +181,16 @@ export const MESSAGES = {
   shareSaved: "Sharing saved.",
   shareWindow: "Choose at most 62 days",
   shareChoice: "Choose what to share",
+  // Spec 54 (from spec 36): event invitations inside the app (R59 to R64). The refusals are the
+  // database's own sentences (20261210000000_event_invites.sql), word for word.
+  invitesNotInSeries: "Events of a series cannot invite people",
+  invitesNotOutlook: "Outlook events cannot invite people",
+  invitesNotDemo: "Demo events cannot invite people",
+  invitesNotEnded: "People can only be invited to events that have not ended",
+  tooManyInvitees: "An event can invite at most 20 people",
+  inviteAnswerChoice: "Choose accept, maybe or decline",
+  inviteEnded: "This event has ended",
+  invitesSaved: "Invitations saved.",
   siteRemoved: "Removed from your block list.",
   placeSaved: "Place saved.",
   placeRemoved: "Place removed.",

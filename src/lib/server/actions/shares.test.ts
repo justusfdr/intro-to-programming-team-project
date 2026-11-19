@@ -276,4 +276,20 @@ describe("pages and the coach", () => {
     const sent = JSON.stringify(app.assistant.requests);
     for (const secret of ["Statistics exam", "Study group", "Exam week", "Nova SBE", "ana@example.com", ana]) expect(sent).not.toContain(secret);
   });
+
+  // Added 19 Nov 2026 (spec 54, S5): the same with an event Ana invited Ben to.
+  it("R22: the coach is never sent anything of another user, also with an event the user is invited to", async () => {
+    const { ana, ben, contact } = await contacts();
+    await seedAnasWeek(ana);
+    await app.signedInAs("ana@example.com");
+    await share(contact, { calendar: "details", focus: true });
+    const [exam] = await app.db.admin<{ id: string }>("select id from app.events where title = 'Statistics exam'");
+    // Written directly: the database's own clock decides "not ended", and this week lies before it.
+    await app.db.admin("insert into app.event_invites (event_id, contact_id, owner, invitee) values ($1, $2, $3, $4)", [exam.id, contact, ana, ben]);
+    await app.signedInAs("ben@example.com");
+    await setPlan(app.db, ben, "pro");
+    expect((await sendMessage(postJson("/api/chat/messages", { text: "What is on this week?" }), app.deps)).status).toBe(201);
+    const sent = JSON.stringify(app.assistant.requests);
+    for (const secret of ["Statistics exam", "Study group", "Exam week", "Nova SBE", "ana@example.com", ana, exam.id]) expect(sent).not.toContain(secret);
+  });
 });

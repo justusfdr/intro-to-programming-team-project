@@ -45,23 +45,11 @@ describe("where another user's calendar can be read (E12)", () => {
 });
 
 describe("database functions the app must not use (security review L1)", () => {
-  // Event invitations and the shared focus chart are not part of the app, but these functions are still
-  // granted in the database. As long as no code calls them, real contact rows cannot turn into
-  // event invitations or a focus chart that R43 and R56 do not allow.
-  const UNUSED = [
-    "set_event_invites",
-    "answer_event_invite",
-    "invited_events",
-    "open_event_invites",
-    "pending_invite_count",
-    "event_invitees",
-    "own_event_invitees",
-    "event_has_invites",
-    "invite_people",
-    "invite_person_names",
-    "chat_draft_remove_person",
-    "shared_focus",
-  ];
+  // The coach's people of a draft (spec 37) and the shared focus chart are not part of the app, but
+  // these functions are still granted in the database. As long as no code calls them, real contact rows
+  // cannot turn into a draft's invited people or a focus chart that R43 and R56 do not allow.
+  // Changed 19 Nov 2026 (spec 54): the event invitation functions are used now and moved to the test below.
+  const UNUSED = ["chat_draft_remove_person", "shared_focus"];
 
   it("no code under src/ names any of them", () => {
     const files = codeFiles(SRC);
@@ -71,5 +59,40 @@ describe("database functions the app must not use (security review L1)", () => {
       return UNUSED.filter((name) => text.includes(name)).map((name) => `${rel(file)}: ${name}`);
     });
     expect(found).toEqual([]);
+  });
+});
+
+describe("where the event invitation functions are named (spec 54, S7)", () => {
+  // Each function of 20261210000000_event_invites.sql the app uses is named in exactly one module, as
+  // app.shared_calendar is: the readers in src/lib/server/invites/read.ts, the two writes in the
+  // actions, and the coach's yes/no question (R63) in its calendar reader.
+  const WHERE: Record<string, string> = {
+    set_event_invites: "src/lib/server/actions/event-invites.ts",
+    answer_event_invite: "src/lib/server/actions/event-invites.ts",
+    invited_events: "src/lib/server/invites/read.ts",
+    open_event_invites: "src/lib/server/invites/read.ts",
+    pending_invite_count: "src/lib/server/invites/read.ts",
+    event_invitees: "src/lib/server/invites/read.ts",
+    own_event_invitees: "src/lib/server/invites/read.ts",
+    invite_people: "src/lib/server/invites/read.ts",
+    invite_person_names: "src/lib/server/invites/read.ts",
+    event_has_invites: "src/lib/server/chat/rows.ts",
+  };
+
+  it("each one in exactly its one module, nowhere else under src/", () => {
+    const files = codeFiles(SRC).map((file) => ({ file: rel(file), text: readFileSync(file, "utf8") }));
+    for (const [name, home] of Object.entries(WHERE)) {
+      // Whole names only: "event_invitees" is not found inside "own_event_invitees".
+      const pattern = new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`);
+      expect(files.filter((f) => pattern.test(f.text)).map((f) => f.file), name).toEqual([home]);
+    }
+  });
+
+  it("the invitations' reader is imported only by the calendar page's loader and the invitation actions", () => {
+    const importing = codeFiles(SRC)
+      .filter((file) => /@\/lib\/server\/invites/.test(readFileSync(file, "utf8")))
+      .map(rel)
+      .sort();
+    expect(importing).toEqual(["src/lib/server/actions/event-invites.ts", "src/lib/server/pages/load.ts"]);
   });
 });

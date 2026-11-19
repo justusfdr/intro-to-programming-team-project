@@ -44,6 +44,8 @@ import { readOwnCard, readOwnProfile } from "@/lib/server/profiles/own-profile";
 import { readPeople } from "@/lib/server/profiles/cards";
 import { isUserId, readProfileCard, readProfileCards } from "@/lib/server/profiles/profile-card";
 import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
+import { cardsOfContacts, inviteContactsOf, openInvitesOf, readInvitedEvents, readOpenInviteRows, readOwnInvitees, readPendingInviteCount } from "@/lib/server/invites/read";
+import type { CalendarInvites } from "@/lib/invites/types";
 import { NOTHING_SHARED, type ContactShares, type PersonRelation, type SharingPerson } from "@/lib/shares/types";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readPlaces } from "@/lib/server/places/saved";
@@ -115,6 +117,48 @@ export async function loadCalendarPageWithShares(
     const sharingRead = readSharingPeople(query);
     const [page, sharing] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead]);
     return { ...page, sharing };
+  });
+}
+
+/**
+ * The calendar page with everything of loadCalendarPageWithShares, plus the event invitations (spec 54,
+ * from spec 36), in the same one transaction: the events of the shown days the user is invited to, the
+ * invitations still to look at, how many are not answered (the badge), the invited people of the user's
+ * own shown events (so the blocks and the editor need no extra request) and the user's contacts for the
+ * editor's list (contact row, name, photo; never an address). The other loaders are unchanged.
+ */
+export async function loadCalendarPageWithInvites(
+  deps: PageDeps,
+  userId: string,
+  requestedDate?: string,
+  requestedView?: View,
+): Promise<CalendarPageData & { sharing: SharingPerson[]; invites: CalendarInvites }> {
+  await settleTasks(deps, userId);
+  const now = deps.now();
+  return deps.withUser(userId, async (query) => {
+    // Without parameters, so started first (see the top of this file).
+    const sharingRead = readSharingPeople(query);
+    const openRead = readOpenInviteRows(query);
+    const pendingRead = readPendingInviteCount(query);
+    const peopleRead = readPeople(query);
+    const [page, sharing, openRows, pending, people] = await Promise.all([
+      readCalendarPage(query, now, requestedDate, requestedView),
+      sharingRead,
+      openRead,
+      pendingRead,
+      peopleRead,
+    ]);
+    const cards = cardsOfContacts(people.contacts);
+    const days = page.week.days.map((d) => d.date);
+    const from = startOfLocalDate(days[0], page.week.timeZone);
+    const to = startOfLocalDate(addDays(days[days.length - 1], 1), page.week.timeZone);
+    const ownIds = [...new Set([...page.week.days.flatMap((d) => [...d.events, ...d.allDay]), ...page.week.lead].map((e) => e.id))];
+    const [invited, own] = await Promise.all([readInvitedEvents(query, from, to, cards), readOwnInvitees(query, ownIds, cards)]);
+    return {
+      ...page,
+      sharing,
+      invites: { invited, open: openInvitesOf(openRows, cards), pending, own, contacts: inviteContactsOf(people.contacts) },
+    };
   });
 }
 
