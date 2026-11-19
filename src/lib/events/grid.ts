@@ -109,11 +109,24 @@ export function placeWeek(days: WeekDay[], lead: readonly WeekEvent[] = []): Pla
       }
     }
   });
-  return perDay.map((blocks) => {
-    const sorted = [...blocks].sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
-    const lanes = assignLanes(sorted);
-    return sorted.map((block, i) => ({ ...block, ...lanes[i] }));
-  });
+  return perDay.map((blocks) => laneDay(blocks, (b) => b.startMin));
+}
+
+/** One day's blocks in order, with lanes; a block counts from `from(block)` (its start, or earlier). */
+function laneDay<B extends Omit<Placed, "lane" | "lanes">>(blocks: B[], from: (block: B) => number): (B & { lane: number; lanes: number })[] {
+  const spans = blocks.map((block) => ({ block, startMin: Math.min(block.startMin, from(block)), endMin: block.endMin }));
+  spans.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+  const lanes = assignLanes(spans);
+  return spans.map(({ block }, i) => ({ ...block, ...lanes[i] }));
+}
+
+/**
+ * R27: the lanes again, with each event's trip counted as part of it (`tripFrom`: the minute its travel
+ * block starts, or its start when there is none). So an event whose trip runs into another event sits
+ * beside it, narrower, instead of its trip lying under the other one.
+ */
+export function laneWithTrips(placed: Placed[][], tripFrom: (block: Placed) => number): Placed[][] {
+  return placed.map((blocks) => laneDay(blocks, tripFrom));
 }
 
 /**

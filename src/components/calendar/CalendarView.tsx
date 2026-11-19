@@ -32,7 +32,8 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { newEventSlot, nextFullHour } from "@/lib/events/new-event-day";
-import { clampHourPx, gridRange, HOUR_PX, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
+import { clampHourPx, gridRange, HOUR_PX, laneWithTrips, minuteOfLocal, minuteToPx, placeWeek } from "@/lib/events/grid";
+import { travelBlock } from "@/lib/travel/blocks";
 import { localAt, type Span } from "@/lib/events/drag";
 import type { CalendarEvent, WeekData, WeekEvent } from "@/lib/events/types";
 import {
@@ -458,6 +459,11 @@ export function CalendarView({
   // R27: when to leave for the shown events with a location (dashed blocks before them).
   const shownEvents = useMemo(() => placed.flat().map((b) => b.event), [placed]);
   const travel = useTravelTimes(shownEvents);
+  // An event whose trip runs into another event sits beside it (the trip counts for the lanes).
+  const laid = useMemo(
+    () => laneWithTrips(placed, (b) => travelBlock(b.event, b.startMin, b.continuesBefore, travel[b.event.id])?.fromMin ?? b.startMin),
+    [placed, travel],
+  );
   const zoom = useHourPx();
   // Issue #106: the timed events with their times as dates, and when to leave for each one.
   const timed = useMemo<NamedEvent[]>(
@@ -701,7 +707,7 @@ export function CalendarView({
           ) : (
             <TimeGrid
               days={days}
-              placed={placed}
+              placed={laid}
               range={range}
               nowMin={nowMin}
               selectedDay={date}

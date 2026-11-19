@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockBox, formatMinute, gridRange, HOUR_PX, isBeforeGrid, MIN_BLOCK_PX, minuteOfLocal, placeWeek, slotAt } from "./grid";
+import { blockBox, formatMinute, gridRange, HOUR_PX, isBeforeGrid, laneWithTrips, MIN_BLOCK_PX, minuteOfLocal, placeWeek, slotAt } from "./grid";
 import type { WeekDay, WeekEvent } from "./types";
 
 const DATES = ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22"];
@@ -35,6 +35,19 @@ describe("placing events in the time grid", () => {
   it("reads minutes after midnight from a local time", () => {
     expect(minuteOfLocal("2026-11-16T09:30")).toBe(570);
     expect(formatMinute(570)).toBe("09:30");
+  });
+
+  it("R27: an event whose trip runs into the event before sits beside it; without the trip both stay full width", () => {
+    const placed = placeWeek(
+      week({ 3: [event("photo", "2026-11-19T14:00", "2026-11-19T15:00"), event("door", "2026-11-19T15:15", "2026-11-19T16:00")] }),
+    );
+    const lanes = (p: typeof placed) => p[3].map((b) => [b.event.id, b.lane, b.lanes]);
+    expect(lanes(placed)).toEqual([["photo", 0, 1], ["door", 0, 1]]);
+    // The trip to "door" starts at 14:40, during "photo".
+    const withTrip = laneWithTrips(placed, (b) => (b.event.id === "door" ? 880 : b.startMin));
+    expect(lanes(withTrip)).toEqual([["photo", 0, 2], ["door", 1, 2]]);
+    // A trip that starts once "photo" is over changes nothing.
+    expect(lanes(laneWithTrips(placed, (b) => (b.event.id === "door" ? 900 : b.startMin)))).toEqual([["photo", 0, 1], ["door", 0, 1]]);
   });
 
   it("gives overlapping events side-by-side lanes and leaves touching ones full width", () => {
