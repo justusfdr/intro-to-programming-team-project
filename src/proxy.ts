@@ -31,6 +31,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next.js's own files and the icon.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Everything except Next.js's own files and the tab icon (src/app/icon.svg), so signed-out pages show it too.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };
