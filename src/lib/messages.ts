@@ -82,7 +82,7 @@ export const MESSAGES = {
   tooManySites: "You can block at most 50 sites",
   blockerNotConnected: "Blocker not connected: nothing is being blocked",
   // ontology, section 5 (settings and account)
-  bufferRange: "Buffer must be 0 to 120 minutes",
+  bufferRange: "Buffer must be 0 to 59 minutes",
   cancelPro: "Cancel Pro before deleting your account",
   /** Pro is cancelled but runs until the end of the paid period (Issue #131). */
   deleteAfterProEnds: (date: string) => `Pro is cancelled and ends on ${date}. You can delete your account after that.`,
