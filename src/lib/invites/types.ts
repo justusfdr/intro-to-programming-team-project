@@ -143,3 +143,69 @@ export function sameInvitees(a: readonly string[], b: readonly string[]): boolea
   const set = new Set(a);
   return b.every((id) => set.has(id));
 }
+
+// ---------- Spec 55: an accepted invitation, almost like an own event (R65 to R67) ----------
+// A NEW shape beside InvitedEvent (which stays exactly as R60 says, for the calendar's blocks and the
+// small card of an invitation not accepted). It is read only for the caller's own accepted invitation
+// (`read_accepted_invite_details`): the owner's title, times or days, place and notes, the to-dos the
+// owner and everyone who accepted share, and the invited person's OWN goal, way of getting there, start
+// of the trip and done mark. Never the event's id, the owner's goal, travel mode, start or status,
+// guests by e-mail, the source, the series or updated_at.
+
+/** A to-do of the shared list: its id (to change it), title and whether it is done. */
+export type SharedTodo = { id: string; title: string; done: boolean };
+
+/** The invited person's own way of getting there (R27); null is the standard from their settings. */
+export type InviteTravelMode = "driving" | "cycling" | "walking" | "transit";
+
+type AcceptedCommon = {
+  inviteId: string;
+  answer: "accepted";
+  inviter: InvitePersonCard;
+  title: string;
+  location: string | null;
+  /** The event's notes, shared with the owner and the others who accepted; null when there are none. */
+  notes: string | null;
+  todos: SharedTodo[];
+  /** One of the invited person's own goals, or null (an all-day event has none, R29). */
+  goalId: string | null;
+  travelMode: InviteTravelMode | null;
+  /** Where the invited person's trip starts, as stored (src/lib/places/saved.ts); null is the standard. */
+  travelFrom: string | null;
+  /** The invited person marked it done for themselves (it then counts for their goal, R8). */
+  done: boolean;
+};
+export type AcceptedTimed = AcceptedCommon & { allDay: false; startAt: string; endAt: string };
+export type AcceptedAllDay = AcceptedCommon & { allDay: true; firstDay: string; lastDay: string };
+export type AcceptedInviteDetails = AcceptedTimed | AcceptedAllDay;
+
+/** The keys the details may have, at most (S2 for spec 55). The tests fail when another appears. */
+export const ACCEPTED_INVITE_KEYS = [
+  "inviteId",
+  "answer",
+  "inviter",
+  "title",
+  "location",
+  "notes",
+  "todos",
+  "goalId",
+  "travelMode",
+  "travelFrom",
+  "done",
+  "allDay",
+  "startAt",
+  "endAt",
+  "firstDay",
+  "lastDay",
+] as const;
+export const SHARED_TODO_KEYS = ["id", "title", "done"] as const;
+
+/** Whether the full card of an accepted invitation shows: only "accepted"; maybe, declined and no answer keep the small card. */
+export function showsFullCard(answer: InviteAnswer): boolean {
+  return answer === "accepted";
+}
+
+/** The line at the bottom of the full card: what is read only, what is shared, what is the user's own (spec 55). */
+export function acceptedReadOnlyText(inviterName: string): string {
+  return `Title, time and place are read only: only ${inviterName} can change them. To-dos and notes are shared with ${inviterName} and everyone who accepted. Your goal and route are only yours. Not sent to your Outlook.`;
+}

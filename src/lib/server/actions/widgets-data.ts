@@ -17,6 +17,7 @@ import type { Query } from "@/lib/server/db";
 import type { Deps } from "@/lib/server/deps";
 import { handleAction } from "@/lib/server/errors";
 import { EVENT_COLUMNS, type EventRow } from "@/lib/server/events/rows";
+import { readInvitedGoalEvents } from "@/lib/server/goals/invited";
 import { readGoalViews } from "@/lib/server/goals/load";
 import { jsonOk } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
@@ -84,7 +85,7 @@ export async function readWidgetsData(query: Query, now: Date): Promise<WidgetsD
   const dayAfterTomorrow = startOfLocalDate(addDays(today, 2), timeZone);
   const todayStart = startOfLocalDate(today, timeZone);
 
-  const [saved, goals, events, doneEvents, sessions] = await Promise.all([
+  const [saved, goals, events, doneEvents, sessions, invited] = await Promise.all([
     query<{ widgets: unknown }>("select widgets from app.settings"),
     readGoalViews(query, now, timeZone),
     // Timed events that are on now or still to come, up to the end of tomorrow.
@@ -101,6 +102,8 @@ export async function readWidgetsData(query: Query, now: Date): Promise<WidgetsD
       "select planned_minutes, status, started_at, paused_at, paused_seconds, ended_at from app.focus_sessions where started_at >= $1 and started_at <= $2",
       [todayStart, now],
     ),
+    // Spec 55 (R66): accepted invitations the user gave one of their goals and marked done count too.
+    readInvitedGoalEvents(query),
   ]);
 
   const goalById = new Map(goals.map((g) => [g.id, g]));
@@ -134,6 +137,10 @@ export async function readWidgetsData(query: Query, now: Date): Promise<WidgetsD
   for (const e of doneEvents) {
     if (mondayOf(localDateOf(new Date(e.start_at), timeZone)) !== monday) continue;
     doneByGoal.set(e.goal_id, [...(doneByGoal.get(e.goal_id) ?? []), { startAt: new Date(e.start_at), endAt: new Date(e.end_at) }]);
+  }
+  for (const e of invited) {
+    if (e.status !== "done" || mondayOf(localDateOf(e.startAt, timeZone)) !== monday) continue;
+    doneByGoal.set(e.goalId, [...(doneByGoal.get(e.goalId) ?? []), { startAt: e.startAt, endAt: e.endAt }]);
   }
   const rings = goals.map((g) => ringOf(g, doneByGoal.get(g.id) ?? [])).filter((r): r is WidgetGoal => r !== null);
 
