@@ -13,6 +13,7 @@ import { FormMessage } from "@/components/account/FormMessage";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { forgetWidgets } from "@/components/widgets/cache";
+import { openFresh } from "@/lib/client/fresh-page";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { SettingsCardHeader, INPUT_CLASS } from "./fields";
 
@@ -45,9 +46,8 @@ export function YourAccountCard({
     const answer = await postJson(path, body);
     if (answer.ok) {
       forgetWidgets(); // spec 47: the next account must not see these widgets
-      // Refresh first, so the next page reads the cleared session cookies.
-      router.refresh();
-      router.push(answer.next ?? "/sign-in");
+      // Loaded in full: nothing of this account stays in the browser's memory (src/lib/client/fresh-page.ts).
+      openFresh(answer.next ?? "/sign-in");
       return;
     }
     setFailure(answer);

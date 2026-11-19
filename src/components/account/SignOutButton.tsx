@@ -2,12 +2,12 @@
 
 // Button that ends the session. The server does the work (src/lib/server/actions/sign-out.ts);
 // the page then goes to the sign-in page.
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { LogOut } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
 import { forgetWidgets } from "@/components/widgets/cache";
+import { openFresh } from "@/lib/client/fresh-page";
 import { postJson } from "@/lib/client/post-json";
 
 /**
@@ -15,7 +15,6 @@ import { postJson } from "@/lib/client/post-json";
  * bottom of the sidebar. Settings' "Your account" card has the same action.
  */
 export function SignOutButton() {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,9 +24,9 @@ export function SignOutButton() {
     const answer = await postJson("/api/auth/sign-out", {});
     if (answer.ok) {
       forgetWidgets(); // spec 47: the next account must not see these widgets
-      // Refresh first, so the next page reads the cleared session cookies.
-      router.refresh();
-      router.push("/sign-in");
+      // The sign-in page, loaded in full: nothing of this account stays in the browser's memory
+      // (src/lib/client/fresh-page.ts).
+      openFresh("/sign-in");
       return;
     }
     setError(answer.message);
