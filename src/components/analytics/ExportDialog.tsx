@@ -21,7 +21,9 @@ const PRESETS = [
 type Choice = (typeof PRESETS)[number]["id"] | "custom";
 
 const NETWORK_ERROR = "We could not reach the server. Check your connection and try again.";
-const weekName = (monday: LocalDate) => `W${isoWeekNumber(monday)} · ${fmtWeekRange(monday)}`;
+/** "W48 · Nov 24 – 30"; weeks outside the current year get the year too ("…, 2025"). */
+export const weekName = (monday: LocalDate, thisWeek: LocalDate) =>
+  `W${isoWeekNumber(monday)} · ${fmtWeekRange(monday)}${monday.slice(0, 4) === thisWeek.slice(0, 4) ? "" : `, ${monday.slice(0, 4)}`}`;
 
 /** The file name the server suggests, or one built from the period. */
 function fileNameOf(response: Response, fallback: string): string {
@@ -145,9 +147,9 @@ export function ExportDialog({ open, onClose, thisWeek }: { open: boolean; onClo
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <WeekSelect label="From" value={period.from} weeks={weeks} onChange={(monday) => pickWeek("from", monday)} />
+            <WeekSelect label="From" value={period.from} weeks={weeks} thisWeek={thisWeek} onChange={(monday) => pickWeek("from", monday)} />
             <ArrowRight className="size-4 shrink-0 text-ink-3" aria-hidden />
-            <WeekSelect label="To" value={period.to} weeks={weeks} onChange={(monday) => pickWeek("to", monday)} />
+            <WeekSelect label="To" value={period.to} weeks={weeks} thisWeek={thisWeek} onChange={(monday) => pickWeek("to", monday)} />
           </div>
           <p className="text-xs text-ink-3">Whole weeks, Monday to Sunday, at most {MAX_WEEKS}.</p>
         </section>
@@ -168,7 +170,7 @@ export function ExportDialog({ open, onClose, thisWeek }: { open: boolean; onClo
 }
 
 /** One end of the period: a labelled list of weeks. */
-function WeekSelect({ label, value, weeks, onChange }: { label: string; value: LocalDate; weeks: LocalDate[]; onChange: (monday: LocalDate) => void }) {
+function WeekSelect({ label, value, weeks, thisWeek, onChange }: { label: string; value: LocalDate; weeks: LocalDate[]; thisWeek: LocalDate; onChange: (monday: LocalDate) => void }) {
   return (
     <label className="flex h-11 min-w-[190px] flex-1 items-center gap-2.5 rounded-xl border border-line px-3.5 focus-within:ring-2 focus-within:ring-ink/20">
       <span className="text-xs text-ink-3">{label}</span>
@@ -178,10 +180,10 @@ function WeekSelect({ label, value, weeks, onChange }: { label: string; value: L
         className="tabular min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-sm font-medium text-ink focus:outline-none"
       >
         {/* A week outside the list (it cannot happen through the buttons) still shows. */}
-        {!weeks.includes(value) && <option value={value}>{weekName(value)}</option>}
+        {!weeks.includes(value) && <option value={value}>{weekName(value, thisWeek)}</option>}
         {weeks.map((monday) => (
           <option key={monday} value={monday}>
-            {weekName(monday)}
+            {weekName(monday, thisWeek)}
           </option>
         ))}
       </select>

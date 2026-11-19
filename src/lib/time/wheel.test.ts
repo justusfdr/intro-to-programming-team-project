@@ -2,6 +2,11 @@
 // rejected input is checked, and every one of the 1440 times of a day goes there and back.
 import { describe, expect, it } from "vitest";
 import {
+  formatClock,
+  hourFormat,
+  hourLabel12,
+  maskClockTyping12,
+  parseClock,
   COPIES,
   HOME_COPY,
   HOURS,
@@ -279,5 +284,66 @@ describe("when the endless column jumps back to the middle", () => {
     expect(needsRecentre(Number.NaN, ROW, 24)).toBe(false);
     expect(needsRecentre(100, 0, 24)).toBe(false);
     expect(needsRecentre(100, ROW, 0)).toBe(false);
+  });
+});
+
+describe("12-hour clock times (issue #161)", () => {
+  it("formatClock: 24h as HH:MM, 12h as the rest of the app shows it", () => {
+    expect(formatClock(570, "24h")).toBe("09:30");
+    expect(formatClock(19 * 60 + 29, "12h")).toBe("7:29pm");
+    expect(formatClock(0, "12h")).toBe("12am");
+    expect(formatClock(720, "12h")).toBe("12pm");
+    expect(formatClock(20 * 60, "12h")).toBe("8pm");
+  });
+
+  it("parseClock 12h accepts am/pm input in the usual spellings", () => {
+    const min = (t: string) => parseClock(t, "12h");
+    expect(min("8pm")).toEqual({ ok: true, min: 1200 });
+    expect(min("8:30pm")).toEqual({ ok: true, min: 1230 });
+    expect(min("8:30 pm")).toEqual({ ok: true, min: 1230 });
+    expect(min("8:30 PM")).toEqual({ ok: true, min: 1230 });
+    expect(min(" 7am ")).toEqual({ ok: true, min: 420 });
+    expect(min("11:59pm")).toEqual({ ok: true, min: 23 * 60 + 59 });
+  });
+
+  it("parseClock 12h: midnight and noon", () => {
+    expect(parseClock("12am", "12h")).toEqual({ ok: true, min: 0 });
+    expect(parseClock("12:15am", "12h")).toEqual({ ok: true, min: 15 });
+    expect(parseClock("12pm", "12h")).toEqual({ ok: true, min: 720 });
+    expect(parseClock("12:45pm", "12h")).toEqual({ ok: true, min: 765 });
+  });
+
+  it("parseClock 12h still accepts 24-hour input", () => {
+    expect(parseClock("20:30", "12h")).toEqual({ ok: true, min: 1230 });
+    expect(parseClock("00:00", "12h")).toEqual({ ok: true, min: 0 });
+    expect(parseClock("09:05", "12h")).toEqual({ ok: true, min: 545 });
+  });
+
+  it("parseClock 12h refuses the rest, with a message", () => {
+    for (const bad of ["", "8", "8:30", "13pm", "0pm", "0am", "8:60pm", "8:5pm", "25:00", "24:00", "20:60", "pm", "8 o'clock", "8:30xm"]) {
+      const r = parseClock(bad, "12h");
+      expect(r.ok, bad).toBe(false);
+    }
+    expect(parseClock("13pm", "12h")).toEqual({ ok: false, message: "Hours go from 1 to 12" });
+    expect(parseClock("8:60pm", "12h")).toEqual({ ok: false, message: "Minutes go from 00 to 59" });
+  });
+
+  it("parseClock 24h is unchanged: am/pm is refused", () => {
+    expect(parseClock("20:30", "24h")).toEqual(parseHHMM("20:30"));
+    expect(parseClock("8pm", "24h").ok).toBe(false);
+    expect(parseClock("8:30pm", "24h").ok).toBe(false);
+  });
+
+  it("maskClockTyping12 keeps digits, colon, space and am/pm letters only", () => {
+    expect(maskClockTyping12("8:30 PM")).toBe("8:30 pm");
+    expect(maskClockTyping12("8x:3!0pm")).toBe("8:30pm");
+    expect(maskClockTyping12("123456789012")).toBe("12345678");
+  });
+
+  it("hour labels: 24 rows, 12 am to 11 pm in 12h, two digits in 24h", () => {
+    expect([0, 1, 11, 12, 13, 23].map(hourLabel12)).toEqual(["12 am", "1 am", "11 am", "12 pm", "1 pm", "11 pm"]);
+    expect(hourLabel12(24)).toBe("12 am");
+    expect(HOURS.map(hourFormat("12h"))).toHaveLength(24);
+    expect(hourFormat("24h")(7)).toBe("07");
   });
 });

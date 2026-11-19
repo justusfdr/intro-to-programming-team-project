@@ -120,6 +120,11 @@ describe("edit_goal and the end date", () => {
     });
     expect(await read(await edit(g.id, { ...HALF_MARATHON, deadline: "", updatedAt }))).toEqual({
       status: 400,
+      body: { error: "deadline_required", message: "Choose a deadline" },
+    });
+    // Anything else that is not a date stays the generic answer.
+    expect(await read(await edit(g.id, { ...HALF_MARATHON, deadline: "tomorrow", updatedAt }))).toEqual({
+      status: 400,
       body: { error: "bad_request", message: "Invalid request." },
     });
     expect(await app.snapshot()).toEqual(before);

@@ -1,8 +1,8 @@
 // Tests for spec 40 on the server: save_profile, upload_photo, remove_photo, the photo delivery, the
 // sidebar's own card, and the page loaders of /profile and /settings. Accepted and rejected case for
 // each rule; a rejection changes nothing (R1); every answer has exactly the keys it should (an
-// allow-list), so nothing else of a profile or the settings can slip out; nobody but the user ever gets
-// their photo (R43).
+// allow-list), so nothing else of a profile or the settings can slip out; nobody gets a photo but the
+// people R43 names (spec 53: the user, their contacts and the people they have an open invitation from).
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
 import { countingWithUser } from "@test/support/counting";
@@ -166,7 +166,7 @@ describe("upload_photo and remove_photo", () => {
   });
 });
 
-describe("GET /api/profiles/[id]/photo (R43: only the user)", () => {
+describe("GET /api/profiles/[id]/photo (R43: the user, and since spec 53 their contacts)", () => {
   const PHOTO_HEADERS = {
     "content-type": "image/jpeg",
     "x-content-type-options": "nosniff",
@@ -207,18 +207,15 @@ describe("GET /api/profiles/[id]/photo (R43: only the user)", () => {
     for (const other of answers.slice(1)) expect(other).toEqual(answers[0]);
   });
 
-  it("still the same 404 for another user when the database holds a contact row between the two (none can be made in this app)", async () => {
+  it("serves the photo to a contact once the database holds a contact row between the two (spec 53)", async () => {
     const bob = await app.signedInAs("bob@example.com");
     await upload({ data: PNG });
     const alice = await app.signedInAs("alice@example.com");
-    // Only the table's owner can write this row; it stands for rows left in a shared database.
     await app.db.admin("insert into app.contacts (user_a, user_b) values (least($1::uuid, $2::uuid), greatest($1::uuid, $2::uuid))", [alice, bob]);
-    // The database function alone would now hand the photo out ...
     expect(await app.db.withUser(alice, (q) => q("select mime from app.profile_photo($1::uuid)", [bob]))).toEqual([{ mime: "image/png" }]);
-    // ... the route does not.
-    const madeUp = await answerOf(await deliverProfilePhoto(app.deps, MADE_UP));
-    expect(await answerOf(await deliverProfilePhoto(app.deps, bob))).toEqual(madeUp);
-    expect(madeUp.status).toBe(404);
+    const response = await deliverProfilePhoto(app.deps, bob);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/png");
   });
 
   it("asks again before each use: an ETag and an empty 304 for the current copy, never for anyone else", async () => {

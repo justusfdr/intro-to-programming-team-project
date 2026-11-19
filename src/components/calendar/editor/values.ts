@@ -95,11 +95,12 @@ export function valuesOf(event: CalendarEvent): EventValues {
 }
 
 /** The values of a new event from local start and end ("2026-11-17T09:00"). */
-export function newValues(draft: { start: string; end: string; title?: string; goalId?: string | null }): EventValues {
+export function newValues(draft: { start: string; end: string; allDay?: boolean; title?: string; goalId?: string | null }): EventValues {
   const date = draft.start.slice(0, 10);
   return {
     title: draft.title ?? "",
-    allDay: false,
+    // A click in the all-day row starts an all-day event on that day (its times are kept for the switch back).
+    allDay: draft.allDay ?? false,
     date,
     startMin: minuteOfLocal(draft.start),
     endMin: endMinuteOf(draft.start, draft.end),

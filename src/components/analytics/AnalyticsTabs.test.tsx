@@ -39,6 +39,17 @@ describe("Analytics page", () => {
     expect(shown).toContain("Week 46 · Nov 9 – 15");
   });
 
+  it("greys out Next week in the current week, so no week that has not started can be opened", () => {
+    const current = page("overview", { ...sampleReport, monday: sampleReport.thisWeek });
+    expect(current).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Next week"/);
+    expect(current).not.toMatch(/<a[^>]*aria-label="Next week"/);
+  });
+
+  it("keeps Next week as a link in an earlier week", () => {
+    const earlier = page("overview", { ...sampleReport, monday: "2026-11-02", thisWeek: "2026-11-16" });
+    expect(earlier).toMatch(/<a[^>]*aria-label="Next week"/);
+  });
+
   it.each(TABS)("the %s tab shows its widgets from the standard layout", (tab) => {
     const markup = panel(page(tab));
     expect(markup.match(/<section/g)).toHaveLength(STANDARD_LAYOUT[tab].length);

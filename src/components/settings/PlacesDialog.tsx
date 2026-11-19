@@ -96,7 +96,7 @@ export function PlacesList({
           <X className="size-4" aria-hidden />
         </Button>
       </div>
-      <p className="px-5 pt-1 text-xs text-ink-3">Where your trips can start. Choose one for an event under “Getting there”.</p>
+      <p className="px-5 pt-1 text-xs text-ink-3">Your saved places. Pick one in an event under “Route”, as From or To.</p>
 
       <ul className="mt-3 flex flex-col overflow-y-auto px-3 pb-2">
         <li className="flex items-center gap-3 rounded-lg px-2 py-2">

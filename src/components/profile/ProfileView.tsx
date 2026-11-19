@@ -34,8 +34,8 @@ import type { ProfileCardData } from "@/lib/profiles/types";
 import { TimeZoneLine } from "./parts";
 import { PhotoDialog } from "./PhotoDialog";
 
-/** Who sees the profile (R43), said once on the page. */
-export const WHO_SEES = "Only you see your profile.";
+/** Who sees the profile (R43, spec 53), said once on the page. */
+export const WHO_SEES = "Your contacts and the people you invite see your name, photo, e-mail address, bio, LinkedIn link and time zone.";
 
 /** The server's code of a refusal → the field it belongs to. */
 const FIELD_OF: Record<string, ProfileField> = { invalid_name: "displayName", invalid_bio: "bio", invalid_linkedin: "linkedin" };

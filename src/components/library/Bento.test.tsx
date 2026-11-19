@@ -73,7 +73,7 @@ describe("the tiles as links", () => {
     expect(first).toContain(">×2<");
     expect(first).toContain("errors after an interruption of 2.8 seconds");
     expect(first).not.toContain("bg-indigo-50");
-    expect(second).toContain(">36%<");
+    expect(second).toContain(">36 %<");
     expect(second).toContain("bg-emerald-50");
   });
 });

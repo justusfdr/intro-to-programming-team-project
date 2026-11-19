@@ -23,16 +23,9 @@ export function requestPasswordReset(request: Request, deps: Pick<Deps, "auth" |
     const body = await readJson(request, RequestResetBody);
     if (!body.ok) return body.response;
 
-    // An address that is not an email gets the same neutral answer as any other, and nothing is sent.
-    let email: string;
-    try {
-      email = normalizeEmail(body.data.email);
-    } catch (error) {
-      if (error instanceof ActionError && error.code === "invalid_email") {
-        return jsonOk({ message: MESSAGES.resetRequested });
-      }
-      throw error;
-    }
+    // An address that is not an email is answered "Enter a valid email address" (400) and nothing is sent.
+    // This tells nothing about accounts: it only looks at the form of the address.
+    const email = normalizeEmail(body.data.email);
 
     checkAccountAttempt(request, "request_password_reset", email, deps.now());
     const result = await deps.auth.requestPasswordReset(email);

@@ -11,11 +11,12 @@ import { NewEventForm } from "./NewEventPopover";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
+const H24 = { ...DEFAULT_DISPLAY, timeFormat: "24h" as const }; // these tests pin HH:MM, the 24-hour display (issue #161: the default display is 12h)
 const GOALS = [{ id: "g1", title: "Run a half marathon", look: { color: "teal" as const, icon: "footprints" as const } }];
 
 function card(startMin: number, endMin: number) {
   return renderToStaticMarkup(
-    <DisplayProvider value={DEFAULT_DISPLAY}>
+    <DisplayProvider value={H24}>
       <NewEventForm date="2026-11-17" startMin={startMin} endMin={endMin} goals={GOALS} onClose={() => {}} onOpenEditor={() => {}} />
     </DisplayProvider>,
   );
@@ -33,6 +34,16 @@ describe("the New event card", () => {
     expect(html).toMatch(/role="group" aria-label="Duration".*>30m<.*>1h<.*>1\.5h<.*>2h</s);
     expect(html).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Add<\/button>/);
     expect(html).toMatch(/<button type="button"[^>]*disabled=""[^>]*>Add details<\/button>/);
+  });
+
+  it("keeps the Add / Add details row stuck to the bottom of the scrolling panel (issue #134)", () => {
+    const html = card(540, 600);
+    const row = html.match(/<div class="([^"]*)"><button type="submit"/);
+    expect(row).not.toBeNull();
+    expect(row![1]).toContain("sticky");
+    expect(row![1]).toContain("bottom-0");
+    expect(row![1]).toContain("bg-surface");
+    expect(row![1]).toContain("border-t");
   });
 
   it("presses the chip of the dragged length and shows start and end as HH:MM (24-hour wheel)", () => {
@@ -86,7 +97,7 @@ describe("deleting in the editor", () => {
       endLocal: "2026-11-17T10:00",
     };
     const html = renderToStaticMarkup(
-      <DisplayProvider value={DEFAULT_DISPLAY}>
+      <DisplayProvider value={H24}>
         <EditEventCard event={event} anchor={null} goals={GOALS} timeZone="Europe/Lisbon" today="2026-11-16" onClose={() => {}} />
       </DisplayProvider>,
     );
@@ -96,7 +107,7 @@ describe("deleting in the editor", () => {
 
   it("'Add details' opens the editor with the card's title and goal", () => {
     const html = renderToStaticMarkup(
-      <DisplayProvider value={DEFAULT_DISPLAY}>
+      <DisplayProvider value={H24}>
         <NewEventCard
           draft={{ start: "2026-11-17T09:00", end: "2026-11-17T10:30", title: "Read chapter 4", goalId: "g1" }}
           anchor={null}

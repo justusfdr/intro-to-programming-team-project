@@ -20,6 +20,8 @@ type Props = {
   children: ReactNode;
   /** How times and dates are shown (the user's settings). */
   display?: Display;
+  /** Open invitations to the user, for the badge on "People" (spec 53); the sidebar asks the server when left out. */
+  invitations?: number;
   /** The user's shown name and photo for the sidebar's last row (spec 40); the sidebar asks the server when left out. */
   me?: SidebarMe;
 };
@@ -56,11 +58,11 @@ function TabBar({ current }: { current: string }) {
   );
 }
 
-export function AppShell({ current, children, display = DEFAULT_DISPLAY, me }: Props) {
+export function AppShell({ current, children, display = DEFAULT_DISPLAY, invitations, me }: Props) {
   return (
     <DisplayProvider value={display}>
       <div className="flex min-h-dvh">
-        <Sidebar current={current} me={me} />
+        <Sidebar current={current} invitations={invitations} me={me} />
         <div className="flex min-h-0 min-w-0 flex-1 pb-28 md:pb-0">
           <main className="min-w-0 flex-1">{children}</main>
         </div>

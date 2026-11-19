@@ -31,11 +31,12 @@ const GOAL: GoalView = {
 };
 
 describe("goal section", () => {
-  it("is open by default: a chevron named 'Collapse …', the rows and the weeks", () => {
+  // Changed 18 Nov 2026 with Emily's approval (spec 47, R9): one row of days for every goal, "sessions" with the number in bold.
+  it("is open by default: a chevron named 'Collapse …' and this week's rows", () => {
     const html = renderToStaticMarkup(<GoalCard goal={GOAL} onToggle={() => {}} />);
     expect(html).toMatch(/aria-expanded="true"[^>]*aria-label="Collapse Pass the statistics exam"/);
-    expect(html).toContain("This week: 3 of 6 h");
-    expect(html).toContain('aria-label="Weeks"');
+    expect(html).toMatch(/This week: <strong[^>]*>3<\/strong> of 6 h/);
+    expect(html).toContain('aria-label="This week"');
   });
 
   it("collapsed, it keeps the header and the bar and hides the rows", () => {
@@ -43,18 +44,18 @@ describe("goal section", () => {
     expect(html).toMatch(/aria-expanded="false"[^>]*aria-label="Expand Pass the statistics exam"/);
     expect(html).toContain("Pass the statistics exam");
     expect(html).toContain("31 days left");
-    expect(html).not.toContain("This week: 3 of 6 h");
-    expect(html).not.toContain('aria-label="Weeks"');
+    expect(html).not.toContain("of 6 h");
+    expect(html).not.toContain('aria-label="This week"');
   });
 
   it("fills the bar to the average share of the rules (1 and 0.5 give 75%)", () => {
     expect(renderToStaticMarkup(<GoalCard goal={GOAL} />)).toContain("width:75%");
   });
 
-  it("draws a ring in the goal's colour for an open rule, a check for a met one, and says 'met' in words", () => {
+  // Changed 18 Nov 2026 with Emily's approval (spec 47, R9): one row of days for every goal, "sessions" with the number in bold.
+  it("strikes a met rule through, draws a check in the goal's colour, and says 'met' in words", () => {
     const html = renderToStaticMarkup(<GoalCard goal={GOAL} />);
-    expect(html).toContain("border-rose-500");
-    expect(html).toMatch(/line-through[^"]*">This week: 2 of 2 done<\/span><span class="sr-only">, met<\/span>/);
+    expect(html).toMatch(/line-through">This week: <strong[^>]*>2<\/strong> of 2 sessions<\/span><span class="sr-only">, met<\/span><svg[^>]*text-rose-600/);
   });
 
   it("shows 'Deadline passed' as a red chip", () => {

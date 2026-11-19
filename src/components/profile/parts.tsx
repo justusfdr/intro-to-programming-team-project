@@ -1,12 +1,35 @@
 "use client";
 
-// A small piece of the profile page (spec 40): the time-zone line with the current local time there.
+// Small pieces of the profile pages (spec 40; spec 53: another person's page too): the time-zone line
+// with the current local time there, and the LinkedIn link.
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Globe } from "lucide-react";
+import { ExternalLink, Globe } from "lucide-react";
 import { useDisplay } from "@/components/shell/DisplayProvider";
+import { isLinkedInUrl } from "@/lib/profiles/linkedin";
 import { fmtTime } from "@/lib/time/display";
 import { localTimeOf } from "@/lib/time/zoned";
+
+/**
+ * The LinkedIn link, with the word "LinkedIn" (never the raw address), in a new tab without telling
+ * LinkedIn where it came from. Rendered only when the address passes the stored form once more, so no
+ * other scheme or host can ever become a link here.
+ */
+export function LinkedInLink({ url }: { url: string | null }) {
+  if (!isLinkedInUrl(url)) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer nofollow"
+      className="inline-flex items-center gap-1 text-sm font-medium text-ink underline underline-offset-2"
+    >
+      LinkedIn
+      <ExternalLink className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
+  );
+}
 
 /**
  * The current time, starting from the minute the server read the page (so server and browser render
@@ -41,11 +64,11 @@ function clockIn(at: Date, timeZone: string, format: "12h" | "24h"): string | nu
 }
 
 /**
- * "Time zone: Europe/Lisbon · it is 2:20pm there", read only, with the way to change it in Settings.
- * Starts from the minute the server read the page (so server and browser show the same) and then
- * follows the clock.
+ * "Time zone: Europe/Lisbon · it is 2:20pm there", read only. Starts from the minute the server read the
+ * page (so server and browser show the same) and then follows the clock. `settingsLink`: the user's own
+ * zone, with the way to change it in Settings (another person's page leaves it out, spec 53).
  */
-export function TimeZoneLine({ timeZone, now }: { timeZone: string; now: string }) {
+export function TimeZoneLine({ timeZone, now, settingsLink = true }: { timeZone: string; now: string; settingsLink?: boolean }) {
   const { timeFormat } = useDisplay();
   const at = useMinuteClock(now);
   const clock = clockIn(at, timeZone, timeFormat);
@@ -56,9 +79,11 @@ export function TimeZoneLine({ timeZone, now }: { timeZone: string; now: string 
         Time zone: <span className="font-medium text-ink">{zoneName(timeZone)}</span>
         {clock && <> · it is <time className="tabular">{clock}</time> there</>}
       </span>
-      <Link href="/settings" className="font-medium text-ink underline underline-offset-2">
-        Change in Settings
-      </Link>
+      {settingsLink && (
+        <Link href="/settings" className="font-medium text-ink underline underline-offset-2">
+          Change in Settings
+        </Link>
+      )}
     </p>
   );
 }

@@ -224,7 +224,7 @@ function summary(sheet: Sheet, report: PeriodReport): void {
     {
       label: "Focus time",
       value: minutesText(totals.focusedMinutes),
-      note: growth === null ? `in ${plural(totals.sessions, "session")}` : growth >= 0 ? `${growth}% more than before` : `${-growth}% less than before`,
+      note: growth === null ? `in ${plural(totals.sessions, "session")}` : growth >= 0 ? `${growth} % more than before` : `${-growth} % less than before`,
       good: growth !== null && growth > 0,
     },
     { label: "Focus sessions", value: String(totals.sessions), note: totals.averageSessionMinutes === null ? "none finished" : `${minutesText(totals.averageSessionMinutes)} on average` },
@@ -278,6 +278,11 @@ function summary(sheet: Sheet, report: PeriodReport): void {
   sheet.y += height + 22;
 }
 
+/** "2.5 of 6 h" as "2.5/6 h" (and "3 of 4" as "3/4"): the short form for a week cell too narrow for the long one. */
+export function compactCell(text: string): string {
+  return text.replace(/^(\S+) of (.+)$/, "$1/$2");
+}
+
 function goals(sheet: Sheet, report: PeriodReport): void {
   sheet.heading("Goals", "Sessions or hours done of the weekly target. Bold means the goal was reached that week.", Math.min(420, 50 + report.goals.length * 23));
   if (report.goals.length === 0) {
@@ -307,7 +312,15 @@ function goals(sheet: Sheet, report: PeriodReport): void {
     if (perWeek) {
       goal.weeks.forEach((week, i) => {
         const met = week.status === "met";
-        sheet.text(week.text ?? "–", stripX + i * cellWidth, sheet.y, { size: 9.5, bold: met, color: met ? INK : GREY, align: "right", width: cellWidth - 4 });
+        // Eight weeks make the cells narrow: the short form is used when the long one does not fit (issue #135),
+        // and its type is made a little smaller (at most down to 7 pt) when even that is a touch too wide.
+        const long = week.text ?? "–";
+        const room = cellWidth - 4;
+        const compact = sheet.widthOf(long, 9.5, met) > room;
+        const shown = compact ? compactCell(long) : long;
+        let size = 9.5;
+        if (compact) while (size > 7 && sheet.widthOf(shown, size, met) > room) size -= 0.25;
+        sheet.text(shown, stripX + i * cellWidth, sheet.y, { size, bold: met, color: met ? INK : GREY, align: "right", width: room });
       });
     } else {
       goal.weeks.forEach((week, i) => {

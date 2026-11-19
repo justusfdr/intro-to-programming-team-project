@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLive } from "@/components/live/Live";
 import { postJson, type PostResult } from "@/lib/client/post-json";
 import { notesTooLong } from "@/lib/events/notes";
+import { endProblem } from "@/lib/time/wheel";
 import type { CalendarEvent, EventDto } from "@/lib/events/types";
 import { withEventChange, withEventStatus } from "@/lib/events/week-view";
 import { useAnnounce } from "../Announcer";
@@ -33,6 +34,15 @@ type Options = {
   onRefused?: (message: string) => void;
   onClose: () => void;
 };
+
+/**
+ * Values the editor must not save: no title, notes too long, or (issue #127) a timed event that ends
+ * less than 15 minutes after it starts. The red message under the times says why.
+ */
+export function cannotSave(values: Pick<EventValues, "title" | "notes" | "allDay" | "startMin" | "endMin">): boolean {
+  if (values.title.trim() === "" || notesTooLong(values.notes)) return true;
+  return !values.allDay && endProblem(values.startMin, values.endMin) !== null;
+}
 
 export function useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose }: Options) {
   const live = useLive();
@@ -143,7 +153,7 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
 
   /** The Save button: an event of a series asks for the scope first (R28). */
   const saveNow = useCallback(() => {
-    if (valuesRef.current.title.trim() === "" || notesTooLong(valuesRef.current.notes)) return;
+    if (cannotSave(valuesRef.current)) return;
     if (inSeries) return setAsk({ kind: "save" });
     void send();
   }, [inSeries, send]);

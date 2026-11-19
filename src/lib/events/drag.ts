@@ -24,7 +24,7 @@ export function snap(min: number, step: number = SNAP_MIN): number {
 }
 
 /** The minute under a height in the grid (not snapped), kept inside the visible hours. */
-export function minuteAtY(offsetY: number, range: GridRange, hourPx: number = HOUR_PX): number {
+export function minuteAtY(offsetY: number, range: GridRange, hourPx: number = range.hourPx ?? HOUR_PX): number {
   return clamp(range.startMin + (offsetY / hourPx) * 60, range.startMin, range.endMin);
 }
 

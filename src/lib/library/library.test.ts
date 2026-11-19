@@ -164,7 +164,7 @@ describe("the three articles on the Focus page", () => {
   it("carry the tile's number and the line under the title, not the text", () => {
     const all = Array.from({ length: ARTICLES.length }, (_, i) => teasersFor(`2026-12-${String(i + 1).padStart(2, "0")}`)[0]);
     const bump = all.find((t) => t.slug === "a-small-speed-bump")!;
-    expect(bump).toEqual({ slug: "a-small-speed-bump", topic: "helps", title: "A small speed bump", figure: "36%", meta: metaLine(articleBySlug("a-small-speed-bump")!) });
+    expect(bump).toEqual({ slug: "a-small-speed-bump", topic: "helps", title: "A small speed bump", figure: "36 %", meta: metaLine(articleBySlug("a-small-speed-bump")!) });
     expect(all.find((t) => t.slug === "set-up-a-session")!.figure).toBeNull();
   });
 

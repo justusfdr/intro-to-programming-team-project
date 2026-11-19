@@ -92,7 +92,7 @@ describe("sign_in rejected (nothing changes)", () => {
     expect(app.auth.session).toBeNull();
   });
 
-  it("answers \"Confirm your email first. We sent you a link\" for an unconfirmed account and starts no session", async () => {
+  it("answers \"Confirm your email first. Open the link from your sign-up email or ask for a new one\" for an unconfirmed account and starts no session", async () => {
     await app.auth.addUser("dan@example.com", "12345678");
     const before = await snapshot();
 
@@ -100,7 +100,7 @@ describe("sign_in rejected (nothing changes)", () => {
 
     expect(answer).toEqual({
       status: 403,
-      body: { error: "unconfirmed", message: "Confirm your email first. We sent you a link" },
+      body: { error: "unconfirmed", message: "Confirm your email first. Open the link from your sign-up email or ask for a new one" },
     });
     expect(await snapshot()).toEqual(before);
     expect(app.auth.isConfirmed("dan@example.com")).toBe(false);

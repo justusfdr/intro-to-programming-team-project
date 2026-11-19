@@ -7,6 +7,10 @@ import { DEFAULT_DISPLAY } from "@/lib/time/display";
 import { NewEventForm } from "./NewEventPopover";
 import { TimeField, TimeWheel } from "./TimeWheel";
 
+const H24 = { ...DEFAULT_DISPLAY, timeFormat: "24h" as const }; // these tests pin HH:MM, the 24-hour display (issue #161: the default display is 12h)
+
+const h24 = (node: React.ReactNode) => renderToStaticMarkup(<DisplayProvider value={H24}>{node}</DisplayProvider>);
+
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
 const options = (html: string, label: string) => {
@@ -17,12 +21,12 @@ const options = (html: string, label: string) => {
 
 describe("the time field", () => {
   it("shows the time as HH:MM with two digits each", () => {
-    const html = renderToStaticMarkup(<TimeField label="Start" value={9 * 60 + 5} onChange={() => {}} />);
+    const html = h24(<TimeField label="Start" value={9 * 60 + 5} onChange={() => {}} />);
     expect(html).toMatch(/<input[^>]*aria-label="Start"[^>]*value="09:05"/);
   });
 
   it("asks for numbers (the phone shows the number pad) and says HH:MM when empty", () => {
-    const html = renderToStaticMarkup(<TimeField label="Start" value={0} onChange={() => {}} />);
+    const html = h24(<TimeField label="Start" value={0} onChange={() => {}} />);
     expect(html).toContain('inputMode="numeric"');
     // No browser length limit: it would cut a pasted " 09:30" before the digits are picked out.
     expect(html).not.toContain("maxLength");
@@ -31,7 +35,7 @@ describe("the time field", () => {
   });
 
   it("is not marked wrong and shows no message to start with", () => {
-    const html = renderToStaticMarkup(<TimeField label="End" value={23 * 60 + 59} onChange={() => {}} />);
+    const html = h24(<TimeField label="End" value={23 * 60 + 59} onChange={() => {}} />);
     expect(html).toContain('aria-invalid="false"');
     expect(html).not.toContain('role="alert"');
     expect(html).toContain('value="23:59"');
@@ -39,7 +43,7 @@ describe("the time field", () => {
 });
 
 describe("the wheel", () => {
-  const html = renderToStaticMarkup(<TimeWheel label="Start" value={14 * 60 + 37} onChange={() => {}} />);
+  const html = h24(<TimeWheel label="Start" value={14 * 60 + 37} onChange={() => {}} />);
 
   it("has an hour column 00 to 23 on the left and a minute column 00 to 59 on the right", () => {
     const hours = options(html, "Start hour");
@@ -68,8 +72,8 @@ describe("the wheel", () => {
   });
 
   it("works at the edges of the day: 00:00 and 23:59", () => {
-    const first = renderToStaticMarkup(<TimeWheel label="End" value={0} onChange={() => {}} />);
-    const last = renderToStaticMarkup(<TimeWheel label="End" value={23 * 60 + 59} onChange={() => {}} />);
+    const first = h24(<TimeWheel label="End" value={0} onChange={() => {}} />);
+    const last = h24(<TimeWheel label="End" value={23 * 60 + 59} onChange={() => {}} />);
     expect(options(first, "End hour").find((o) => o.selected)?.text).toBe("00");
     expect(options(first, "End minute").find((o) => o.selected)?.text).toBe("00");
     expect(options(last, "End hour").find((o) => o.selected)?.text).toBe("23");
@@ -81,7 +85,7 @@ describe("the New event card with the wheel", () => {
   const GOALS = [{ id: "g1", title: "Run a half marathon", look: { color: "teal" as const, icon: "footprints" as const } }];
   const card = (startMin: number, endMin: number) =>
     renderToStaticMarkup(
-      <DisplayProvider value={DEFAULT_DISPLAY}>
+      <DisplayProvider value={H24}>
         <NewEventForm date="2026-11-17" startMin={startMin} endMin={endMin} goals={GOALS} onClose={() => {}} onOpenEditor={() => {}} />
       </DisplayProvider>,
     );
@@ -113,5 +117,36 @@ describe("the New event card with the wheel", () => {
     const html = card(23 * 60 + 50, 24 * 60);
     expect(html).toContain("The end must be at least 15 minutes after the start");
     expect(html).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Add<\/button>/);
+  });
+});
+
+describe("with the 12-hour setting (issue #161)", () => {
+  const twelve = (node: React.ReactNode) => renderToStaticMarkup(<DisplayProvider value={{ ...DEFAULT_DISPLAY, timeFormat: "12h" }}>{node}</DisplayProvider>);
+
+  it("the field shows the time as the rest of the app does", () => {
+    const html = twelve(<TimeField label="Start" value={19 * 60 + 29} onChange={() => {}} />);
+    expect(html).toMatch(/<input[^>]*aria-label="Start"[^>]*value="7:29pm"/);
+    expect(html).toContain('placeholder="8:30am"');
+    // Text keyboard: the number pad has no "am" / "pm".
+    expect(html).toContain('inputMode="text"');
+    expect(html).not.toContain('inputMode="numeric"');
+  });
+
+  it("the hour column keeps its 24 rows, labelled 12 am to 11 pm, in a wider column; minutes stay as they are", () => {
+    const html = twelve(<TimeWheel label="Start" value={20 * 60 + 30} onChange={() => {}} />);
+    const hours = /aria-label="Start hour"(.*?)aria-label="Start minute"/s.exec(html)![1];
+    const labels = [...hours.matchAll(/role="option"[^>]*>([^<]+)</g)].map((m) => m[1]);
+    expect(labels).toHaveLength(24);
+    expect(labels[0]).toBe("12 am");
+    expect(labels[12]).toBe("12 pm");
+    expect(labels[23]).toBe("11 pm");
+    expect(hours).toContain("w-[4.5rem]");
+    expect(options(html, "Start minute")).toHaveLength(60);
+  });
+
+  it("24-hour keeps two digits and the narrow column", () => {
+    const html = h24(<TimeWheel label="Start" value={0} onChange={() => {}} />);
+    expect(options(html, "Start hour")[0].text).toBe("00");
+    expect(html).not.toContain("w-[4.5rem]");
   });
 });

@@ -31,7 +31,6 @@ function render(screen: SetupScreen, answers: Partial<SetupAnswers> = {}, option
     <GoalSetup
       open={options.open ?? true}
       onClose={() => {}}
-      onUseForm={() => {}}
       goals={options.goals ?? []}
       places={[GYM_PLACE]}
       today={TODAY}
@@ -81,7 +80,7 @@ describe("the frame", () => {
 });
 
 describe("Q1: what it is about", () => {
-  it("offers five cards as one radio group, none chosen, and 'Use the form instead'; Continue waits", () => {
+  it("offers five cards as one radio group, none chosen, no way to a form; Continue waits", () => {
     const html = render("category");
     expect(html).toContain("What is this goal about?");
     expect(html).toMatch(/<div role="radiogroup" aria-labelledby="setup-category-title"/);
@@ -90,7 +89,7 @@ describe("Q1: what it is about", () => {
     for (const line of ["Training, running, the gym", "Studying, exams, a thesis", "A job, a project, a side business", "Reading, music, people, rest", "Anything else"]) {
       expect(html).toContain(line);
     }
-    expect(html).toContain(">Use the form instead</button>");
+    expect(html).not.toContain("Use the form instead");
     expect(continueButton(html)).toMatch(/disabled=""/);
     expect(html).not.toContain("Give it a name");
   });
@@ -123,7 +122,7 @@ describe("Q2: how often and how long", () => {
     expect(html.match(/setup-dot-(on|off)/g)).toHaveLength(7);
     expect(checked(html).join("")).toContain('id="setup-often-minutes-60"');
     expect(radios(html)).toHaveLength(5);
-    for (const chip of [">30 min<", ">45 min<", ">1 h<", ">3 h<", ">Custom<"]) expect(html).toContain(chip);
+    for (const chip of [">30 min<", ">45 min<", ">1 h<", ">2 h<", ">Custom<"]) expect(html).toContain(chip);
     expect(html).toContain("3 × 60 min = <strong");
     expect(html).toContain("3 times 60 minutes is 3 h a week");
     expect(html).not.toContain("Make sure it fits");

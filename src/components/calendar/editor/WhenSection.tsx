@@ -5,7 +5,7 @@
 // event of a series, R29), first and last day for an all-day event, and the repeat choice for a new
 // timed event (R28). An Outlook event shows its time as text (R11).
 // Start and end are chosen as in the "New event" card: a field to type "HH:MM", the scrolling wheel under
-// it. An end at or before the start is on the next day (an event may run past midnight).
+// it. An end before the start is on the next day; an end equal to the start is refused (an event may run past midnight).
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Repeat2 } from "lucide-react";
 import { useDisplay } from "@/components/shell/DisplayProvider";
@@ -19,9 +19,12 @@ import { moveFirstDay, switchAllDay, type EventValues, type Repeat } from "./val
 
 const DAY = 24 * 60;
 
-/** The end for a time picked on the wheel or typed (0 to 23:59): at or before the start, it is on the next day. */
+/**
+ * The end for a time picked on the wheel or typed (0 to 23:59): before the start, it is on the next day.
+ * The same time as the start stays as it is (not a 24-hour event): the red message asks for a later end.
+ */
 export function endFromPicked(startMin: number, picked: number): number {
-  return picked <= startMin ? picked + DAY : picked;
+  return picked < startMin ? picked + DAY : picked;
 }
 
 const switchClass =
@@ -74,7 +77,7 @@ export function WhenSection({ event, values, onChange, todayKey, children }: Pro
         )}
       </div>
       {values.allDay ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <div className="flex min-w-0 flex-col gap-1">
             <span className="text-xs text-ink-2">First day</span>
             <DateField label="First day" value={values.firstDay} todayKey={todayKey} onChange={(day) => onChange(moveFirstDay(values, day))} />

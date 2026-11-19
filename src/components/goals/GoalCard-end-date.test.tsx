@@ -36,8 +36,9 @@ describe("goal card without an end date", () => {
     expect(html).not.toContain("text-danger");
   });
 
-  it("shows the strip up to this week", () => {
-    expect(html).toContain("Week of Nov 9: met");
-    expect(html).toContain("Week of Nov 16");
+  // Changed 18 Nov 2026 with Emily's approval (spec 47, R9): one row of days for every goal, "sessions" with the number in bold.
+  it("looks like every other goal: no strip of weeks", () => {
+    expect(html).not.toContain("Week of Nov");
+    expect(html).toMatch(/This week: <strong[^>]*>0<\/strong> of 2 sessions/);
   });
 });

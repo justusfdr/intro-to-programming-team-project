@@ -96,14 +96,14 @@ export const NAME_IDEAS: Record<GoalCategory, string[]> = {
   sport: ["Gym", "Running", "Half marathon"],
   uni: ["Study for exams", "Thesis"],
   work: ["Side project", "Deep work"],
-  personal: ["Reading", "Guitar"],
+  personal: ["Reading"],
   other: [],
 };
 
 /** The session lengths offered as chips; any other length, to the minute, through "Custom". */
-export const SESSION_CHIPS = [30, 45, 60, 180] as const;
+export const SESSION_CHIPS = [30, 45, 60, 120] as const;
 
-/** A chip's words: "30 min", "1 h", "3 h". */
+/** A chip's words: "30 min", "1 h", "2 h". */
 export function chipLength(minutes: number): string {
   return minutes < 60 ? `${minutes} min` : fmtWeekly(minutes);
 }

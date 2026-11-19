@@ -17,7 +17,7 @@ import { chatAllowed } from "@/lib/chat/access";
 import type { ChatPageData } from "@/lib/chat/types";
 import { lookOf } from "@/lib/goals/style";
 import type { BlockerData } from "@/lib/blocker/types";
-import type { OwnProfile, ProfileCardData } from "@/lib/profiles/types";
+import type { OwnProfile, PeopleData, PersonFacts, ProfileCardData } from "@/lib/profiles/types";
 import type { WeekData } from "@/lib/events/types";
 import type { View } from "@/lib/events/views";
 import type { FocusData } from "@/lib/focus/types";
@@ -41,6 +41,10 @@ import { readFocus } from "@/lib/server/focus/load";
 import { readGoalViews } from "@/lib/server/goals/load";
 import { readOutlookState } from "@/lib/server/outlook/sync";
 import { readOwnCard, readOwnProfile } from "@/lib/server/profiles/own-profile";
+import { readPeople } from "@/lib/server/profiles/cards";
+import { isUserId, readProfileCard, readProfileCards } from "@/lib/server/profiles/profile-card";
+import { readSharesOverview, readSharingPeople } from "@/lib/server/shares/read";
+import { NOTHING_SHARED, type ContactShares, type PersonRelation, type SharingPerson } from "@/lib/shares/types";
 import { readDefaultView, readSettings } from "@/lib/server/settings";
 import { readPlaces } from "@/lib/server/places/saved";
 import type { SavedPlace } from "@/lib/places/saved";
@@ -72,21 +76,45 @@ export async function loadCalendarPage(deps: PageDeps, userId: string, requested
   // By itself: done tasks older than 7 days go first, saved on their own (R33).
   await settleTasks(deps, userId);
   const now = deps.now();
+  return deps.withUser(userId, (query) => readCalendarPage(query, now, requestedDate, requestedView));
+}
+
+/** Every read of the calendar page inside a transaction that is already open. */
+async function readCalendarPage(query: Query, now: Date, requestedDate?: string, requestedView?: View): Promise<CalendarPageData> {
+  // Every read without parameters is started here, before anything is awaited: one round.
+  // The events need the time zone and the view, so they follow as soon as those rows are in.
+  const settingsRead = readSettings(query);
+  const timeZone = settingsRead.then((settings) => settings.timeZone);
+  const view = requestedView ?? readDefaultView(query);
+  const [settings, week, { goals, tasks }, showWelcome, places] = await Promise.all([
+    settingsRead,
+    readCalendar(query, now, view, requestedDate, timeZone, readOutlookState(query)),
+    readGoalsAndTasks(query, now, timeZone),
+    // A new account (no goals, events or tasks, welcome never answered) sees the welcome (spec 13).
+    welcomeDue(query),
+    readPlaces(query),
+  ]);
+  return { display: displayOf(settings), week, goals, tasks, showWelcome, places, home: settings.homeAddress, travelMode: settings.travelMode };
+}
+
+/**
+ * The calendar page with the contacts who share their calendar with the user (spec 53), for the
+ * "People" button: the same reads as loadCalendarPage, plus the people, in the same one transaction.
+ * Their events themselves are read by the browser for the shown days (GET /api/shares/[id]/calendar).
+ */
+export async function loadCalendarPageWithShares(
+  deps: PageDeps,
+  userId: string,
+  requestedDate?: string,
+  requestedView?: View,
+): Promise<CalendarPageData & { sharing: SharingPerson[] }> {
+  await settleTasks(deps, userId);
+  const now = deps.now();
   return deps.withUser(userId, async (query) => {
-    // Every read without parameters is started here, before anything is awaited: one round.
-    // The events need the time zone and the view, so they follow as soon as those rows are in.
-    const settingsRead = readSettings(query);
-    const timeZone = settingsRead.then((settings) => settings.timeZone);
-    const view = requestedView ?? readDefaultView(query);
-    const [settings, week, { goals, tasks }, showWelcome, places] = await Promise.all([
-      settingsRead,
-      readCalendar(query, now, view, requestedDate, timeZone, readOutlookState(query)),
-      readGoalsAndTasks(query, now, timeZone),
-      // A new account (no goals, events or tasks, welcome never answered) sees the welcome (spec 13).
-      welcomeDue(query),
-      readPlaces(query),
-    ]);
-    return { display: displayOf(settings), week, goals, tasks, showWelcome, places, home: settings.homeAddress, travelMode: settings.travelMode };
+    // Without parameters, so started first (see the top of this file).
+    const sharingRead = readSharingPeople(query);
+    const [page, sharing] = await Promise.all([readCalendarPage(query, now, requestedDate, requestedView), sharingRead]);
+    return { ...page, sharing };
   });
 }
 
@@ -357,5 +385,75 @@ export async function loadPricingPage(deps: Pick<Deps, "withUser" | "stripe">, u
       readSettings(query),
     ]);
     return { display: displayOf(settings), plan: profile?.plan ?? "free", paymentReady: deps.stripe !== null };
+  });
+}
+
+export type PeoplePageData = {
+  display: Display;
+  timeZone: string;
+  people: PeopleData;
+  shares: ContactShares[];
+  /** Bio and time zone of the contacts and of the people who invited the user, for their cards. */
+  facts: PersonFacts[];
+  /** When the page was read (ISO), so the cards' local times start from the same minute on server and browser. */
+  now: string;
+};
+
+/**
+ * The People page (spec 53): the user's profile, contacts and invitations, per contact what the user
+ * shares and what is shared with them, and the cards' bio and time zone. Reads only, one transaction.
+ */
+export async function loadPeoplePage(deps: Pick<Deps, "withUser"> & Partial<Pick<Deps, "now">>, userId: string): Promise<PeoplePageData> {
+  const now = deps.now?.() ?? new Date();
+  return deps.withUser(userId, async (query) => {
+    const [settings, people, shares] = await Promise.all([readSettings(query), readPeople(query), readSharesOverview(query)]);
+    // One more question (with a parameter, so after the others): the cards of these people.
+    const cards = await readProfileCards(query, [...people.contacts, ...people.received].map((p) => p.userId));
+    return {
+      display: displayOf(settings),
+      timeZone: settings.timeZone,
+      people,
+      shares,
+      facts: cards.map((card) => ({ userId: card.userId, bio: card.bio, timeZone: card.timeZone })),
+      now: now.toISOString(),
+    };
+  });
+}
+
+export type PersonProfileData = {
+  display: Display;
+  /** The viewer's own time zone. */
+  timeZone: string;
+  person: ProfileCardData;
+  relation: PersonRelation | null;
+  me: { name: string; photoUrl: string | null };
+  now: string;
+};
+
+/**
+ * /people/[id] (spec 53): the person's card as app.profile_card gives it (R43), the viewer's time zone and
+ * how the two stand (the contact row, what each shares with the other). Null alike for everything the
+ * user may not see: a stranger, a removed contact, an unknown or a malformed id. One transaction.
+ */
+export async function loadPersonProfile(deps: PageDeps, userId: string, personId: string): Promise<PersonProfileData | null> {
+  const now = deps.now();
+  if (!isUserId(personId)) return null;
+  return deps.withUser(userId, async (query) => {
+    // Reads without parameters first (one round), the card (with one) after them.
+    const settingsRead = readSettings(query);
+    const peopleRead = readPeople(query);
+    const overviewRead = readSharesOverview(query);
+    const [settings, people, overview, person] = await Promise.all([settingsRead, peopleRead, overviewRead, readProfileCard(query, personId)]);
+    if (!person) return null;
+    const contact = people.contacts.find((c) => c.userId === person.userId);
+    const shares = contact ? overview.find((o) => o.contactId === contact.id) : undefined;
+    return {
+      display: displayOf(settings),
+      timeZone: settings.timeZone,
+      person,
+      relation: contact ? { contactId: contact.id, out: shares?.out ?? NOTHING_SHARED, shared: shares?.in ?? NOTHING_SHARED } : null,
+      me: { name: people.me.name, photoUrl: people.me.photoUrl },
+      now: now.toISOString(),
+    };
   });
 }

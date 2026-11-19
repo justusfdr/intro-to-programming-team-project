@@ -1,0 +1,23 @@
+# Runs the checks on every push to main and on every pull request.
+# The tests need no service and no secret: each database test file starts its own in-process Postgres
+# (PGlite), and Claude, Stripe, Outlook and routing are replaced by fakes (see test/support/).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test

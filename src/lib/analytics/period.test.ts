@@ -186,10 +186,10 @@ describe("the numbers of a report", () => {
 
   it("writes what went well, what did not and a summary from those numbers", () => {
     const { insights } = buildPeriod(twoWeeks());
-    expect(insights.good).toEqual(["750% more focus time than in the 2 weeks before.", "Your focus score rose from 75 to 98."]);
+    expect(insights.good).toEqual(["750 % more focus time than in the 2 weeks before.", "Your focus score rose from 75 to 98."]);
     expect(insights.bad).toEqual(["Sessions that start after 4 pm score 75 on average, 23 below your best hours (9 – 11 am)."]);
     expect(insights.summary).toBe(
-      "You focused 4 h 15 min in 5 sessions over 2 weeks, 750% more than in the 2 weeks before. Your focus score went from 75 to 98. You reached your goals in 1 of 2 goal weeks.",
+      "You focused 4 h 15 min in 5 sessions over 2 weeks, 750 % more than in the 2 weeks before. Your focus score went from 75 to 98. You reached your goals in 1 of 2 goal weeks.",
     );
   });
 

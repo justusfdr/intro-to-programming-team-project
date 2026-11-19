@@ -173,7 +173,8 @@ export function NewEventForm({ date: suggestedDate, today, startMin, endMin, goa
 
       {result && <FormMessage tone="error" text={result.message} />}
 
-      <div className="flex gap-2">
+      {/* Sticks to the bottom of the scrolling panel, so Add stays visible when the time wheel makes the card tall (issue #134). */}
+      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex gap-2 border-t border-line-subtle bg-surface px-4 pb-4 pt-3">
         <Button type="submit" disabled={!canSubmit} className="flex-1">
           {busy ? "Adding…" : "Add"}
         </Button>
