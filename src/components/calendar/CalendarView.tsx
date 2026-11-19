@@ -63,8 +63,9 @@ import { NewEventPopover } from "./NewEventPopover";
 import { useTravelTimes } from "./useTravelTimes";
 import { OutlookChip } from "./OutlookChip";
 import { TimeGrid, type GoalLabel } from "./TimeGrid";
-import { SharedEventCard, SharedPeopleButton, type OpenShared, type SharedMonthEntry } from "./Shared";
+import { ShareColors, SharedEventCard, SharedPeopleButton, type OpenShared, type SharedMonthEntry } from "./Shared";
 import { useSharedCalendars } from "./useSharedCalendars";
+import { shareColors } from "@/lib/shares/colors";
 import { placeShared, sharedAllDayByDay } from "@/lib/shares/place";
 import type { SharingPerson } from "@/lib/shares/types";
 import { MEDIA, useMediaQuery } from "./useMedia";
@@ -385,6 +386,10 @@ export function CalendarView({
   // their own arrays: nothing below that marks or asks about overlaps ever sees them (R10, R57).
   const shownDates = useMemo(() => week.days.map((d) => d.date), [week.days]);
   const { chosen: shownPeople, toggle: togglePerson, calendars: sharedCalendars } = useSharedCalendars(viewerId, sharing, shownDates, week.timeZone, showPerson);
+  // Each shown person's colour, and the level their calendar had when it was last read (the list of
+  // people is from the page's load; a level changed since then shows in the "People" menu at once).
+  const shownColors = useMemo(() => shareColors(shownPeople), [shownPeople]);
+  const shownLevels = useMemo(() => Object.fromEntries(sharedCalendars.map((c) => [c.person.userId, c.level])), [sharedCalendars]);
   const [openShared, setOpenShared] = useState<{ shared: OpenShared; anchor: Anchor } | null>(null);
   const onOpenShared = (item: OpenShared, anchor: Anchor) => setOpenShared({ shared: item, anchor });
   const gridDates = useMemo(() => days.map((d) => d.date), [days]);
@@ -581,7 +586,7 @@ export function CalendarView({
   const dayHref = (day: string) => calendarHref("day", day);
 
   return (
-    <>
+    <ShareColors.Provider value={shownColors}>
       <section
         aria-label="Calendar"
         className="@container flex h-[calc(100dvh-7rem)] min-h-[480px] min-w-0 flex-col gap-3 px-4 pt-4 pb-3 md:h-dvh md:px-6 md:pt-6 md:pb-5"
@@ -620,7 +625,7 @@ export function CalendarView({
             </LinkButton>
             <ViewSwitch views={allowedViews(isPhone)} view={view} date={date} />
             <div className="ml-auto flex items-center gap-2">
-              <SharedPeopleButton people={sharing} chosen={shownPeople} onToggle={togglePerson} />
+              <SharedPeopleButton people={sharing} chosen={shownPeople} onToggle={togglePerson} levels={shownLevels} />
               <Button variant="secondary" size="icon" aria-label="New event" title="New event" className="@3xl:w-auto @3xl:px-4" onClick={(e) => addEvent(anchorOf(e.currentTarget))}>
                 <Plus className="size-4" strokeWidth={2} />
                 <span className="hidden @3xl:inline">New event</span>
@@ -749,7 +754,7 @@ export function CalendarView({
       )}
       {openShared && <SharedEventCard shared={openShared.shared} anchor={openShared.anchor} onClose={() => setOpenShared(null)} />}
       {toast && <ToastBar key={toast.id} toast={toast} onDone={() => setToast(null)} />}
-    </>
+    </ShareColors.Provider>
   );
 }
 

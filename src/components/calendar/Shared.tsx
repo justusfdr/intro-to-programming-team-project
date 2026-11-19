@@ -1,28 +1,39 @@
 "use client";
 
 // Other people's shared calendars on the viewer's calendar (spec 53, from spec 29; R56, R57, R58). Everything here is
-// read only: a shared block cannot be dragged, resized or opened in the editor. Blocks are muted and
-// striped with the person's avatar; "busy" blocks say "Busy" and are not buttons; a "details" block
+// read only: a shared block cannot be dragged, resized or opened in the editor. Each shown person has a
+// colour of their own (src/lib/shares/colors.ts): their blocks are filled with it, carry a bar at the
+// left edge and the person's avatar; "busy" blocks say "Busy" and are not buttons; a "details" block
 // opens a small card with title, time, place and whose calendar it is. Placement maths:
 // src/lib/shares/place.ts.
-import { useId, useState } from "react";
+import { createContext, useContext, useId, useState } from "react";
 import { Users } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { PersonChip } from "@/components/people/PersonChip";
 import { Button } from "@/components/ui/Button";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { blockBox, type GridRange } from "@/lib/events/grid";
+import { preferredColor, shareColor, type ShareColor, type ShareColorName } from "@/lib/shares/colors";
 import type { SharedAllDayItem, SharedBlock } from "@/lib/shares/place";
-import { MAX_SHOWN_CALENDARS, levelText, type SharingPerson } from "@/lib/shares/types";
+import { MAX_SHOWN_CALENDARS, levelText, type CalendarLevel, type SharingPerson } from "@/lib/shares/types";
 import { fmtDateLong, fmtRange, fmtTime, type TimeFormat } from "@/lib/time/display";
 import { localDateTimeOf } from "@/lib/time/zoned";
 import { anchorOf, FloatingPanel, type Anchor } from "./FloatingPanel";
 
-/** The muted, striped look of everything that is someone else's. */
-export const SHARED_STRIPES = {
-  backgroundImage: "repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, currentColor 8%, transparent) 6px 8px)",
-};
-const SHARED_CLASS = "border border-dashed border-ink-3/60 bg-surface text-ink-2";
+/**
+ * The colour of each person shown on the calendar (the calendar page sets it, so the people shown
+ * together never share one). Anywhere else a person has the colour that is always theirs.
+ */
+export const ShareColors = createContext<Readonly<Record<string, ShareColorName>>>({});
+
+/** The class names of a person's colour: the look of everything on screen that is theirs. */
+export function useShareColor(userId: string): ShareColor {
+  const colors = useContext(ShareColors);
+  return shareColor(colors[userId] ?? preferredColor(userId));
+}
+
+/** The bar at the left edge that every shared block, chip and row has (the colour comes with the person). */
+const SHARED_BAR = "border-l-[3px]";
 
 /** What the read-only card shows: one shared event with whose it is. */
 export type OpenShared = {
@@ -55,15 +66,19 @@ export function SharedPeopleButton({
   people,
   chosen,
   onToggle,
+  levels,
 }: {
   people: readonly SharingPerson[];
   chosen: readonly string[];
   onToggle: (userId: string) => void;
+  /**
+   * The level each shown calendar had when it was last read. The list of people is from the page's load;
+   * a level the person changed since then shows here, as it does on their blocks.
+   */
+  levels?: Readonly<Record<string, CalendarLevel>>;
 }) {
   const [anchor, setAnchor] = useState<Anchor | null>(null);
-  const hintId = useId();
   if (people.length === 0) return null;
-  const full = chosen.length >= MAX_SHOWN_CALENDARS;
   return (
     <>
       <Button
@@ -86,37 +101,88 @@ export function SharedPeopleButton({
       </Button>
       {anchor && (
         <FloatingPanel anchor={anchor} label="People's calendars" width={300} onClose={() => setAnchor(null)}>
-          <div className="flex flex-col gap-2 p-4">
-            <p className="pr-8 text-sm font-semibold text-ink">People&apos;s calendars</p>
-            <p id={hintId} className="text-xs text-ink-3">
-              Read only. Show up to {MAX_SHOWN_CALENDARS} at once.
-            </p>
-            <ul className="flex flex-col">
-              {people.map((person) => {
-                const on = chosen.includes(person.userId);
-                return (
-                  <li key={person.userId}>
-                    <label className={`flex items-center gap-2.5 rounded-lg px-1 py-1.5 text-sm ${!on && full ? "opacity-50" : "cursor-pointer hover:bg-raised"}`}>
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        disabled={!on && full}
-                        aria-describedby={hintId}
-                        onChange={() => onToggle(person.userId)}
-                        className="size-4 shrink-0 accent-ink"
-                      />
-                      <Avatar name={person.name} photoUrl={person.photoUrl} size={24} />
-                      <span className="min-w-0 flex-1 truncate text-ink">{person.name}</span>
-                      <span className="shrink-0 text-xs text-ink-3">{levelText(person.calendar)}</span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+          <SharedPeopleList people={people} chosen={chosen} onToggle={onToggle} levels={levels} />
         </FloatingPanel>
       )}
     </>
+  );
+}
+
+/** What the "People" menu shows: each person who shares their calendar, to tick on or off (also used by the tests). */
+export function SharedPeopleList({
+  people,
+  chosen,
+  onToggle,
+  levels,
+}: {
+  people: readonly SharingPerson[];
+  chosen: readonly string[];
+  onToggle: (userId: string) => void;
+  levels?: Readonly<Record<string, CalendarLevel>>;
+}) {
+  const hintId = useId();
+  const full = chosen.length >= MAX_SHOWN_CALENDARS;
+  return (
+    <div className="flex flex-col gap-2 p-4">
+      <p className="pr-8 text-sm font-semibold text-ink">People&apos;s calendars</p>
+      <p id={hintId} className="text-xs text-ink-3">
+        Read only. Show up to {MAX_SHOWN_CALENDARS} at once.
+      </p>
+      <ul className="flex flex-col">
+        {people.map((person) => (
+          <PersonOption
+            key={person.userId}
+            person={person}
+            on={chosen.includes(person.userId)}
+            full={full}
+            level={levels?.[person.userId] ?? person.calendar}
+            hintId={hintId}
+            onToggle={onToggle}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** One person of the "People" menu: the tick, their avatar and name, their colour while shown, and the level. */
+function PersonOption({
+  person,
+  on,
+  full,
+  level,
+  hintId,
+  onToggle,
+}: {
+  person: SharingPerson;
+  on: boolean;
+  full: boolean;
+  level: CalendarLevel;
+  hintId: string;
+  onToggle: (userId: string) => void;
+}) {
+  const color = useShareColor(person.userId);
+  return (
+    <li>
+      <label className={`flex items-center gap-2.5 rounded-lg px-1 py-1.5 text-sm ${!on && full ? "opacity-50" : "cursor-pointer hover:bg-raised"}`}>
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={!on && full}
+          aria-describedby={hintId}
+          onChange={() => onToggle(person.userId)}
+          className="size-4 shrink-0 accent-ink"
+        />
+        <Avatar name={person.name} photoUrl={person.photoUrl} size={24} />
+        <span className="min-w-0 flex-1 truncate text-ink">{person.name}</span>
+        {on && (
+          <span className={`size-2.5 shrink-0 rounded-full ${color.dot}`}>
+            <span className="sr-only">Shown in {color.name}</span>
+          </span>
+        )}
+        <span className="shrink-0 text-xs text-ink-3">{levelText(level)}</span>
+      </label>
+    </li>
   );
 }
 
@@ -147,10 +213,10 @@ export function SharedBlockView({
   onOpen: (shared: OpenShared, anchor: Anchor) => void;
 }) {
   const { timeFormat } = useDisplay();
+  const color = useShareColor(block.person.userId);
   const { top, height } = blockBox(block, range);
   const laneWidth = width / block.lanes;
   const style = {
-    ...SHARED_STRIPES,
     top: top + 1,
     height: height - 2,
     left: `calc(${(left + block.lane * laneWidth) * 100}% + 2px)`,
@@ -164,10 +230,10 @@ export function SharedBlockView({
         <Avatar name={block.person.name} photoUrl={block.person.photoUrl} size={16} />
         <span className="min-w-0 truncate text-[11px] font-medium leading-[14px]">{text}</span>
       </span>
-      {height >= 44 && <span className="block truncate text-[10px] leading-[13px] tabular opacity-80">{time}</span>}
+      {height >= 44 && <span className={`block truncate text-[10px] leading-[13px] tabular ${color.subtext}`}>{time}</span>}
     </>
   );
-  const className = `absolute z-[1] overflow-hidden rounded-lg px-1 py-0.5 text-left ${SHARED_CLASS}`;
+  const className = `absolute z-[1] overflow-hidden rounded-lg px-1 py-0.5 text-left ${SHARED_BAR} ${color.block}`;
   // The part after midnight repeats a block of the day before: not read out twice.
   if (block.level !== "details" || block.continuesBefore) {
     return (
@@ -204,12 +270,13 @@ export function SharedBlockView({
   );
 }
 
-/** A shared all-day event as a small striped chip (all-day row and month view). */
+/** A shared all-day event as a small chip in the person's colour (all-day row and month view). */
 export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onOpen: (shared: OpenShared, anchor: Anchor) => void }) {
+  const color = useShareColor(item.person.userId);
   const text = item.level === "details" ? item.event.title || "Busy" : "Busy";
   const when = allDayWhen(item.event.firstDay, item.event.lastDay);
   const label = `${text}, ${when}, ${whose(item.person)}, read only`;
-  const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_CLASS}`;
+  const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_BAR} ${color.block}`;
   const inner = (
     <>
       <Avatar name={item.person.name} photoUrl={item.person.photoUrl} size={16} />
@@ -218,7 +285,7 @@ export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onO
   );
   if (item.level !== "details") {
     return (
-      <div role="note" aria-label={label} style={SHARED_STRIPES} className={className}>
+      <div role="note" aria-label={label} className={className}>
         {inner}
       </div>
     );
@@ -227,7 +294,6 @@ export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onO
     <button
       type="button"
       aria-label={label}
-      style={SHARED_STRIPES}
       onClick={(e) => {
         e.stopPropagation();
         onOpen({ person: item.person, title: text, location: item.event.location ?? null, when }, anchorOf(e.currentTarget));
@@ -241,9 +307,13 @@ export function SharedAllDayChip({ item, onOpen }: { item: SharedAllDayItem; onO
 
 /** What the read-only card shows: title, time, place, whose calendar (also used by the previews). */
 export function SharedEventDetails({ shared }: { shared: OpenShared }) {
+  const color = useShareColor(shared.person.userId);
   return (
-    <div className="flex flex-col gap-2 p-4" style={SHARED_STRIPES}>
-      <p className="pr-8 text-[15px] font-semibold text-ink">{shared.title}</p>
+    <div className="flex flex-col gap-2 p-4">
+      <p className="flex items-center gap-2 pr-8 text-[15px] font-semibold text-ink">
+        <span aria-hidden className={`size-2.5 shrink-0 rounded-full ${color.dot}`} />
+        <span className="min-w-0">{shared.title}</span>
+      </p>
       <p className="text-sm text-ink-2">{shared.when}</p>
       {shared.location && <p className="text-sm text-ink-2">{shared.location}</p>}
       <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-ink-3">
@@ -272,24 +342,29 @@ export function SharedEventCard({ shared, anchor, onClose }: { shared: OpenShare
 /** One shared entry of a month cell: an all-day event, or the start of a timed one. */
 export type SharedMonthEntry = { key: string; allDay: SharedAllDayItem } | { key: string; block: SharedBlock };
 
-/** A month cell's shared entry: "9am Busy" with the avatar, striped; a "details" one opens the card. */
+/** A month cell's shared entry: "9am Busy" with the avatar, in the person's colour; a "details" one opens the card. */
 export function SharedMonthRow({ entry, timeZone, onOpen }: { entry: SharedMonthEntry; timeZone: string; onOpen: (shared: OpenShared, anchor: Anchor) => void }) {
-  const { timeFormat } = useDisplay();
   if ("allDay" in entry) return <SharedAllDayChip item={entry.allDay} onOpen={onOpen} />;
-  const { block } = entry;
+  return <SharedMonthBlock block={entry.block} timeZone={timeZone} onOpen={onOpen} />;
+}
+
+/** A shared timed event in a month cell: the time it starts and "Busy" or its title. */
+function SharedMonthBlock({ block, timeZone, onOpen }: { block: SharedBlock; timeZone: string; onOpen: (shared: OpenShared, anchor: Anchor) => void }) {
+  const { timeFormat } = useDisplay();
+  const color = useShareColor(block.person.userId);
   const text = block.level === "details" ? block.title || "Busy" : "Busy";
   const label = blockLabel(block, timeZone, timeFormat);
-  const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_CLASS}`;
+  const className = `flex h-[18px] w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[11px] leading-[16px] ${SHARED_BAR} ${color.block}`;
   const inner = (
     <>
       <Avatar name={block.person.name} photoUrl={block.person.photoUrl} size={16} />
-      <span className="shrink-0 tabular text-ink-3">{fmtTime(block.startMin, timeFormat)}</span>
+      <span className={`shrink-0 tabular ${color.subtext}`}>{fmtTime(block.startMin, timeFormat)}</span>
       <span className="min-w-0 truncate">{text}</span>
     </>
   );
   if (block.level !== "details") {
     return (
-      <div role="note" aria-label={label} style={SHARED_STRIPES} className={className}>
+      <div role="note" aria-label={label} className={className}>
         {inner}
       </div>
     );
@@ -298,7 +373,6 @@ export function SharedMonthRow({ entry, timeZone, onOpen }: { entry: SharedMonth
     <button
       type="button"
       aria-label={label}
-      style={SHARED_STRIPES}
       onClick={(e) => {
         e.stopPropagation();
         onOpen({ person: block.person, title: text, location: block.location, when: sharedWhen(block.startAt, block.endAt, timeZone, timeFormat) }, anchorOf(e.currentTarget));
