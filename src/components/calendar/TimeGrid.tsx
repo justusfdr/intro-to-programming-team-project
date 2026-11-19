@@ -463,7 +463,7 @@ function AllDayRow({ days, selectedDay, onOpenEvent, weekDates, weekAllDay, onCr
 
 /**
  * Spec 53 (from spec 29): other people's all-day events, under the viewer's own all-day row, one small
- * striped chip per event and day (on phones the chosen day only). Read only.
+ * chip in the person's colour per event and day (on phones the chosen day only). Read only.
  */
 function SharedAllDayRow({
   days,

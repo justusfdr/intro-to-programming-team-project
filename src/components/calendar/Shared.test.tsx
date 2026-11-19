@@ -7,9 +7,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { preferredColor, shareColor, shareColors } from "@/lib/shares/colors";
 import type { SharedBlock } from "@/lib/shares/place";
 import type { SharingPerson } from "@/lib/shares/types";
-import { SharedBlockView, SharedEventDetails, SharedPeopleButton } from "./Shared";
+import { ShareColors, SharedBlockView, SharedEventDetails, SharedPeopleButton, SharedPeopleList } from "./Shared";
 
 const ANA: SharingPerson = { userId: "a", name: "Ana Lopes", photoUrl: null, calendar: "busy", focus: false };
 const RANGE = { startMin: 7 * 60, endMin: 21 * 60 };
@@ -53,10 +54,30 @@ describe("shared blocks", () => {
     expect(html).not.toContain("ns-resize");
   });
 
-  it("sits on the right part of the column, striped", () => {
+  // Changed 19 Nov 2026 (asked for by the owner): a colour per person instead of stripes.
+  it("sits on the right part of the column, in the person's colour with a bar at the left, no stripes", () => {
     const html = render(block("busy", null));
     expect(html).toContain("left:calc(62% + 2px)");
-    expect(html).toContain("repeating-linear-gradient");
+    expect(html).not.toContain("repeating-linear-gradient");
+    expect(html).not.toContain("border-dashed");
+    expect(html).toContain("border-l-[3px]");
+    expect(html).toContain(shareColor(preferredColor(ANA.userId)).block);
+  });
+
+  it("two people shown together get different colours", () => {
+    const BEA: SharingPerson = { ...ANA, userId: "b", name: "Bea Reis" };
+    // A second person whose own colour is the same as Ana's: she gets the next free one.
+    const twin = ["b", "c", "d", "e", "f", "g"].find((id) => preferredColor(id) === preferredColor(ANA.userId))!;
+    const colors = shareColors([ANA.userId, twin]);
+    const html = renderToStaticMarkup(
+      <ShareColors.Provider value={colors}>
+        <SharedBlockView block={block("busy", null)} range={RANGE} left={0.62} width={0.38} timeZone="Europe/Lisbon" onOpen={() => {}} />
+        <SharedBlockView block={{ ...block("busy", null), person: { ...BEA, userId: twin } }} range={RANGE} left={0.62} width={0.38} timeZone="Europe/Lisbon" onOpen={() => {}} />
+      </ShareColors.Provider>,
+    );
+    expect(colors[ANA.userId]).not.toBe(colors[twin]);
+    expect(html).toContain(shareColor(colors[ANA.userId]).block);
+    expect(html).toContain(shareColor(colors[twin]).block);
   });
 });
 
@@ -69,6 +90,30 @@ describe("the People button", () => {
     const html = renderToStaticMarkup(<SharedPeopleButton people={[ANA]} chosen={["a"]} onToggle={() => {}} />);
     expect(html).toContain('aria-label="People&#x27;s calendars, 1 shown"');
     expect(html).toContain('aria-haspopup="dialog"');
+  });
+});
+
+// Added 19 Nov 2026: the list of people is from the page's load; the level in the menu follows what
+// the last read of the calendar said, as the blocks do.
+describe("the People menu", () => {
+  it("shows the level the page was loaded with while nothing newer is known", () => {
+    const html = renderToStaticMarkup(<SharedPeopleList people={[ANA]} chosen={[]} onToggle={() => {}} />);
+    expect(html).toContain(">free/busy</span>");
+  });
+
+  it("shows the level of the last read when the person changed it since the page loaded", () => {
+    const html = renderToStaticMarkup(<SharedPeopleList people={[ANA]} chosen={["a"]} onToggle={() => {}} levels={{ a: "details" }} />);
+    expect(html).toContain(">details</span>");
+    expect(html).not.toContain("free/busy");
+  });
+
+  it("marks a shown person with their colour, by name too, and a person not shown with none", () => {
+    const color = shareColor(preferredColor(ANA.userId));
+    const shown = renderToStaticMarkup(<SharedPeopleList people={[ANA]} chosen={["a"]} onToggle={() => {}} />);
+    expect(shown).toContain(color.dot);
+    expect(shown).toContain(`Shown in ${color.name}`);
+    const hidden = renderToStaticMarkup(<SharedPeopleList people={[ANA]} chosen={[]} onToggle={() => {}} />);
+    expect(hidden).not.toContain("Shown in");
   });
 });
 

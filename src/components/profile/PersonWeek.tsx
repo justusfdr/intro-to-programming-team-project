@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { anchorOf, type Anchor } from "@/components/calendar/FloatingPanel";
-import { SHARED_STRIPES, SharedEventCard, allDayWhen, sharedWhen, type OpenShared } from "@/components/calendar/Shared";
+import { SharedEventCard, allDayWhen, sharedWhen, useShareColor, type OpenShared } from "@/components/calendar/Shared";
 import { asAnswer } from "@/components/calendar/useSharedCalendars";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { Button } from "@/components/ui/Button";
@@ -29,30 +29,25 @@ function blockTime(block: SharedBlock, format: TimeFormat): string {
   return `${block.continuesBefore ? "…" : fmtTime(block.startMin, format)} – ${block.continuesAfter ? "…" : fmtTime(block.endMin, format)}`;
 }
 
-const ROW_CLASS = "flex w-full min-w-0 items-baseline gap-3 rounded-lg border border-dashed border-ink-3/60 bg-surface px-2.5 py-1.5 text-left text-sm text-ink-2";
+const ROW_CLASS = "flex w-full min-w-0 items-baseline gap-3 rounded-lg border-l-[3px] px-2.5 py-1.5 text-left text-sm";
 
 /** One entry of a day: the time (or "All day") and "Busy" or the title and place. A details entry opens the card. */
-function Entry({ time, title, location, open }: { time: string; title: string; location: string | null; open?: (anchor: Anchor) => void }) {
+function Entry({ userId, time, title, location, open }: { userId: string; time: string; title: string; location: string | null; open?: (anchor: Anchor) => void }) {
+  // The person's colour, the same as on the calendar when they are the only one shown.
+  const color = useShareColor(userId);
   const inner = (
     <>
-      <span className="w-[7.5rem] shrink-0 text-xs tabular text-ink-3">{time}</span>
-      <span className="min-w-0 flex-1 truncate text-ink">{title}</span>
-      {location && <span className="hidden min-w-0 max-w-[40%] truncate text-xs text-ink-3 sm:inline">{location}</span>}
+      <span className={`w-[7.5rem] shrink-0 text-xs tabular ${color.subtext}`}>{time}</span>
+      <span className="min-w-0 flex-1 truncate">{title}</span>
+      {location && <span className={`hidden min-w-0 max-w-[40%] truncate text-xs sm:inline ${color.subtext}`}>{location}</span>}
     </>
   );
-  if (!open) {
-    return (
-      <div style={SHARED_STRIPES} className={ROW_CLASS}>
-        {inner}
-      </div>
-    );
-  }
+  if (!open) return <div className={`${ROW_CLASS} ${color.block}`}>{inner}</div>;
   return (
     <button
       type="button"
-      style={SHARED_STRIPES}
       onClick={(e) => open(anchorOf(e.currentTarget))}
-      className={`${ROW_CLASS} hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40`}
+      className={`${ROW_CLASS} ${color.block} hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/40`}
     >
       {inner}
     </button>
@@ -106,6 +101,7 @@ export function WeekList({
                     return (
                       <li key={item.key}>
                         <Entry
+                          userId={person.userId}
                           time="All day"
                           title={title}
                           location={location}
@@ -121,6 +117,7 @@ export function WeekList({
                     return (
                       <li key={`${block.key}-${block.continuesBefore ? "after" : "start"}`}>
                         <Entry
+                          userId={person.userId}
                           time={blockTime(block, timeFormat)}
                           title={title}
                           location={location}

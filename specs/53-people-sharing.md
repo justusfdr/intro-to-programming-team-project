@@ -18,7 +18,7 @@ Students plan together. Today each user sees only their own calendar, so finding
 
 **Calendar**
 - [x] A "People" button in the toolbar when at least one contact shares their calendar with me: choose up to three to show (R58), remembered in this browser for this user.
-- [x] Their events in day, week and month: muted, striped, with their initials; "Busy" at free/busy; at details the title, and a click opens a small read-only card (title, time, place, whose calendar). All-day events in a row of their own under mine. In the day and week grid their blocks take the right part of a column; my own events keep the left part, and only on days that have shared blocks.
+- [x] Their events in day, week and month: in the person's colour (see "Colours and the level in the menu" below; striped until 19 Nov 2026), with their initials; "Busy" at free/busy; at details the title, and a click opens a small read-only card (title, time, place, whose calendar). All-day events in a row of their own under mine. In the day and week grid their blocks take the right part of a column; my own events keep the left part, and only on days that have shared blocks.
 - [x] Their events never take part in dragging, creating, the editor, conflict marks or the overlap question (R10, R57), and are never sent to the coach (R22).
 
 **Server and safety**
@@ -34,6 +34,12 @@ Students plan together. Today each user sees only their own calendar, so finding
 - **Plain names instead of hover cards**: a person's name elsewhere is a plain link to their page.
 - **Rule and scenario numbers renumbered**: the branches' R44 to R51 are R52 to R58 here (`main` already uses R44 to R51); their A24 to A34 are A30 to A35.
 - **The remembered choice of shown calendars is per user** (`lockedin.shownCalendars:<userId>`), so two accounts on one browser do not share it.
+
+## Colours and the level in the menu, added 19 Nov 2026
+Asked for by the owner after trying it with two accounts (translated): "I don't like the striped look much, make it different, simply use colours", and: when the other person changes from free/busy to details, their events show the details at once, but the People menu still says free/busy.
+- [x] A colour per shown person instead of stripes (`src/lib/shares/colors.ts`): blue, purple or green, none of them a goal colour. A block, an all-day chip, a month row and a row of "<name>'s week" are filled with the colour and have a bar at the left edge and the person's avatar; no dashed border, no stripes. A person keeps their colour (worked out from their id); when two people shown together would have the same one, the one chosen later gets the next free colour, so the at most three shown (R58) always differ. The People menu shows the colour as a dot beside each shown person ("Shown in purple" for screen readers), and the read-only card has the same dot before the title.
+- [x] The People menu's level ("free/busy", "details") follows the last read of that person's calendar, which happens when the days change and when the window gets the focus back. Before, it kept the level of the page's load. The list of people itself is still from the page's load: a person who started or stopped sharing shows after a reload.
+- Tests: `src/lib/shares/colors.test.ts` (new); `src/components/calendar/Shared.test.tsx` (the "striped" case now expects the colour and no stripes; new cases for two people's colours and for the menu).
 
 ## Out of scope
 Left out on purpose, each to keep this change small and safe before the deadline:
