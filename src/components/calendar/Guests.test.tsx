@@ -3,6 +3,8 @@
 // Outlook is not connected, nothing for an event of a series or a demo event, an Outlook event's people
 // read-only with the organizer first (R11), the new event's editor, the bin's words, and the people icon
 // on a block that is tall enough. Also what the editor and the calendar send.
+// Changed for spec 54 (19 Nov 2026, from spec 36): the section's heading is now "Guests by e-mail
+// (Outlook)", to keep it apart from "People in LockedIn"; only the heading's words changed in these tests.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { DisplayProvider } from "@/components/shell/DisplayProvider";
@@ -56,8 +58,8 @@ describe("the editor of our own event", () => {
     const html = edit(event({ guests: GUESTS }));
     const at = (text: string) => html.indexOf(text);
     expect(at(">When</p>")).toBeGreaterThan(-1);
-    expect(at(">Guests</p>")).toBeGreaterThan(at(">When</p>"));
-    expect(at(">Route</p>")).toBeGreaterThan(at(">Guests</p>"));
+    expect(at(">Guests by e-mail (Outlook)</p>")).toBeGreaterThan(at(">When</p>"));
+    expect(at(">Route</p>")).toBeGreaterThan(at(">Guests by e-mail (Outlook)</p>"));
     expect(html).not.toContain(">Overlap</p>");
     expect(html).toContain('aria-label="Remove lea@example.com"');
     expect(html).toContain('aria-label="Remove tom@uni.example.org"');
@@ -76,7 +78,7 @@ describe("the editor of our own event", () => {
   it("an event that ended before today shows the reason and no field; its saved guests still show", () => {
     const past = { startAt: "2026-11-11T18:00:00.000Z", endAt: "2026-11-11T19:00:00.000Z", startLocal: "2026-11-11T18:00", endLocal: "2026-11-11T19:00" };
     const html = edit(event({ ...past, guests: ["lea@example.com"] }));
-    expect(html).toContain(">Guests</p>");
+    expect(html).toContain(">Guests by e-mail (Outlook)</p>");
     expect(html).toContain("This event has ended. Guests can only be invited to events that have not ended.");
     expect(html).toContain("lea@example.com");
     expect(html).not.toContain("Add a guest");
@@ -86,11 +88,11 @@ describe("the editor of our own event", () => {
   // Rewritten: the section used to be left out here, and the owner looked for it in vain.
   it("an event of a series and a demo event keep the section, with the reason and no field", () => {
     const series = edit(event({ seriesId: "s1" }));
-    expect(series).toContain(">Guests</p>");
+    expect(series).toContain(">Guests by e-mail (Outlook)</p>");
     expect(series).toContain("Events of a series cannot have guests.");
     expect(series).not.toContain("Add a guest");
     const demo = edit(event({ demo: true }));
-    expect(demo).toContain(">Guests</p>");
+    expect(demo).toContain(">Guests by e-mail (Outlook)</p>");
     expect(demo).toContain("Demo events cannot have guests. Create your own event to invite someone.");
     expect(demo).not.toContain("Add a guest");
   });
@@ -104,7 +106,7 @@ describe("the editor of our own event", () => {
 describe("an Outlook event", () => {
   it("shows its people read-only, the organizer first, no x and no field (R11)", () => {
     const html = edit(event({ source: "outlook", guests: ["lea@example.com"], organizer: "prof@uni.example.org" }));
-    expect(html).toContain(">Guests</p>");
+    expect(html).toContain(">Guests by e-mail (Outlook)</p>");
     expect(html.indexOf("prof@uni.example.org")).toBeLessThan(html.indexOf("lea@example.com"));
     expect(html).toContain("· Organizer");
     expect(html).not.toContain("Remove ");
@@ -113,7 +115,7 @@ describe("an Outlook event", () => {
   });
 
   it("without anyone, no section", () => {
-    expect(edit(event({ source: "outlook" }))).not.toContain(">Guests</p>");
+    expect(edit(event({ source: "outlook" }))).not.toContain(">Guests by e-mail (Outlook)</p>");
   });
 });
 
