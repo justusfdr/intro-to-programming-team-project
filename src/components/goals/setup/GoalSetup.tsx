@@ -8,10 +8,9 @@
 // "Create goal" sends one create_goal (the body is built in src/lib/goals/setup.ts); the server checks
 // everything again and its message shows on the review when it refuses.
 // Moving between questions: the old question leaves (a copy of it, inert, for 200 ms) while the new one
-// comes in. The frame keeps its size from question to question: on a phone the sheet has one height; on
-// wider screens the question area follows its content (measured, then animated in CSS) above a shared floor.
+// comes in. The frame keeps one height from question to question, so Continue always sits in the same place.
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { useAnnounce } from "@/components/calendar/Announcer";
@@ -171,10 +170,6 @@ function SetupFlow({
   const keepGoingRef = useRef<HTMLButtonElement>(null);
   const autoNext = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextRef = useRef<() => void>(() => {});
-  const [height, setHeight] = useState<number | null>(null);
-  // While the height moves, the area does not scroll (no scrollbar flashes for a moment).
-  const [settling, setSettling] = useState(false);
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const update = (change: (a: SetupAnswers) => SetupAnswers) => {
     setAnswers(change);
@@ -326,29 +321,11 @@ function SetupFlow({
     return () => clearTimeout(timer);
   }, [leaving]);
 
-  // The height of the question area follows its content.
+  // A pending automatic Continue does not outlive the dialog.
   useEffect(() => {
-    const element = innerRef.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
-    const timers = { settle: settleTimer, next: autoNext };
-    let last = -1;
-    const observer = new ResizeObserver(() => {
-      // Only a real change of height counts. Hiding the scroll bar while the height glides changes the
-      // width, which calls this again: reacting to that made the question shake on every pick of a wheel.
-      const height = element.offsetHeight;
-      if (height === last) return;
-      last = height;
-      setHeight(height);
-      if (prefersReducedMotion()) return;
-      setSettling(true);
-      if (timers.settle.current) clearTimeout(timers.settle.current);
-      timers.settle.current = setTimeout(() => setSettling(false), 320);
-    });
-    observer.observe(element);
+    const timer = autoNext;
     return () => {
-      observer.disconnect();
-      if (timers.settle.current) clearTimeout(timers.settle.current);
-      if (timers.next.current) clearTimeout(timers.next.current);
+      if (timer.current) clearTimeout(timer.current);
     };
   }, []);
 
@@ -433,15 +410,13 @@ function SetupFlow({
       </div>
 
       {/*
-        The question area; the leaving copy lies over it for a moment. On a phone the sheet has one
-        height and the area fills it, so Back, the progress and Continue never move. On wider screens
-        the area follows its content's height (--setup-h, see globals.css), but never below a floor the
-        six questions share, so the card keeps its size from question to question.
+        The question area; the leaving copy lies over it for a moment. The card has one height on every
+        screen and the area fills it (scrolling when a question is longer), so Back, the progress and
+        Continue never move.
       */}
       <div
         ref={viewportRef}
-        className={`setup-viewport scroll-thin relative flex min-h-0 flex-col overflow-x-hidden overscroll-contain [scrollbar-gutter:stable] ${settling ? "overflow-y-hidden" : "overflow-y-auto"}`}
-        style={height === null ? undefined : ({ "--setup-h": `${height}px` } as CSSProperties)}
+        className="setup-viewport scroll-thin relative flex min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
       >
         {/* The celebration sits in the middle of the area; a question starts at its top. */}
         <div ref={innerRef} className={`relative shrink-0 px-5 pt-4 pb-6 md:px-7 ${screen === "done" ? "my-auto" : ""}`} onKeyDown={onKeyDown}>

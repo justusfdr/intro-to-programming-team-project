@@ -126,8 +126,8 @@ dialog.welcome::backdrop {
 /*
   The guided setup of a new goal (spec 42): a native dialog like the welcome (a sheet on phones, a
   centred card on wider screens, the page behind dimmed and slightly blurred). Every move uses one
-  easing curve and only transform and opacity; the one exception is the height of the question area,
-  which follows its content (see .setup-viewport). Without motion everything simply appears: the
+  easing curve and only transform and opacity; the card keeps one height (see .setup-viewport).
+  Without motion everything simply appears: the
   celebration's ring and pieces are invisible unless their animation runs.
 */
 :root {
@@ -149,21 +149,9 @@ dialog.goal-setup::backdrop {
   transform: rotate(-24deg);
 }
 
-/*
-  The question area. Phones: it fills the sheet, which has one height. Wider screens: it is as high as
-  its content (--setup-h is measured by GoalSetup.tsx), but never lower than a floor the six questions
-  share (less on a low window, so the card always fits).
-*/
+/* The question area fills the card, which has one height, so Continue never moves. */
 .setup-viewport {
   flex: 1 1 0%;
-}
-
-@media (min-width: 768px) {
-  .setup-viewport {
-    flex: 0 1 auto;
-    height: var(--setup-h, auto);
-    min-height: clamp(0px, calc(100dvh - 19rem), 420px);
-  }
 }
 
 /* Only visible while the celebration runs. */
@@ -175,11 +163,6 @@ dialog.goal-setup::backdrop {
 @media (prefers-reduced-motion: no-preference) {
   dialog.goal-setup[open] {
     animation: setup-sheet-in 320ms var(--setup-ease);
-  }
-
-  /* The question area follows its content's height instead of jumping (the only layout property animated). */
-  .setup-viewport {
-    transition: height 280ms var(--setup-ease);
   }
 
   /* Between questions: forward, the new one comes in from the right and the old leaves to the left; back, mirrored. */
