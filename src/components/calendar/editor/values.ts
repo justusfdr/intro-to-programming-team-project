@@ -65,6 +65,18 @@ export function untouchedPatch(sent: EventValues, current: EventValues, saved: E
   return patch as Partial<EventValues>;
 }
 
+/**
+ * Spec 55: the calendar read a newer copy of the event while the editor is open (another device, or
+ * someone who accepted an invitation changed the shared notes). The fields the user has not touched since
+ * they were filled from `filledFrom` take the newer values; typed ones stay. Null when the copy is not
+ * newer (or another event).
+ */
+export function valuesAfterReread(filledFrom: CalendarEvent, current: EventValues, shown: CalendarEvent | null | undefined): Partial<EventValues> | null {
+  if (!shown || shown.id !== filledFrom.id) return null;
+  if (Date.parse(shown.updatedAt) <= Date.parse(filledFrom.updatedAt)) return null;
+  return untouchedPatch(valuesOf(filledFrom), current, valuesOf(shown));
+}
+
 /** The values of an existing event. Timed and all-day fields both get values, so the switch can flip. */
 export function valuesOf(event: CalendarEvent): EventValues {
   const common = {

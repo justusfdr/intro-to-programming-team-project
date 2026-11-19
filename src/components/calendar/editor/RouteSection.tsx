@@ -31,6 +31,11 @@ type Props = {
   onLocation: (location: string) => void;
   /** The travel line under the route (only for a saved event). */
   children?: ReactNode;
+  /**
+   * Spec 55: the place is someone else's (an accepted invitation): "To" shows it as text and cannot be
+   * changed; From and the way stay the user's own.
+   */
+  toReadOnly?: boolean;
 };
 
 /** What the From button shows: a deleted place and nothing chosen are "Last event". */
@@ -62,7 +67,7 @@ const ICON: Record<"none" | "last" | "home" | "place" | "address", ReactNode> = 
   address: <MapPin className="size-4" aria-hidden />,
 };
 
-export function RouteSection({ from, onFrom, mode, onMode, location, onLocation, children }: Props) {
+export function RouteSection({ from, onFrom, mode, onMode, location, onLocation, children, toReadOnly = false }: Props) {
   const places = useSavedPlaces();
   const { home, travelMode } = useTravelDefaults();
   const [modesOpen, setModesOpen] = useState(false);
@@ -137,18 +142,31 @@ export function RouteSection({ from, onFrom, mode, onMode, location, onLocation,
         </div>
       </div>
 
-      <PlacePicker
-        label="To"
-        icon={ICON[toShown.kind]}
-        title={toShown.title}
-        detail={toShown.detail}
-        home={home}
-        places={places}
-        placeholder="Search an address or type a room"
-        current={(c) => (c.kind === "home" && toShown.kind === "home") || (c.kind === "place" && c.place.address === location.trim())}
-        onPick={pickTo}
-      />
-      {toShown.kind === "address" && places.length < MAX_PLACES && <SaveAsPlace address={toShown.title} onSaved={() => {}} />}
+      {toReadOnly ? (
+        // Someone else's place: plain text, never looked up as a saved place or Home of the viewer.
+        <div aria-label={`To: ${location.trim() === "" ? "No place" : location}`} className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border border-line-subtle bg-raised/60 px-2.5 py-1.5">
+          <span aria-hidden className="w-9 shrink-0 text-[11px] font-medium uppercase tracking-[0.06em] text-ink-3">To</span>
+          <span aria-hidden className="shrink-0 text-ink-2">
+            {ICON[location.trim() === "" ? "none" : "address"]}
+          </span>
+          <span aria-hidden className="min-w-0 flex-1 text-sm break-words text-ink">
+            {location.trim() === "" ? "No place" : location}
+          </span>
+        </div>
+      ) : (
+        <PlacePicker
+          label="To"
+          icon={ICON[toShown.kind]}
+          title={toShown.title}
+          detail={toShown.detail}
+          home={home}
+          places={places}
+          placeholder="Search an address or type a room"
+          current={(c) => (c.kind === "home" && toShown.kind === "home") || (c.kind === "place" && c.place.address === location.trim())}
+          onPick={pickTo}
+        />
+      )}
+      {!toReadOnly && toShown.kind === "address" && places.length < MAX_PLACES && <SaveAsPlace address={toShown.title} onSaved={() => {}} />}
       {children}
     </section>
   );

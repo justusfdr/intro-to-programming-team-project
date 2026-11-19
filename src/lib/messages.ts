@@ -191,6 +191,13 @@ export const MESSAGES = {
   inviteAnswerChoice: "Choose accept, maybe or decline",
   inviteEnded: "This event has ended",
   invitesSaved: "Invitations saved.",
+  // Spec 55: an accepted invitation (R65 to R67). The refusal is the database's own sentence
+  // (20261220000000_accepted_invite_details.sql), word for word.
+  notesChangedMeanwhile: "The notes were changed meanwhile. Reload to see the latest version",
+  inviteNotesSaved: "Notes saved.",
+  invitePersonalSaved: "Saved for you.",
+  inviteMarkedDone: "Marked done.",
+  inviteMarkedPlanned: "Marked not done.",
   siteRemoved: "Removed from your block list.",
   placeSaved: "Place saved.",
   placeRemoved: "Place removed.",

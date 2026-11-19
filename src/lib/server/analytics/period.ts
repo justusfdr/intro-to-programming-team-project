@@ -12,6 +12,7 @@ import { focusedMinutes } from "@/lib/focus/session-time";
 import { lookOf } from "@/lib/goals/style";
 import type { Query } from "@/lib/server/db";
 import { timesOf, type SessionRow } from "@/lib/server/focus/sessions";
+import { readInvitedGoalEvents, startingBetween } from "@/lib/server/goals/invited";
 import { readGoals } from "@/lib/server/goals/rows";
 import { addDays, startOfLocalDate } from "@/lib/time/zoned";
 
@@ -22,7 +23,7 @@ export async function readPeriodReport(query: Query, now: Date, period: Period, 
   // The same number of weeks right before the period, for "more than before".
   const beforeStart = startOfLocalDate(addDays(period.from, -7 * period.weeks), timeZone);
 
-  const [sessionRows, attemptRows, eventRows, goalRows] = await Promise.all([
+  const [sessionRows, attemptRows, eventRows, goalRows, invitedRows] = await Promise.all([
     // Finished sessions with the goal of their event (a deleted event or goal leaves null).
     query<SessionRow & { goal_title: string | null }>(
       `select s.id, s.event_id, null as event_title, e.goal_id as event_goal_id, g.title as goal_title, s.planned_minutes, s.status,
@@ -47,6 +48,8 @@ export async function readPeriodReport(query: Query, now: Date, period: Period, 
       [start, end],
     ),
     readGoals(query),
+    // Spec 55 (R66): accepted invitations the user gave one of their goals, as the goal's events.
+    readInvitedGoalEvents(query),
   ]);
 
   const sessions: ReportSession[] = sessionRows.map((row) => ({
@@ -59,6 +62,7 @@ export async function readPeriodReport(query: Query, now: Date, period: Period, 
   }));
   const attempts: Attempt[] = attemptRows.map((a) => ({ domain: a.domain, attemptedAt: new Date(a.attempted_at) }));
   const events: ReportEvent[] = eventRows.map((e) => ({ id: e.id, title: e.title, goalId: e.goal_id, startAt: new Date(e.start_at), endAt: new Date(e.end_at), status: e.status }));
+  for (const e of startingBetween(invitedRows, start, end)) events.push({ id: e.id, title: e.title, goalId: e.goalId, startAt: e.startAt, endAt: e.endAt, status: e.status });
   // A goal without a colour gets the one calculated from its place in the list, as everywhere (R35).
   const goals: ReportGoal[] = goalRows.map(({ goal, createdAt }, index) => ({
     id: goal.id,

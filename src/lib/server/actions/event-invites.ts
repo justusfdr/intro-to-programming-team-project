@@ -16,13 +16,27 @@ import "server-only";
 // its sentence, anything else goes to errors.ts, which logs only what the driver says.
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
+import { cleanNotes, notesTooLong } from "@/lib/events/notes";
+import { travelFromOf, travelFromText } from "@/lib/places/saved";
+import type { SettingsData } from "@/lib/settings/types";
+import type { Query } from "@/lib/server/db";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { notFound } from "@/lib/server/events/own-event";
+import type { EventRow } from "@/lib/server/events/rows";
+import { googleMapsBrowserKey } from "@/lib/server/config";
+import { routeMapUrl } from "@/lib/server/google/map";
+import { googleRouting } from "@/lib/server/google/routes";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
+import { readAcceptedInvite, readAcceptedRow } from "@/lib/server/invites/details";
 import { cardsOfContacts, readEventInvitees, readInvitedEvents, readInvitePeople, readPendingInviteCount } from "@/lib/server/invites/read";
+import { readPlaces } from "@/lib/server/places/saved";
 import { readPeople } from "@/lib/server/profiles/cards";
+import type { Routing } from "@/lib/server/routing/types";
 import { requireUser } from "@/lib/server/session";
+import { readSettings } from "@/lib/server/settings";
+import { checkTodoTitle } from "@/lib/server/todos/input";
+import { travelOf, tripStart, withPreview, type TripStart } from "./travel-time";
 import { GIVEN_ANSWERS, MAX_INVITEES, answeredText, type GivenAnswer } from "@/lib/invites/types";
 import { MAX_WINDOW_DAYS } from "@/lib/shares/types";
 
@@ -169,4 +183,231 @@ export function pendingInviteCount(deps: ActionDeps): Promise<Response> {
     const count = await deps.withUser(userId, readPendingInviteCount);
     return jsonOk({ count });
   });
+}
+
+// ---------- Spec 55: an accepted invitation, almost like an own event (R65 to R67) ----------
+// - read_accepted_invite_details (GET /api/invites/[id]/details): the full card;
+// - the shared to-dos (POST /api/invites/[id]/todos, …/todos/[todoId]/rename|done|move|delete);
+// - the shared notes (POST /api/invites/[id]/notes, with the notes last read);
+// - the invited person's own goal and route (POST /api/invites/[id]/personal) and done mark
+//   (POST /api/invites/[id]/done);
+// - their own travel time to the event (GET /api/invites/[id]/travel).
+// Each: same-origin check, signed in (R3), uuids only ("Not found" otherwise), then one database
+// function that finds only the caller's own ACCEPTED invitation; pending, maybe, declined, someone
+// else's and missing ones are "Not found" alike (R64). Every write answers with the whole card as it is
+// now, so the screen shows what the database has. The title, times and place are never written (R63).
+
+const DETAIL_KNOWN: ReadonlyArray<readonly [string, number, string]> = [
+  [MESSAGES.todoTitleLength, 400, "todo_title_length"],
+  [MESSAGES.tooManyTodos, 409, "too_many_todos"],
+  [MESSAGES.notesChangedMeanwhile, 409, "notes_changed"],
+  [MESSAGES.allDayNoGoal, 400, "all_day_goal"],
+  [MESSAGES.allDayNotDone, 409, "all_day"],
+  [MESSAGES.notStarted, 409, "not_started"],
+];
+
+function detailRefusal(error: unknown): never {
+  if (error instanceof ActionError) throw error;
+  const message = error instanceof Error ? error.message : "";
+  if (message === MESSAGES.notFound) throw notFound();
+  for (const [text, status, code] of DETAIL_KNOWN) if (message.includes(text)) throw new ActionError(status, code, text);
+  // The database's own checks behind ours (two requests at the same moment, or a value our checks let through).
+  if (message.includes("events_notes_length")) throw new ActionError(400, "notes_length", MESSAGES.notesLength);
+  throw error;
+}
+
+/** Runs one request about the user's accepted invitation: same-origin, signed in, uuids, the body, then `run` as the user. */
+function acceptedAction<T>(
+  request: Request,
+  deps: ActionDeps,
+  ids: readonly string[],
+  schema: z.ZodType<T> | null,
+  run: (query: Query, body: T) => Promise<Response>,
+): Promise<Response> {
+  return handleAction(async () => {
+    const denied = assertSameOrigin(request);
+    if (denied) return denied;
+    const userId = await requireUser(deps.auth);
+    let body = undefined as T;
+    if (schema) {
+      const read = await readJson(request, schema);
+      if (!read.ok) return read.response;
+      body = read.data;
+    }
+    if (!ids.every((id) => UUID.test(id))) throw notFound();
+    try {
+      return await deps.withUser(userId, (query) => run(query, body));
+    } catch (error) {
+      detailRefusal(error);
+    }
+  });
+}
+
+/** A write's answer: its message and the whole card as the database has it now. */
+async function detailsAnswer(query: Query, inviteId: string, message: string, status = 200): Promise<Response> {
+  return jsonOk({ message, details: await readAcceptedInvite(query, inviteId) }, status);
+}
+
+/** GET: the full card of the user's accepted invitation (R65). */
+export function acceptedInviteDetails(request: Request, deps: ActionDeps, inviteId: string): Promise<Response> {
+  return acceptedAction(request, deps, [inviteId], null, async (query) => jsonOk({ details: await readAcceptedInvite(query, inviteId) }));
+}
+
+const TodoTitleBody = z.object({ title: z.string().max(1000) });
+const DoneBody = z.object({ done: z.boolean() });
+/** The new place, counted from 0; a place past the end means the end. */
+const TodoMoveBody = z.object({ toIndex: z.number().int().min(0).max(99) });
+
+/** POST: a shared to-do at the end of the list (R66). */
+export function addInviteTodo(request: Request, deps: ActionDeps, inviteId: string): Promise<Response> {
+  return acceptedAction(request, deps, [inviteId], TodoTitleBody, async (query, body) => {
+    // The same checks as an own to-do (the database checks them again, and the limit under its lock).
+    const title = checkTodoTitle(body.title);
+    await query("select app.add_accepted_invite_todo($1::uuid, $2::text)", [inviteId, title]);
+    return detailsAnswer(query, inviteId, MESSAGES.todoAdded, 201);
+  });
+}
+
+/** POST: a new title for a shared to-do. */
+export function renameInviteTodo(request: Request, deps: ActionDeps, inviteId: string, todoId: string): Promise<Response> {
+  return acceptedAction(request, deps, [inviteId, todoId], TodoTitleBody, async (query, body) => {
+    const title = checkTodoTitle(body.title);
+    await query("select app.rename_accepted_invite_todo($1::uuid, $2::uuid, $3::text)", [inviteId, todoId, title]);
+    return detailsAnswer(query, inviteId, MESSAGES.todoSaved);
+  });
+}
+
+/** POST: a shared to-do done or not done again. */
+export function tickInviteTodo(request: Request, deps: ActionDeps, inviteId: string, todoId: string): Promise<Response> {
+  return acceptedAction(request, deps, [inviteId, todoId], DoneBody, async (query, body) => {
+    await query("select app.tick_accepted_invite_todo($1::uuid, $2::uuid, $3::boolean)", [inviteId, todoId, body.done]);
+    return detailsAnswer(query, inviteId, body.done ? MESSAGES.todoDone : MESSAGES.todoOpen);
+  });
+}
+
+/** POST: a shared to-do to another place in the list; the others close up. */
+export function moveInviteTodo(request: Request, deps: ActionDeps, inviteId: string, todoId: string): Promise<Response> {
+  return acceptedAction(request, deps, [inviteId, todoId], TodoMoveBody, async (query, body) => {
+    await query("select app.move_accepted_invite_todo($1::uuid, $2::uuid, $3::integer)", [inviteId, todoId, body.toIndex]);
+    return detailsAnswer(query, inviteId, MESSAGES.todoMoved);
+  });
+}
+
+/** POST: deletes a shared to-do; the later ones move up. */
+export function deleteInviteTodo(request: Request, deps: ActionDeps, inviteId: string, todoId: string): Promise<Response> {
+  return acceptedAction(request, deps, [inviteId, todoId], null, async (query) => {
+    await query("select app.delete_accepted_invite_todo($1::uuid, $2::uuid)", [inviteId, todoId]);
+    return detailsAnswer(query, inviteId, MESSAGES.todoDeleted);
+  });
+}
+
+/** The notes as typed and the notes the screen last read (null: there were none). */
+const NotesBody = z.object({ notes: z.string().max(20000).nullable(), before: z.string().max(20000).nullable() });
+
+/** POST: the shared notes (R66); refused when they changed since the screen read them. */
+export function setInviteNotes(request: Request, deps: ActionDeps, inviteId: string): Promise<Response> {
+  return acceptedAction(request, deps, [inviteId], NotesBody, async (query, body) => {
+    if (notesTooLong(body.notes)) throw new ActionError(400, "notes_length", MESSAGES.notesLength);
+    await query("select app.set_accepted_invite_notes($1::uuid, $2::text, $3::text)", [inviteId, cleanNotes(body.notes) ?? "", body.before ?? ""]);
+    return detailsAnswer(query, inviteId, MESSAGES.inviteNotesSaved);
+  });
+}
+
+const TRAVEL_MODES = ["driving", "cycling", "walking", "transit"] as const;
+/** The invited person's own choices, all three at once; null is none or the standard. */
+const PersonalBody = z.object({
+  goalId: z.string().max(40).nullable(),
+  travelMode: z.enum(TRAVEL_MODES).nullable(),
+  travelFrom: z.string().max(400).nullable(),
+});
+
+/** POST: the invited person's own goal, way of getting there and start of the trip (R67). */
+export function setInvitePersonal(request: Request, deps: ActionDeps, inviteId: string): Promise<Response> {
+  return acceptedAction(request, deps, [inviteId], PersonalBody, async (query, body) => {
+    // A goal that is not a uuid is "Not found", like someone else's goal.
+    if (body.goalId !== null && !UUID.test(body.goalId)) throw notFound();
+    let travelFrom: string | null = null;
+    if (body.travelFrom !== null) {
+      travelFrom = travelFromText(travelFromOf(body.travelFrom));
+      if (travelFrom === null) throw new ActionError(400, "bad_request", MESSAGES.badRequest);
+    }
+    await query("select app.set_accepted_invite_personal($1::uuid, $2::uuid, $3::text, $4::text)", [inviteId, body.goalId, body.travelMode, travelFrom]);
+    return detailsAnswer(query, inviteId, MESSAGES.invitePersonalSaved);
+  });
+}
+
+/** POST: the invited person marks the event done for themselves, or not done again (R67). */
+export function setInviteDone(request: Request, deps: ActionDeps, inviteId: string): Promise<Response> {
+  return acceptedAction(request, deps, [inviteId], DoneBody, async (query, body) => {
+    await query("select app.set_accepted_invite_done($1::uuid, $2::boolean)", [inviteId, body.done]);
+    return detailsAnswer(query, inviteId, body.done ? MESSAGES.inviteMarkedDone : MESSAGES.inviteMarkedPlanned);
+  });
+}
+
+/**
+ * GET: when the invited person should leave for the event (R27, R67): from their own start (their home,
+ * a saved place, an address, or the place of their own event before it) with their own way of getting
+ * there and their own buffer, to the owner's place. `mode` and `from` in the address count for this
+ * answer only (the card asks while the user picks); the place itself cannot be changed. Nothing is saved.
+ */
+export function inviteTravelTime(request: Request, deps: ActionDeps, inviteId: string, routing: Routing = googleRouting()): Promise<Response> {
+  return handleAction(async () => {
+    const denied = assertSameOrigin(request);
+    if (denied) return denied;
+    const userId = await requireUser(deps.auth);
+    if (!UUID.test(inviteId)) throw notFound();
+    let found: { row: EventRow; settings: SettingsData; start: TripStart };
+    try {
+      found = await deps.withUser(userId, async (query) => {
+        const accepted = await readAcceptedRow(query, inviteId);
+        const saved: EventRow = {
+          id: accepted.invite_id,
+          title: accepted.title,
+          start_at: accepted.start_at === null ? null : new Date(accepted.start_at),
+          end_at: accepted.end_at === null ? null : new Date(accepted.end_at),
+          all_day: accepted.all_day,
+          first_day: accepted.first_day,
+          last_day: accepted.last_day,
+          may_overlap: false,
+          status: accepted.status,
+          goal_id: null,
+          series_id: null,
+          source: "app",
+          location: accepted.location,
+          travel_mode: accepted.travel_mode,
+          travel_from: accepted.travel_from,
+          in_outlook: false,
+          demo: false,
+          updated_at: new Date(0),
+          todo_count: 0,
+          todos_done: 0,
+        };
+        // The preview may change the way and the start, never the place (it is the owner's).
+        const row = { ...withPreview(saved, new URL(request.url)), location: saved.location };
+        const [settings, places, before] = await Promise.all([readSettings(query), readPlaces(query), readOwnBefore(query, row.start_at)]);
+        return { row, settings, start: tripStart(row, settings, places, before) };
+      });
+    } catch (error) {
+      detailRefusal(error);
+    }
+    const travel = await travelOf(found.row, found.settings, routing, found.start);
+    const map = travel?.status === "ok" ? routeMapUrl(found.start.address, found.row.location ?? "", travel.mode, googleMapsBrowserKey()) : null;
+    return jsonOk({ travel: travel && map && travel.status === "ok" ? { ...travel, map } : travel });
+  });
+}
+
+/**
+ * The places of the user's OWN timed events that ended in the 12 hours before `start`, latest first (at
+ * most 5): the first that is no web link is "the event before" (as for an own event). Only the user's own
+ * rows (row-level security); the owner's calendar is never read.
+ */
+async function readOwnBefore(query: Query, start: Date | null): Promise<string[]> {
+  if (!start) return [];
+  const rows = await query<{ location: string }>(
+    `select location from app.events
+      where not all_day and end_at <= $1 and end_at > $1 - interval '12 hours' and nullif(btrim(location), '') is not null
+      order by end_at desc limit 5`,
+    [start],
+  );
+  return rows.map((r) => r.location);
 }

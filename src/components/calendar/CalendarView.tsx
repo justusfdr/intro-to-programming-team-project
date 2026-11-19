@@ -75,8 +75,9 @@ import { ShareColors, SharedEventCard, SharedPeopleButton, type OpenShared, type
 import { useSharedCalendars } from "./useSharedCalendars";
 import { shareColors } from "@/lib/shares/colors";
 import { invitedCalendars, placeShared, sharedAllDayByDay, withoutInvitedTwins } from "@/lib/shares/place";
-import { answeredText, NO_INVITES, type CalendarInvites, type GivenAnswer, type InviteAnswer, type InvitedEvent } from "@/lib/invites/types";
+import { answeredText, NO_INVITES, showsFullCard, type CalendarInvites, type GivenAnswer, type InviteAnswer, type InvitedEvent } from "@/lib/invites/types";
 import { InvitationsButton, InvitedEventCard } from "./Invites";
+import { AcceptedInviteCard } from "./AcceptedInvite";
 import type { SharingPerson } from "@/lib/shares/types";
 import { MEDIA, useMediaQuery } from "./useMedia";
 
@@ -806,7 +807,22 @@ export function CalendarView({
         </FloatingPanel>
       )}
       {openShared && !openShared.shared.invite && <SharedEventCard shared={openShared.shared} anchor={openShared.anchor} onClose={() => setOpenShared(null)} />}
-      {openShared && cardInvite && (
+      {openShared && cardInvite && showsFullCard(answerOf(cardInvite)) && (
+        // Spec 55: an accepted invitation opens the full card (to-dos, notes, the user's own goal and route).
+        <AcceptedInviteCard
+          key={cardInvite.inviteId}
+          event={cardInvite}
+          anchor={openShared.anchor}
+          busy={answering === cardInvite.inviteId}
+          note={answerNote?.inviteId === cardInvite.inviteId ? answerNote.text : null}
+          timeZone={week.timeZone}
+          goals={goals}
+          onAnswer={(answer) => void answerInvite(cardInvite, answer)}
+          onChanged={live.refresh}
+          onClose={() => setOpenShared(null)}
+        />
+      )}
+      {openShared && cardInvite && !showsFullCard(answerOf(cardInvite)) && (
         <InvitedEventCard
           event={cardInvite}
           anchor={openShared.anchor}
