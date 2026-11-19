@@ -5,7 +5,7 @@ import { GoalTile } from "@/components/goals/GoalTile";
 import type { AnalyticsReport, GoalRef } from "@/lib/analytics/report-types";
 import { goalColor } from "@/lib/goals/colors";
 import { fmtWeekday } from "@/lib/time/display";
-import { Big, duration, Empty, More, NOTHING_DONE, plural, pointsChange, Progress, SrList, topIndex, VsLastWeek, weekdayLong, WidgetCard, type WidgetProps } from "./parts";
+import { Big, duration, More, NoDataYet, NOTHING_DONE, plural, pointsChange, Progress, SrList, topIndex, VsLastWeek, weekdayLong, WidgetCard, type WidgetProps } from "./parts";
 
 /** Every goal the report knows, by id, for the parts of a day. */
 function goalsById(report: AnalyticsReport): Map<string, GoalRef> {
@@ -32,7 +32,7 @@ export function TimeByDayWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Your time, day by day" icon={BarChart3} tint="indigo" onOpen={onOpen}>
       {doneMinutes === 0 ? (
-        <Empty className="mt-auto">{NOTHING_DONE}</Empty>
+        <NoDataYet>{NOTHING_DONE}</NoDataYet>
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -96,7 +96,7 @@ export function TopAreasWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Your top areas" icon={List} tint="green" onOpen={onOpen}>
       {doneMinutes === 0 || shown.length === 0 ? (
-        <Empty className="mt-auto">{NOTHING_DONE}</Empty>
+        <NoDataYet>{NOTHING_DONE}</NoDataYet>
       ) : (
         <>
           <ol className="mt-3.5 flex min-h-0 flex-1 flex-col gap-2">
@@ -128,17 +128,17 @@ export function PlanKeptWidget({ report, size, onOpen }: WidgetProps) {
   const change = pointsChange(planKept, planKeptLastWeek);
   return (
     <WidgetCard title="Plan kept" icon={ListChecks} tint="teal" onOpen={onOpen}>
-      <div className="mt-[18px] flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <Big>{planKept === null ? "–" : `${planKept} %`}</Big>
-        {size !== "S" && planKept !== null && <span className="text-[15px] text-ink-2">of your planned time done</span>}
-      </div>
-      <div className="mt-2.5">
-        <VsLastWeek change={change} running={report.isCurrentWeek} />
-      </div>
       {planKept === null ? (
-        <Empty className="mt-auto">No planned time has ended this week yet</Empty>
+        <NoDataYet>No planned time has ended this week yet</NoDataYet>
       ) : (
         <>
+          <div className="mt-[18px] flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <Big>{planKept} %</Big>
+            {size !== "S" && <span className="text-[15px] text-ink-2">of your planned time done</span>}
+          </div>
+          <div className="mt-2.5">
+            <VsLastWeek change={change} running={report.isCurrentWeek} />
+          </div>
           <Progress share={planKept / 100} fill="bg-teal-500" className="mt-auto h-2" />
           <p className="mt-2 text-xs text-ink-2">
             {duration(doneMinutes)} done of {duration(endedMinutes)} planned
@@ -166,10 +166,7 @@ export function BusiestDayWidget({ report, onOpen }: WidgetProps) {
           )}
         </>
       ) : (
-        <>
-          <Big className="mt-[18px]">–</Big>
-          <Empty className="mt-auto">{NOTHING_DONE}</Empty>
-        </>
+        <NoDataYet>{NOTHING_DONE}</NoDataYet>
       )}
     </WidgetCard>
   );
@@ -181,9 +178,9 @@ export function TimeOnGoalsWidget({ report, onOpen }: WidgetProps) {
   const share = doneMinutes > 0 ? Math.round((goalMinutes / doneMinutes) * 100) : 0;
   return (
     <WidgetCard title="Time on your goals" icon={Target} tint="indigo" onOpen={onOpen}>
-      <span className="tabular mt-[18px] text-[30px] leading-none font-semibold tracking-display">{duration(goalMinutes)}</span>
       {doneMinutes > 0 ? (
         <>
+          <span className="tabular mt-[18px] text-[30px] leading-none font-semibold tracking-display">{duration(goalMinutes)}</span>
           <p className="mt-2 text-xs text-ink-2">of {duration(doneMinutes)} done</p>
           <div aria-hidden className="mt-auto flex h-2.5 gap-[3px]">
             {parts.map((a) => (
@@ -195,7 +192,7 @@ export function TimeOnGoalsWidget({ report, onOpen }: WidgetProps) {
           </p>
         </>
       ) : (
-        <Empty className="mt-auto">{NOTHING_DONE}</Empty>
+        <NoDataYet>{NOTHING_DONE}</NoDataYet>
       )}
     </WidgetCard>
   );

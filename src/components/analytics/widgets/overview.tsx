@@ -2,7 +2,7 @@
 // "Needs attention" lists. The details show the same lists in full (overviewInsights).
 import { AlertTriangle, Check, FileText } from "lucide-react";
 import { TOPICS, type AnalyticsReport } from "@/lib/analytics/report-types";
-import { More, WidgetCard, type WidgetProps } from "./parts";
+import { More, NoDataYet, WidgetCard, type WidgetProps } from "./parts";
 
 /**
  * The Overview's lists: the first two "Going well" and "Needs attention" of each topic. The first of
@@ -34,10 +34,18 @@ export function WeekInShortWidget({ report, size, onOpen }: WidgetProps) {
   const { good, bad } = overviewInsights(report);
   const max = size === "L" ? 3 : 2;
   const eyebrow = "text-[11px] font-medium tracking-[0.08em] uppercase";
+  // The same test as the summary's "Nothing tracked this week yet." in src/lib/analytics/insights.ts.
+  const nothing = report.focus.week.sessions === 0 && report.time.doneMinutes === 0 && report.blocked.week === 0 && report.goals.planTotal === 0;
   return (
     <WidgetCard title="Your week in short" icon={FileText} tint="grey" onOpen={onOpen}>
-      <p className="mt-3.5 line-clamp-3 text-[15px] leading-normal">{report.summary || "Nothing to report for this week yet."}</p>
-      {(good.length > 0 || bad.length > 0) && (
+      {nothing ? (
+        <NoDataYet>
+          {report.summary || "Nothing tracked this week yet."} Finished focus sessions, calendar events marked done and time planned for a goal show up here.
+        </NoDataYet>
+      ) : (
+        <p className="mt-3.5 line-clamp-3 text-[15px] leading-normal">{report.summary || "Nothing to report for this week yet."}</p>
+      )}
+      {!nothing && (good.length > 0 || bad.length > 0) && (
         <div className="mt-auto grid min-h-0 grid-cols-2 gap-4 overflow-hidden pt-3.5">
           <div className="min-w-0">
             <h4 className={`${eyebrow} text-success`}>Going well</h4>

@@ -2,7 +2,7 @@
 // time of day, and the most blocked sites. Blocked visits are drawn in rose; fewer is the good direction.
 import { BarChart3, Check, Clock, Shield } from "lucide-react";
 import { HOUR_BLOCKS, type HourBlockId } from "@/lib/analytics/report-types";
-import { Bars, Big, countChange, Empty, More, NO_BLOCKED, NO_SESSIONS, plural, SrList, VsLastWeek, weekLabel, WidgetCard, type WidgetProps } from "./parts";
+import { Bars, Big, countChange, More, NoDataYet, NO_BLOCKED, NO_SESSIONS, plural, SrList, VsLastWeek, weekLabel, WidgetCard, type WidgetProps } from "./parts";
 
 /** Short names of the parts of the day, for a narrow card. */
 const SHORT_BLOCK: Record<HourBlockId, string> = { early: "< 9", morning: "9–11", midday: "11–2", afternoon: "2–4", late: "4 pm +" };
@@ -12,15 +12,20 @@ export function BlockedVisitsWidget({ report, onOpen }: WidgetProps) {
   const comparable = lastWeek > 0 || report.focus.lastWeek.sessions > 0;
   return (
     <WidgetCard title="Blocked visits" icon={Shield} tint="rose" onOpen={onOpen}>
-      <Big className="mt-[18px]">{week}</Big>
-      <div className="mt-2.5">
-        <VsLastWeek change={comparable ? countChange(week, lastWeek, false) : null} running={report.isCurrentWeek} />
-      </div>
-      <p className="mt-auto pt-3 text-xs text-ink-2">
-        {week === 0 && report.focus.week.sessions === 0
-          ? NO_BLOCKED
-          : `${perSession === null ? "No sessions to count them against." : `${perSession} per session on average.`} A blocked visit takes 5 points off a session's focus score.`}
-      </p>
+      {week === 0 && report.focus.week.sessions === 0 ? (
+        <NoDataYet>{NO_BLOCKED}</NoDataYet>
+      ) : (
+        <>
+          <Big className="mt-[18px]">{week}</Big>
+          <div className="mt-2.5">
+            <VsLastWeek change={comparable ? countChange(week, lastWeek, false) : null} running={report.isCurrentWeek} />
+          </div>
+          <p className="mt-auto pt-3 text-xs text-ink-2">
+            {perSession === null ? "No sessions to count them against." : `${perSession} per session on average.`} A blocked visit takes 5 points off a session&apos;s
+            focus score.
+          </p>
+        </>
+      )}
     </WidgetCard>
   );
 }
@@ -31,7 +36,7 @@ export function CleanSessionsWidget({ report, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Clean sessions" icon={Check} tint="green" onOpen={onOpen}>
       {sessionsClean.length === 0 ? (
-        <Empty className="mt-auto">{NO_SESSIONS}</Empty>
+        <NoDataYet>{NO_SESSIONS}</NoDataYet>
       ) : (
         <>
           <div className="mt-[18px] flex items-baseline gap-1.5">
@@ -69,7 +74,7 @@ export function BlockedWeeksWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Blocked visits per week" icon={BarChart3} tint="rose" onOpen={onOpen}>
       {!any ? (
-        <Empty className="mt-auto">No blocked visits in the last 8 weeks</Empty>
+        <NoDataYet>No blocked visits in the last 8 weeks</NoDataYet>
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -94,7 +99,7 @@ export function BlockedHoursWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="When you get distracted" icon={Clock} tint="rose" onOpen={onOpen}>
       {!worst || week === 0 ? (
-        <Empty className="mt-auto">{NO_BLOCKED}</Empty>
+        <NoDataYet>{NO_BLOCKED}</NoDataYet>
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -127,7 +132,7 @@ export function TopSitesWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Most blocked sites" icon={Shield} tint="rose" onOpen={onOpen}>
       {topSites.length === 0 ? (
-        <Empty className="mt-auto">{NO_BLOCKED}</Empty>
+        <NoDataYet>{NO_BLOCKED}</NoDataYet>
       ) : (
         <>
           <ol className="mt-auto flex flex-col gap-3 pt-3">

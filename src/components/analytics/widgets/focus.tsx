@@ -9,8 +9,8 @@ import {
   Big,
   CardLabel,
   duration,
-  Empty,
   NO_SESSIONS,
+  NoDataYet,
   percentChange,
   plural,
   pointsChange,
@@ -49,15 +49,15 @@ export function FocusTimeWidget({ report, size, onOpen, hero }: WidgetProps) {
     const change = heroChange(week.focusedMinutes, lastWeek.focusedMinutes, lastWeek.sessions, lastWeekName(report.isCurrentWeek));
     const max = Math.max(1, ...days.map((d) => d.focusedMinutes));
     return (
-      <WidgetCard title="Focus time" icon={Clock} tint="grey" tone="dark" onOpen={onOpen} bare row className="gap-5 px-6 py-[22px]">
+      <WidgetCard title="Focus time" icon={Clock} tint="grey" onOpen={onOpen} bare row className="gap-5 px-6 py-[22px]">
         <div className="flex min-w-0 flex-1 flex-col">
-          <CardLabel title="Focus time" label="You were locked in for" onOpen={onOpen} className="text-white/70" />
+          <CardLabel title="Focus time" label="You were locked in for" onOpen={onOpen} className="text-ink-2" />
           <span className="tabular mt-3.5 text-[52px] leading-none font-semibold tracking-display">{duration(week.focusedMinutes)}</span>
-          <span className="mt-2.5 text-xs text-white/70">
+          <span className="mt-2.5 text-xs text-ink-2">
             {week.sessions > 0 ? `${plural(week.sessions, "session")} · ${average} min on average` : NO_SESSIONS}
           </span>
           {change && (
-            <span className="mt-auto inline-flex h-[26px] items-center gap-1 self-start rounded-full bg-white px-2.5 text-xs font-semibold text-ink">
+            <span className="mt-auto inline-flex h-[26px] items-center gap-1 self-start rounded-full bg-raised px-2.5 text-xs font-semibold text-ink">
               {change.up === true && <TrendingUp aria-hidden className="size-3" strokeWidth={2.4} />}
               {change.up === false && <TrendingDown aria-hidden className="size-3" strokeWidth={2.4} />}
               {change.text}
@@ -70,11 +70,11 @@ export function FocusTimeWidget({ report, size, onOpen, hero }: WidgetProps) {
               <div key={d.date} className="flex min-h-0 flex-col items-center gap-2">
                 <div className="flex min-h-0 w-full flex-1 items-end">
                   <span
-                    className={`w-full rounded-md ${i === best ? "bg-white" : "bg-white/35"}`}
+                    className={`w-full rounded-md ${i === best ? "bg-ink" : "bg-ink/15"}`}
                     style={{ height: d.focusedMinutes > 0 ? `${Math.max(4, (d.focusedMinutes / max) * 100)}%` : "4px" }}
                   />
                 </div>
-                <span className={`text-[11px] ${i === best ? "font-semibold text-white" : "text-white/70"}`}>{fmtWeekday(d.date).charAt(0)}</span>
+                <span className={`text-[11px] ${i === best ? "font-semibold text-ink" : "text-ink-3"}`}>{fmtWeekday(d.date).charAt(0)}</span>
               </div>
             ))}
           </div>
@@ -86,12 +86,12 @@ export function FocusTimeWidget({ report, size, onOpen, hero }: WidgetProps) {
 
   return (
     <WidgetCard title="Focus time" icon={Clock} tint="grey" onOpen={onOpen}>
-      <div className="mt-3.5 flex flex-wrap items-center gap-3">
-        <Big>{duration(week.focusedMinutes)}</Big>
-        <VsLastWeek change={lastWeek.sessions > 0 ? percentChange(week.focusedMinutes, lastWeek.focusedMinutes) : null} running={report.isCurrentWeek} />
-      </div>
       {week.focusedMinutes > 0 ? (
         <>
+          <div className="mt-3.5 flex flex-wrap items-center gap-3">
+            <Big>{duration(week.focusedMinutes)}</Big>
+            <VsLastWeek change={lastWeek.sessions > 0 ? percentChange(week.focusedMinutes, lastWeek.focusedMinutes) : null} running={report.isCurrentWeek} />
+          </div>
           <p className="mt-1.5 text-xs text-ink-2">
             {plural(week.sessions, "session")} · {average} min on average
           </p>
@@ -108,7 +108,7 @@ export function FocusTimeWidget({ report, size, onOpen, hero }: WidgetProps) {
           {srDays}
         </>
       ) : (
-        <Empty className="mt-auto">{NO_SESSIONS}</Empty>
+        <NoDataYet>{NO_SESSIONS}</NoDataYet>
       )}
     </WidgetCard>
   );
@@ -125,15 +125,21 @@ export function FocusScoreWidget({ report, onOpen }: WidgetProps) {
       : plural(week.attempts, "blocked visit");
   return (
     <WidgetCard title="Focus score" icon={Zap} tint="violet" onOpen={onOpen}>
-      <div className="mt-[18px] flex items-baseline gap-1.5">
-        <Big>{scoreText(week.score)}</Big>
-        <span className="text-[13px] text-ink-3">of 100</span>
-      </div>
-      <div className="mt-2.5">
-        <VsLastWeek change={pointsChange(week.score, lastWeek.score)} running={report.isCurrentWeek} />
-      </div>
-      <Progress share={(week.score ?? 0) / 100} fill="bg-violet-600" className="mt-auto" />
-      <p className="mt-2 text-xs text-ink-2">{week.sessions > 0 ? blockedLine : NO_SESSIONS}</p>
+      {week.score === null ? (
+        <NoDataYet>{NO_SESSIONS}. The score comes from your finished focus sessions.</NoDataYet>
+      ) : (
+        <>
+          <div className="mt-[18px] flex items-baseline gap-1.5">
+            <Big>{scoreText(week.score)}</Big>
+            <span className="text-[13px] text-ink-3">of 100</span>
+          </div>
+          <div className="mt-2.5">
+            <VsLastWeek change={pointsChange(week.score, lastWeek.score)} running={report.isCurrentWeek} />
+          </div>
+          <Progress share={week.score / 100} fill="bg-violet-600" className="mt-auto" />
+          <p className="mt-2 text-xs text-ink-2">{week.sessions > 0 ? blockedLine : NO_SESSIONS}</p>
+        </>
+      )}
     </WidgetCard>
   );
 }
@@ -147,21 +153,23 @@ export function SessionsWidget({ report, onOpen }: WidgetProps) {
   ];
   return (
     <WidgetCard title="Focus sessions" icon={Timer} tint="sky" onOpen={onOpen}>
-      <Big className="mt-[18px]">{week.sessions}</Big>
-      <div className="mt-2.5">
-        <VsLastWeek change={lastWeek.sessions > 0 ? countChange(week.sessions, lastWeek.sessions, true) : null} running={report.isCurrentWeek} />
-      </div>
       {week.sessions > 0 ? (
-        <dl className="mt-auto flex flex-col gap-1.5 pt-3 text-[13px]">
-          {rows.map(([label, value]) => (
-            <div key={label} className="flex items-baseline justify-between gap-3">
-              <dt className="truncate text-ink-2">{label}</dt>
-              <dd className="tabular font-semibold">{value}</dd>
-            </div>
-          ))}
-        </dl>
+        <>
+          <Big className="mt-[18px]">{week.sessions}</Big>
+          <div className="mt-2.5">
+            <VsLastWeek change={lastWeek.sessions > 0 ? countChange(week.sessions, lastWeek.sessions, true) : null} running={report.isCurrentWeek} />
+          </div>
+          <dl className="mt-auto flex flex-col gap-1.5 pt-3 text-[13px]">
+            {rows.map(([label, value]) => (
+              <div key={label} className="flex items-baseline justify-between gap-3">
+                <dt className="truncate text-ink-2">{label}</dt>
+                <dd className="tabular font-semibold">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
       ) : (
-        <Empty className="mt-auto">{NO_SESSIONS}</Empty>
+        <NoDataYet>{NO_SESSIONS}</NoDataYet>
       )}
     </WidgetCard>
   );
@@ -199,7 +207,7 @@ export function WeeksWidget({ report, size, onOpen }: WidgetProps) {
           <SrList label="Focus time per week" items={weeks.map((w) => `Week ${weekLabel(w.monday).slice(1)}: ${duration(w.focusedMinutes)}`)} />
         </>
       ) : (
-        <Empty className="mt-auto">No focus sessions in the last 8 weeks</Empty>
+        <NoDataYet>No focus sessions in the last 8 weeks</NoDataYet>
       )}
     </WidgetCard>
   );
@@ -218,7 +226,7 @@ export function BestHoursWidget({ report, size, onOpen }: WidgetProps) {
           <p className="mt-2 text-xs text-ink-2">Score {scoreText(bestScore)} on average</p>
         </>
       ) : (
-        <Empty className="mt-4">{anySessions ? "Not enough sessions yet: a part of the day needs 2" : "No focus sessions in the last 8 weeks"}</Empty>
+        <NoDataYet>{anySessions ? "Not enough sessions yet: a part of the day needs 2" : "No focus sessions in the last 8 weeks"}</NoDataYet>
       )}
       {anySessions && (
         <ul className="mt-auto flex flex-col gap-2 pt-3">
@@ -254,18 +262,21 @@ export function BestOfWeekWidget({ report, onOpen }: WidgetProps) {
   ];
   return (
     <WidgetCard title="Best of this week" icon={Award} tint="violet" onOpen={onOpen}>
-      {!longest && <Empty className="mt-3">{NO_SESSIONS}</Empty>}
-      <ul className="mt-auto flex flex-col gap-3.5 pt-3">
-        {rows.map((row) => (
-          <li key={row.label}>
-            <div className="text-xs text-ink-2">{row.label}</div>
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="tabular text-xl leading-[26px] font-semibold tracking-heading">{row.value}</span>
-              <span className="truncate text-xs text-ink-2">{row.note}</span>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {!longest ? (
+        <NoDataYet>{NO_SESSIONS}</NoDataYet>
+      ) : (
+        <ul className="mt-auto flex flex-col gap-3.5 pt-3">
+          {rows.map((row) => (
+            <li key={row.label}>
+              <div className="text-xs text-ink-2">{row.label}</div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="tabular text-xl leading-[26px] font-semibold tracking-heading">{row.value}</span>
+                <span className="truncate text-xs text-ink-2">{row.note}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </WidgetCard>
   );
 }

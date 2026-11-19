@@ -9,7 +9,7 @@ import type { GoalsNumbers, PlanItem } from "@/lib/analytics/report-types";
 import { goalColor } from "@/lib/goals/colors";
 import { fmtDateShort, fmtDayMonth, fmtTime, fmtWeekday } from "@/lib/time/display";
 import { addDays, localDateOf, localTimeOf } from "@/lib/time/zoned";
-import { Big, Empty, goalShare, More, NO_GOALS, plural, ruleText, shortText, weekdayLong, weekLabel, WidgetCard, type WidgetProps } from "./parts";
+import { Big, goalShare, More, NO_GOALS, NoDataYet, plural, ruleText, shortText, weekdayLong, weekLabel, WidgetCard, type WidgetProps } from "./parts";
 
 type GoalRow = GoalsNumbers["list"][number];
 
@@ -73,7 +73,7 @@ export function GoalsReachedWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Did you reach your goals?" icon={Target} tint="indigo" onOpen={onOpen}>
       {judged === 0 ? (
-        <Empty className="mt-auto">{NO_GOALS}</Empty>
+        <NoDataYet>{NO_GOALS}</NoDataYet>
       ) : (
         <>
           <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -94,7 +94,7 @@ export function GoalsReachedWidget({ report, size, onOpen }: WidgetProps) {
                     </span>
                     <span aria-hidden className="inline-flex gap-[3px]">
                       {w.judged === 0 ? (
-                        <span>–</span>
+                        <span className="font-normal text-ink-3">no data</span>
                       ) : (
                         Array.from({ length: Math.min(w.judged, 6) }, (_, n) => <span key={n} className={`size-[7px] rounded-full ${n < w.reached ? "bg-ink" : "bg-ink/15"}`} />)
                       )}
@@ -133,7 +133,7 @@ export function GoalStreaksWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Weeks in a row" icon={Flame} tint="orange" onOpen={onOpen}>
       {list.length === 0 ? (
-        <Empty className="mt-auto">{NO_GOALS}</Empty>
+        <NoDataYet>{NO_GOALS}</NoDataYet>
       ) : (
         <>
           <ul className={`mt-3.5 grid min-h-0 flex-1 gap-2 ${size === "S" ? "auto-rows-fr grid-cols-1" : "grid-cols-1 sm:grid-cols-2 sm:grid-rows-2"}`}>
@@ -188,7 +188,7 @@ export function DeadlinesWidget({ report, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Deadlines" icon={CalendarDays} tint="indigo" onOpen={onOpen}>
       {rows.length === 0 ? (
-        <Empty className="mt-auto">{NO_GOALS}</Empty>
+        <NoDataYet>{NO_GOALS}</NoDataYet>
       ) : (
         <>
           <ul className="mt-auto flex flex-col gap-3 pt-3">
@@ -238,7 +238,7 @@ export function PlanWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Plan, day by day" icon={CalendarCheck} tint="green" onOpen={onOpen}>
       {planTotal === 0 ? (
-        <Empty className="mt-auto">Nothing planned for a goal this week</Empty>
+        <NoDataYet>Nothing planned for a goal this week</NoDataYet>
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -298,7 +298,7 @@ export function SlippedWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="What slipped" icon={AlertTriangle} tint="amber" onOpen={onOpen}>
       {slipped.length === 0 ? (
-        <Empty className="mt-auto">Nothing slipped this week</Empty>
+        <NoDataYet>Nothing slipped this week</NoDataYet>
       ) : (
         <>
           <ul className={`mt-auto grid gap-3 pt-3 ${size === "S" ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>

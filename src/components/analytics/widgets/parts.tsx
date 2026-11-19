@@ -7,7 +7,7 @@ import type { AnalyticsReport, GoalsNumbers, RuleNumbers, Size } from "@/lib/ana
 import { fmtDateLong, fmtMinutes } from "@/lib/time/display";
 import { isoWeekNumber, type LocalDate } from "@/lib/time/zoned";
 
-/** What every widget gets. `hero`: the black Focus time card at the top of the Overview. */
+/** What every widget gets. `hero`: the large Focus time card at the top of the Overview. */
 export type WidgetProps = {
   report: AnalyticsReport;
   size: Size;
@@ -121,6 +121,24 @@ export function CardLabel({ title, label, onOpen, className = "" }: { title: str
 /** The big number of a card. */
 export function Big({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <span className={`tabular text-[40px] leading-none font-semibold tracking-display ${className}`}>{children}</span>;
+}
+
+/** Stands where a card's big number would be when nothing was recorded yet, so no lone dash is shown. */
+export function NoData({ className = "" }: { className?: string }) {
+  return <span className={`text-[30px] leading-none font-semibold tracking-display text-ink-3 ${className}`}>{NO_DATA}</span>;
+}
+
+/**
+ * What every widget shows when nothing was recorded for it: "No data yet" in large type and, right
+ * under it, one sentence saying what is missing. The same on every card, so an empty week looks alike.
+ */
+export function NoDataYet({ children }: { children: ReactNode }) {
+  return (
+    <div className="mt-[18px] flex flex-col gap-2">
+      <NoData />
+      <p className="text-[13px] text-ink-2">{children}</p>
+    </div>
+  );
 }
 
 /** A short grey sentence where a chart or list would be empty. */
@@ -319,6 +337,7 @@ export function Progress({ share, track = "bg-muted", fill, className = "" }: { 
   );
 }
 
+export const NO_DATA = "No data yet";
 export const NO_SESSIONS = "No focus sessions this week yet";
 export const NO_GOALS = "No goals with a weekly target yet";
 export const NOTHING_DONE = "Nothing marked done in your calendar this week yet";

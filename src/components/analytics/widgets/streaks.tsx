@@ -2,7 +2,7 @@
 // and focus by weekday. Streak and heatmap use the app's orange scale.
 import { BarChart3, Flame, Grid3x3 } from "lucide-react";
 import { fmtDayMonth } from "@/lib/time/display";
-import { Bars, Big, duration, Empty, Progress, SrList, topIndex, WEEKDAYS_LONG, WEEKDAYS_SHORT, WidgetCard, type WidgetProps } from "./parts";
+import { Bars, Big, duration, NoDataYet, Progress, SrList, topIndex, WEEKDAYS_LONG, WEEKDAYS_SHORT, WidgetCard, type WidgetProps } from "./parts";
 
 const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
@@ -72,7 +72,7 @@ export function HeatmapWidget({ report, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Last 12 weeks" icon={Grid3x3} tint="orange" onOpen={onOpen}>
       {active === 0 ? (
-        <Empty className="mt-auto">No focus time in the last 12 weeks</Empty>
+        <NoDataYet>No focus time in the last 12 weeks</NoDataYet>
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -125,7 +125,7 @@ export function WeekdaysWidget({ report, size, onOpen }: WidgetProps) {
   return (
     <WidgetCard title="Focus by weekday" icon={BarChart3} tint="orange" onOpen={onOpen}>
       {weekdaySessions === 0 || best < 0 ? (
-        <Empty className="mt-auto">No focus sessions in the last 4 weeks</Empty>
+        <NoDataYet>No focus sessions in the last 4 weeks</NoDataYet>
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
