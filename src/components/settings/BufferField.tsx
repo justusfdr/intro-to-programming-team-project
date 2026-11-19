@@ -2,7 +2,8 @@
 
 // The travel buffer: chips "5 min", "10 min", "15 min" and "Custom", as the length on the Focus page.
 // "Custom" opens a scrolling wheel like the iPhone's Clock app (the same WheelColumn as the Focus page's
-// custom length), with every minute from 0 to 120, the range the database allows (update_settings).
+// custom length), with every minute from 0 to 59, the range update_settings accepts. An older saved
+// value above 59 is added at the end of the wheel, so it still shows.
 // A saved value that is not one of the chips shows as "Custom", with the wheel on that value.
 // The wheel saves a moment after it stops, so stepping through ten minutes with the arrow keys is one save.
 import { useEffect, useRef, useState } from "react";
@@ -11,8 +12,8 @@ import { FieldRow, SegmentedField, type FieldOption } from "./fields";
 
 /** The chips' minutes. */
 export const BUFFER_CHIPS = [5, 10, 15] as const;
-/** Every minute the wheel offers: 0 to 120. */
-export const BUFFER_MINUTES: readonly number[] = Array.from({ length: 121 }, (_, min) => min);
+/** Every minute the wheel offers: 0 to 59, as update_settings accepts. */
+export const BUFFER_MINUTES: readonly number[] = Array.from({ length: 60 }, (_, min) => min);
 /** How long the wheel rests before its value is saved, in milliseconds. */
 const WHEEL_SAVE_DELAY = 500;
 
@@ -91,14 +92,14 @@ export function BufferField({
   );
 }
 
-/** One scrolling column of minutes, 0 to 120, with the band behind the chosen row (as the Focus page's wheel). */
+/** One scrolling column of minutes, 0 to 59 (plus an older saved value above that), with the band behind the chosen row (as the Focus page's wheel). */
 function BufferWheel({ value, onChange }: { value: number; onChange: (minutes: number) => void }) {
   return (
     <div role="group" aria-label="Custom buffer" className="relative mx-4 flex w-fit items-center justify-center select-none">
       {/* The band behind the chosen row, as on the calendar's time wheel. */}
       <div aria-hidden className="pointer-events-none absolute -inset-x-4 rounded-lg bg-raised" style={{ top: SIDE, height: ROW }} />
       <div className="relative flex items-center gap-1.5">
-        <WheelColumn label="Buffer minutes" items={BUFFER_MINUTES} selected={value} onPick={onChange} format={String} />
+        <WheelColumn label="Buffer minutes" items={BUFFER_MINUTES.includes(value) ? BUFFER_MINUTES : [...BUFFER_MINUTES, value]} selected={value} onPick={onChange} format={String} />
         <span aria-hidden className="w-8 text-sm font-medium text-ink">
           min
         </span>

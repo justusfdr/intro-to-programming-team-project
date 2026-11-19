@@ -53,7 +53,7 @@ describe("settings page", () => {
   it("gives every field a real label", () => {
     const html = render();
     expect(unlabelled(html)).toEqual([]);
-    for (const label of ["Visible from", "Visible to", "Time zone", "Home address", "Buffer", "Website to block"]) {
+    for (const label of ["Visible from", "Visible to", "Time zone", "Home address", "Website to block"]) {
       expect(html).toMatch(new RegExp(`<label[^>]*for="[^"]+"[^>]*>${label}</label>`));
     }
     expect(html).toMatch(/role="radiogroup" aria-labelledby="[^"]+"/);
@@ -68,7 +68,7 @@ describe("settings page", () => {
     expect(html).toContain('Now: <span class="font-medium text-ink">Europe/Lisbon</span>');
     expect(html).toContain('value="Rua Augusta 100, Lisbon"');
     expect(html).toMatch(/<input type="radio"[^>]*checked=""[^>]*value="cycling"/);
-    expect(html).toContain('<option value="15" selected="">15 min</option>');
+    expect(html).toMatch(/<input type="radio"[^>]*checked=""[^>]*value="15"/);
     expect(html).toContain("Example: 1:30pm");
   });
 

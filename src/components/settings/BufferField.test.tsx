@@ -1,5 +1,5 @@
 // The travel buffer in Settings → Travel: chips 5, 10, 15 min and Custom; Custom shows a scrolling wheel of
-// minutes 0 to 120 (the range update_settings and the database allow). A saved value that is not a chip
+// minutes 0 to 59 (the range update_settings accepts; an older saved value above it still shows). A saved value that is not a chip
 // shows as Custom, with the wheel on that value.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -43,13 +43,13 @@ describe("travel buffer", () => {
     }
   });
 
-  it("keeps the wheel within what the database allows: 0 to 120 minutes", () => {
+  it("keeps the wheel within what update_settings accepts: 0 to 59 minutes", () => {
     expect(BUFFER_MINUTES[0]).toBe(0);
-    expect(BUFFER_MINUTES.at(-1)).toBe(120);
-    expect(BUFFER_MINUTES).toHaveLength(121);
+    expect(BUFFER_MINUTES.at(-1)).toBe(59);
+    expect(BUFFER_MINUTES).toHaveLength(60);
     const html = render(37);
-    expect(html).toMatch(/role="option" aria-selected="false"[^>]*>120<\/div>/);
-    expect(html).not.toMatch(/role="option"[^>]*>121<\/div>/);
+    expect(html).toMatch(/role="option" aria-selected="false"[^>]*>59<\/div>/);
+    expect(html).not.toMatch(/role="option"[^>]*>60<\/div>/);
   });
 
   it("counts only 5, 10 and 15 as chips", () => {
