@@ -59,6 +59,8 @@ describe("update_settings accepted", () => {
           homeAddress: "",
           travelMode: "driving",
           travelBufferMinutes: 10,
+          homeTravelMode: null,
+          homeTravelBufferMinutes: null,
           timeFormat: "24h",
           dayStartHour: 6,
           dayEndHour: 24,
@@ -198,5 +200,25 @@ describe("update_settings rejected: nothing changes (R1)", () => {
     const response = await send(JSON.stringify({ homeAddress: "a".repeat(20_000) }));
     expect(response.status).toBe(413);
     expect(await app.snapshot()).toEqual(before);
+  });
+});
+
+describe("update_settings: way and buffer for home", () => {
+  it("sets and clears home's own way and buffer; null is as Other", async () => {
+    await app.signedInAs("alice@example.com");
+    let answer = await read(await send({ homeTravelMode: "walking", homeTravelBufferMinutes: 0 }));
+    expect(answer.status).toBe(200);
+    expect(answer.body.settings).toMatchObject({ homeTravelMode: "walking", homeTravelBufferMinutes: 0, travelMode: "driving", travelBufferMinutes: 10 });
+    // Another field alone keeps them.
+    answer = await read(await send({ travelMode: "transit" }));
+    expect(answer.body.settings).toMatchObject({ homeTravelMode: "walking", homeTravelBufferMinutes: 0, travelMode: "transit" });
+    answer = await read(await send({ homeTravelMode: null, homeTravelBufferMinutes: null }));
+    expect(answer.body.settings).toMatchObject({ homeTravelMode: null, homeTravelBufferMinutes: null });
+  });
+
+  it("refuses a home buffer outside 0 to 59 and an unknown way", async () => {
+    await app.signedInAs("alice@example.com");
+    for (const homeTravelBufferMinutes of [-1, 60, 7.5]) expect((await read(await send({ homeTravelBufferMinutes }))).body.error).toBe("buffer_range");
+    expect((await send({ homeTravelMode: "flying" })).status).toBe(400);
   });
 });

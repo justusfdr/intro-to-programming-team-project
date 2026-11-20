@@ -41,7 +41,7 @@ export default async function CalendarPage({
   const openEventId = typeof params.event === "string" && UUID.test(params.event) ? params.event : undefined;
   // Spec 54: also the event invitations (the events the user is invited to, the open ones, the badge's
   // number and the people of the user's own events), in the same one transaction.
-  const { display, week, goals, showWelcome, places, home, travelMode, sharing, invites } = await loadCalendarPageWithInvites(deps, userId, address.date, address.view);
+  const { display, week, goals, showWelcome, places, home, travelMode, homeTravelMode, sharing, invites } = await loadCalendarPageWithInvites(deps, userId, address.date, address.view);
 
   const now = deps.now();
   const nowLocal = localDateTimeOf(now, week.timeZone);
@@ -49,7 +49,7 @@ export default async function CalendarPage({
     <Announcer>
       <LiveProvider>
         <AppShell current="/" display={display} pendingInvites={invites.pending}>
-          <SavedPlacesProvider places={places} home={home} travelMode={travelMode}>
+          <SavedPlacesProvider places={places} home={home} travelMode={travelMode} homeTravelMode={homeTravelMode}>
             <CalendarView
               week={week}
               nowLocal={nowLocal}

@@ -17,7 +17,7 @@ import "server-only";
 import { z } from "zod";
 import { MESSAGES } from "@/lib/messages";
 import { cleanNotes, notesTooLong } from "@/lib/events/notes";
-import { travelFromOf, travelFromText } from "@/lib/places/saved";
+import { travelFromOf, travelFromText, type SavedPlace } from "@/lib/places/saved";
 import type { SettingsData } from "@/lib/settings/types";
 import type { Query } from "@/lib/server/db";
 import type { Deps } from "@/lib/server/deps";
@@ -356,7 +356,7 @@ export function inviteTravelTime(request: Request, deps: ActionDeps, inviteId: s
     if (denied) return denied;
     const userId = await requireUser(deps.auth);
     if (!UUID.test(inviteId)) throw notFound();
-    let found: { row: EventRow; settings: SettingsData; start: TripStart };
+    let found: { row: EventRow; settings: SettingsData; start: TripStart; places: SavedPlace[] };
     try {
       found = await deps.withUser(userId, async (query) => {
         const accepted = await readAcceptedRow(query, inviteId);
@@ -386,12 +386,12 @@ export function inviteTravelTime(request: Request, deps: ActionDeps, inviteId: s
         const row = { ...withPreview(saved, new URL(request.url)), location: saved.location };
         const [settings, places] = await Promise.all([readSettings(query), readPlaces(query)]);
         const before = await readOwnBefore(query, row.start_at, settings.timeZone);
-        return { row, settings, start: tripStart(row, settings, places, before) };
+        return { row, settings, places, start: tripStart(row, settings, places, before) };
       });
     } catch (error) {
       detailRefusal(error);
     }
-    const travel = await travelOf(found.row, found.settings, routing, found.start);
+    const travel = await travelOf(found.row, found.settings, routing, found.start, found.places);
     const map = travel?.status === "ok" ? routeMapUrl(found.start.address, found.row.location ?? "", travel.mode, googleMapsBrowserKey()) : null;
     return jsonOk({ travel: travel && map && travel.status === "ok" ? { ...travel, map } : travel });
   });

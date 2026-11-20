@@ -21,6 +21,9 @@ const SettingsBody = z
     homeAddress: z.string().max(2000),
     travelMode: z.enum(["driving", "cycling", "walking", "transit"]),
     travelBufferMinutes: z.number(),
+    // How the user gets home and the buffer for it; null is "as Other" (travelMode, travelBufferMinutes).
+    homeTravelMode: z.enum(["driving", "cycling", "walking", "transit"]).nullable(),
+    homeTravelBufferMinutes: z.number().nullable(),
     timeFormat: z.enum(["12h", "24h"]),
     dayStartHour: z.number(),
     dayEndHour: z.number(),
@@ -69,6 +72,10 @@ export function updateSettings(request: Request, deps: Pick<Deps, "auth" | "with
     if (buffer !== undefined && !(Number.isInteger(buffer) && buffer >= 0 && buffer <= 59)) {
       throw new ActionError(400, "buffer_range", MESSAGES.bufferRange);
     }
+    const homeBuffer = patch.homeTravelBufferMinutes;
+    if (homeBuffer !== undefined && homeBuffer !== null && !(Number.isInteger(homeBuffer) && homeBuffer >= 0 && homeBuffer <= 59)) {
+      throw new ActionError(400, "buffer_range", MESSAGES.bufferRange);
+    }
 
     return deps.withUser(userId, async (query) => {
       const saved = await readSettings(query);
@@ -82,7 +89,8 @@ export function updateSettings(request: Request, deps: Pick<Deps, "auth" | "with
         `update app.settings
             set time_zone = $1, home_address = $2, travel_mode = $3, travel_buffer_minutes = $4,
                 time_format = $5, day_start_hour = $6, day_end_hour = $7,
-                default_view = coalesce($9, default_view)
+                default_view = coalesce($9, default_view),
+                home_travel_mode = $10, home_travel_buffer_minutes = $11
           where user_id = $8
           returning ${SETTINGS_COLUMNS}`,
         [
@@ -95,6 +103,8 @@ export function updateSettings(request: Request, deps: Pick<Deps, "auth" | "with
           to,
           userId,
           patch.defaultView ?? null,
+          patch.homeTravelMode === undefined ? saved.homeTravelMode : patch.homeTravelMode,
+          homeBuffer === undefined ? saved.homeTravelBufferMinutes : homeBuffer,
         ],
       );
       return jsonOk({ message: MESSAGES.settingsSaved, settings: toSettingsData(row) });

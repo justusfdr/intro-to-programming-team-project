@@ -11,6 +11,9 @@ export type SettingsData = {
   homeAddress: string;
   travelMode: TravelMode;
   travelBufferMinutes: number;
+  /** How the user gets home, and the buffer for it; null is "as Other" (travelMode, travelBufferMinutes). */
+  homeTravelMode: TravelMode | null;
+  homeTravelBufferMinutes: number | null;
   timeFormat: TimeFormat;
   /** First visible hour of the calendar, 0 to 23. */
   dayStartHour: number;

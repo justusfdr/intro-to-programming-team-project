@@ -68,7 +68,7 @@ function displayOf(settings: { timeFormat: Display["timeFormat"]; dayStartHour: 
   return { timeFormat: settings.timeFormat, dayStartHour: settings.dayStartHour, dayEndHour: settings.dayEndHour };
 }
 
-export type CalendarPageData = { display: Display; week: WeekData; goals: GoalView[]; tasks: TaskDto[]; showWelcome: boolean; places: SavedPlace[]; home: string; travelMode: TravelMode };
+export type CalendarPageData = { display: Display; week: WeekData; goals: GoalView[]; tasks: TaskDto[]; showWelcome: boolean; places: SavedPlace[]; home: string; travelMode: TravelMode; homeTravelMode: TravelMode | null };
 
 /**
  * The calendar (specs 02 and 14): the days of the view (the address's, else the default view from the
@@ -96,7 +96,7 @@ async function readCalendarPage(query: Query, now: Date, requestedDate?: string,
     welcomeDue(query),
     readPlaces(query),
   ]);
-  return { display: displayOf(settings), week, goals, tasks, showWelcome, places, home: settings.homeAddress, travelMode: settings.travelMode };
+  return { display: displayOf(settings), week, goals, tasks, showWelcome, places, home: settings.homeAddress, travelMode: settings.travelMode, homeTravelMode: settings.homeTravelMode };
 }
 
 /**

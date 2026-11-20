@@ -1,7 +1,7 @@
 // Tests for add_place, edit_place and remove_place: the user's saved places ("Uni", "Gym").
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
-import { addPlace, editPlace, removePlace } from "./saved-places";
+import { addPlace, editPlace, removePlace, setPlaceTravel } from "./saved-places";
 
 let app: TestApp;
 
@@ -19,6 +19,7 @@ beforeEach(async () => {
 
 const add = (body: unknown, headers?: Record<string, string>) => addPlace(postJson("/api/saved-places", body, headers), app.deps);
 const edit = (id: string, body: unknown) => editPlace(postJson(`/api/saved-places/${id}`, body), app.deps, id);
+const travel = (id: string, body: unknown) => setPlaceTravel(postJson(`/api/saved-places/${id}/travel`, body), app.deps, id);
 const remove = (id: string) => removePlace(postJson(`/api/saved-places/${id}/remove`, {}), app.deps, id);
 const placesOf = (userId: string) => app.db.admin("select name, address from app.places where user_id = $1 order by created_at", [userId]);
 
@@ -74,5 +75,27 @@ describe("saved places", () => {
     expect((await add({ name: "Gym", address: "Rua" }, { origin: "https://evil.example", "sec-fetch-site": "cross-site" })).status).toBe(403);
     expect((await add({ name: 42 })).status).toBe(400);
     expect(await app.snapshot()).toEqual(before);
+  });
+
+  it("sets and clears how the user gets to a place and its buffer; only the fields sent change", async () => {
+    await app.signedInAs("alice@example.com");
+    const added = (await read(await add({ name: "Gym", address: "Rua 1" }))).body.place as { id: string };
+    expect(added).toMatchObject({ travelMode: null, bufferMinutes: null });
+    expect((await read(await travel(added.id, { travelMode: "walking" }))).body.place).toMatchObject({ travelMode: "walking", bufferMinutes: null });
+    expect((await read(await travel(added.id, { bufferMinutes: 5 }))).body.place).toMatchObject({ travelMode: "walking", bufferMinutes: 5 });
+    // Renaming keeps them.
+    expect((await read(await edit(added.id, { name: "Gym 2", address: "Rua 1" }))).body.place).toMatchObject({ travelMode: "walking", bufferMinutes: 5 });
+    expect((await read(await travel(added.id, { travelMode: null, bufferMinutes: null }))).body.place).toMatchObject({ travelMode: null, bufferMinutes: null });
+  });
+
+  it("refuses a buffer outside 0 to 59, an unknown way, an empty body, and another user's place", async () => {
+    await app.signedInAs("alice@example.com");
+    const gym = (await read(await add({ name: "Gym", address: "Rua 1" }))).body.place as { id: string };
+    for (const bufferMinutes of [-1, 60, 7.5]) expect((await read(await travel(gym.id, { bufferMinutes }))).body.error).toBe("buffer_range");
+    expect((await travel(gym.id, { travelMode: "flying" })).status).toBe(400);
+    expect((await travel(gym.id, {})).status).toBe(400);
+    await app.signedInAs("bob@example.com");
+    expect((await travel(gym.id, { travelMode: "walking" })).status).toBe(404);
+    expect((await travel("not-an-id", { travelMode: "walking" })).status).toBe(404);
   });
 });

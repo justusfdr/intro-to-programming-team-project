@@ -1,7 +1,12 @@
 // The user's saved places besides the home address ("Uni", "Gym"), and where the trip to an event starts.
 
-/** A saved place as the pages get it. */
-export type SavedPlace = { id: string; name: string; address: string };
+import type { TravelMode } from "@/lib/settings/types";
+
+/**
+ * A saved place as the pages get it. travelMode and bufferMinutes: how the user gets there; empty (null or
+ * missing) means "as Other", the settings' way and buffer (src/lib/travel/way.ts).
+ */
+export type SavedPlace = { id: string; name: string; address: string; travelMode?: TravelMode | null; bufferMinutes?: number | null };
 
 /** At most this many saved places per user (the database checks it too). */
 export const MAX_PLACES = 10;
