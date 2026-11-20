@@ -51,6 +51,72 @@ export const STEPS: readonly Step[] = [
   },
 ];
 
+/** A stop of the day the page scrolls through under "How it works" (spec 62). */
+export type Stop = {
+  id: "goal" | "plan" | "focus" | "travel" | "reach" | "report";
+  /** The stretch of the day the red line crosses while this stop is on screen, in minutes of the day. */
+  from: number;
+  to: number;
+  /** The time above the title. */
+  time: string;
+  tag: string;
+  title: string;
+  text: string;
+  points: readonly string[];
+  /** The way on under the words; the three steps have one. */
+  link?: string;
+};
+
+/** The day of the story: its name, and the hours the calendar beside it shows, in minutes of the day. */
+export const STORY_DAY = { name: "Thu, Nov 19", from: 8 * 60, to: 18 * 60 } as const;
+
+/** The words of one of the three steps, for the stop that shows it. */
+function words(id: Step["id"]): Pick<Stop, "tag" | "title" | "text" | "points"> {
+  const step = STEPS.find((item) => item.id === id) ?? STEPS[0];
+  return { tag: step.tag, title: step.title, text: step.text, points: step.points };
+}
+
+/**
+ * One day in six stops, from a new goal in the morning to the numbers in the evening. Plan, Focus
+ * and Reach are the three steps above; the other three describe what the app does today as well
+ * (the goal setup, travel times and the "Time to leave" widget, Analytics and its PDF export).
+ */
+export const STORY: readonly Stop[] = [
+  {
+    id: "goal",
+    from: 8 * 60,
+    to: 8 * 60 + 25,
+    time: "8:00 AM",
+    tag: "Goal",
+    title: "Start with what you want",
+    text: "Name what you are working toward and answer six short questions: how often, how long, where, which time of day, which days never, and by when. That is all LockedIn needs to plan around it.",
+    points: ["A deadline, or a goal that stays open", "A weekly rhythm, like four sessions a week", "Days the coach never plans on"],
+  },
+  { id: "plan", from: 8 * 60 + 25, to: 9 * 60, time: "8:30 AM", ...words("plan"), link: "Plan your first week" },
+  { id: "focus", from: 9 * 60, to: 11 * 60, time: "9:00 AM", ...words("focus"), link: "Start a focus session" },
+  {
+    id: "travel",
+    from: 11 * 60,
+    to: 11 * 60 + 15,
+    time: "11:00 AM",
+    tag: "On the way",
+    title: "Know when to leave",
+    text: "Give an event a place and LockedIn works out the way there, by car, by bike, on foot or by public transport. The travel time shows in your calendar before the event, and the coach plans around it.",
+    points: ["Travel time for every event with a place", "A widget that counts down to when you set off", "One click opens the route in Google Maps"],
+  },
+  { id: "reach", from: 11 * 60 + 15, to: 14 * 60 + 30, time: "2:00 PM", ...words("reach"), link: "Set your first goal" },
+  {
+    id: "report",
+    from: 14 * 60 + 30,
+    to: 18 * 60,
+    time: "5:00 PM",
+    tag: "Look back",
+    title: "Your weeks in numbers",
+    text: "Analytics shows where your time went: focus time, goals reached, streaks and the distractions you kept out. Export the weeks you pick as a PDF, to keep, to print or to send.",
+    points: ["Six tabs, from an overview to distractions", "Choose the weeks and the parts of the report", "A PDF with numbers, charts and a short summary"],
+  },
+];
+
 export type Tool = {
   id: "outlook" | "google-calendar" | "chrome" | "maps";
   name: string;
