@@ -15,26 +15,22 @@ import { Card } from "@/components/ui/Card";
 import { PlaceList, checkClass, lookUpCurrent, nextRow, usePlaceSuggestions } from "@/components/places/places";
 import type { PlaceSuggestion } from "@/lib/places/places";
 import type { SavedPlace } from "@/lib/places/saved";
-import type { SettingsData, TravelMode } from "@/lib/settings/types";
+import type { SettingsData } from "@/lib/settings/types";
 import { Button } from "@/components/ui/Button";
-import { BufferField } from "./BufferField";
-import { FieldRow, INPUT_CLASS, SegmentedField, SettingsCardHeader, type FieldOption } from "./fields";
+import { FieldRow, INPUT_CLASS, SettingsCardHeader } from "./fields";
 import { PlacesRow } from "./PlacesDialog";
 import { useSaveSettings } from "./useSaveSettings";
+import { WaysSection } from "./WaysSection";
 
-const MODE_OPTIONS: FieldOption<TravelMode>[] = [
-  { value: "driving", label: "Driving" },
-  { value: "cycling", label: "Cycling" },
-  { value: "walking", label: "Walking" },
-  { value: "transit", label: "Public transport" },
-];
 
-export function TravelCard({ settings: serverSettings, places = [] }: { settings: SettingsData; places?: SavedPlace[] }) {
+export function TravelCard({ settings: serverSettings, places: initialPlaces = [] }: { settings: SettingsData; places?: SavedPlace[] }) {
   // The saved values, with a change that is on its way shown at once.
   const settings = useLiveSettings(serverSettings);
   const uid = useId();
+  // The saved places, shared by "Places" (add, change, delete) and "Ways" (how to get there).
+  const [places, setPlaces] = useState(initialPlaces);
   const { save, busy, failure } = useSaveSettings();
-  const ids = { title: `${uid}-title`, home: `${uid}-home`, homeHint: `${uid}-home-hint`, mode: `${uid}-mode`, buffer: `${uid}-buffer`, bufferHint: `${uid}-buffer-hint` };
+  const ids = { title: `${uid}-title`, home: `${uid}-home`, homeHint: `${uid}-home-hint`, };
 
   // Draft of the address. When the saved value changes (after a save), the field shows it again.
   const [draft, setDraft] = useState({ base: settings.homeAddress, text: settings.homeAddress });
@@ -150,24 +146,14 @@ export function TravelCard({ settings: serverSettings, places = [] }: { settings
           </div>
         </FieldRow>
 
-        <PlacesRow homeAddress={settings.homeAddress} places={places} />
+        <PlacesRow homeAddress={settings.homeAddress} places={places} onPlaces={setPlaces} />
 
-        <FieldRow label="Getting there" labelId={ids.mode}>
-          <SegmentedField
-            value={settings.travelMode}
-            options={MODE_OPTIONS}
-            labelledBy={ids.mode}
-            disabled={busy}
-            onChange={(travelMode) => void save({ travelMode })}
-          />
-        </FieldRow>
-
-        <BufferField
-          value={settings.travelBufferMinutes}
-          labelId={ids.buffer}
-          hintId={ids.bufferHint}
-          disabled={busy}
-          onSave={(travelBufferMinutes) => save({ travelBufferMinutes })}
+        <WaysSection
+          settings={settings}
+          places={places}
+          onPlace={(place) => setPlaces((list) => list.map((p) => (p.id === place.id ? place : p)))}
+          save={save}
+          busy={busy}
         />
       </div>
       {failure && <FormMessage tone="error" text={failure.message} />}
