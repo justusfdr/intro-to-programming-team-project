@@ -8,7 +8,8 @@ import "server-only";
 // The trip starts where the event's travel_from says (src/lib/places/saved.ts): home, a saved place, an
 // address typed for this event, or the place of the event before it. The standard (empty) is the place
 // of the event before it, else home. "The event before" is the latest timed event that ended in the
-// 12 hours before this one starts and has an address (not a web link).
+// 12 hours before this one starts, after 3:00 at night (the user's time zone) on the morning of it, and
+// has an address (not a web link). Over night the user is back home.
 // leave_at = start − travel minutes − buffer. By public transport, the trip is the latest one that
 // arrives in time, so leave_at = its departure − buffer.
 // When the trip would start where the event is (the event before is at the same place: the same text,
@@ -116,7 +117,8 @@ export function travelTime(request: Request, deps: Pick<Deps, "auth" | "withUser
       const [saved] = await query<EventRow>(`select ${EVENT_COLUMNS} from app.events where id = $1`, [id]);
       if (!saved) throw notFound();
       const row = withPreview(saved, new URL(request.url));
-      const [settings, places, before] = await Promise.all([readSettings(query), readPlaces(query), readBefore(query, [row.id])]);
+      const [settings, places] = await Promise.all([readSettings(query), readPlaces(query)]);
+      const before = await readBefore(query, [row.id], settings.timeZone);
       return { event: row, settings, start: tripStart(row, settings, places, before.get(row.id) ?? []) };
     });
     const travel = await travelOf(event, settings, routing, start);
@@ -144,12 +146,15 @@ export function travelTimes(request: Request, deps: Pick<Deps, "auth" | "withUse
     if (!body.ok) return body.response;
     const ids = [...new Set(body.data.ids.filter((id) => UUID.test(id)))];
 
-    const { events, settings, places, before } = await deps.withUser(userId, async (query) => ({
-      events: ids.length === 0 ? [] : await query<EventRow>(`select ${EVENT_COLUMNS} from app.events where id = any($1::uuid[])`, [ids]),
-      settings: await readSettings(query),
-      places: await readPlaces(query),
-      before: await readBefore(query, ids),
-    }));
+    const { events, settings, places, before } = await deps.withUser(userId, async (query) => {
+      const settings = await readSettings(query);
+      return {
+        events: ids.length === 0 ? [] : await query<EventRow>(`select ${EVENT_COLUMNS} from app.events where id = any($1::uuid[])`, [ids]),
+        settings,
+        places: await readPlaces(query),
+        before: await readBefore(query, ids, settings.timeZone),
+      };
+    });
 
     // One after the other, so one week view does not send a burst of questions to Google; most are kept.
     const travel: Record<string, TravelAnswer> = {};
@@ -161,23 +166,32 @@ export function travelTimes(request: Request, deps: Pick<Deps, "auth" | "withUse
   });
 }
 
+/**
+ * SQL for the last 3:00 at night at or before `start` (a timestamptz), in the time zone `zone`. An event
+ * before that ended earlier is not where a trip starts: over night the user is back home.
+ */
+export const AFTER_3AM = (start: string, zone: string) =>
+  `((date_trunc('day', (${start} at time zone ${zone}) - interval '3 hours') + interval '3 hours') at time zone ${zone})`;
+
 /** Where a trip starts: its address (empty when there is none) and what it is called. */
 export type TripStart = { label: string; address: string };
 
 /**
  * For each of these events, the addresses of the timed events that ended in the 12 hours before it
- * starts, latest first (at most 5): the first that is no web link is "the event before".
+ * starts and after the last 3:00 at night before it (in `timeZone`), latest first (at most 5): the first
+ * that is no web link is "the event before".
  */
-async function readBefore(query: Query, ids: string[]): Promise<Map<string, string[]>> {
+async function readBefore(query: Query, ids: string[], timeZone: string): Promise<Map<string, string[]>> {
   if (ids.length === 0) return new Map();
   const rows = await query<{ id: string; locations: string[] | null }>(
     `select e.id, array(
         select p.location from app.events p
          where p.id <> e.id and not p.all_day and p.end_at <= e.start_at and p.end_at > e.start_at - interval '12 hours'
+           and p.end_at > ${AFTER_3AM("e.start_at", "$2")}
            and nullif(btrim(p.location), '') is not null
          order by p.end_at desc limit 5) as locations
        from app.events e where e.id = any($1::uuid[]) and not e.all_day`,
-    [ids],
+    [ids, timeZone],
   );
   return new Map(rows.map((r) => [r.id, r.locations ?? []]));
 }
