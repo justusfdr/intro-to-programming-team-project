@@ -375,10 +375,12 @@ function GoalForm({ state, onClose, places }: { state: Exclude<GoalEditorState, 
               )}
             </div>
           ))}
-          <Button variant="secondary" size="sm" className="w-fit" onClick={() => setRules((current) => [...current, newRule()])}>
-            <Plus className="size-3.5" />
-            Add rule
-          </Button>
+          {goal === null && (
+            <Button variant="secondary" size="sm" className="w-fit" onClick={() => setRules((current) => [...current, newRule()])}>
+              <Plus className="size-3.5" />
+              Add rule
+            </Button>
+          )}
         </fieldset>
 
         <RoutineSection value={routine} onChange={setRoutine} places={places} startOpen={goal === null} maxSure={sureLimit(rules)} />
