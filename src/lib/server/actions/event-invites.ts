@@ -36,7 +36,7 @@ import type { Routing } from "@/lib/server/routing/types";
 import { requireUser } from "@/lib/server/session";
 import { readSettings } from "@/lib/server/settings";
 import { checkTodoTitle } from "@/lib/server/todos/input";
-import { travelOf, tripStart, withPreview, type TripStart } from "./travel-time";
+import { AFTER_3AM, travelOf, tripStart, withPreview, type TripStart } from "./travel-time";
 import { GIVEN_ANSWERS, MAX_INVITEES, answeredText, type GivenAnswer } from "@/lib/invites/types";
 import { MAX_WINDOW_DAYS } from "@/lib/shares/types";
 
@@ -384,7 +384,8 @@ export function inviteTravelTime(request: Request, deps: ActionDeps, inviteId: s
         };
         // The preview may change the way and the start, never the place (it is the owner's).
         const row = { ...withPreview(saved, new URL(request.url)), location: saved.location };
-        const [settings, places, before] = await Promise.all([readSettings(query), readPlaces(query), readOwnBefore(query, row.start_at)]);
+        const [settings, places] = await Promise.all([readSettings(query), readPlaces(query)]);
+        const before = await readOwnBefore(query, row.start_at, settings.timeZone);
         return { row, settings, start: tripStart(row, settings, places, before) };
       });
     } catch (error) {
@@ -397,17 +398,18 @@ export function inviteTravelTime(request: Request, deps: ActionDeps, inviteId: s
 }
 
 /**
- * The places of the user's OWN timed events that ended in the 12 hours before `start`, latest first (at
+ * The places of the user's OWN timed events that ended in the 12 hours before `start` and after the last
+ * 3:00 at night before it (in `timeZone`), latest first (at
  * most 5): the first that is no web link is "the event before" (as for an own event). Only the user's own
  * rows (row-level security); the owner's calendar is never read.
  */
-async function readOwnBefore(query: Query, start: Date | null): Promise<string[]> {
+async function readOwnBefore(query: Query, start: Date | null, timeZone: string): Promise<string[]> {
   if (!start) return [];
   const rows = await query<{ location: string }>(
     `select location from app.events
-      where not all_day and end_at <= $1 and end_at > $1 - interval '12 hours' and nullif(btrim(location), '') is not null
+      where not all_day and end_at <= $1 and end_at > $1 - interval '12 hours' and end_at > ${AFTER_3AM("$1::timestamptz", "$2")} and nullif(btrim(location), '') is not null
       order by end_at desc limit 5`,
-    [start],
+    [start, timeZone],
   );
   return rows.map((r) => r.location);
 }

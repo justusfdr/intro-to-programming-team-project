@@ -306,6 +306,20 @@ describe("travel_time: where the trip starts (travel_from)", () => {
     expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Home" });
   });
 
+  it("starts at home when the event before ended before 3:00 at night (over night the user is back home)", async () => {
+    const user = await alice();
+    const id = await lecture(user);
+    routing.places.set("gym street 1", { lat: 38.7, lon: -9.2 });
+    // Lisbon is UTC in November: ended 02:30, within 12 hours of the 10:00 lecture, but before 3:00.
+    await before(user, "Gym Street 1", "2026-11-17T02:30:00Z", "2026-11-17T01:00:00Z");
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Home" });
+    const many = await travelTimes(postJson("/api/travel", { ids: [id] }), app.deps, routing);
+    expect(((await read(many)).body.travel as Record<string, { from?: string }>)[id]).toMatchObject({ from: "Home" });
+    // Ended 03:30, after 3:00: the trip starts there.
+    await before(user, "Gym Street 1", "2026-11-17T03:30:00Z", "2026-11-17T03:00:00Z");
+    expect(await fromOf(id)).toMatchObject({ status: "ok", from: "Last event" });
+  });
+
   it("starts at home when told so, even with an event before", async () => {
     const user = await alice();
     const id = await lecture(user);
