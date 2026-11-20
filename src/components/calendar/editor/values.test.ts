@@ -3,7 +3,7 @@
 // shown at once in the calendar.
 import { describe, expect, it } from "vitest";
 import type { AllDayEvent, WeekData, WeekEvent } from "@/lib/events/types";
-import { createBody, editBody, editedChange, eventFromAnswer, isChanged, moveFirstDay, newValues, newer, switchAllDay, untouchedPatch, valuesOf } from "./values";
+import { createBody, editBody, editedChange, eventFromAnswer, hasEnded, isChanged, moveFirstDay, newValues, newer, switchAllDay, untouchedPatch, valuesOf } from "./values";
 
 const EVENT: WeekEvent = {
   id: "e1",
@@ -237,5 +237,30 @@ describe("after a save, typing done meanwhile is kept", () => {
     const patch = untouchedPatch(sent, { ...sent, location: "Library" }, saved);
     expect(patch).not.toHaveProperty("location");
     expect(patch.title).toBe("Lunch with Ana");
+  });
+});
+
+describe("hasEnded (guests by e-mail, by the minute)", () => {
+  const timed = (date: string, startMin: number, endMin: number) => ({ ...newValues({ start: `${date}T09:00`, end: `${date}T10:00` }), date, startMin, endMin, allDay: false });
+  const now = Date.parse("2026-11-20T20:40:00Z");
+
+  it("an event that ended earlier today has ended", () => {
+    expect(hasEnded(timed("2026-11-20", 16 * 60 + 30, 17 * 60 + 30), now, "Europe/Lisbon", "2026-11-20")).toBe(true);
+  });
+
+  it("an event later today has not", () => {
+    expect(hasEnded(timed("2026-11-20", 21 * 60, 22 * 60), now, "Europe/Lisbon", "2026-11-20")).toBe(false);
+  });
+
+  it("uses the user's time zone", () => {
+    // 21:00–22:00 in Berlin is 20:00–21:00 UTC: still running at 20:40 UTC.
+    expect(hasEnded(timed("2026-11-20", 21 * 60, 22 * 60), now, "Europe/Berlin", "2026-11-20")).toBe(false);
+    expect(hasEnded(timed("2026-11-20", 20 * 60, 21 * 60), now, "Europe/Berlin", "2026-11-20")).toBe(true);
+  });
+
+  it("an all-day event of today has not ended", () => {
+    const allDay = { ...timed("2026-11-20", 0, 60), allDay: true, firstDay: "2026-11-20", lastDay: "2026-11-20" };
+    expect(hasEnded(allDay, now, "Europe/Lisbon", "2026-11-20")).toBe(false);
+    expect(hasEnded({ ...allDay, lastDay: "2026-11-19" }, now, "Europe/Lisbon", "2026-11-20")).toBe(true);
   });
 });
