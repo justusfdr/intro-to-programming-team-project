@@ -1,20 +1,12 @@
-// "How it works" (spec 45): the idea in one sentence, then three steps. Each step has its words on
-// the left and a moving picture of the real screen on the right; on phones the picture follows the words.
-import type { ReactNode } from "react";
-import { ArrowRight, Check, Lock, Mail, MessageSquare, Play, ShoppingBag, TrendingUp, type LucideIcon } from "lucide-react";
-import Link from "next/link";
-import { STEPS, type Step } from "./content";
-import { CoachMock } from "./mocks/CoachMock";
-import { FocusMock } from "./mocks/FocusMock";
-import { GoalsMock } from "./mocks/GoalsMock";
-import { Stage, timing } from "./mocks/parts";
+// "How it works" (spec 45, spec 62): the idea in one sentence, then one day in six stops
+// (DayStory.tsx). Plan, Focus and Reach, the three steps of spec 45, are three of them.
+import { Lock, Mail, MessageSquare, Play, ShoppingBag, TrendingUp, type LucideIcon } from "lucide-react";
+import { DayStory } from "./DayStory";
+import { Eyebrow } from "./Eyebrow";
+import { timing } from "./mocks/parts";
 import { Scene } from "./Scene";
 
-const PICTURES: Record<Step["id"], ReactNode> = {
-  plan: <CoachMock />,
-  focus: <FocusMock />,
-  reach: <GoalsMock />,
-};
+export { Eyebrow };
 
 /** What shouts for attention on a normal day. Each gets struck through; one protected block remains. */
 const NOISE: { icon: LucideIcon; text: string }[] = [
@@ -26,69 +18,6 @@ const NOISE: { icon: LucideIcon; text: string }[] = [
 ];
 const STRIKE_AT = 950;
 const STRIKE_GAP = 150;
-
-const LINKS: Record<Step["id"], string> = {
-  plan: "Plan your first week",
-  focus: "Start a focus session",
-  reach: "Set your first goal",
-};
-
-/** The small line above a title: a number, a short rule and a word. */
-export function Eyebrow({ number, children, className = "" }: { number?: string; children: ReactNode; className?: string }) {
-  return (
-    <p className={`flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3 ${className}`}>
-      {number && (
-        <>
-          <span className="tabular">{number}</span>
-          <span aria-hidden className="h-px w-6 bg-line" />
-        </>
-      )}
-      <span className="text-ink">{children}</span>
-    </p>
-  );
-}
-
-function StepRow({ step }: { step: Step }) {
-  return (
-    <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-16">
-      <Scene className="min-w-0 max-w-[31rem]">
-        <Eyebrow number={step.number} className="l-rise">
-          {step.tag}
-        </Eyebrow>
-        <h3 className="l-rise mt-4 text-[32px] leading-[1.1] font-semibold tracking-heading text-ink md:text-[40px]" style={timing({ d: 70 })}>
-          {step.title}
-        </h3>
-        <p className="l-rise mt-4 text-[17px] leading-7 text-ink-2" style={timing({ d: 140 })}>
-          {step.text}
-        </p>
-        <ul className="l-rise mt-6 flex flex-col gap-2.5 text-[15px] text-ink" style={timing({ d: 210 })}>
-          {step.points.map((point) => (
-            <li key={point} className="flex items-start gap-2.5">
-              <span aria-hidden className="mt-[3px] inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-ink text-white">
-                <Check className="size-3" strokeWidth={3} />
-              </span>
-              {point}
-            </li>
-          ))}
-        </ul>
-        <p className="l-rise mt-7" style={timing({ d: 280 })}>
-          <Link
-            href="/sign-up"
-            className="group inline-flex items-center gap-1.5 rounded-sm text-[15px] font-semibold text-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-4 focus-visible:ring-offset-canvas"
-          >
-            {LINKS[step.id]}
-            <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
-          </Link>
-        </p>
-      </Scene>
-
-      {/* The picture waits until a good part of it is on screen. */}
-      <Scene className="min-w-0" inset={30}>
-        <Stage>{PICTURES[step.id]}</Stage>
-      </Scene>
-    </div>
-  );
-}
 
 export function Steps() {
   return (
@@ -120,11 +49,7 @@ export function Steps() {
         </Scene>
       </div>
 
-      <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-24 px-5 py-20 md:gap-32 md:px-8 md:py-28">
-        {STEPS.map((step) => (
-          <StepRow key={step.id} step={step} />
-        ))}
-      </div>
+      <DayStory />
     </section>
   );
 }
