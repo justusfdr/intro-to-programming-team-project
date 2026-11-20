@@ -18,13 +18,15 @@ type SettingsRow = {
   home_address: string | null;
   travel_mode: TravelMode;
   travel_buffer_minutes: number;
+  home_travel_mode: TravelMode | null;
+  home_travel_buffer_minutes: number | null;
   time_format: TimeFormat;
   day_start_hour: number;
   day_end_hour: number;
 };
 
 export const SETTINGS_COLUMNS =
-  "time_zone, home_address, travel_mode, travel_buffer_minutes, time_format, day_start_hour, day_end_hour";
+  "time_zone, home_address, travel_mode, travel_buffer_minutes, home_travel_mode, home_travel_buffer_minutes, time_format, day_start_hour, day_end_hour";
 
 export function toSettingsData(row: SettingsRow): SettingsData {
   return {
@@ -32,6 +34,8 @@ export function toSettingsData(row: SettingsRow): SettingsData {
     homeAddress: row.home_address ?? "",
     travelMode: row.travel_mode,
     travelBufferMinutes: row.travel_buffer_minutes,
+    homeTravelMode: row.home_travel_mode,
+    homeTravelBufferMinutes: row.home_travel_buffer_minutes,
     timeFormat: row.time_format,
     dayStartHour: row.day_start_hour,
     dayEndHour: row.day_end_hour,
@@ -42,7 +46,7 @@ export function toSettingsData(row: SettingsRow): SettingsData {
 export async function readSettings(query: Query): Promise<SettingsData> {
   const [row] = await query<SettingsRow>(`select ${SETTINGS_COLUMNS} from app.settings`);
   if (!row) {
-    return { timeZone: DEFAULT_TIME_ZONE, homeAddress: "", travelMode: "driving", travelBufferMinutes: 10, ...DEFAULT_DISPLAY };
+    return { timeZone: DEFAULT_TIME_ZONE, homeAddress: "", travelMode: "driving", travelBufferMinutes: 10, homeTravelMode: null, homeTravelBufferMinutes: null, ...DEFAULT_DISPLAY };
   }
   return toSettingsData(row);
 }

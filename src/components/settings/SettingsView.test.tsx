@@ -15,7 +15,7 @@ const DATA: SettingsPageData = {
     timeZone: "Europe/Lisbon",
     homeAddress: "Rua Augusta 100, Lisbon",
     travelMode: "cycling",
-    travelBufferMinutes: 15,
+    travelBufferMinutes: 15, homeTravelMode: null, homeTravelBufferMinutes: null,
     timeFormat: "12h",
     dayStartHour: 7,
     dayEndHour: 21,

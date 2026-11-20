@@ -13,7 +13,7 @@ describe("the Places row", () => {
   it("names the saved places (not Home) and offers Manage", () => {
     expect(placesHint(PLACES)).toBe("Uni, Gym");
     expect(placesHint([])).toBe("No places yet");
-    const html = renderToStaticMarkup(<PlacesRow homeAddress="Rua Augusta 1" places={PLACES} />);
+    const html = renderToStaticMarkup(<PlacesRow homeAddress="Rua Augusta 1" places={PLACES} onPlaces={() => {}} />);
     expect(html).toContain(">Places</p>");
     expect(html).toContain("Uni, Gym");
     expect(html).not.toContain("Home, Uni");

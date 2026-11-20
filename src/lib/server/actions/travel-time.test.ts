@@ -384,3 +384,44 @@ describe("travel_time: the route as the editor has it, before Save", () => {
     expect((await read(await ask(id, {}, query))).body).toMatchObject({ travel: { status: "ok", mode: "driving", minutes: 25, from: "Home" } });
   });
 });
+
+describe("travel_time: way and buffer per place (home, saved places, Other)", () => {
+  const gym = async (user: string, mode: string | null, buffer: number | null) =>
+    app.db.withUser(user, (q) => q("insert into app.places (name, address, travel_mode, travel_buffer_minutes) values ('Gym', 'Nova SBE, Carcavelos', $1, $2)", [mode, buffer]));
+  const answer = async (id: string) => (await read(await ask(id))).body.travel as { mode: string; bufferMinutes: number; leaveAt: string };
+
+  it("takes the saved place's own way and buffer for an event there", async () => {
+    const user = await alice({ mode: "transit", buffer: 10 });
+    const id = await lecture(user);
+    await gym(user, "walking", 5);
+    expect(await answer(id)).toMatchObject({ mode: "walking", bufferMinutes: 5 });
+    const many = await travelTimes(postJson("/api/travel", { ids: [id] }), app.deps, routing);
+    expect(((await read(many)).body.travel as Record<string, unknown>)[id]).toMatchObject({ mode: "walking", bufferMinutes: 5 });
+  });
+
+  it("takes Other for what the place leaves empty, and for an address that is no saved place", async () => {
+    const user = await alice({ mode: "transit", buffer: 10 });
+    const id = await lecture(user);
+    expect(await answer(id)).toMatchObject({ mode: "transit", bufferMinutes: 10 });
+    await gym(user, null, 0);
+    expect(await answer(id)).toMatchObject({ mode: "transit", bufferMinutes: 0 });
+  });
+
+  it("the event's own way still wins; the buffer stays the place's", async () => {
+    const user = await alice({ mode: "transit", buffer: 10 });
+    const id = await lecture(user, "Nova SBE, Carcavelos", "cycling");
+    await gym(user, "walking", 5);
+    expect(await answer(id)).toMatchObject({ mode: "cycling", bufferMinutes: 5 });
+  });
+
+  it("takes home's own way and buffer for an event at home", async () => {
+    const user = await alice({ mode: "transit", buffer: 10 });
+    const id = await lecture(user, "Rua das Madres 66, Lisboa");
+    routing.places.set("gym street 1", { lat: 38.7, lon: -9.2 });
+    await app.db.admin("update app.settings set home_travel_mode = 'driving', home_travel_buffer_minutes = 0 where user_id = $1", [user]);
+    await setFromTo(id, "address:Gym Street 1");
+    expect(await answer(id)).toMatchObject({ mode: "driving", bufferMinutes: 0 });
+  });
+
+  const setFromTo = (id: string, from: string) => app.db.admin("update app.events set travel_from = $2 where id = $1", [id, from]);
+});

@@ -387,8 +387,8 @@ describe("the calendar page (S5)", () => {
     await setInvites(event, [anaBen]);
     const plain = await loadCalendarPage(app.deps, ben, "2030-01-08", "week");
     const withShares = await loadCalendarPageWithShares(app.deps, ben, "2030-01-08", "week");
-    expect(Object.keys(plain).sort()).toEqual(["display", "goals", "home", "places", "showWelcome", "tasks", "travelMode", "week"]);
-    expect(Object.keys(withShares).sort()).toEqual(["display", "goals", "home", "places", "sharing", "showWelcome", "tasks", "travelMode", "week"]);
+    expect(Object.keys(plain).sort()).toEqual(["display", "goals", "home", "homeTravelMode", "places", "showWelcome", "tasks", "travelMode", "week"]);
+    expect(Object.keys(withShares).sort()).toEqual(["display", "goals", "home", "homeTravelMode", "places", "sharing", "showWelcome", "tasks", "travelMode", "week"]);
     expect(JSON.stringify([plain, withShares])).not.toContain("Group project meeting");
   });
 });

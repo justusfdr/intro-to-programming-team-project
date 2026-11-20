@@ -69,7 +69,9 @@ const ICON: Record<"none" | "last" | "home" | "place" | "address", ReactNode> = 
 
 export function RouteSection({ from, onFrom, mode, onMode, location, onLocation, children, toReadOnly = false }: Props) {
   const places = useSavedPlaces();
-  const { home, travelMode } = useTravelDefaults();
+  const { home, wayFor } = useTravelDefaults();
+  // The default for where the event is: a saved place's or home's own way, else Other's.
+  const travelMode = wayFor(location);
   const [modesOpen, setModesOpen] = useState(false);
 
   const start = travelFromOf(from);

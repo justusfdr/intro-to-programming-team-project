@@ -99,7 +99,7 @@ describe("profile page", () => {
 
 describe("Settings", () => {
   const data = {
-    settings: { timeZone: "Europe/Lisbon", homeAddress: "", travelMode: "driving", travelBufferMinutes: 10, timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
+    settings: { timeZone: "Europe/Lisbon", homeAddress: "", travelMode: "driving", travelBufferMinutes: 10, homeTravelMode: null, homeTravelBufferMinutes: null, timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
     plan: "free",
     outlookAvailable: false,
     outlook: { status: "none", lastSyncedAt: null },

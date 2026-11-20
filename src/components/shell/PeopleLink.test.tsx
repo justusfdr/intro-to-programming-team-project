@@ -57,7 +57,7 @@ describe("People in Settings, for phones", () => {
       timeZone: "Europe/Lisbon",
       homeAddress: "",
       travelMode: "cycling",
-      travelBufferMinutes: 15,
+      travelBufferMinutes: 15, homeTravelMode: null, homeTravelBufferMinutes: null,
       timeFormat: "12h",
       dayStartHour: 7,
       dayEndHour: 21,

@@ -4,7 +4,9 @@ import "server-only";
 // calculated each time (the routing may reuse a result for up to 6 hours).
 //   1. same-origin check   2. signed in (R3)   3. read the event ("Not found" otherwise, R3) and the settings
 //   4. outside the database: find both addresses, ask for the trip   5. one answer per outcome.
-// The way of getting there is the event's own travel_mode, or else the standard from the settings.
+// The way of getting there is the event's own travel_mode, or else the one for where the event is: home's
+// or a saved place's own way, else "Other" (the settings'). The buffer is the one for where the event is
+// too (src/lib/travel/way.ts).
 // The trip starts where the event's travel_from says (src/lib/places/saved.ts): home, a saved place, an
 // address typed for this event, or the place of the event before it. The standard (empty) is the place
 // of the event before it, else home. "The event before" is the latest timed event that ended in the
@@ -34,6 +36,7 @@ import { readSettings } from "@/lib/server/settings";
 import { readPlaces } from "@/lib/server/places/saved";
 import type { Query } from "@/lib/server/db";
 import { travelFromOf, type SavedPlace } from "@/lib/places/saved";
+import { sameAddress, wayTo } from "@/lib/travel/way";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -43,11 +46,18 @@ export { isWebLink };
  * The travel answer for one event row, or null when it can have none (no location, a web link, all-day).
  * Never throws: a routing service that cannot be reached is "Travel time not available".
  */
-export async function travelOf(event: EventRow, settings: SettingsData, routing: Routing, start?: TripStart): Promise<TravelAnswer | null> {
+export async function travelOf(
+  event: EventRow,
+  settings: SettingsData,
+  routing: Routing,
+  start?: TripStart,
+  places: SavedPlace[] = [],
+): Promise<TravelAnswer | null> {
   const location = event.location?.trim() ?? "";
   if (!event.start_at || !canTravel({ allDay: event.all_day, location })) return null;
 
-  const mode: TravelMode = event.travel_mode ?? settings.travelMode;
+  const way = wayTo(location, settings, places);
+  const mode: TravelMode = event.travel_mode ?? way.mode;
   const from = start ?? { label: "Home", address: settings.homeAddress.trim() };
   if (from.address === "") return { status: "no_home", mode, message: MESSAGES.addHomeAddress };
   // Already there (the event before is at the same place, say): no trip and no buffer, so no travel time.
@@ -59,7 +69,7 @@ export async function travelOf(event: EventRow, settings: SettingsData, routing:
     if (samePlace(home, there)) return null;
     const trip = await routing.trip(mode, home, there, new Date(event.start_at));
     if (!trip) return { status: "unavailable", mode, message: MESSAGES.travelUnavailable };
-    const buffer = settings.travelBufferMinutes;
+    const buffer = way.bufferMinutes;
     const leaveAt = new Date(trip.departAt.getTime() - buffer * 60_000);
     return { status: "ok", mode, minutes: trip.minutes, bufferMinutes: buffer, leaveAt: leaveAt.toISOString(), from: from.label };
   } catch {
@@ -68,11 +78,7 @@ export async function travelOf(event: EventRow, settings: SettingsData, routing:
   }
 }
 
-/** Two addresses written the same way (case, spaces and commas aside). */
-export function sameAddress(a: string, b: string): boolean {
-  const norm = (s: string) => s.toLowerCase().replace(/[\s,]+/g, " ").trim();
-  return norm(a) === norm(b);
-}
+export { sameAddress };
 
 /** Two points closer than about 50 metres: one place, written in two ways. */
 export function samePlace(a: Point, b: Point): boolean {
@@ -113,15 +119,15 @@ export function travelTime(request: Request, deps: Pick<Deps, "auth" | "withUser
     if (!UUID.test(id)) throw notFound();
 
     // Only reading, and the database is left before the slow questions to the routing services.
-    const { event, settings, start } = await deps.withUser(userId, async (query) => {
+    const { event, settings, start, places } = await deps.withUser(userId, async (query) => {
       const [saved] = await query<EventRow>(`select ${EVENT_COLUMNS} from app.events where id = $1`, [id]);
       if (!saved) throw notFound();
       const row = withPreview(saved, new URL(request.url));
       const [settings, places] = await Promise.all([readSettings(query), readPlaces(query)]);
       const before = await readBefore(query, [row.id], settings.timeZone);
-      return { event: row, settings, start: tripStart(row, settings, places, before.get(row.id) ?? []) };
+      return { event: row, settings, places, start: tripStart(row, settings, places, before.get(row.id) ?? []) };
     });
-    const travel = await travelOf(event, settings, routing, start);
+    const travel = await travelOf(event, settings, routing, start, places);
     // For one event (the editor), the map of the way too, when there is a time to leave.
     const map = travel?.status === "ok" ? routeMapUrl(start.address, event.location ?? "", travel.mode, googleMapsBrowserKey()) : null;
     return jsonOk({ travel: travel && map && travel.status === "ok" ? { ...travel, map } : travel });
@@ -159,7 +165,7 @@ export function travelTimes(request: Request, deps: Pick<Deps, "auth" | "withUse
     // One after the other, so one week view does not send a burst of questions to Google; most are kept.
     const travel: Record<string, TravelAnswer> = {};
     for (const event of events) {
-      const answer = await travelOf(event, settings, routing, tripStart(event, settings, places, before.get(event.id) ?? []));
+      const answer = await travelOf(event, settings, routing, tripStart(event, settings, places, before.get(event.id) ?? []), places);
       if (answer) travel[event.id] = answer;
     }
     return jsonOk({ travel });

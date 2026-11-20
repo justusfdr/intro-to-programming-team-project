@@ -20,8 +20,7 @@ export function placesHint(places: SavedPlace[]): string {
   return places.length === 0 ? "No places yet" : places.map((p) => p.name).join(", ");
 }
 
-export function PlacesRow({ homeAddress, places: initial }: { homeAddress: string; places: SavedPlace[] }) {
-  const [places, setPlaces] = useState(initial);
+export function PlacesRow({ homeAddress, places, onPlaces }: { homeAddress: string; places: SavedPlace[]; onPlaces: (places: SavedPlace[]) => void }) {
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -48,7 +47,7 @@ export function PlacesRow({ homeAddress, places: initial }: { homeAddress: strin
         onClick={(event) => event.target === dialog.current && setOpen(false)}
         className="event-editor m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-card bg-surface p-0 text-ink shadow-pop md:m-auto md:max-h-[calc(100dvh-3rem)] md:max-w-md md:rounded-card"
       >
-        {open && <PlacesList homeAddress={homeAddress} places={places} onPlaces={setPlaces} onClose={() => setOpen(false)} />}
+        {open && <PlacesList homeAddress={homeAddress} places={places} onPlaces={onPlaces} onClose={() => setOpen(false)} />}
       </dialog>
     </div>
   );

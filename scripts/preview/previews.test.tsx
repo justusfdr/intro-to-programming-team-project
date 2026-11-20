@@ -426,7 +426,7 @@ it("writes the preview files", async () => {
   const { YourAccountCard } = await import("@/components/settings/YourAccountCard");
   type SettingsPageData = import("@/lib/settings/types").SettingsPageData;
   const settingsData: SettingsPageData = {
-    settings: { timeZone: "Europe/Lisbon", homeAddress: "Rua Augusta 100, Lisbon", travelMode: "cycling", travelBufferMinutes: 10, timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
+    settings: { timeZone: "Europe/Lisbon", homeAddress: "Rua Augusta 100, Lisbon", travelMode: "cycling", travelBufferMinutes: 10, homeTravelMode: null, homeTravelBufferMinutes: null, timeFormat: "12h", dayStartHour: 7, dayEndHour: 21 },
     plan: "free",
     outlookAvailable: false,
     outlook: { status: "none", lastSyncedAt: null },
