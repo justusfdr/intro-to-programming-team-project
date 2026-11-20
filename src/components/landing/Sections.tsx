@@ -2,7 +2,7 @@
 // plans, the questions and the last invitation. The plans come from the same list as the pricing
 // page inside the app, so the two can never disagree.
 import type { ReactNode } from "react";
-import { CalendarDays, CalendarSync, Check, MapPin, Plus, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
+import { CalendarSync, Check, MapPin, Plus, ShieldCheck, Sparkles, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { LinkButton } from "@/components/ui/Button";
 import { PLANS, type PlanInfo } from "@/lib/billing/plans";
@@ -50,7 +50,7 @@ export function Founder() {
 /** Each tool's icon in a soft tile of its own colour, like the tiles of the goals. */
 const TOOL_LOOK: Record<Tool["id"], { icon: LucideIcon; tile: string }> = {
   outlook: { icon: CalendarSync, tile: "bg-sky-50 text-sky-700" },
-  "google-calendar": { icon: CalendarDays, tile: "bg-indigo-50 text-indigo-700" },
+  claude: { icon: Sparkles, tile: "bg-indigo-50 text-indigo-700" },
   chrome: { icon: ShieldCheck, tile: "bg-amber-50 text-amber-800" },
   maps: { icon: MapPin, tile: "bg-emerald-50 text-emerald-700" },
 };

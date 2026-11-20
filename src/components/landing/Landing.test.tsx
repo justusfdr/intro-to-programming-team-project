@@ -69,10 +69,13 @@ describe("the landing page", () => {
     }
   });
 
-  it("marks what is not built yet as coming soon, and only that", () => {
+  // Changed on 20 Nov 2026 at the team's wish: Google Calendar, which was shown as "Coming soon",
+  // came off the page. Every tool on it is built, and Claude, which powers the coach, joined them.
+  it("shows only tools that are built: nothing is marked as coming soon", () => {
     const tools = html.slice(html.indexOf('id="tools"'), html.indexOf('id="pricing"'));
-    expect(TOOLS.filter((tool) => tool.soon).map((tool) => tool.name)).toEqual(["Google Calendar"]);
-    expect(tools.match(/Coming soon/g)?.length).toBe(1);
+    expect(TOOLS.map((tool) => tool.name)).toEqual(["Outlook Calendar", "Claude", "Chrome", "Google Maps"]);
+    expect(TOOLS.filter((tool) => tool.soon)).toEqual([]);
+    expect(tools).not.toContain("Coming soon");
     for (const tool of TOOLS) expect(tools).toContain(`>${tool.name}</h3>`);
   });
 

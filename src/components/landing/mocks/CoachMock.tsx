@@ -1,4 +1,4 @@
-// "Plan" (spec 45): a short chat with the coach. The user says what tomorrow needs, the coach thinks,
+// "Plan" (spec 45): a short chat with the coach. The user says what the day needs, the coach thinks,
 // answers with a draft for the day, and "Add to calendar" turns the draft into real events.
 import { Check, Footprints, GraduationCap, type LucideIcon } from "lucide-react";
 import { LogoMark } from "@/components/shell/Logo";
@@ -34,12 +34,12 @@ export function CoachMock() {
   return (
     <div
       role="img"
-      aria-label="A chat with the coach. Asked for two hours of thesis work and a run tomorrow, it drafts both around the group project, and one click adds them to the calendar."
+      aria-label="A chat with the coach. Asked for two hours of thesis work and a run today, it drafts both around the group project, and one click adds them to the calendar."
       className="w-full max-w-[440px]"
     >
       <div aria-hidden className="flex flex-col gap-4">
         <p className="l-rise ml-auto max-w-[86%] rounded-[20px] border border-line-subtle bg-surface px-4 py-2.5 text-[14px] leading-[22px] text-ink" style={timing({ d: 150 })}>
-          Tomorrow I need two hours for my thesis and a run. Group project is at 11:15.
+          Today I need two hours for my thesis and a run. Group project is at 11:15.
         </p>
 
         <div className="flex gap-3">
@@ -52,7 +52,7 @@ export function CoachMock() {
               <Dots />
             </span>
             <p className="l-pop col-start-1 row-start-1 origin-left pt-0.5 text-[14px] leading-[22px] text-ink" style={timing({ d: ANSWER })}>
-              Here is a draft for Thursday: the thesis first, while you are fresh, and your run after the group project.
+              Here is a draft for today: the thesis first, while you are fresh, and your run after the group project.
             </p>
           </div>
         </div>

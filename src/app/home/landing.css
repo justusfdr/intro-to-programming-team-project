@@ -76,6 +76,12 @@
     animation: l-grow 760ms var(--l-ease) both;
     animation-delay: calc(var(--d, 0) * 1ms);
   }
+  /* Bars of a chart grow from the bottom. */
+  .l-raise {
+    transform-origin: center bottom;
+    animation: l-raise 720ms var(--l-ease) both;
+    animation-delay: calc(var(--d, 0) * 1ms);
+  }
   /* The focus ring draws itself up to its value (--from is the full circle's length). */
   .l-ring {
     animation: l-ring 1800ms var(--l-ease) both;
@@ -175,6 +181,11 @@
     transform: scaleX(var(--from, 0));
   }
 }
+@keyframes l-raise {
+  from {
+    transform: scaleY(0);
+  }
+}
 @keyframes l-ring {
   from {
     stroke-dashoffset: var(--from);
@@ -213,5 +224,151 @@
 @keyframes l-live {
   50% {
     opacity: 0.35;
+  }
+}
+
+/*
+  The day story under "How it works" (spec 62).
+
+  As drawn, the six stops stand one under the other and every picture shows its final state. On a
+  wide and tall enough screen, with motion allowed and scripts running, the stage is pinned instead:
+  the story becomes a tall track, the stage sticks under the bar at the top, and StoryScroll.tsx
+  writes the scroll position into three numbers that the rules below turn into moves:
+    --day  how far through the day the red line is (0 at 8 AM, 1 at 6 PM), on the story
+    --on   how much of a stop is there (0 to 1), on each stop
+    --u    how far through its stop the "On the way" picture is (0 to 1), on that picture
+  The pinned layout lives here and not in the markup's classes because it depends on this one long
+  condition. StoryScroll.tsx asks for the same condition.
+*/
+
+/* A suggestion of the coach in the day: only there between "suggested" and "added". */
+.story-ghost {
+  opacity: 0;
+}
+
+/* "Leave in 5 min", "On the way", "Arrived": one of the three, by how far the car is. Without a
+   script --u is 1 and the car has arrived. */
+.story-leave > * {
+  grid-area: 1 / 1;
+}
+.story-leave > :nth-child(1) {
+  opacity: clamp(0, calc((0.17 - var(--u, 1)) * 16), 1);
+}
+.story-leave > :nth-child(2) {
+  opacity: min(clamp(0, calc((var(--u, 1) - 0.17) * 16), 1), clamp(0, calc((0.86 - var(--u, 1)) * 16), 1));
+}
+.story-leave > :nth-child(3) {
+  opacity: clamp(0, calc((var(--u, 1) - 0.86) * 16), 1);
+}
+
+@media (min-width: 1024px) and (min-height: 600px) and (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+  /* The track: every stop gets most of a screen of scrolling, then the stage moves on. */
+  .story {
+    height: calc(var(--stops, 6) * 78vh + 100dvh - 64px);
+  }
+  .story-stage {
+    position: sticky;
+    top: 64px;
+    display: grid;
+    grid-template-columns: 212px minmax(0, 1fr);
+    column-gap: 36px;
+    align-items: center;
+    height: calc(100dvh - 64px);
+    padding-block: 24px;
+  }
+  .story-rail {
+    display: flex;
+    height: min(100%, 640px);
+  }
+  .story-stops {
+    position: relative;
+    display: block;
+    height: min(100%, 640px);
+    padding: 0;
+  }
+
+  /* The stops lie on top of each other; the one whose time has come slides in from the right. */
+  .story-stop {
+    position: absolute;
+    inset: 0;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+    gap: 0 40px;
+    align-items: stretch;
+    opacity: var(--on, 0);
+    transform: translateX(calc((1 - var(--on, 0)) * 36px)) scale(calc(0.96 + 0.04 * var(--on, 0)));
+    transform-origin: left center;
+    pointer-events: none;
+  }
+  /* Until the script has taken over, the first stop is simply there. */
+  .story:not([data-run]) .story-stop:first-child {
+    --on: 1;
+  }
+  .story-stop[data-on] {
+    pointer-events: auto;
+  }
+  .story-text {
+    align-self: center;
+  }
+  .story-text h3 {
+    font-size: 32px;
+  }
+  .story-words {
+    font-size: 16px;
+    line-height: 26px;
+  }
+  .story-cell {
+    height: 100%;
+  }
+  /* The picture keeps its drawn width and is scaled to fit its box (--fit, measured by the script). */
+  .story-pic {
+    height: 100%;
+    min-height: 0;
+    padding: 16px;
+    overflow: hidden;
+  }
+  .story-fit {
+    flex: none;
+    width: 440px;
+    transform: scale(var(--fit, 1));
+  }
+
+  /* The day: the red line, what is behind it, and the events as they get planned. */
+  .story-now {
+    top: calc(var(--day, 0) * 100%);
+  }
+  .story-past {
+    height: calc(var(--day, 0) * 100%);
+  }
+  .story-block > *,
+  .story-trip {
+    transition:
+      opacity 320ms ease,
+      transform 460ms var(--l-ease),
+      box-shadow 320ms ease,
+      border-color 320ms ease;
+  }
+  .story-block[data-state="none"] > * {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  .story-block[data-state="ghost"] > .story-real {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  .story-block[data-state="ghost"] > .story-ghost {
+    opacity: 1;
+  }
+  /* The event the line is in stands out. */
+  .story-block[data-current] {
+    z-index: 2;
+  }
+  .story-block[data-current] > .story-real {
+    transform: scale(1.03);
+    box-shadow:
+      0 2px 4px rgb(16 16 16 / 0.04),
+      0 18px 48px -12px rgb(16 16 16 / 0.22);
+  }
+  .story-trip[data-current] {
+    border-color: var(--color-ink);
   }
 }

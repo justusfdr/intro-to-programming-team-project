@@ -10,7 +10,7 @@ A visitor who opens the app sees a sign-in form and nothing that says what the a
 - [x] First screen: the claim, two buttons and the week view, where the coach's suggestions appear dashed and lock in as real blocks.
 - [x] "How it works": the idea in one sentence (with the day's distractions struck through), then three steps, each with words on the left and a moving picture of the real screen on the right (on phones the picture follows the words): Plan (a chat with the coach, a draft, "Add to calendar"), Focus (a running session, blocked sites arriving), Reach (two goals, this week's count going up).
 - [x] "Why we built it": a quote of one of the founders.
-- [x] "Works with the tools you already use": Outlook Calendar, Google Calendar, Chrome, Google Maps. Google Calendar is not built and says "Coming soon".
+- [x] "Works with the tools you already use": Outlook Calendar, Claude, Chrome, Google Maps. Every tool on it is built. (Until 20 Nov the list had Google Calendar marked "Coming soon"; the team took it off and added Claude, which powers the coach.)
 - [x] "Pricing": Free and Pro from `src/lib/billing/plans.ts`, the same list the pricing page inside the app uses.
 - [x] "FAQ": seven questions; opening one closes the one that was open.
 - [x] A last invitation and a foot with three lists: Product, Company, Legal.
