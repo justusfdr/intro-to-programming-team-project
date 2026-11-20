@@ -40,14 +40,15 @@ export function YourAccountCard({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<PostResult | null>(null);
 
-  async function leave(path: string, body: unknown) {
+  /** `to`: where the page goes afterwards; without it the server's `next` (or the sign-in page). */
+  async function leave(path: string, body: unknown, to?: string) {
     setBusy(true);
     setFailure(null);
     const answer = await postJson(path, body);
     if (answer.ok) {
       forgetWidgets(); // spec 47: the next account must not see these widgets
       // Loaded in full: nothing of this account stays in the browser's memory (src/lib/client/fresh-page.ts).
-      openFresh(answer.next ?? "/sign-in");
+      openFresh(to ?? answer.next ?? "/sign-in");
       return;
     }
     setFailure(answer);
@@ -110,7 +111,7 @@ export function YourAccountCard({
 
       <div className="mt-5">
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" disabled={busy} onClick={() => leave("/api/auth/sign-out", {})}>
+          <Button variant="secondary" disabled={busy} onClick={() => leave("/api/auth/sign-out", {}, "/home")}>
             <LogOut className="size-4" strokeWidth={1.8} aria-hidden="true" />
             Sign out
           </Button>

@@ -1,7 +1,7 @@
 "use client";
 
 // Button that ends the session. The server does the work (src/lib/server/actions/sign-out.ts);
-// the page then goes to the sign-in page.
+// the page then goes to the landing page (/home), where "Log in" leads back to the sign-in page.
 import { useState } from "react";
 import { FormMessage } from "@/components/account/FormMessage";
 import { LogOut } from "lucide-react";
@@ -24,9 +24,9 @@ export function SignOutButton() {
     const answer = await postJson("/api/auth/sign-out", {});
     if (answer.ok) {
       forgetWidgets(); // spec 47: the next account must not see these widgets
-      // The sign-in page, loaded in full: nothing of this account stays in the browser's memory
+      // The landing page, loaded in full: nothing of this account stays in the browser's memory
       // (src/lib/client/fresh-page.ts).
-      openFresh("/sign-in");
+      openFresh("/home");
       return;
     }
     setError(answer.message);
