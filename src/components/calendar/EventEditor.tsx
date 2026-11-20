@@ -55,7 +55,7 @@ import { TravelLine } from "./editor/TravelLine";
 import { RouteSection } from "./editor/RouteSection";
 import { TodoList } from "./editor/TodoList";
 import { cannotSave, useEventSave } from "./editor/useEventSave";
-import { createBody, eventFromAnswer, newValues, type EventValues } from "./editor/values";
+import { createBody, eventFromAnswer, hasEnded, newValues, type EventValues } from "./editor/values";
 import { RepeatFields, WhenSection, type Frequency } from "./editor/WhenSection";
 import { savedEventChange } from "./event-changes";
 import { FloatingPanel, type Anchor } from "./FloatingPanel";
@@ -190,9 +190,11 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
   const save = useEventSave({ initial, shown, timeZone, outlookConnected, onDeleted, onRefused, onClose });
   const { event, values } = save;
   const fromOutlook = event.source === "outlook";
-  // Whole days only (the editor knows today's date, not the time): an event that ended earlier today
-  // still shows the field, and the server refuses with the same sentence.
+  // Invites inside the app go by whole days (R63). Guests by e-mail go by the minute, as the server checks
+  // them: an event that ended earlier today says so instead of offering a field whose Save is refused.
   const endedBeforeToday = (event.allDay ? event.lastDay : event.endLocal.slice(0, 10)) < today;
+  const [openedAt] = useState(() => Date.now());
+  const ended = hasEnded(values, openedAt, timeZone, today);
   const people = useInviteDraft(event.id, invites);
   const inviteReason = inviteBlockedReason(event, endedBeforeToday);
   const look = values.allDay ? null : (goals.find((g) => g.id === values.goalId)?.look ?? null);
@@ -231,7 +233,7 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
       <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotDemo}. Create your own event to invite someone.`} />
     ) : event.seriesId ? (
       <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotInSeries}.`} />
-    ) : endedBeforeToday ? (
+    ) : ended ? (
       // Outlook gets no past events (R26), so nobody could be invited; the server refuses it too.
       <GuestsSection key="guests" mode="unavailable" guests={values.guests ?? []} reason={`This event has ended. ${MESSAGES.guestsNotEnded}.`} />
     ) : outlookConnected ? (
@@ -397,6 +399,7 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
   // Spec 54: the contacts ticked for the new event, invited once it exists.
   const contacts = invites?.contacts ?? NO_CONTACTS;
   const [chosen, setChosen] = useState<string[]>([]);
+  const [openedAt] = useState(() => Date.now());
   const series = !values.allDay && frequency !== "none";
 
   async function add() {
@@ -407,7 +410,9 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
         ? null
         : { frequency, weekdays: frequency === "weekly" ? [...new Set([...weekdays, first])].sort((a, b) => a - b) : [], until };
     setBusy(true);
-    const answer = await live.run({ send: () => postJson("/api/events", createBody(values, repeat, todos)), fromAnswer: savedEventChange });
+    // Guests typed before the time was moved into the past are not sent (the field says why).
+    const sent = hasEnded(values, openedAt, timeZone, today) ? { ...values, guests: undefined } : values;
+    const answer = await live.run({ send: () => postJson("/api/events", createBody(sent, repeat, todos)), fromAnswer: savedEventChange });
     setBusy(false);
     if (!answer.ok) return setResult(answer);
     if (answer.message) announce(answer.message);
@@ -462,6 +467,8 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
     ),
     !values.allDay && frequency !== "none" ? (
       <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotInSeries}.`} />
+    ) : hasEnded(values, openedAt, timeZone, today) ? (
+      <GuestsSection key="guests" mode="unavailable" guests={values.guests ?? []} reason={`This event has ended. ${MESSAGES.guestsNotEnded}.`} />
     ) : outlookConnected ? (
       <GuestsSection key="guests" mode="edit" guests={values.guests ?? []} onChange={(guests) => change({ guests })} />
     ) : (

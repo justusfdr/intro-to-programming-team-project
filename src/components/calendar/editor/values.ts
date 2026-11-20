@@ -47,6 +47,22 @@ export type EventValues = {
   notes?: string;
 };
 
+/**
+ * Whether the event as the editor shows it has ended at `now` (an all-day event: its last day is before
+ * today). The same test the server makes before it saves guests (assertNotEnded): Outlook gets no past
+ * events, so nobody could be invited to one. Timed events count to the minute, not by day, so an event
+ * that ended earlier today no longer offers the guests field.
+ */
+export function hasEnded(values: EventValues, now: number, timeZone: string, today: string): boolean {
+  if (values.allDay) return values.lastDay < today;
+  const endLocal = localAt(values.date, values.endMin);
+  const endDay = endLocal.slice(0, 10);
+  if (endDay !== today) return endDay < today;
+  // Ends today: to the minute.
+  const end = parseLocalDateTime(endLocal, timeZone);
+  return end !== null && end.getTime() <= now;
+}
+
 /** The end in minutes from midnight of the start's day; past midnight it is more than 24 hours. */
 function endMinuteOf(start: string, end: string): number {
   const length = Math.round((Date.parse(`${end}:00Z`) - Date.parse(`${start}:00Z`)) / 60_000);
