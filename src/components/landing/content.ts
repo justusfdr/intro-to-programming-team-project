@@ -118,7 +118,7 @@ export const STORY: readonly Stop[] = [
 ];
 
 export type Tool = {
-  id: "outlook" | "google-calendar" | "chrome" | "maps";
+  id: "outlook" | "claude" | "chrome" | "maps";
   name: string;
   text: string;
   status: string;
@@ -128,7 +128,7 @@ export type Tool = {
 
 export const TOOLS: readonly Tool[] = [
   { id: "outlook", name: "Outlook Calendar", text: "Your Outlook events show up here, and what you plan here appears in Outlook.", status: "Two-way sync" },
-  { id: "google-calendar", name: "Google Calendar", text: "The same two-way sync for Google Calendar is next on our list.", status: "Coming soon", soon: true },
+  { id: "claude", name: "Claude", text: "The coach that drafts your week is powered by Claude. It only suggests: nothing changes until you accept.", status: "AI coach" },
   { id: "chrome", name: "Chrome", text: "Our extension blocks the sites that distract you while you focus.", status: "Site blocker" },
   { id: "maps", name: "Google Maps", text: "Travel times for events with a place, so you know when to leave.", status: "Travel times" },
 ];
