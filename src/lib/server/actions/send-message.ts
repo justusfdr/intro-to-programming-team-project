@@ -48,6 +48,10 @@ import { chatProOnly } from "@/lib/server/config";
 import type { Deps } from "@/lib/server/deps";
 import { ActionError, handleAction } from "@/lib/server/errors";
 import { finishDueSessions } from "@/lib/server/focus/sessions";
+import { googleRouting } from "@/lib/server/google/routes";
+import { oncePerRoute } from "@/lib/server/routing/by-route";
+import type { Routing } from "@/lib/server/routing/types";
+import { awayMinutes, proposalsFitTravel, readTravelData, travelWindows } from "@/lib/server/chat/travel-windows";
 import { assertSameOrigin, jsonOk, readJson } from "@/lib/server/http";
 import { requireUser } from "@/lib/server/session";
 import { readSettings } from "@/lib/server/settings";
@@ -63,7 +67,7 @@ export const proOnlyError = () => new ActionError(403, "pro_only", MESSAGES.chat
 export const unavailableError = () => new ActionError(503, "assistant_unavailable", MESSAGES.chatUnavailable);
 const failedChecksError = () => new ActionError(502, "answer_failed_checks", MESSAGES.chatFailedChecks);
 
-export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now" | "assistant">): Promise<Response> {
+export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUser" | "now" | "assistant">, routing: Routing = googleRouting()): Promise<Response> {
   return handleAction(async () => {
     const denied = assertSameOrigin(request);
     if (denied) return denied;
@@ -100,13 +104,26 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
         // Spec 44: only this chat's messages; a new chat has none.
         chatId === null ? Promise.resolve([]) : readMessages(query, chatId, HISTORY_LENGTH),
       ]);
-      return { chatId, text, settings, goals, calendar, totalsInput, messages };
+      // Issue #227: the events with a place, for the way to them.
+      const travel = await readTravelData(query, now, settings.timeZone);
+      return { chatId, text, settings, goals, calendar, totalsInput, messages, travel };
     });
 
     // Step 5: Claude, outside any transaction.
     const { settings, goals } = context;
     const asked = deps.now();
-    const calendar = withReferences(context.calendar, asked, settings.timeZone);
+    // Issue #227: the way to the events with a place counts as busy time; one question per route.
+    const ways = oncePerRoute(routing);
+    const { windows, leaveBy } = await travelWindows(context.travel, settings, ways, asked);
+    const goalPlaces = new Map(goals.flatMap((g) => (g.routine?.location ? [[g.id, g.routine.location] as const] : [])));
+    const away = await awayMinutes(
+      [...goalPlaces].map(([id, location]) => ({ id, location })),
+      settings,
+      context.travel.places,
+      ways,
+      new Date(asked.getTime() + 24 * 60 * 60_000),
+    );
+    const calendar = withReferences(context.calendar, asked, settings.timeZone).map((e) => (!e.allDay && leaveBy.has(e.id) ? { ...e, leaveBy: leaveBy.get(e.id) } : e));
     const input = buildAssistantInput({
       now: asked,
       timeZone: settings.timeZone,
@@ -116,6 +133,7 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       goals: withGoalWeeks(goals, context.totalsInput.doneEvents, calendar, asked, settings.timeZone),
       calendar,
       totals: chatTotals({ ...context.totalsInput, goals }, asked, settings.timeZone),
+      awayMinutes: away,
       message: context.text,
     });
     const result = await assistant!.ask({ system: SYSTEM_PROMPT, data: JSON.stringify(input), schema: ANSWER_JSON_SCHEMA });
@@ -138,10 +156,19 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       todoTargets: todoTargetsOf(calendar),
       neverDays: neverDaysOf(goals),
       visibleHours: { startHour: settings.dayStartHour, endHour: settings.dayEndHour },
+      travel: windows,
     });
     if (!checked.ok) {
       console.error("Assistant answer failed a check:", checked.failure);
       throw failedChecksError();
+    }
+    // Issue #227: a session at a goal's place needs room for the way from the event before and on to the one after.
+    if (checked.value.kind === "draft") {
+      const moved = new Set(checked.value.changes.map((c) => c.target.id));
+      if (!(await proposalsFitTravel(checked.value.proposals, goalPlaces, context.travel, settings, ways, moved))) {
+        console.error("Assistant answer failed a check:", "no_room_for_travel");
+        throw failedChecksError();
+      }
     }
 
     // Step 7: both messages and the draft in one step.

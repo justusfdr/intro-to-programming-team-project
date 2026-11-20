@@ -76,6 +76,7 @@ export function editRefusal(failure: EditFailure, item: DraftItem): { status: nu
       return { status: 400, code: "other_day", message: MESSAGES.draftEditOtherDay };
     case "overlaps_proposal":
     case "overlaps_calendar":
+    case "overlaps_travel":
       return { status: 409, code: "overlap", message: MESSAGES.draftEditOverlap };
     case "end_before_start":
       return { status: 400, code: "end_before_start", message: MESSAGES.endAfterStart };

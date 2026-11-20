@@ -3,6 +3,8 @@
 // Sent: the last 10 messages (an assistant message with its draft's proposed events), the goals with
 // deadlines and rules, the events from today to 14 days ahead (title, start, end, may_overlap, all_day),
 // R31's totals, the time zone, the current local date and time, and the calendar's visible hours.
+// Issue #227: a timed event with a place carries "leaveBy" (the local time to set off, never the place), and
+// a goal away from home "travelMinutes" (the way from home with the buffer), so the coach keeps the way free.
 // Never sent: email, password, locations, the block list, payment data, tasks, or the id of anything
 // except a goal. Each field below is copied by name, so nothing else can slip through.
 // Spec 21: an earlier draft's new events carry their to-dos, so "add one more" can be understood. The
@@ -71,7 +73,7 @@ export type GoalInput = {
 export type CalendarInput = (
   | { allDay: false; title: string; startAt: Date; endAt: Date; mayOverlap: boolean }
   | { allDay: true; title: string; firstDay: string; lastDay: string; mayOverlap: boolean }
-) & { ref?: string; changeable?: boolean; canAddTodos?: boolean; todoCount?: number };
+) & { ref?: string; changeable?: boolean; canAddTodos?: boolean; todoCount?: number; leaveBy?: Date };
 
 export type AssistantInputSource = {
   now: Date;
@@ -83,6 +85,8 @@ export type AssistantInputSource = {
   goals: readonly GoalInput[];
   calendar: readonly CalendarInput[];
   totals: ChatTotals;
+  /** Issue #227: goal id -> minutes for the way from home to the goal's place, with the buffer. */
+  awayMinutes?: ReadonlyMap<string, number>;
   /** The user's new message, already checked. */
   message: string;
 };
@@ -98,7 +102,7 @@ function weekdayOf(date: string): string {
  * One goal as Claude sees it. Without a routine exactly the four keys of R22; with one (spec 43) also
  * the routine's keys that have a value and the weeks. Copied by name, so nothing else can slip through.
  */
-function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate, hours: { startHour: number; endHour: number }) {
+function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate, hours: { startHour: number; endHour: number }, awayMinutes?: number) {
   const base = {
     id: g.id,
     title: g.title,
@@ -132,6 +136,7 @@ function goalEntry(g: GoalInput, today: LocalDate, lastDay: LocalDate, hours: { 
         }
       : {}),
     ...(location !== "" && !isWebLink(location) ? { away: true as const } : {}),
+    ...(location !== "" && !isWebLink(location) && awayMinutes !== undefined ? { travelMinutes: awayMinutes } : {}),
     weeks: (g.weeks ?? []).map((w) => ({ from: w.from, to: w.to, left: w.left })),
   };
 }
@@ -154,7 +159,7 @@ export function buildAssistantInput(source: AssistantInputSource) {
       ...(e.ref !== undefined && e.canAddTodos === false ? { canAddTodos: false as const } : {}),
       ...(e.allDay
         ? { title: e.title, allDay: true as const, firstDay: e.firstDay, lastDay: e.lastDay, mayOverlap: e.mayOverlap }
-        : { title: e.title, allDay: false as const, start: local(e.startAt), end: local(e.endAt), mayOverlap: e.mayOverlap }),
+        : { title: e.title, allDay: false as const, start: local(e.startAt), end: local(e.endAt), mayOverlap: e.mayOverlap, ...(e.leaveBy ? { leaveBy: local(e.leaveBy) } : {}) }),
       ...(typeof e.todoCount === "number" && e.todoCount > 0 ? { todoCount: e.todoCount } : {}),
     }))
     .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
@@ -167,7 +172,7 @@ export function buildAssistantInput(source: AssistantInputSource) {
     dayStartHour: source.dayStartHour,
     dayEndHour: source.dayEndHour,
     lastDayForProposals: lastDay,
-    goals: source.goals.map((g) => goalEntry(g, today, lastDay, { startHour: source.dayStartHour, endHour: source.dayEndHour })),
+    goals: source.goals.map((g) => goalEntry(g, today, lastDay, { startHour: source.dayStartHour, endHour: source.dayEndHour }, source.awayMinutes?.get(g.id))),
     events,
     totals: source.totals,
     history: source.history.slice(-HISTORY_LENGTH).map((m) => ({
