@@ -22,6 +22,9 @@ const DRIVE_TO = 0.86;
 /** How long the drive takes where the scroll does not move the car, in milliseconds. */
 const DRIVE_TIME = 3200;
 
+/** The first stop starts once the top of the story is this far up the screen (share of its height from the top). */
+const STARTS_AT = 0.7;
+
 /** A picture is drawn this wide and scaled down when its box is smaller, with this much air around it. */
 const PICTURE_WIDTH = 440;
 const PICTURE_AIR = 32;
@@ -150,7 +153,8 @@ function pinned(root: HTMLElement): () => void {
   const update = () => {
     frame = 0;
     const range = travel();
-    const progress = range > 0 ? (stuckAt - root.getBoundingClientRect().top) / range : 0;
+    const top = root.getBoundingClientRect().top;
+    const progress = range > 0 ? (stuckAt - top) / range : 0;
     const now = storyFrame(progress, stretches);
 
     root.style.setProperty("--day", ((now.minutes - STORY_DAY.from) / (STORY_DAY.to - STORY_DAY.from)).toFixed(4));
@@ -175,16 +179,18 @@ function pinned(root: HTMLElement): () => void {
 
     if (drive) placeCar(drive, now.index === driveStop ? now.local : now.index > driveStop ? 1 : 0);
 
-    // A stop that comes in plays its own animations from the start; the one that left goes back to its first frame.
-    if (now.index !== current) {
+    // A stop that comes in plays its own animations from the start; the one that left goes back to
+    // its first frame. The first stop waits until the stage has scrolled well into view.
+    const showing = top < window.innerHeight * STARTS_AT ? now.index : -1;
+    if (showing !== current) {
       if (current >= 0) {
         for (const animation of held[current]) {
           animation.pause();
           animation.currentTime = 0;
         }
       }
-      for (const animation of held[now.index]) animation.play();
-      current = now.index;
+      if (showing >= 0) for (const animation of held[showing]) animation.play();
+      current = showing;
     }
   };
 
@@ -201,7 +207,8 @@ function pinned(root: HTMLElement): () => void {
     const at = stops.findIndex((stop) => target !== null && stop.contains(target));
     if (at < 0 || at === current) return;
     const top = window.scrollY + root.getBoundingClientRect().top - stuckAt + (travel() * (at + 0.5)) / stops.length;
-    window.scrollTo({ top });
+    // Straight there: gliding would start every stop on the way.
+    window.scrollTo({ top, behavior: "instant" });
   };
 
   root.setAttribute("data-run", "");

@@ -19,15 +19,15 @@ export function TravelMock() {
   return (
     <div aria-hidden data-story-drive className="flex w-full max-w-[440px] flex-col gap-3">
       <div className="l-rise flex items-center gap-3 rounded-card border border-line-subtle bg-surface p-4 shadow-float">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-raised text-ink-2">
+        <span className="hidden size-8 shrink-0 items-center justify-center rounded-lg bg-raised text-ink-2 sm:flex">
           <MapPin className="size-[18px]" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold tracking-snug text-ink">Group project</p>
-          <p className="truncate text-[12px] text-ink-2 tabular">11:15 AM · Nova SBE, Carcavelos</p>
+          <p className="truncate text-[12px] text-ink-2 tabular">11:15 AM · Nova SBE</p>
         </div>
         {/* One of three lines, depending on how far the car is (landing.css, --u). */}
-        <span className="story-leave grid shrink-0 justify-items-end text-[12px] font-semibold">
+        <span className="story-leave grid shrink-0 justify-items-end whitespace-nowrap text-[12px] font-semibold">
           <span className="inline-flex h-7 items-center rounded-full bg-warning-soft px-2.5 text-warning">Leave in 5 min</span>
           <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-raised px-2.5 text-ink">
             <span className="l-live size-1.5 rounded-full bg-today" />
@@ -83,16 +83,16 @@ export function TravelMock() {
         </svg>
 
         <div className="flex items-center gap-2 border-t border-line-subtle p-3 text-[12px]">
-          <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-ink px-2.5 font-medium text-white tabular">
+          <span className="inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-ink px-2.5 font-medium text-white tabular">
             <Car className="size-3.5" />
             12 min by car
           </span>
           {OTHER_WAYS.map((way) => (
-            <span key={way.name} className="flex size-7 items-center justify-center rounded-full border border-line-subtle text-ink-3">
+            <span key={way.name} className="flex size-7 shrink-0 items-center justify-center rounded-full border border-line-subtle text-ink-3">
               <way.icon className="size-3.5" />
             </span>
           ))}
-          <span className="ml-auto text-ink-3 tabular">Leave by 11:00 AM</span>
+          <span className="ml-auto hidden whitespace-nowrap text-ink-3 tabular sm:inline">Leave by 11:00 AM</span>
         </div>
       </div>
     </div>
