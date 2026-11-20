@@ -12,6 +12,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { Pencil, Plus, X } from "lucide-react";
 import { buttonClass } from "@/components/ui/Button";
 import { getJson, postJson } from "@/lib/client/post-json";
+import { SETTINGS_SAVED } from "@/lib/client/settings-saved";
 import { msToNextMinute } from "@/lib/time/next-minute";
 import { nudge, pack, pinned, placeAt, rowsFor } from "@/lib/widgets/layout";
 import { CELL_PX, DEFAULT_LAYOUT, GAP_PX, GRID_COLUMNS, WIDGET_NAMES, type WidgetItem, type WidgetsData } from "@/lib/widgets/types";
@@ -238,6 +239,13 @@ export function WidgetArea() {
     else if (result.status === 401) setOff(true);
   }, [setData]);
   useVisibleInterval(loadData, MINUTE, !off);
+  // A saved settings change (time format, time zone) shows in the widgets at once.
+  useEffect(() => {
+    if (off) return;
+    const onSaved = () => void loadData();
+    window.addEventListener(SETTINGS_SAVED, onSaved);
+    return () => window.removeEventListener(SETTINGS_SAVED, onSaved);
+  }, [off, loadData]);
 
   const ready = data !== null;
   // The weather is asked at the same time as the rest, not after it.
