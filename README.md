@@ -1,65 +1,90 @@
-# Team project
+# LockedIn
 
-Team project for Introduction to Programming at Nova SBE.
+Team project for Introduction to Programming at Nova SBE (2026/27).
 
-We build a web app that brings a calendar, goals with weekly rules and focus sessions together, and a Chrome extension that blocks distracting websites while the user works. Pro users also get an AI chat, typed or spoken, that plans their days and answers questions about how they spent their time. The app is called **LockedIn**.
+**Deployed app:** https://intro-to-programming-team-project.vercel.app
 
-**Status:** build steps 1 to 5 are complete in code: accounts, the week calendar with events, goals with weekly rules and progress, focus sessions, the blocker with its Chrome extension, analytics with the focus score, all-day and repeating events, and Outlook in both directions (specs 01 to 08). Outlook needs a Microsoft app registration (`docs/setup.md`, section 9); without it the app works without Outlook. Everything is deployed once the Supabase project exists (`docs/setup.md`).
+## Team
 
-## Run it
+| Name | Student number |
+|---|---|
+| Lucas Strobel | 78177 |
+| Justus Friederichs | 81107 |
+| Emily Drescher | 78181 |
+
+## What it is
+
+LockedIn is a calendar for students who want to stay focused. It brings planning, goals and focus time into one web app, so a goal is not only written down but ends up as time in the calendar.
+
+- **Calendar:** day, week and month view; events with place, notes, to-dos, guests, all-day and repeating events; drag to create and move, with undo.
+- **Outlook:** events sync in both directions with a personal Microsoft account.
+- **Goals:** a deadline and weekly rules ("3 sessions a week"); progress counts from the calendar; tasks under each goal.
+- **Coach:** an AI chat (Claude API) that plans days and weeks as a draft. The calendar changes only when the user accepts the draft.
+- **Focus sessions and blocker:** a timer, and a Chrome extension that blocks distracting sites while a session runs.
+- **Travel time:** when to leave for an event, by car, bike, on foot or by public transport (Google Maps).
+- **People:** contacts, shared calendars (free/busy or details, read only) and event invitations inside the app.
+- **Analytics:** weekly numbers per goal, focus score, streaks, and a PDF export.
+- **Also:** sidebar widgets (weather, next event, goal progress), a landing page, and a Pro plan paid with Stripe in test mode.
+
+Every user has their own account and sees only their own data, unless a contact shares a calendar or sends an invitation.
+
+## Run it locally
+
 Needs Node.js 24 and npm.
-1. `npm install`
-2. Run the tests: `npm test` (a temporary in-process database and a fake sign-in service; no Supabase, no secrets).
-3. Run all checks (lint, types, tests, build): `npm run check`
-4. Run the app: `npm run dev`, then open http://localhost:3000. Signing in needs a Supabase project and `.env.local`; see `docs/setup.md`.
-5. Look at the pages without signing in: `npm run build`, then `PREVIEW_OUT=/some/folder npm run previews` writes stand-alone HTML files with sample data (a development tool in `scripts/preview/`; the app never uses it).
 
-## How we work
-1. `docs/ontology.md` is the plan. Features are built from it, never the other way round. It changes only with the team's approval.
-2. For each feature we write a spec in `specs/` with four parts: Why, What, Out of scope, Done when.
-3. One branch per spec, named after it.
-4. Tests come from the spec's What lines and cover accepted actions, rejected actions and edge cases. All tests pass before a merge.
-5. Pull request, reviewed by another team member. Nobody merges their own pull request without a review.
-6. Rules for coding agents are in `AGENTS.md`.
+```
+npm install
+npm test        # all tests; needs no database, no keys
+npm run dev     # the app at http://localhost:3000
+```
 
-## Stack
-- **Next.js with TypeScript:** pages and server code in one project; we used it for our first prototype. The teaching staff confirmed that languages other than Python are fine.
-- **Supabase:** Postgres database and email-and-password login in one service; row-level security makes each user see only their own rows.
-- **Vercel:** free hosting at a public URL, deployed from `main`.
-- **Chrome extension (JavaScript):** a website alone cannot block other websites. The teaching staff called the extension a suitable idea.
-- **Claude API:** the AI chat (plans days and answers questions about how the user spent their time), called only from our server.
-- **Microsoft calendar API:** Outlook is the only calendar we connect.
-- **Google Maps Platform (Places, Routes):** address suggestions, the time zone by city, and travel time to events.
-- **Stripe in test mode:** payment for Pro without real money.
+- `npm test` starts a temporary in-process database for each test file and uses fakes for every external service, so it runs on a fresh copy without any setup.
+- `npm run dev` starts the app, but signing in needs a Supabase project and a `.env.local` file. `.env.example` lists every variable; `docs/setup.md` explains each step.
+- `npm run check` runs lint, type check, tests and a production build in one go.
 
-## Build order
-We start with a small part that works end to end and grow it step by step. Each step is deployed.
-1. Sign-up with e-mail confirmation and password reset, database with row-level security, events in the calendar (specs 01 and 02).
-2. Goals, rules and goal progress.
-3. Focus sessions, block list and the extension, then auto-block.
-4. Analytics and focus score.
-5. Outlook in both directions, all-day and repeating events.
-6. AI chat, Stripe test mode and Pro.
-7. Travel time. Settings last.
+## Where things are
 
-Between steps, spec 10 gives the screens the look of our first prototype (goals column, event editor, Analytics) without changing what the app can do.
+| Path | What is there |
+|---|---|
+| `docs/ontology.md` | The plan: concepts, data model, actions and numbered rules (R1, R2 …). Features are built from it. |
+| `specs/` | One file per feature: Why, What, Out of scope, Done when. |
+| `docs/walkthrough.md` | How the project is built, why, its limits and what we would change. Start here for the repository review. |
+| `src/app/` | Pages and the thin API routes. |
+| `src/lib/server/actions/` | One file per action (`create-event.ts`, `send-message.ts` …). The rules are checked here. |
+| `src/lib/server/<service>/` | One module per external service: `db`, `auth`, `claude`, `outlook`, `google`, `stripe`, `weather`. |
+| `src/components/` | The screens. |
+| `supabase/migrations/` | The database schema with row-level security, one SQL file per step. |
+| `extension/` | The Chrome extension. |
+| `test/`, `src/**/*.test.ts(x)` | About 330 test files. `.github/workflows/ci.yml` runs them on every pull request and on `main`. |
+| `AGENTS.md` | Rules for the coding agents we worked with. |
 
-After spec 10, spec 11 adds tasks under goals: a title, an optional due date, one goal or none ("Inbox"), open or done. They are listed under their goal (since spec 39 on the Goals page, `/goals`) and never count for a rule (ontology change of 12 Nov 2026).
+## How we worked
 
-A new account has an empty calendar and no goals; its block list starts with six sites the user can change. For the presentation we prepare demo accounts with example data; they are created and confirmed beforehand.
+1. We wrote the plan first (`docs/ontology.md`) and extended it with every new feature. Each addition has a date and a reason.
+2. Each feature got a spec in `specs/` and a branch.
+3. Tests come from the spec and cover accepted actions, rejected actions and edge cases.
+4. Changes reach `main` through pull requests; lint, type check and all tests run on each one. We aimed for a teammate review on every pull request, but under time pressure we merged many without one and relied on the automatic checks.
+5. We built with coding agents (Claude). The team decided what to build and which rules apply; `AGENTS.md` says what the agents may and may not do.
 
-## Interface notes
-- Goals and the AI chat ("Coach") are pages of their own, next to the calendar in the navigation (specs 19 and 39); the calendar has no side panels.
-- Goal progress is shown as "this week x of y", a strip of weeks and a countdown, not as a line chart.
-- The look follows our first prototype (spec 10): goals as open sections with a tinted tile, a thin bar and one row per rule; the event editor as a panel at the right with upper-case section labels, goal chips and a fixed footer. Every goal shows the same target icon in its colour (the data has no icon per goal). Collapsed goal sections are remembered in the browser only.
-- Tasks are rows under each goal's rules and weeks, with a ring to mark them done, a date chip (red when overdue) and "Add task"; tasks without a goal are listed under "Inbox", the last card of the Goals page. The header of each goal shows its number of open tasks.
-- When a chat message fails, the typed text stays in the input field.
-- The Focus page says why a session is worth it (specs 29 and 48): "Before you start" lists three steps, each with a study, and the library's articles stand under it as tiles. The ticks and the first step typed there stay in the browser only. The landing page shows the same articles under "The research".
-- Settings are reworked last.
+## Stack and why
 
-## Submission (to fill in)
-- Deployed URL: _to be added_
-- Team: Justus Friederichs (student number _to be added_), Lucas (_surname and student number to be added_), Emily (_surname and student number to be added_)
-- Run the app locally: `npm run dev`
-- Run the tests: `npm test`
-- Secrets: they go into `.env.local`, which is never committed. `.env.example` lists their names. Supabase setup: `docs/setup.md`.
+- **Next.js with TypeScript:** pages and server code in one project. The teaching staff confirmed that a language other than Python is fine.
+- **Supabase:** Postgres database and e-mail-and-password login in one service. Passwords are stored only there, as a hash. Row-level security lets each user read only their own rows, and only our server talks to the database.
+- **Vercel:** hosting at a public URL, deployed from `main`.
+- **Chrome extension:** a website cannot block other websites, so the blocker has to be an extension.
+- **Claude API:** the coach, called only from our server.
+- **Microsoft Graph:** Outlook sync. **Google Maps Platform:** address search and travel time. **Open-Meteo:** weather. **Stripe (test mode):** the Pro plan, without real money.
+
+All keys live in environment variables on the server. None is in this repository.
+
+## Known limits
+
+- **Built for a laptop screen.** The layout is not finished for phones.
+- **The coach has no limit per user.** For real users we would add one, so nobody can use up the Claude budget.
+- **Outlook works with personal Microsoft accounts.** University accounts block the connection.
+- **The extension is loaded by hand** (downloaded in Settings); it is not in the Chrome Web Store.
+- **Tests use fakes for the external services**, and no test clicks through the deployed site in a browser. We tested that by hand.
+- **Rate limits are counted per server instance**, not shared across all of them.
+- **Payment runs in Stripe test mode only.**
+
+More detail, and what we would change with more time: `docs/walkthrough.md`, sections 7 and 8.
