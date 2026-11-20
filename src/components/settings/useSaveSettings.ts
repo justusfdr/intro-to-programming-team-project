@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useAnnounce } from "@/components/calendar/Announcer";
 import { useLive } from "@/components/live/Live";
 import { postJson, type PostResult } from "@/lib/client/post-json";
+import { announceSettingsSaved } from "@/lib/client/settings-saved";
 import type { SettingsData } from "@/lib/settings/types";
 
 export function useSaveSettings() {
@@ -31,6 +32,7 @@ export function useSaveSettings() {
     setBusy(false);
     setFailure(answer.ok ? null : answer);
     if (!answer.ok) return false;
+    announceSettingsSaved();
     announce(answer.message);
     return true;
   }
