@@ -62,6 +62,14 @@ function ruleRow(rule: GoalView["rules"][number]): RuleRow {
   };
 }
 
+/** The most "Days for sure": the events a week of the count rule (as the server checks it), or null without one. */
+export function sureLimit(rules: RuleRow[]): number | null {
+  const count = rules.find((r) => r.kind === "count");
+  if (!count) return null;
+  const n = Number(count.target);
+  return count.target.trim() !== "" && Number.isInteger(n) && n > 0 ? n : null;
+}
+
 /** What the server receives for a rule. An empty target is sent as 0, so the server names the limit. */
 function ruleBody(rule: RuleRow) {
   return {
@@ -373,7 +381,7 @@ function GoalForm({ state, onClose, places }: { state: Exclude<GoalEditorState, 
           </Button>
         </fieldset>
 
-        <RoutineSection value={routine} onChange={setRoutine} places={places} startOpen={goal === null} />
+        <RoutineSection value={routine} onChange={setRoutine} places={places} startOpen={goal === null} maxSure={sureLimit(rules)} />
 
         <section className="flex flex-col gap-2">
           <p className={labelClass}>Blocker</p>

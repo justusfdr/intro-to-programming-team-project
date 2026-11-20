@@ -72,11 +72,39 @@ describe("the Routine section in the goal editor", () => {
   });
 
   it("sends every field of the routine, null for none", () => {
-    expect(routineBody(routineValue(ROUTINE))).toEqual({ category: "sport", categoryOther: null, sessionMinutes: 60, dayPart: "morning", avoidDays: [7], location: "Park" });
-    expect(routineBody(routineValue(undefined))).toEqual({ category: null, categoryOther: null, sessionMinutes: null, dayPart: null, avoidDays: [], location: null });
+    expect(routineBody(routineValue(ROUTINE))).toEqual({ category: "sport", categoryOther: null, sessionMinutes: 60, dayPart: "morning", dayFrom: null, dayUntil: null, avoidDays: [7], mustDays: [], location: "Park" });
+    expect(routineBody(routineValue(undefined))).toEqual({ category: null, categoryOther: null, sessionMinutes: null, dayPart: null, dayFrom: null, dayUntil: null, avoidDays: [], mustDays: [], location: null });
     const typed = { ...routineValue(undefined), category: "other" as const, categoryOther: "  Music ", location: "  ", avoidDays: [6, 1] as (1 | 6)[] };
     expect(routineBody(typed)).toMatchObject({ categoryOther: "Music", location: null, avoidDays: [1, 6] });
     expect(routineBody({ ...typed, category: "uni" }).categoryOther).toBeNull();
     expect(routineCount(routineValue(ROUTINE))).toBe(5);
+  });
+});
+
+describe("editing keeps the days for sure and the own time window", () => {
+  const WITH_SURE: GoalRoutine = { ...ROUTINE, dayPart: null, dayFrom: 17 * 60, dayUntil: 19 * 60, mustDays: [1, 3] };
+
+  it("sends the days for sure and the own window back unchanged", () => {
+    expect(routineBody(routineValue(WITH_SURE))).toMatchObject({ mustDays: [1, 3], dayPart: null, dayFrom: 1020, dayUntil: 1140 });
+  });
+
+  it("drops the own window once another time of day is chosen", () => {
+    expect(routineBody({ ...routineValue(WITH_SURE), dayPart: "morning" })).toMatchObject({ dayPart: "morning", dayFrom: null, dayUntil: null });
+    expect(routineBody({ ...routineValue(WITH_SURE), dayPart: "" })).toMatchObject({ dayPart: null, dayFrom: null, dayUntil: null });
+  });
+
+  it("shows Days for sure (chosen days pressed) and Custom with the window", () => {
+    const html = renderToStaticMarkup(<RoutineSection value={routineValue(WITH_SURE)} onChange={() => {}} startOpen maxSure={2} />);
+    expect(html).toContain("Days for sure");
+    expect(html).toContain("Up to 2 days");
+    expect(html).toContain('aria-label="Monday: for sure" aria-pressed="true"');
+    expect(html).toContain('value="custom"');
+    // Full: a third day cannot be added; a sure day cannot be "never".
+    expect(html).toMatch(/aria-label="Tuesday: not chosen" aria-pressed="false" disabled=""/);
+    expect(html).toMatch(/aria-label="Monday: a day for sure" disabled=""/);
+  });
+
+  it("counts the days for sure as a detail", () => {
+    expect(routineCount({ ...routineValue(EMPTY_ROUTINE), mustDays: [2] })).toBe(1);
   });
 });

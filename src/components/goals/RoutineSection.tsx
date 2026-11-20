@@ -2,7 +2,8 @@
 
 // The goal editor's "Routine" (spec 42): what the guided questions ask, as a compact form for a new goal
 // made with the form and for editing: the category (five chips, none allowed), the own word with
-// "Other", the session length, the time of day, the days it is never done on and the place (the shared
+// "Other", the session length, the time of day (with "Custom" when the goal has its own window), the days
+// it always happens on ("Days for sure", at most one per session a week), the days it is never done on and the place (the shared
 // address field with the saved places). Here the server's own limits apply (R44); the stricter one
 // session a day of the questions does not. The server's message shows at the form as for any field.
 // The section folds: open for a new goal, folded when editing (the card already shows the routine as
@@ -10,6 +11,8 @@
 import { useId, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { AddressField } from "@/components/places/AddressField";
+import { useDisplay } from "@/components/shell/DisplayProvider";
+import { fmtRange } from "@/lib/time/display";
 import { fmtWeekly } from "@/lib/goals/setup";
 import {
   DAY_PART_HOURS,
@@ -34,9 +37,13 @@ export type RoutineValue = {
   categoryOther: string;
   /** "" or the minutes as text ("60"). */
   sessionMinutes: string;
-  /** "" for any time. */
-  dayPart: DayPart | "";
+  /** "" for any time; "custom" for the goal's own window (dayFrom to dayUntil), kept as it is. */
+  dayPart: DayPart | "" | "custom";
+  dayFrom: number | null;
+  dayUntil: number | null;
   avoidDays: Weekday[];
+  /** The days it always happens on; never one of avoidDays. */
+  mustDays: Weekday[];
   location: string;
 };
 
@@ -46,8 +53,11 @@ export function routineValue(routine: GoalRoutine | undefined): RoutineValue {
     category: r.category,
     categoryOther: r.categoryOther ?? "",
     sessionMinutes: r.sessionMinutes === null ? "" : String(r.sessionMinutes),
-    dayPart: r.dayPart ?? "",
+    dayPart: r.dayPart ?? (r.dayFrom !== null && r.dayUntil !== null ? "custom" : ""),
+    dayFrom: r.dayFrom,
+    dayUntil: r.dayUntil,
     avoidDays: r.avoidDays,
+    mustDays: r.mustDays,
     location: r.location ?? "",
   };
 }
@@ -60,8 +70,12 @@ export function routineBody(value: RoutineValue) {
     category: value.category,
     categoryOther: value.category === "other" && other !== "" ? other : null,
     sessionMinutes: value.sessionMinutes === "" ? null : Number(value.sessionMinutes),
-    dayPart: value.dayPart === "" ? null : value.dayPart,
+    dayPart: value.dayPart === "" || value.dayPart === "custom" ? null : value.dayPart,
+    // The own window stays only while "Custom" is chosen.
+    dayFrom: value.dayPart === "custom" ? value.dayFrom : null,
+    dayUntil: value.dayPart === "custom" ? value.dayUntil : null,
     avoidDays: [...value.avoidDays].sort((a, b) => a - b),
+    mustDays: [...value.mustDays].sort((a, b) => a - b),
     location: location === "" ? null : location,
   };
 }
@@ -85,7 +99,14 @@ const chip = (on: boolean) =>
 
 /** How many parts of the routine are set (the folded section's summary). */
 export function routineCount(value: RoutineValue): number {
-  return [value.category !== null, value.sessionMinutes !== "", value.dayPart !== "", value.avoidDays.length > 0, value.location.trim() !== ""].filter(Boolean).length;
+  return [
+    value.category !== null,
+    value.sessionMinutes !== "",
+    value.dayPart !== "",
+    value.mustDays.length > 0,
+    value.avoidDays.length > 0,
+    value.location.trim() !== "",
+  ].filter(Boolean).length;
 }
 
 export function RoutineSection({
@@ -93,10 +114,13 @@ export function RoutineSection({
   onChange,
   places = [],
   startOpen,
+  maxSure = null,
 }: {
   value: RoutineValue;
   onChange: (value: RoutineValue) => void;
   places?: SavedPlace[];
+  /** The most "Days for sure": the goal's events a week (one per session); null without such a rule. */
+  maxSure?: number | null;
   /** Open at first (a new goal); folded otherwise. */
   startOpen: boolean;
 }) {
@@ -117,12 +141,27 @@ export function RoutineSection({
         <span className={labelClass}>Routine</span>
         <span className="text-xs text-ink-3">{`· ${count === 0 ? "Nothing set" : count === 1 ? "1 detail set" : `${count} details set`}`}</span>
       </button>
-      {open && <RoutineFields id={bodyId} value={value} set={set} places={places} />}
+      {open && <RoutineFields id={bodyId} value={value} set={set} places={places} maxSure={maxSure} />}
     </section>
   );
 }
 
-function RoutineFields({ id, value, set, places }: { id: string; value: RoutineValue; set: (change: Partial<RoutineValue>) => void; places: SavedPlace[] }) {
+function RoutineFields({
+  id,
+  value,
+  set,
+  places,
+  maxSure,
+}: {
+  id: string;
+  value: RoutineValue;
+  set: (change: Partial<RoutineValue>) => void;
+  places: SavedPlace[];
+  maxSure: number | null;
+}) {
+  const { timeFormat } = useDisplay();
+  const hasWindow = value.dayFrom !== null && value.dayUntil !== null;
+  const sureFull = maxSure !== null && value.mustDays.length >= maxSure;
   return (
     <fieldset id={id} className="flex flex-col gap-4">
       <legend className="sr-only">Routine</legend>
@@ -179,7 +218,43 @@ function RoutineFields({ id, value, set, places }: { id: string; value: RoutineV
                 {DAY_PART_HOURS[part].label}
               </option>
             ))}
+            {hasWindow && <option value="custom">{`Custom (${fmtRange(value.dayFrom!, value.dayUntil!, timeFormat)})`}</option>}
           </select>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <span id="goal-sure-on" className={labelClass}>
+            Days for sure
+          </span>
+          {maxSure !== null && <span className="text-xs tabular-nums text-ink-3">{maxSure === 1 ? "Up to 1 day" : `Up to ${maxSure} days`}</span>}
+        </div>
+        <div role="group" aria-labelledby="goal-sure-on" className="grid grid-cols-7 gap-1">
+          {WEEKDAYS.map(({ day, short, long }) => {
+            const on = value.mustDays.includes(day);
+            const off = value.avoidDays.includes(day);
+            const blocked = off || (!on && sureFull);
+            return (
+              <button
+                key={day}
+                type="button"
+                aria-label={`${long}: ${on ? "for sure" : off ? "never" : "not chosen"}`}
+                aria-pressed={on}
+                disabled={blocked}
+                onClick={() => set({ mustDays: on ? value.mustDays.filter((d) => d !== day) : [...value.mustDays, day].sort((a, b) => a - b) })}
+                className={`relative flex h-10 items-center justify-center rounded-lg border text-xs font-semibold transition-colors ${focusRing} ${
+                  on
+                    ? "border-ink bg-ink text-white"
+                    : blocked
+                      ? "cursor-not-allowed border-dashed border-line-subtle bg-transparent text-ink-3 opacity-50"
+                      : "border-line bg-surface text-ink hover:bg-raised"
+                }`}
+              >
+                {short}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -190,14 +265,20 @@ function RoutineFields({ id, value, set, places }: { id: string; value: RoutineV
         <div role="group" aria-labelledby="goal-never-on" className="grid grid-cols-7 gap-1">
           {WEEKDAYS.map(({ day, short, long }) => {
             const off = value.avoidDays.includes(day);
+            const sure = value.mustDays.includes(day);
             return (
               <button
                 key={day}
                 type="button"
-                aria-label={`${long}: ${off ? "never" : "possible"}`}
+                aria-label={`${long}: ${sure ? "a day for sure" : off ? "never" : "possible"}`}
+                disabled={sure}
                 onClick={() => set({ avoidDays: off ? value.avoidDays.filter((d) => d !== day) : [...value.avoidDays, day].sort((a, b) => a - b) })}
                 className={`relative flex h-10 items-center justify-center rounded-lg border text-xs font-semibold transition-colors ${focusRing} ${
-                  off ? "border-line-subtle bg-raised text-ink-3" : "border-line bg-surface text-ink hover:bg-raised"
+                  sure
+                    ? "cursor-not-allowed border-dashed border-line-subtle bg-transparent text-ink-3 opacity-50"
+                    : off
+                      ? "border-line-subtle bg-raised text-ink-3"
+                      : "border-line bg-surface text-ink hover:bg-raised"
                 }`}
               >
                 <span className="relative inline-flex px-0.5">
