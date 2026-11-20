@@ -47,7 +47,7 @@ export { isWebLink };
  * Never throws: a routing service that cannot be reached is "Travel time not available".
  */
 export async function travelOf(
-  event: EventRow,
+  event: Pick<EventRow, "start_at" | "all_day" | "location" | "travel_mode">,
   settings: SettingsData,
   routing: Routing,
   start?: TripStart,
@@ -187,7 +187,7 @@ export type TripStart = { label: string; address: string };
  * starts and after the last 3:00 at night before it (in `timeZone`), latest first (at most 5): the first
  * that is no web link is "the event before".
  */
-async function readBefore(query: Query, ids: string[], timeZone: string): Promise<Map<string, string[]>> {
+export async function readBefore(query: Query, ids: string[], timeZone: string): Promise<Map<string, string[]>> {
   if (ids.length === 0) return new Map();
   const rows = await query<{ id: string; locations: string[] | null }>(
     `select e.id, array(

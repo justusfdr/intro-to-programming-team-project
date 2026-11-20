@@ -211,7 +211,16 @@ export type CheckContext = {
    * them, on one day. Left out: no such check.
    */
   visibleHours?: { startHour: number; endHour: number };
+  /**
+   * Issue #227: the time the way to an existing event takes, as [leave, start) of that event, with its id.
+   * New and moved events must not overlap it (unless the event may overlap). The id lets a moved or
+   * deleted event stop blocking at its old time.
+   */
+  travel?: readonly TravelWindow[];
 };
+
+/** The way to an event as busy time: from when to leave until the event starts. */
+export type TravelWindow = { startAt: Date; endAt: Date; id: string };
 
 /** Whether an event lies inside the visible hours of its day, in the person's time zone. */
 export function insideVisibleHours(startAt: Date, endAt: Date, timeZone: string, hours: { startHour: number; endHour: number }): boolean {
@@ -250,6 +259,7 @@ export type CheckFailure =
   | "unknown_goal"
   | "overlaps_proposal"
   | "overlaps_calendar"
+  | "overlaps_travel"
   | "unknown_ref"
   | "not_changeable"
   | "changed_twice"
@@ -334,6 +344,7 @@ export function checkDraft(
   }
   // What stays in the calendar.
   const remaining = context.calendar.filter((event) => event.id === undefined || !changedIds.has(event.id));
+  const ways = (context.travel ?? []).filter((way) => !changedIds.has(way.id));
 
   const checked: Proposal[] = [];
   for (const proposal of proposals) {
@@ -359,6 +370,8 @@ export function checkDraft(
     if (checked.some((other) => overlaps(other, proposal))) return fail("overlaps_proposal");
     // R10: ending exactly when the next starts is no overlap. An event that may overlap never blocks.
     if (remaining.some((event) => !event.mayOverlap && overlaps(event, proposal))) return fail("overlaps_calendar");
+    // Issue #227: nor the way to an event.
+    if (ways.some((way) => overlaps(way, proposal))) return fail("overlaps_travel");
     const kept: Proposal = { title, startAt: proposal.startAt, endAt: proposal.endAt, goalId: proposal.goalId };
     checked.push(todos.length > 0 ? { ...kept, todos } : kept);
   }
@@ -377,6 +390,7 @@ export function checkDraft(
     if (checked.some((proposal) => overlaps(proposal, moved))) return fail("overlaps_proposal");
     if (placed.some((other) => (!other.mayOverlap || !moved.mayOverlap) && overlaps(other, moved))) return fail("overlaps_proposal");
     if (remaining.some((event) => !event.mayOverlap && overlaps(event, moved))) return fail("overlaps_calendar");
+    if (!moved.mayOverlap && ways.some((way) => overlaps(way, moved))) return fail("overlaps_travel");
     placed.push(moved);
   }
 
