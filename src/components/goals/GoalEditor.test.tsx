@@ -74,6 +74,13 @@ describe("goal editor in edit mode", () => {
     expect(create).not.toContain("Edit goal");
   });
 
+  it("'Add rule' is offered when creating a goal and not when editing one", () => {
+    const edit = renderToStaticMarkup(<GoalEditor state={{ mode: "edit", goal: GOAL, today: TODAY }} onClose={() => {}} />);
+    expect(edit).not.toContain("Add rule");
+    const create = renderToStaticMarkup(<GoalEditor state={{ mode: "create", today: TODAY, color: "rose" }} onClose={() => {}} />);
+    expect(create).toContain("Add rule");
+  });
+
   it("each existing rule's trash button is named 'Remove rule <n>' and is disabled when it is the only rule", () => {
     const two = renderToStaticMarkup(<GoalEditor state={{ mode: "edit", goal: GOAL, today: TODAY }} onClose={() => {}} />);
     const firstOfTwo = two.match(/<button[^>]*aria-label="Remove rule 1"[^>]*>/)?.[0] ?? "";
