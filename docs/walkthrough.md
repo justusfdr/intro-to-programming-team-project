@@ -16,7 +16,7 @@ We build in one direction: **ontology → specs → tests → code**.
   - `src/components/`: the React screens.
   - `supabase/migrations/`: the database schema, one SQL file per step, run in name order.
   - `extension/`: the Chrome extension (plain JavaScript, Manifest V3).
-- **Docs**: `docs/setup.md` (Supabase, Microsoft, Claude, Stripe, Google), `docs/security.md` (dependency audit), this file and `docs/demo-script.md`.
+- **Docs**: `docs/setup.md` (Supabase, Microsoft, Claude, Stripe, Google), `docs/security.md` (dependency audit) and this file.
 
 ## 2. One request from the browser to the database: create_event
 
