@@ -27,7 +27,9 @@
 // so the section is left out for them. Notes over 2,000 characters keep Save disabled (the server refuses them too).
 // People in LockedIn (spec 54, from spec 36; R59): above the guests by e-mail, the user's contacts to tick.
 // They wait for Save like the other fields; Save then sends them with their own action, after the event's
-// fields. A new event is created first ("Add event"), then its people are invited.
+// fields. A new event is created first ("Add event"), then its people are invited. Spec 65: an event of a
+// series can invite people too; Save asks "This event" or "This and following events" for them as well,
+// and a new series invites them to all of its events.
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { guestCountText } from "@/lib/events/guests";
@@ -57,7 +59,7 @@ import { TodoList } from "./editor/TodoList";
 import { cannotSave, useEventSave } from "./editor/useEventSave";
 import { createBody, eventFromAnswer, hasEnded, newValues, type EventValues } from "./editor/values";
 import { RepeatFields, WhenSection, type Frequency } from "./editor/WhenSection";
-import { savedEventChange } from "./event-changes";
+import { savedEventChange, type Scope } from "./event-changes";
 import { FloatingPanel, type Anchor } from "./FloatingPanel";
 import type { GoalLabel } from "./TimeGrid";
 
@@ -293,7 +295,17 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
   // Spec 24: deleting an event with guests tells them (Outlook sends a cancellation), so the bin asks once.
   const guestCount = fromOutlook ? 0 : (event.guests?.length ?? 0);
   const footer = save.ask ? (
-    <SeriesQuestion kind={save.ask.kind} title={event.title} busy={save.busy} onAnswer={save.answer} onCancel={save.cancelAsk} />
+    <SeriesQuestion
+      kind={save.ask.kind}
+      title={event.title}
+      busy={save.busy}
+      onAnswer={(scope) => {
+        const saving = save.answer(scope);
+        // Spec 65: the people of an event of a series go with the same answer, once its fields are saved.
+        if (save.ask?.kind === "save" && people.changed) void Promise.resolve(saving).then(() => people.save(scope));
+      }}
+      onCancel={save.cancelAsk}
+    />
   ) : askDelete && guestCount > 0 ? (
     <>
       <p className="w-full text-sm font-medium">{guestCount === 1 ? "Delete and tell the guest?" : `Delete and tell the ${guestCount} guests?`}</p>
@@ -312,6 +324,9 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
         size="sm"
         disabled={save.saving || people.saving || cannotSave(values)}
         onClick={() => {
+          // Spec 65: an event of a series asks "This event" or "This and following events" first, also
+          // when only its people changed; the answer then saves both.
+          if (event.seriesId && !fromOutlook) return save.saveNow();
           if (save.changed) save.saveNow();
           if (people.changed) void people.save();
         }}
@@ -400,7 +415,6 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
   const contacts = invites?.contacts ?? NO_CONTACTS;
   const [chosen, setChosen] = useState<string[]>([]);
   const [openedAt] = useState(() => Date.now());
-  const series = !values.allDay && frequency !== "none";
 
   async function add() {
     if (cannotSave(values)) return;
@@ -420,9 +434,12 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
     // A single event stays open in the editor, now saving each change; a series waits for the re-read.
     const isSeries = (answer.data as { count?: unknown } | undefined)?.count !== undefined;
     const created = isSeries ? null : eventFromAnswer(answer, timeZone);
-    // Spec 54: then the people ticked (only for a single event: a series cannot invite people).
-    if (created && chosen.length > 0) {
-      const invited = await postJson(`/api/events/${created.id}/invites`, { contacts: chosen });
+    // Spec 54: then the people ticked. Spec 65: a new series invites them to every one of its events,
+    // through its first event (the answer names it) with "this and following".
+    const invitedEvent = isSeries ? (answer.data as { event?: { id?: unknown } } | undefined)?.event?.id : created?.id;
+    if (typeof invitedEvent === "string" && chosen.length > 0) {
+      const body = isSeries ? { contacts: chosen, scope: "this_and_following" } : { contacts: chosen };
+      const invited = await postJson(`/api/events/${invitedEvent}/invites`, body);
       if (!invited.ok) onRefused?.(invited.message);
       else if (invited.message) announce(invited.message);
       live.refresh();
@@ -448,11 +465,9 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
         />
       )}
     </WhenSection>,
-    // Spec 24: right under the time. A new series takes no guests (one invitation per date would flood them).
-    // Spec 54: the people invited inside the app, above the guests by e-mail; invited after "Add event".
-    series ? (
-      <PeopleSection key="people" mode="unavailable" reason="Events of a series cannot invite people" people={[]} />
-    ) : contacts.length === 0 ? (
+    // Spec 54: the people invited inside the app, above the guests by e-mail; invited after "Add event"
+    // (spec 65: a new series too, to all of its events).
+    contacts.length === 0 ? (
       <PeopleSection key="people" mode="no_contacts" />
     ) : (
       <PeopleSection
@@ -465,6 +480,7 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
         onToggle={(id) => setChosen((list) => (list.includes(id) ? list.filter((c) => c !== id) : [...list, id]))}
       />
     ),
+    // Spec 24: a new series takes no guests by e-mail (one Outlook invitation per date would flood them).
     !values.allDay && frequency !== "none" ? (
       <GuestsSection key="guests" mode="unavailable" reason={`${MESSAGES.guestsNotInSeries}.`} />
     ) : hasEnded(values, openedAt, timeZone, today) ? (
@@ -550,10 +566,10 @@ function useInviteDraft(eventId: string, invites: Common["invites"]) {
   const answers = new Map(saved.map((p) => [p.userId, p.answer]));
   const changed = draft !== null && !sameInvitees(draft, savedIds);
 
-  async function save() {
+  async function save(scope?: Scope) {
     if (draft === null) return;
     setSaving(true);
-    const answer = await postJson(`/api/events/${eventId}/invites`, { contacts: draft });
+    const answer = await postJson(`/api/events/${eventId}/invites`, scope ? { contacts: draft, scope } : { contacts: draft });
     setSaving(false);
     if (!answer.ok) return setError(answer.message);
     const list = (answer.data as { people?: InvitePerson[] } | undefined)?.people;

@@ -139,12 +139,12 @@ export function invitationsText(count: number): string {
 
 /**
  * Why the owner cannot invite people to this event (R59), or null when they can. `ended` is decided by
- * whole days on the screen (the server decides for the exact moment, with its own sentence).
+ * whole days on the screen (the server decides for the exact moment, with its own sentence). Since spec
+ * 65 an event of a series can invite people too.
  */
 export function inviteBlockedReason(event: { source: string; demo?: boolean; seriesId: string | null }, ended: boolean): string | null {
   if (event.source === "outlook") return "Outlook events cannot invite people";
   if (event.demo) return "Demo events cannot invite people";
-  if (event.seriesId) return "Events of a series cannot invite people";
   if (ended) return "This event has ended";
   return null;
 }

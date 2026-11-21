@@ -2,7 +2,8 @@ import "server-only";
 
 // Event invitations inside the app (spec 54, ported from spec 36; ontology R59 to R64):
 // - set_event_invites (POST /api/events/[id]/invites): the owner sets the invited contacts of one of
-//   their events (contact row ids); the answer lists the invited people with their answers;
+//   their events (contact row ids); the answer lists the invited people with their answers. With scope
+//   "this_and_following" (spec 65) the later events of its series get the same people;
 // - the owner's people of one event (GET /api/events/[id]/invites);
 // - answer_event_invite (POST /api/invites/[id]/answer): the invited person answers;
 // - the other people of an invitation (GET /api/invites/[id]/people);
@@ -51,7 +52,11 @@ type ActionDeps = Pick<Deps, "auth" | "withUser">;
  * The invited contacts, as contact row ids. More than the limit are let through to the database, which
  * answers with the ontology's sentence; far more than that is not a request the screen ever sends.
  */
-const SetBody = z.object({ contacts: z.array(z.string().max(40)).max(MAX_INVITEES * 5) });
+const SetBody = z.object({
+  contacts: z.array(z.string().max(40)).max(MAX_INVITEES * 5),
+  // Spec 65: an event of a series may give the same people to the later events of its series too (R28).
+  scope: z.enum(["this", "this_and_following"]).optional(),
+});
 const AnswerBody = z.object({ answer: z.enum(GIVEN_ANSWERS as [GivenAnswer, ...GivenAnswer[]]) });
 
 /** The database's refusals as answers; anything else goes on unchanged. */
@@ -85,7 +90,8 @@ export function setEventInvites(request: Request, deps: ActionDeps, eventId: str
     if (!UUID.test(eventId) || !body.data.contacts.every((id) => UUID.test(id))) throw notFound();
     try {
       const people = await deps.withUser(userId, async (query) => {
-        await query("select app.set_event_invites($1::uuid, $2::uuid[])", [eventId, body.data.contacts]);
+        const fn = body.data.scope === "this_and_following" ? "app.set_series_invites" : "app.set_event_invites";
+        await query(`select ${fn}($1::uuid, $2::uuid[])`, [eventId, body.data.contacts]);
         return readEventInvitees(query, eventId);
       });
       return jsonOk({ message: MESSAGES.invitesSaved, people });

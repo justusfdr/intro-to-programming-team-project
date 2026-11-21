@@ -174,16 +174,11 @@ describe("set_event_invites (R59, S3)", () => {
     expect(await app.snapshot()).toEqual(before);
   });
 
-  it("refuses an event of a series, an Outlook event and an ended event with the ontology's sentence; nothing changes", async () => {
+  it("refuses an Outlook event and an ended event with the ontology's sentence (spec 65: no longer an event of a series); nothing changes", async () => {
     const { ana, anaBen } = await cast();
-    const series = await seedEvent(ana, "Lecture", { series: true });
     const outlook = await seedEvent(ana, "From Outlook", { source: "outlook", outlookId: "AAMk-test-1" });
     const ended = await seedEvent(ana, "Long ago", { start: "2020-01-08T10:00:00Z", end: "2020-01-08T11:00:00Z" });
     const before = await app.snapshot();
-    expect(await read(await setInvites(series, [anaBen]))).toEqual({
-      status: 409,
-      body: { error: "invites_series", message: "Events of a series cannot invite people" },
-    });
     expect(await read(await setInvites(outlook, [anaBen]))).toEqual({
       status: 409,
       body: { error: "invites_outlook", message: "Outlook events cannot invite people" },
@@ -192,6 +187,34 @@ describe("set_event_invites (R59, S3)", () => {
       status: 409,
       body: { error: "invites_ended", message: "People can only be invited to events that have not ended" },
     });
+    expect(await app.snapshot()).toEqual(before);
+  });
+
+  it("spec 65: an event of a series invites people; with 'this_and_following' the later events of the series get them too", async () => {
+    const { ana, ben, anaBen } = await cast();
+    const earlier = await seedEvent(ana, "Lecture", { series: true, start: "2030-01-01T10:00:00Z", end: "2030-01-01T11:00:00Z" });
+    const lecture = await seedEvent(ana, "Lecture", { series: true });
+    const later = await seedEvent(ana, "Lecture", { series: true, start: "2030-01-15T10:00:00Z", end: "2030-01-15T11:00:00Z" });
+    const invitedTo = async (event: string) => ((await read(await owned(event))).body.people as Array<{ userId: string }>).map((p) => p.userId);
+    // "This event": only the one event.
+    const one = await read(await setInvites(lecture, [anaBen]));
+    expect(one.status).toBe(200);
+    expect([await invitedTo(earlier), await invitedTo(lecture), await invitedTo(later)]).toEqual([[], [ben], []]);
+    // "This and following events": this one and the later one, not the earlier one.
+    const following = await read(await setEventInvites(postJson(`/api/events/${later}/invites`, { contacts: [anaBen], scope: "this_and_following" }), app.deps, later));
+    expect(following.status).toBe(200);
+    await read(await setEventInvites(postJson(`/api/events/${lecture}/invites`, { contacts: [], scope: "this_and_following" }), app.deps, lecture));
+    expect([await invitedTo(earlier), await invitedTo(lecture), await invitedTo(later)]).toEqual([[], [], []]);
+    await read(await setEventInvites(postJson(`/api/events/${lecture}/invites`, { contacts: [anaBen], scope: "this_and_following" }), app.deps, lecture));
+    expect([await invitedTo(earlier), await invitedTo(lecture), await invitedTo(later)]).toEqual([[], [ben], [ben]]);
+  });
+
+  it("spec 65: an unknown scope is a bad request and changes nothing", async () => {
+    const { ana, anaBen } = await cast();
+    const lecture = await seedEvent(ana, "Lecture", { series: true });
+    const before = await app.snapshot();
+    const answered = await read(await setEventInvites(postJson(`/api/events/${lecture}/invites`, { contacts: [anaBen], scope: "all" }), app.deps, lecture));
+    expect(answered.status).toBe(400);
     expect(await app.snapshot()).toEqual(before);
   });
 

@@ -568,7 +568,7 @@ describe("4. what Ana may and may not invite", () => {
     expect((await invitesOf(c.id)).length).toBe(1);
   });
 
-  it("a series event, an Outlook event, a demo event and an ended event cannot invite; an event of someone else or a made-up one is Not found; nothing changes", async () => {
+  it("an Outlook event, a demo event and an ended event cannot invite (spec 65: a series event can); an event of someone else or a made-up one is Not found; nothing changes", async () => {
     const w = await world();
     const insert = async (sql: string, params: unknown[]) => (await app.db.admin<{ id: string }>(sql, params))[0].id;
     const series = await insert(
@@ -583,7 +583,6 @@ describe("4. what Ana may and may not invite", () => {
     const ended = await insert("insert into app.events (user_id, title, start_at, end_at) values ($1, 'Long ago', '2020-01-08T10:00:00Z', '2020-01-08T11:00:00Z') returning id", [w.ana]);
     const endedAllDay = await insert("insert into app.events (user_id, title, all_day, first_day, last_day) values ($1, 'Last year', true, '2020-01-08', '2020-01-08') returning id", [w.ana]);
     const refusals: Array<[string, unknown]> = [
-      [series, { status: 409, body: { error: "invites_series", message: "Events of a series cannot invite people" } }],
       [outlook, { status: 409, body: { error: "invites_outlook", message: "Outlook events cannot invite people" } }],
       [demo, { status: 409, body: { error: "invites_demo", message: "Demo events cannot invite people" } }],
       [ended, { status: 409, body: { error: "invites_ended", message: "People can only be invited to events that have not ended" } }],
@@ -597,6 +596,9 @@ describe("4. what Ana may and may not invite", () => {
     // Sam's event with Sam's own valid contact row: still not Ana's to touch, and not Sam's to share through Ana.
     expect(await refused("ana@example.com", async () => read(await setInvites(w.samEvent, [w.samTom])))).toEqual(NOT_FOUND);
     expect(await app.db.admin("select 1 from app.event_invites where event_id = any($1::uuid[])", [[series, outlook, demo, ended, endedAllDay, w.samEvent]])).toEqual([]);
+    // Spec 65: the series event invites Ben; Sam's event stays out of reach also with "this and following".
+    expect((await setEventInvites(post(`/api/events/${series}/invites`, { contacts: [w.anaBen] }), app.deps, series)).status).toBe(200);
+    expect(await refused("ana@example.com", async () => read(await setEventInvites(post(`/api/events/${w.samEvent}/invites`, { contacts: [w.anaBen], scope: "this_and_following" }), app.deps, w.samEvent)))).toEqual(NOT_FOUND);
   });
 
   it("a signed-in user, even the owner, cannot insert, update or delete invitation rows by hand", async () => {

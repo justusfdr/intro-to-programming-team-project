@@ -177,7 +177,8 @@ export function useEventSave({ initial, shown, timeZone, outlookConnected, onDel
       const current = ask;
       setAsk(null);
       if (!current) return;
-      if (current.kind === "save") return void send(scope);
+      // Spec 65: the save's promise, so the people of the event can follow once the fields are saved.
+      if (current.kind === "save") return send(scope);
       void enqueue(async () => {
         const base = latest();
         const id = base.id;
