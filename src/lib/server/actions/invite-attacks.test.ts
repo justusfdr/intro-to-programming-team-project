@@ -436,13 +436,18 @@ describe("3. answering", () => {
     expect((await invitesOf(w.eventB)).map((i) => i.invitee)).toEqual([w.cleo]);
   });
 
-  it("answering after the event has ended is refused (409), and a stranger gets Not found for it, not the ended sentence; nothing changes", async () => {
+  it("accepting or answering maybe after the event has ended is refused (409), and a stranger gets Not found for it, not the ended sentence; nothing changes", async () => {
     const w = await world();
     await as("ben@example.com");
     expect((await answer(w.benInvite, "accepted")).status).toBe(200);
     await app.db.admin("update app.events set start_at = '2020-01-08T10:00:00Z', end_at = '2020-01-08T11:00:00Z' where id = $1", [w.eventA]); // a move: answers back to pending
     const kept = await invitesOf(w.eventA);
-    expect(await refused("ben@example.com", async () => read(await answer(w.benInvite, "declined")))).toEqual({
+    // Spec 64: declining stays possible after the end (it takes the event out of the calendar); accept and maybe do not.
+    expect(await refused("ben@example.com", async () => read(await answer(w.benInvite, "tentative")))).toEqual({
+      status: 409,
+      body: { error: "invite_ended", message: "This event has ended" },
+    });
+    expect(await refused("ben@example.com", async () => read(await answer(w.benInvite, "accepted")))).toEqual({
       status: 409,
       body: { error: "invite_ended", message: "This event has ended" },
     });

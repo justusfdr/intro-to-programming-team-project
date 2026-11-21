@@ -316,6 +316,19 @@ describe("what the invited person reads and answers (R60, R61, S1, S2)", () => {
     expect(await read(await answer(invite, "accepted"))).toEqual({ status: 409, body: { error: "invite_ended", message: "This event has ended" } });
     expect(await app.snapshot()).toEqual(before);
   });
+
+  it("declines an ended event (spec 64): the answer is saved and the block leaves the calendar", async () => {
+    const { ana, ben, anaBen } = await cast();
+    const event = await seedEvent(ana, "Meeting");
+    await setInvites(event, [anaBen]);
+    await app.db.admin("update app.events set start_at = '2020-01-08T10:00:00Z', end_at = '2020-01-08T11:00:00Z' where id = $1", [event]);
+    const invite = await inviteOf(ben);
+    await app.signedInAs("ben@example.com");
+    expect(await read(await answer(invite, "tentative"))).toEqual({ status: 409, body: { error: "invite_ended", message: "This event has ended" } });
+    expect(await read(await answer(invite, "declined"))).toEqual({ status: 200, body: { message: "You declined.", answer: "declined" } });
+    const [row] = await app.db.admin<{ answer: string }>("select answer from app.event_invites where id = $1", [invite]);
+    expect(row.answer).toBe("declined");
+  });
 });
 
 describe("S4: people invited together who are not contacts", () => {
