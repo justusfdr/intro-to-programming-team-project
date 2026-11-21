@@ -153,7 +153,7 @@ export const QUESTIONS: readonly Question[] = [
   {
     question: "Do I have to connect my Outlook calendar?",
     answer:
-      "No. LockedIn works on its own. If you connect Outlook, your Outlook events show up in LockedIn and the events you create here appear in Outlook. Google Calendar is next on our list.",
+      "No. LockedIn works on its own. If you connect Outlook, your Outlook events show up in LockedIn and the events you create here appear in Outlook.",
   },
   {
     question: "How does the site blocker work?",
