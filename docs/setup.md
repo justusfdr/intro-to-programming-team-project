@@ -112,7 +112,7 @@ Without it, everything else works; the coach then answers every message with "Th
 ## 11. Stripe in test mode (Pro, €4.99 per month)
 Without it, everything else works; the pricing page then says "Payment is not available right now." Test mode only: the server refuses any secret key that does not start with `sk_test_` (ontology R25), so no real money can move.
 
-1. Sign in at **dashboard.stripe.com** and switch to the **sandbox** (test mode). The team's sandbox is "fokus website sandbox".
+1. Sign in at **dashboard.stripe.com** and switch to the team's **sandbox** (test mode).
 2. **Product catalog**: the product "LockedIn Pro" with a recurring price of €4.99 per month exists already. Copy the price's id (`price_…`) into `STRIPE_PRICE_ID`. It is not a secret.
 3. **Developers → API keys**: copy the **Secret key** (`sk_test_…`) into `STRIPE_SECRET_KEY`. It is a secret: password manager, `.env.local` and Vercel only; never in the code, a chat or an issue.
 4. The webhook: Stripe tells our server about payments at `/api/billing/webhook`; the plan changes only then.
