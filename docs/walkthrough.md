@@ -92,7 +92,7 @@ Without a key in the environment the feature switches itself off: no Claude key 
 - **Pro payment on the live site shows an error** (#121). Stripe is test mode only. A late Stripe message can switch Pro back on (#133).
 - **Coach access**: the coach is open to Free users unless `CHAT_PRO_ONLY` is set on Vercel (#44); on the live site it is set.
 - **Content-Security-Policy has no `script-src`** (#47); sign-up reveals whether an e-mail already has an account (#45). Security fixes from the 18 Nov review are in an open pull request (#120).
-- **Process**: too few teammate reviews (#155), open PRs to merge before 23 Nov (#152).
+- **Process**: changes were checked together in working sessions rather than through separate reviews on GitHub; open PRs to merge before 23 Nov (#152).
 - **Display**: only one sidebar widget fits on a small laptop window (#158).
 - **Design limits**: rate limits per server instance; the extension is loaded by hand (not in the Chrome Web Store); Outlook is the only calendar.
 

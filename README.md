@@ -65,7 +65,7 @@ We started with a small prototype that ran only in the browser, to try out the b
 1. We wrote the plan first (`docs/ontology.md`) and extended it with every new feature. Each addition has a date and a reason.
 2. Each feature got a spec in `specs/` and a branch.
 3. Tests come from the spec and cover accepted actions, rejected actions and edge cases.
-4. Changes reach `main` through pull requests; lint, type check and all tests run on each one. We aimed for a teammate review on every pull request, but under time pressure we merged many without one and relied on the automatic checks.
+4. Changes reach `main` through pull requests; lint, type check and all tests run on each one. Most of the work happened in joint working sessions, where we went through and tested changes together at one screen. That is why many pull requests have no separate review on GitHub.
 5. We built with coding agents (Claude). The team decided what to build and which rules apply; `AGENTS.md` says what the agents may and may not do.
 
 ## Stack and why

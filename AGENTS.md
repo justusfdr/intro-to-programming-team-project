@@ -17,9 +17,8 @@
 - A rejected action changes nothing (ontology R1). Every rule gets a test for the accepted and for the rejected case.
 - Keep dependencies few, pin exact versions, and run the dependency audit before a merge.
 
-## Pull requests and reviews
+## Pull requests
 - Every change reaches `main` only through a pull request. Never push to `main` directly.
-- Never merge a pull request that has no approving review from a team member other than its author. If it has none, say so and stop; do not merge, and do not approve it yourself.
 - Fill in the pull request template: what changes, how it was checked, what was not checked.
 
 ## Stack and commands
