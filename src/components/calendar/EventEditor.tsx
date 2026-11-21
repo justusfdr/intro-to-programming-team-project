@@ -107,12 +107,21 @@ export function EventEditor({ state, shown, onDeleted, onRefused, onCreated, ...
   return <NewEventCard key={`${state.start}-${state.end}`} draft={state} anchor={state.anchor} onCreated={onCreated} onRefused={onRefused} {...common} />;
 }
 
-/** The card's frame, as in the prototype: the sections, then the footer that sticks to the bottom. */
-function Card({ sections, footer }: { sections: ReactNode; footer: ReactNode }) {
+/**
+ * The card's frame, as in the prototype: the sections, then the footer that sticks to the bottom.
+ * Issue #194: a refusal (`notice`) sits in the footer above the buttons, so it is in view where the
+ * user clicked, not at the end of the sections below the fold.
+ */
+export function Card({ sections, footer, notice = null }: { sections: ReactNode; footer: ReactNode; notice?: ReactNode }) {
   return (
     <>
       <div className="flex flex-col gap-3 p-3.5">{sections}</div>
-      {footer && <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-line-subtle bg-surface px-3.5 py-2.5">{footer}</div>}
+      {(footer || notice) && (
+        <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-line-subtle bg-surface px-3.5 py-2.5">
+          {notice}
+          {footer && <div className="flex flex-wrap items-center gap-2">{footer}</div>}
+        </div>
+      )}
     </>
   );
 }
@@ -134,7 +143,7 @@ function Frame({ anchor, label, onClose, children }: { anchor: Anchor | null; la
 }
 
 /** The server's refusal, with "Reload" when another device saved first (R4). */
-function Refusal({ result, onReload }: { result: PostResult | null; onReload: () => void }) {
+export function Refusal({ result, onReload }: { result: PostResult | null; onReload: () => void }) {
   if (!result) return null;
   const stale = result.status === 409 && result.message.startsWith("Changed on another device");
   return (
@@ -280,14 +289,6 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
     fromOutlook && !event.allDay && <TravelLine key="travel-line" eventId={event.id} savedAt={event.updatedAt} timeZone={timeZone} />,
     // Issue #5: Outlook events have no notes (R11).
     !fromOutlook && <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => save.change({ notes })} />,
-    <Refusal
-      key="refusal"
-      result={save.result}
-      onReload={() => {
-        router.refresh();
-        onClose();
-      }}
-    />,
   ];
 
   // All-day events cannot be done and do not suggest a focus session (R29); Outlook events are deleted in Outlook (R11).
@@ -376,7 +377,21 @@ export function EditEventCard({ event: initial, anchor, shown, goals, timeZone, 
 
   return (
     <Frame anchor={anchor} label={`Event: ${event.title}`} onClose={save.close}>
-      <Card sections={sections} footer={footer} />
+      <Card
+        sections={sections}
+        footer={footer}
+        notice={
+          save.result && (
+            <Refusal
+              result={save.result}
+              onReload={() => {
+                router.refresh();
+                onClose();
+              }}
+            />
+          )
+        }
+      />
     </Frame>
   );
 }
@@ -524,7 +539,6 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
       />
     ),
     <NotesSection key="notes" value={values.notes ?? ""} onChange={(notes) => change({ notes })} />,
-    <Refusal key="refusal" result={result} onReload={onClose} />,
   ];
 
   const footer = (
@@ -535,7 +549,7 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
 
   return (
     <Frame anchor={anchor} label="New event" onClose={onClose}>
-      <Card sections={sections} footer={footer} />
+      <Card sections={sections} footer={footer} notice={result && <Refusal result={result} onReload={onClose} />} />
     </Frame>
   );
 }
