@@ -28,9 +28,11 @@ describe("guard and the pages for visitors", () => {
   );
 
   it("changes nothing for the app itself: its pages go to the sign-in page, its data answers 401", () => {
-    for (const path of ["/", "/goals", "/coach", "/focus", "/analytics", "/settings", "/pricing", "/profile"]) {
+    for (const path of ["/goals", "/coach", "/focus", "/analytics", "/settings", "/pricing", "/profile"]) {
       expect(guard(path, false), path).toEqual(toSignIn);
     }
+    // Spec 63 (changed on 21 Nov 2026): the bare address leads a visitor to the landing page instead.
+    expect(guard("/", false)).toEqual({ kind: "redirect", to: "/home" });
     expect(guard("/api/home", false)).toEqual({ kind: "unauthorized" });
     expect(guard("/api/events", false)).toEqual({ kind: "unauthorized" });
   });

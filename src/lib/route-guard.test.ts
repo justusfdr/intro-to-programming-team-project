@@ -2,8 +2,21 @@ import { describe, expect, it } from "vitest";
 import { guard } from "./route-guard";
 
 describe("guard (R3: not signed in gets the sign-in page or 401, no data)", () => {
-  it.each(["/", "/calendar", "/settings"])("sends a signed-out visitor of %s to the sign-in page", (path) => {
+  it.each(["/calendar", "/settings"])("sends a signed-out visitor of %s to the sign-in page", (path) => {
     expect(guard(path, false)).toEqual({ kind: "redirect", to: "/sign-in" });
+  });
+
+  // Spec 63 (changed on 21 Nov 2026): the bare address used to go to the sign-in page as well.
+  it("sends a signed-out visitor of the bare address / to the landing page, which shows no data", () => {
+    expect(guard("/", false)).toEqual({ kind: "redirect", to: "/home" });
+  });
+
+  it("keeps the sign-in page for an address the framework only mapped onto /", () => {
+    expect(guard("/", false, { rewritten: true })).toEqual({ kind: "redirect", to: "/sign-in" });
+    // The flag opens nothing: signed in still passes, and other pages are unaffected by it.
+    expect(guard("/", true, { rewritten: true })).toEqual({ kind: "allow" });
+    expect(guard("/goals", false, { rewritten: true })).toEqual({ kind: "redirect", to: "/sign-in" });
+    expect(guard("/api/events", false, { rewritten: true })).toEqual({ kind: "unauthorized" });
   });
 
   it.each(["/api/events", "/api", "/api/settings/x"])("answers 401 to a signed-out data request to %s", (path) => {
