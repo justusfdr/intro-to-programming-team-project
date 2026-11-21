@@ -44,9 +44,10 @@ describe("defaultUntil (issue #129)", () => {
     expect(repeatDates("2026-11-18", { frequency: "monthly", weekdays: [], until })).toHaveLength(12);
   });
 
-  it("weekly runs a year: 52 dates", () => {
+  it("weekly runs 12 weeks: 12 dates (spec 66)", () => {
     const until = defaultUntil("2026-11-18", "weekly");
-    expect(repeatDates("2026-11-18", { frequency: "weekly", weekdays: [], until })).toHaveLength(52);
+    expect(until).toBe("2027-02-09");
+    expect(repeatDates("2026-11-18", { frequency: "weekly", weekdays: [], until })).toHaveLength(12);
   });
 
   it("daily runs about 3 months: 90 dates", () => {
@@ -54,9 +55,9 @@ describe("defaultUntil (issue #129)", () => {
     expect(repeatDates("2026-11-18", { frequency: "daily", weekdays: [], until })).toHaveLength(90);
   });
 
-  it("weekly on several days stops at 100 dates instead of failing", () => {
-    const until = defaultUntil("2026-11-16", "weekly", [1, 3, 5]);
-    const dates = repeatDates("2026-11-16", { frequency: "weekly", weekdays: [1, 3, 5], until });
-    expect(dates).toHaveLength(100);
+  it("weekly keeps its end date whatever days are chosen; even all seven stay under 100 dates (spec 66)", () => {
+    const until = defaultUntil("2026-11-16", "weekly");
+    expect(repeatDates("2026-11-16", { frequency: "weekly", weekdays: [1, 3, 5], until })).toHaveLength(36);
+    expect(repeatDates("2026-11-16", { frequency: "weekly", weekdays: [1, 2, 3, 4, 5, 6, 7], until })).toHaveLength(84);
   });
 });

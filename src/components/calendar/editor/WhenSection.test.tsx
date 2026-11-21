@@ -7,7 +7,7 @@ import { DEFAULT_DISPLAY } from "@/lib/time/display";
 import { newValues } from "./values";
 import { endProblem } from "@/lib/time/wheel";
 import { cannotSave } from "./useEventSave";
-import { endFromPicked, repeatSentence, WhenSection } from "./WhenSection";
+import { endFromPicked, repeatSentence, repeatTooMany, WhenSection } from "./WhenSection";
 
 const at = (h: number, m = 0) => h * 60 + m;
 
@@ -48,6 +48,23 @@ describe("repeatSentence", () => {
       expect(repeatSentence("monthly", [], `2026-12-${day}`, "")).toBe(`Every month on the ${word}`);
     }
     expect(repeatSentence("daily", [], "2026-11-17", "2026-12-20")).toMatch(/^Every day · until .*20/);
+  });
+});
+
+describe("the repeat's end date (spec 66)", () => {
+  it("names the year when the end is not in this year", () => {
+    expect(repeatSentence("weekly", [4], "2026-11-19", "2027-11-17", "2026-11-21")).toBe("Every Thu · until Wed, Nov 17, 2027");
+    expect(repeatSentence("weekly", [4], "2026-11-19", "2026-12-17", "2026-11-21")).toBe("Every Thu · until Thu, Dec 17");
+  });
+
+  it("says when the end date gives more than 100 dates, and not before", () => {
+    // Thursdays and Sundays for a year: 104 dates.
+    expect(repeatTooMany("weekly", [4, 7], "2026-11-19", "2027-11-17")).toBe(true);
+    expect(repeatTooMany("weekly", [4], "2026-11-19", "2027-11-17")).toBe(false);
+    // Daily: the 100th date is Feb 26, the 101st Feb 27.
+    expect(repeatTooMany("daily", [], "2026-11-19", "2027-02-27")).toBe(true);
+    expect(repeatTooMany("daily", [], "2026-11-19", "2027-02-26")).toBe(false);
+    expect(repeatTooMany("none", [], "2026-11-19", "2030-01-01")).toBe(false);
   });
 });
 

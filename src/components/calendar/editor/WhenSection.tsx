@@ -9,9 +9,10 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Repeat2 } from "lucide-react";
 import { useDisplay } from "@/components/shell/DisplayProvider";
-import { weekdayOf, type Weekday } from "@/lib/events/repeat";
+import { repeatDates, weekdayOf, type Weekday } from "@/lib/events/repeat";
+import { MESSAGES } from "@/lib/messages";
 import type { CalendarEvent } from "@/lib/events/types";
-import { fmtDateShort, fmtMinutes, fmtRange, fmtTime } from "@/lib/time/display";
+import { fmtDateShort, fmtDateShortFrom, fmtMinutes, fmtRange, fmtTime } from "@/lib/time/display";
 import { endProblem } from "@/lib/time/wheel";
 import { DateField, Eyebrow } from "../fields";
 import { TimeField, TimeWheel } from "../TimeWheel";
@@ -185,15 +186,22 @@ function dayList(days: Weekday[]): string {
  * The repeat in one sentence, as in Google Calendar: "Does not repeat", "Every day", "Every weekday",
  * "Every Tue & Thu", "Every month on the 17th", each with "until Dec 20" when it repeats.
  */
-export function repeatSentence(frequency: Frequency, days: Weekday[], date: string, until: string): string {
+export function repeatSentence(frequency: Frequency, days: Weekday[], date: string, until: string, today?: string): string {
   if (frequency === "none") return "Does not repeat";
-  const end = until ? ` · until ${fmtDateShort(until)}` : "";
+  // With `today`, an end in another year is named with its year (spec 66).
+  const end = until ? ` · until ${today ? fmtDateShortFrom(until, today) : fmtDateShort(until)}` : "";
   if (frequency === "daily") return `Every day${end}`;
   if (frequency === "monthly") return `Every month on the ${ordinal(Number(date.slice(8, 10)))}${end}`;
   const sorted = [...new Set(days)].sort((a, b) => a - b);
   if (sorted.length === 7) return `Every day${end}`;
   if (sorted.join() === MON_TO_FRI.join()) return `Every weekday${end}`;
   return `Every ${dayList(sorted)}${end}`;
+}
+
+/** Whether the chosen repeat and end date give more than 100 dates (spec 66: said, never shortened). */
+export function repeatTooMany(frequency: Frequency, days: Weekday[], date: string, until: string): boolean {
+  if (frequency === "none" || until < date) return false;
+  return repeatDates(date, { frequency, weekdays: frequency === "weekly" ? days : [], until }) === "too_many";
 }
 
 /**
@@ -240,13 +248,13 @@ export function RepeatFields({
       <button
         type="button"
         aria-expanded={open}
-        aria-label={`Repeat: ${repeatSentence(frequency, chosen, date, until)}`}
+        aria-label={`Repeat: ${repeatSentence(frequency, chosen, date, until, todayKey)}`}
         onClick={() => setOpen((o) => !o)}
         className="flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
       >
         <Repeat2 className="size-4 shrink-0 text-ink-3" strokeWidth={1.8} aria-hidden />
         <span className="shrink-0 text-xs text-ink-2">Repeat</span>
-        <span className={`min-w-0 flex-1 truncate text-sm ${frequency === "none" ? "text-ink-3" : "font-medium text-ink"}`}>{repeatSentence(frequency, chosen, date, until)}</span>
+        <span className={`min-w-0 flex-1 truncate text-sm ${frequency === "none" ? "text-ink-3" : "font-medium text-ink"}`}>{repeatSentence(frequency, chosen, date, until, todayKey)}</span>
         <ChevronDown className={`size-4 shrink-0 text-ink-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
 
@@ -308,8 +316,14 @@ export function RepeatFields({
           {frequency !== "none" && (
             <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-2">
               <span className="text-xs text-ink-2">Until</span>
-              <DateField label="Until" value={until} todayKey={todayKey} onChange={onUntil} />
+              <DateField label="Until" value={until} todayKey={todayKey} onChange={onUntil} withYear />
             </div>
+          )}
+          {/* Spec 66: an end date that gives too many dates is said here, never shortened behind the user's back. */}
+          {repeatTooMany(frequency, chosen, date, until) && (
+            <p role="alert" className="text-xs text-danger">
+              {MESSAGES.tooManyDates}. Choose an earlier end date or fewer days.
+            </p>
           )}
         </div>
       )}

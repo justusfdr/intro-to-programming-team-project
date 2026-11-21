@@ -398,7 +398,7 @@ export function NewEventCard({ draft, anchor, goals, timeZone, today, outlookCon
   const [weekdays, setWeekdays] = useState<Weekday[]>([]);
   // Issue #129: until the user picks an end date, it follows the repeat (defaultUntil).
   const [pickedUntil, setUntil] = useState<string | null>(null);
-  const until = pickedUntil ?? (frequency === "none" ? values.date : defaultUntil(values.date, frequency, weekdays));
+  const until = pickedUntil ?? (frequency === "none" ? values.date : defaultUntil(values.date, frequency));
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<PostResult | null>(null);
   // The new event's to-dos, kept here until "Add event" sends them with it (spec 21).

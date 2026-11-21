@@ -1,6 +1,6 @@
 // The display rule for times and dates (spec 12): as the prototype shows them.
 import { describe, expect, it } from "vitest";
-import { fmtDateLong, fmtDateShort, fmtDayMonth, fmtHour, fmtHourSetting, fmtMinutes, fmtRange, fmtTime, fmtWeekRange, fmtWeekday } from "./display";
+import { fmtDateLong, fmtDateShort, fmtDateShortFrom, fmtDayMonth, fmtHour, fmtHourSetting, fmtMinutes, fmtRange, fmtTime, fmtWeekRange, fmtWeekday } from "./display";
 
 describe("times", () => {
   it("12-hour: '9am', '9:30am', '12pm', '12am', '1:30pm'", () => {
@@ -50,5 +50,13 @@ describe("dates, month first", () => {
     expect(fmtWeekRange("2026-11-16")).toBe("Nov 16 – 22");
     expect(fmtWeekRange("2026-11-30")).toBe("Nov 30 – Dec 6");
     expect(fmtWeekRange("2026-12-28")).toBe("Dec 28 – Jan 3");
+  });
+});
+
+describe("fmtDateShortFrom (spec 66)", () => {
+  it("adds the year only when it is not today's year", () => {
+    expect(fmtDateShortFrom("2026-12-17", "2026-11-21")).toBe("Thu, Dec 17");
+    expect(fmtDateShortFrom("2027-11-17", "2026-11-21")).toBe("Wed, Nov 17, 2027");
+    expect(fmtDateShortFrom("2025-11-17", "2026-11-21")).toBe("Mon, Nov 17, 2025");
   });
 });

@@ -99,6 +99,12 @@ export function fmtDateShort(date: LocalDate): string {
   return `${DAY_SHORT[parts(date).weekday]}, ${fmtDayMonth(date)}`;
 }
 
+/** "Mon, Nov 16", with the year when it is not the year of `today`: "Wed, Nov 17, 2027" (spec 66). */
+export function fmtDateShortFrom(date: LocalDate, today: LocalDate): string {
+  const year = parts(date).year;
+  return year === parts(today).year ? fmtDateShort(date) : `${fmtDateShort(date)}, ${year}`;
+}
+
 /** "Monday, November 16": for screen readers and headings. */
 export function fmtDateLong(date: LocalDate): string {
   const p = parts(date);
