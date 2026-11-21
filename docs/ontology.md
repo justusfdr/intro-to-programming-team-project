@@ -309,7 +309,7 @@ The first six actions need no sign-in; all others need it and touch only the use
 | A14 | Account `unconfirmed`; no account for "x@example.com" | `sign_in`; `request_password_reset` for "x@example.com" | "Confirm your email first. We sent you a link"; "If this email is registered, we sent a link", no email sent |
 | A15 | Goal "Half marathon" exists; no tasks | `add_task` "Buy running shoes" for that goal, due 20 Nov; then `complete_task` | Listed under the goal, count 1; after completing: struck through, count 0 |
 | A16 | 100 open tasks | `add_task` | "You can have at most 100 open tasks"; nothing saved |
-| A17 | A goal with two tasks | `delete_goal` | Both tasks are listed under "Inbox" |
+| A17 | A goal with two tasks | `delete_goal` | Both tasks are deleted with the goal (issue #211: there is no Inbox card any more) |
 | A18 | Goal "Run a half marathon" without a saved colour, second in the list | `edit_goal` with color "lime"; then with color "teal", icon "footprints", why "Stay fit" | "Choose a color from the list", nothing saved (shown teal, calculated); then saved, shown teal with footprints everywhere |
 | A19 | New account, Wednesday 18 Nov 13:00, own task "Call the bank" | `load_demo`; `load_demo` again; edit a demo task's title; `remove_demo` | 3 goals, 9 more tasks, 20 events (10 done); second: "The demo is already loaded", nothing changed; after removing: only "Call the bank" is left, the welcome stays answered |
 | A20 | New account | Opens the calendar; chooses "Start fresh"; opens the calendar again | Welcome shows once; nothing added; not shown again |

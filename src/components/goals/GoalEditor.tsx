@@ -427,7 +427,7 @@ function GoalForm({ state, onClose, places }: { state: Exclude<GoalEditorState, 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-subtle px-5 py-4 pb-[max(16px,env(safe-area-inset-bottom))]">
         {goal && confirmingDelete ? (
           <>
-            <p className="min-w-0 break-words text-sm text-ink">{`Delete “${goal.title}”? Its events and tasks stay, without goal.`}</p>
+            <p className="min-w-0 break-words text-sm text-ink">{`Delete “${goal.title}”? Its tasks are deleted too. Its events stay, without goal.`}</p>
             <div className="flex shrink-0 gap-2">
               <Button variant="secondary" size="sm" onClick={() => setConfirmingDelete(false)}>
                 Cancel
