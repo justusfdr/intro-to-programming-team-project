@@ -1,5 +1,5 @@
 # Spec 63: The front door leads to the landing page
-Branch `visitor-home-and-docs-cleanup`, from `main`. Decided on 21 Nov 2026. No change to the database. Three existing tests change on purpose (listed under "Done when").
+Branch `visitor-home-and-docs-cleanup`, from `main`. Decided on 21 Nov 2026. No change to the database. Four existing tests change on purpose (listed under "Done when").
 
 ## Why
 The README gives the app's address without a path. A visitor who opened it saw only a sign-in form and nothing that says what the app is, and the landing page at `/home` (specs 45 and 62) could not be reached from there. Spec 45 left this for the team to decide.
@@ -16,4 +16,4 @@ R3 is about data, and the landing page shows none, so the rule holds. Its senten
 Remembering which page a signed-out visitor wanted and opening it after the sign-in; any change to `/home` itself.
 
 ## Done when
-`src/lib/route-guard.test.ts`, `src/lib/route-guard-visitor-pages.test.ts` and `src/proxy.test.ts`: signed out, `/` goes to `/home` (also with a query), pages inside the app still go to `/sign-in`, data requests get 401. These three files held the old behaviour of `/` and were changed for this spec: `/` moved out of two lists of pages that go to the sign-in page, and two proxy checks now expect `/home`. `src/components/account/AccountCard.test.tsx`: the mark links to `/home`. `npm run check` passes. Tried by hand in a browser, signed out: `/` shows the landing page, `/goals` shows the sign-in form, the mark on the sign-in form leads back.
+`src/lib/route-guard.test.ts`, `src/lib/route-guard-visitor-pages.test.ts`, `src/proxy.test.ts` and `src/proxy-visitor-pages.test.ts`: signed out, `/` goes to `/home` (also with a query), pages inside the app still go to `/sign-in`, data requests get 401. These four files held the old behaviour of `/` and were changed for this spec: `/` moved out of three lists of pages that go to the sign-in page, and two proxy checks now expect `/home`. `src/components/account/AccountCard.test.tsx`: the mark links to `/home`. `npm run check` passes. Tried by hand in a browser, signed out: `/` shows the landing page, `/goals` shows the sign-in form, the mark on the sign-in form leads back.

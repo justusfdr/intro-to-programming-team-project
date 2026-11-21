@@ -31,10 +31,17 @@ describe("proxy and the pages for visitors", () => {
   });
 
   it("still sends a signed-out visitor of the calendar and of anything below /home to the sign-in page", async () => {
-    for (const path of ["/", "/goals", "/home/anything", "/legal/terms"]) {
+    for (const path of ["/goals", "/home/anything", "/legal/terms"]) {
       const response = await proxy(get(path));
       expect(response.status, path).toBe(307);
       expect(response.headers.get("location"), path).toBe(`${ORIGIN}/sign-in`);
     }
+  });
+
+  // Spec 63 (changed on 21 Nov 2026): the bare address used to be in the list above.
+  it("sends a signed-out visitor of the bare address / to the landing page", async () => {
+    const response = await proxy(get("/"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(`${ORIGIN}/home`);
   });
 });
