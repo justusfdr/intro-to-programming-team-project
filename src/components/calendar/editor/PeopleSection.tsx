@@ -3,9 +3,10 @@
 // PEOPLE IN LOCKEDIN (spec 54, from spec 36; R59), above the guests by e-mail: the user's contacts, each
 // with a box to tick, and for those already invited their answer as a mark and in words. It waits for the
 // editor's Save button like the other fields (R39); Save then calls the invitation action on its own
-// (create_event and edit_event take no people). Where R59 forbids inviting (an event of a series, an
-// Outlook or demo event, an event that has ended) the section says why and lists who is invited. Without
-// contacts, a link to People. Only names and photos here, as text; never an address.
+// (create_event and edit_event take no people). An event of a series asks "This event" or "This and
+// following events" first, like its other fields (spec 65, R28). Where R59 forbids inviting (an Outlook or
+// demo event, an event that has ended) the section says why and lists who is invited. Without contacts,
+// a link to People. Only names and photos here, as text; never an address.
 import Link from "next/link";
 import { useId } from "react";
 import { UserPlus } from "lucide-react";

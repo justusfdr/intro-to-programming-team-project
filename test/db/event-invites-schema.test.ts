@@ -68,6 +68,8 @@ async function seedEvent(
 
 const setInvites = (user: string, event: string, contacts: string[]) =>
   as(user, "select app.set_event_invites($1::uuid, $2::uuid[])", [event, contacts]);
+const seriesInvites = (user: string, event: string, contacts: string[]) =>
+  as(user, "select app.set_series_invites($1::uuid, $2::uuid[])", [event, contacts]);
 const answer = (user: string, invite: string, value: string | null) =>
   as(user, "select app.answer_event_invite($1::uuid, $2::text)", [invite, value]);
 const inviteeRows = (user: string, event: string) =>
@@ -123,13 +125,11 @@ describe("inviting (R59)", () => {
     expect(await everything()).toEqual(before);
   });
 
-  it("refuses series, Outlook, demo and ended events; taking people off stays possible", async () => {
-    const series = await seedEvent(ana, "Lecture", { series: true });
+  it("refuses Outlook, demo and ended events (spec 65: no longer an event of a series); taking people off stays possible", async () => {
     const outlook = await seedEvent(ana, "Team call", { source: "outlook", outlookId: "o-1" });
     const demo = await seedEvent(ana, "Demo", { demo: true });
     const ended = await seedEvent(ana, "Yesterday", { start: inHours(-26), end: inHours(-25) });
     const before = await everything();
-    await expect(setInvites(ana, series, [anaBen])).rejects.toThrow("Events of a series cannot invite people");
     await expect(setInvites(ana, outlook, [anaBen])).rejects.toThrow("Outlook events cannot invite people");
     await expect(setInvites(ana, demo, [anaBen])).rejects.toThrow("Demo events cannot invite people");
     await expect(setInvites(ana, ended, [anaBen])).rejects.toThrow("People can only be invited to events that have not ended");
@@ -142,6 +142,71 @@ describe("inviting (R59)", () => {
     await expect(setInvites(ana, soon, [anaBen, anaDora])).rejects.toThrow("People can only be invited to events that have not ended");
     await setInvites(ana, soon, []);
     expect(await inviteeRows(ana, soon)).toEqual([]);
+  });
+
+  it("spec 65: an event of a series invites people like a single event, only that one event", async () => {
+    const lecture = await seedEvent(ana, "Lecture", { series: true });
+    const next = await seedEvent(ana, "Lecture", { series: true, start: inHours(48), end: inHours(49) });
+    await setInvites(ana, lecture, [anaBen]);
+    expect(await inviteeRows(ana, lecture)).toEqual([{ user_id: ben, answer: "pending" }]);
+    expect(await inviteeRows(ana, next)).toEqual([]);
+  });
+
+  it("spec 65: this and the later events of a series get the same people; earlier ones and other series stay", async () => {
+    const earlier = await seedEvent(ana, "Lecture", { series: true, start: inHours(2), end: inHours(3) });
+    const lecture = await seedEvent(ana, "Lecture", { series: true });
+    const next = await seedEvent(ana, "Lecture", { series: true, start: inHours(48), end: inHours(49) });
+    const other = await seedEvent(ana, "Gym", { start: inHours(72), end: inHours(73) });
+    await setInvites(ana, next, [anaDora]);
+    await seriesInvites(ana, lecture, [anaBen]);
+    expect(await inviteeRows(ana, earlier)).toEqual([]);
+    expect(await inviteeRows(ana, lecture)).toEqual([{ user_id: ben, answer: "pending" }]);
+    // The later event's list is set as a whole: Dora is taken off, Ben is invited.
+    expect(await inviteeRows(ana, next)).toEqual([{ user_id: ben, answer: "pending" }]);
+    expect(await inviteeRows(ana, other)).toEqual([]);
+    // Each date is its own invitation, answered on its own.
+    const ids = await as<{ id: string }>(ben, "select id from app.event_invites order by id");
+    expect(ids).toHaveLength(2);
+    await answer(ben, ids[0].id, "accepted");
+    const answers = (await as<{ answer: string }>(ben, "select answer from app.event_invites order by answer")).map((r) => r.answer);
+    expect(answers).toEqual(["accepted", "pending"]);
+    // Taking everyone off the series again.
+    await seriesInvites(ana, lecture, []);
+    expect([...(await inviteeRows(ana, lecture)), ...(await inviteeRows(ana, next))]).toEqual([]);
+  });
+
+  it("spec 65: one refusal for the series saves nothing; a foreign event or contact is Not found; without a series it is the one event", async () => {
+    const lecture = await seedEvent(ana, "Lecture", { series: true });
+    await seedEvent(ana, "Lecture", { series: true, start: inHours(48), end: inHours(49) });
+    const before = await everything();
+    await expect(seriesInvites(ana, lecture, [benCarl])).rejects.toThrow("Not found");
+    await expect(seriesInvites(carl, lecture, [benCarl])).rejects.toThrow("Not found");
+    await expect(seriesInvites(ana, "00000000-0000-4000-8000-00000000abcd", [anaBen])).rejects.toThrow("Not found");
+    // The second date is a demo event: the whole call is refused, the first date gets nobody either.
+    const otherSeries = (start: number, demo: boolean) =>
+      db.admin<{ id: string }>(
+        `insert into app.events (user_id, title, start_at, end_at, demo, series_id)
+         values ($1, 'Mixed lecture', $2::timestamptz, $3::timestamptz, $4, '00000000-0000-4000-8000-000000000002') returning id`,
+        [ana, inHours(start), inHours(start + 1), demo],
+      );
+    const [[demoSeries], [demoNext]] = [await otherSeries(96, false), await otherSeries(120, true)];
+    const withDemo = await everything();
+    await expect(seriesInvites(ana, demoSeries.id, [anaBen])).rejects.toThrow("Demo events cannot invite people");
+    expect(await everything()).toEqual(withDemo);
+    expect(await inviteeRows(ana, demoSeries.id)).toEqual([]);
+    expect(await inviteeRows(ana, demoNext.id)).toEqual([]);
+    expect(before[0]).toEqual(withDemo[0]);
+    // An event without a series: only that event.
+    const single = await seedEvent(ana, "Coffee", { start: inHours(30), end: inHours(31) });
+    await seriesInvites(ana, single, [anaBen]);
+    expect(await inviteeRows(ana, single)).toEqual([{ user_id: ben, answer: "pending" }]);
+    const [rights] = await db.admin<{ anon: boolean; authenticated: boolean; definer: boolean }>(
+      `select has_function_privilege('anon', 'app.set_series_invites(uuid, uuid[])', 'execute') as anon,
+              has_function_privilege('authenticated', 'app.set_series_invites(uuid, uuid[])', 'execute') as authenticated,
+              (select p.prosecdef and 'search_path=""' = any (p.proconfig) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                where n.nspname = 'app' and p.proname = 'set_series_invites') as definer`,
+    );
+    expect(rights).toEqual({ anon: false, authenticated: true, definer: true });
   });
 
   it("an all-day event counts as ended only after its last day in the owner's time zone", async () => {
@@ -187,7 +252,8 @@ describe("inviting (R59)", () => {
       db.admin("insert into app.event_invites (event_id, contact_id, owner, invitee) values ($1, $2, $3, $4)", [eventId, contact, owner, invitee]);
     await expect(insert(event, anaBen, ana, carl)).rejects.toThrow("An invitation belongs to the two people of its contact");
     await expect(insert(bens, anaBen, ana, ben)).rejects.toThrow("Only the owner's own single event can invite people");
-    await expect(insert(series, anaBen, ana, ben)).rejects.toThrow("Only the owner's own single event can invite people");
+    // Spec 65: an event of a series may invite people now, also at the table.
+    await insert(series, anaBen, ana, ben);
     await expect(insert(event, anaBen, ana, ana)).rejects.toThrow();
     await expect(
       db.admin("insert into app.event_invites (event_id, contact_id, owner, invitee, answer) values ($1, $2, $3, $4, 'maybe')", [event, anaBen, ana, ben]),

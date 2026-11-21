@@ -30,12 +30,12 @@ describe("answers in words and looks (R61)", () => {
 });
 
 describe("who can invite (R59)", () => {
-  it("only a single event of the app or the coach that has not ended", () => {
+  it("only an event of the app or the coach that has not ended (spec 65: also an event of a series)", () => {
     expect(inviteBlockedReason({ source: "app", seriesId: null }, false)).toBeNull();
     expect(inviteBlockedReason({ source: "assistant", seriesId: null }, false)).toBeNull();
     expect(inviteBlockedReason({ source: "outlook", seriesId: null }, false)).toBe("Outlook events cannot invite people");
     expect(inviteBlockedReason({ source: "app", demo: true, seriesId: null }, false)).toBe("Demo events cannot invite people");
-    expect(inviteBlockedReason({ source: "app", seriesId: "s1" }, false)).toBe("Events of a series cannot invite people");
+    expect(inviteBlockedReason({ source: "app", seriesId: "s1" }, false)).toBeNull();
     expect(inviteBlockedReason({ source: "app", seriesId: null }, true)).toBe("This event has ended");
   });
 
