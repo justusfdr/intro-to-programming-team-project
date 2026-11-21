@@ -1,4 +1,4 @@
-// Which addresses need a signed-in user (R3). Used by src/proxy.ts before every request.
+// Which addresses need a signed-in user (R3), and where a visitor without one goes. Used by src/proxy.ts before every request.
 // This is the first check only: every route handler checks the session again itself (requireUser).
 
 /** Account pages: reachable without signing in. */
@@ -28,6 +28,12 @@ export const STRIPE_WEBHOOK = "/api/billing/webhook";
 
 export const SIGN_IN_PAGE = "/sign-in";
 
+/**
+ * Where a signed-out visitor of the bare address `/` goes (spec 63): the landing page says what the
+ * app is and has "Log in" on it. It shows no data, so R3 still holds.
+ */
+export const LANDING_PAGE = "/home";
+
 export type GuardDecision = { kind: "allow" } | { kind: "redirect"; to: string } | { kind: "unauthorized" };
 
 function matches(pathname: string, base: string): boolean {
@@ -54,13 +60,22 @@ export function isDevFrameworkPath(pathname: string): boolean {
 }
 
 /**
- * Without a session: pages go to the sign-in page, data requests get 401.
+ * Without a session: the bare address `/` goes to the landing page, every other page goes to the
+ * sign-in page, data requests get 401.
  * `development`: true only while running `next dev`; then the framework's own addresses pass.
+ * `rewritten`: true when the framework mapped another address onto this pathname (it turns
+ * `/_next/data/<build>/index.json` into `/`); such a request is not a visitor at the front door.
  */
-export function guard(pathname: string, signedIn: boolean, options: { development?: boolean } = {}): GuardDecision {
+export function guard(
+  pathname: string,
+  signedIn: boolean,
+  options: { development?: boolean; rewritten?: boolean } = {},
+): GuardDecision {
   if (signedIn || isPublic(pathname)) return { kind: "allow" };
   if (options.development && isDevFrameworkPath(pathname)) return { kind: "allow" };
   if (matches(pathname, "/api")) return { kind: "unauthorized" };
+  // Only the front door itself: a link to a page inside the app still asks for the sign-in.
+  if (pathname === "/" && !options.rewritten) return { kind: "redirect", to: LANDING_PAGE };
   return { kind: "redirect", to: SIGN_IN_PAGE };
 }
 

@@ -22,11 +22,29 @@ function get(path: string): NextRequest {
 }
 
 describe("proxy (R3: not signed in gets the sign-in page or 401, no data)", () => {
-  it("redirects a signed-out visitor of / to the sign-in page (307)", async () => {
-    const response = await proxy(get("/"));
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/sign-in`);
-    expect(response.headers.get("x-middleware-next")).toBeNull();
+  // Spec 63 (changed on 21 Nov 2026): the bare address used to go to the sign-in page.
+  it("redirects a signed-out visitor of / to the landing page (307), also with a query", async () => {
+    for (const path of ["/", "/?view=day&date=2026-11-24"]) {
+      const response = await proxy(get(path));
+      expect(response.status, path).toBe(307);
+      expect(response.headers.get("location"), path).toBe(`${ORIGIN}/home`);
+      expect(response.headers.get("x-middleware-next"), path).toBeNull();
+    }
+  });
+
+  it("redirects a signed-out visitor of a page inside the app to the sign-in page (307)", async () => {
+    for (const path of ["/goals", "/coach", "/settings", "/home/anything"]) {
+      const response = await proxy(get(path));
+      expect(response.status, path).toBe(307);
+      expect(response.headers.get("location"), path).toBe(`${ORIGIN}/sign-in`);
+      expect(response.headers.get("x-middleware-next"), path).toBeNull();
+    }
+  });
+
+  it("lets everyone open the landing page itself", async () => {
+    const response = await proxy(get("/home"));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("location")).toBeNull();
   });
 
   it("answers 401 with only error and message to a signed-out data request, with no data", async () => {
@@ -69,7 +87,8 @@ describe("proxy and the framework's own addresses (development websocket)", () =
 
   it("still sends pages and data requests to sign-in or 401 in development", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    expect((await proxy(get("/"))).headers.get("location")).toBe(`${ORIGIN}/sign-in`);
+    expect((await proxy(get("/"))).headers.get("location")).toBe(`${ORIGIN}/home`);
+    expect((await proxy(get("/goals"))).headers.get("location")).toBe(`${ORIGIN}/sign-in`);
     expect((await proxy(get("/api/tasks"))).status).toBe(401);
     // Only the exact prefix counts, not a look-alike page.
     expect((await proxy(get("/_nextish"))).headers.get("location")).toBe(`${ORIGIN}/sign-in`);

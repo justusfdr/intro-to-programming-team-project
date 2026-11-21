@@ -1,5 +1,6 @@
 // Runs before every page and data request: refreshes the session cookie and sends signed-out
-// visitors to the sign-in page (pages) or answers 401 (data requests). See src/lib/route-guard.ts.
+// visitors to the landing page (the bare address `/`) or the sign-in page (every other page), or
+// answers 401 (data requests). See src/lib/route-guard.ts.
 import { NextResponse, type NextRequest } from "next/server";
 import { MESSAGES } from "@/lib/messages";
 import { guard } from "@/lib/route-guard";
@@ -12,9 +13,13 @@ export async function proxy(request: NextRequest) {
     ? await refreshSession(request)
     : { response: NextResponse.next({ request }), userId: null };
 
-  const decision = guard(request.nextUrl.pathname, userId !== null, {
+  const pathname = request.nextUrl.pathname;
+  const decision = guard(pathname, userId !== null, {
     // The framework sets this to "production" in a build, so the exception exists only in `next dev`.
     development: process.env.NODE_ENV === "development",
+    // Next maps some of its own addresses onto a page's pathname. Only the address that was really
+    // asked for counts as the front door (spec 63).
+    rewritten: new URL(request.url).pathname !== pathname,
   });
   if (decision.kind === "allow") return response;
 
