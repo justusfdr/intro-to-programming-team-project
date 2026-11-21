@@ -5,3 +5,9 @@ export type Plan = "free" | "pro";
 export function chatAllowed(plan: Plan, proOnly: boolean): boolean {
   return !proOnly || plan === "pro";
 }
+
+/**
+ * Issue #212: how many messages one user may send the coach in 24 hours. High on purpose: a normal day
+ * never gets near it, but one account cannot spend the whole Claude budget.
+ */
+export const CHAT_MESSAGES_PER_DAY = 100;
