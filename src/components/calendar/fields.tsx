@@ -7,7 +7,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { CalendarDays, X } from "lucide-react";
 import { GoalTile } from "@/components/goals/GoalTile";
 import { useDisplay } from "@/components/shell/DisplayProvider";
-import { fmtDateShort, fmtMinutes, fmtTime } from "@/lib/time/display";
+import { fmtDateShort, fmtDateShortFrom, fmtMinutes, fmtTime } from "@/lib/time/display";
 import { MiniMonth } from "./MiniMonth";
 import type { GoalLabel } from "./TimeGrid";
 
@@ -137,6 +137,7 @@ export function DateField({
   name,
   id,
   tall = false,
+  withYear = false,
 }: {
   label: string;
   value: string;
@@ -149,10 +150,13 @@ export function DateField({
   name?: string;
   id?: string;
   tall?: boolean;
+  /** Name the year when it is not today's (the repeat's end date, spec 66). */
+  withYear?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const shown = value ? fmtDateShort(value) : placeholder;
+  // withYear (spec 66): another year than today's is named, "Wed, Nov 17, 2027", never a bare "Wed, Nov 17".
+  const shown = value ? (withYear ? fmtDateShortFrom(value, todayKey) : fmtDateShort(value)) : placeholder;
   const canClear = clear !== undefined && value !== "" && !disabled;
 
   const close = () => {
