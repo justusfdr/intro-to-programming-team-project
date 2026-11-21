@@ -266,6 +266,14 @@ export async function searchOwnChats(query: Query, words: readonly string[]): Pr
   }));
 }
 
+/** How many messages the signed-in user sent the coach in the last 24 hours (the database's clock). */
+export async function countRecentUserMessages(query: Query): Promise<number> {
+  const [row] = await query<{ n: number }>(
+    `select count(*)::int as n from app.chat_messages where role = 'user' and created_at > now() - interval '24 hours'`,
+  );
+  return row?.n ?? 0;
+}
+
 /** "This chat no longer exists": the chat was deleted (or is not the user's). */
 export const chatGone = () => new ActionError(404, "chat_gone", MESSAGES.chatGone);
 

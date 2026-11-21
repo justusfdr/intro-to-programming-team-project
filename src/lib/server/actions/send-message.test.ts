@@ -4,6 +4,7 @@
 // nothing is counted; the tests that pinned the limit now pin that it is gone.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
+import { CHAT_MESSAGES_PER_DAY } from "@/lib/chat/access";
 import { A5_ANSWER, chatOf, draftsOf, seedDraft, A5_PROPOSALS, sentToday, setPlan, setSentToday } from "@test/support/chat";
 import { eventsOf, seedEvent } from "@test/support/events";
 import { seedGoal } from "@test/support/goals";
@@ -400,5 +401,54 @@ describe("who may use the coach (R21, R5, CHAT_PRO_ONLY)", () => {
     expect((await read(await send({ text: "" }))).body.message).toBe("The AI chat is part of Pro");
     await setPlan(app.db, alice, "pro");
     expect((await read(await send({ text: "" }))).body.message).toBe("A message must be 1 to 4,000 characters");
+  });
+});
+
+describe("Issue #212: a limit of messages per user in 24 hours", () => {
+  async function seedUserMessages(userId: string, n: number, hoursAgo = 1) {
+    await app.db.admin(
+      `insert into app.chat_messages (user_id, role, text, created_at)
+       select $1, 'user', 'Hi', now() - ($3 || ' hours')::interval from generate_series(1, $2)`,
+      [userId, n, String(hoursAgo)],
+    );
+  }
+
+  it("the limit is 100", () => {
+    expect(CHAT_MESSAGES_PER_DAY).toBe(100);
+  });
+
+  it("message number 100 is answered", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    await seedUserMessages(alice, CHAT_MESSAGES_PER_DAY - 1);
+    expect((await send({ text: "Hi" })).status).toBe(201);
+  });
+
+  it("message number 101 gets 429; Claude is not called and nothing is saved", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    await seedUserMessages(alice, CHAT_MESSAGES_PER_DAY);
+    const before = await app.snapshot();
+    const answer = await read(await send({ text: "Hi" }));
+    expect(answer.status).toBe(429);
+    expect(answer.body).toMatchObject({ error: "chat_daily_limit" });
+    expect(app.assistant.requests).toEqual([]);
+    expect(await app.snapshot()).toEqual(before);
+  });
+
+  it("messages older than 24 hours do not count", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    await seedUserMessages(alice, CHAT_MESSAGES_PER_DAY, 25);
+    expect((await send({ text: "Hi" })).status).toBe(201);
+  });
+
+  it("the coach's own answers do not count, and another user is not affected", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    await app.db.admin(
+      `insert into app.chat_messages (user_id, role, text) select $1, 'assistant', 'Ok' from generate_series(1, $2)`,
+      [alice, CHAT_MESSAGES_PER_DAY],
+    );
+    expect((await send({ text: "Hi" })).status).toBe(201);
+    const bob = await app.signedInAs("bob@example.com");
+    await seedUserMessages(bob, 3);
+    expect((await send({ text: "Hi" })).status).toBe(201);
   });
 });

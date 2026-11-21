@@ -8,7 +8,8 @@ import "server-only";
 //   6. run every check of R23 on the answer; one failure rejects it, nothing saved, no second try
 //   7. second transaction: the user's message, the answer and its draft saved together, in their chat,
 //      or in a new chat titled with the message when none was named.
-// Spec 44: there is no daily limit any more; nothing is counted. Claude receives the last messages of
+// Spec 44 removed the old counter. Issue #212: a high limit per user (CHAT_MESSAGES_PER_DAY in 24 hours,
+// counted from the saved messages) keeps one account from using up the Claude budget. Claude receives the last messages of
 // this chat only, so a new chat starts without the earlier conversations.
 // The calendar never changes here: a draft becomes events only with accept_draft.
 // Spec 20: every event in the data block gets a reference valid for this request only ("e1") and a
@@ -20,7 +21,7 @@ import "server-only";
 // place), with the sessions left this week and next worked out here; a new session that names a goal
 // must not start on a weekday the goal is never done on.
 import { z } from "zod";
-import { chatAllowed } from "@/lib/chat/access";
+import { CHAT_MESSAGES_PER_DAY, chatAllowed } from "@/lib/chat/access";
 import { checkAnswer, checkText } from "@/lib/chat/checks";
 import { buildAssistantInput, HISTORY_LENGTH } from "@/lib/chat/input";
 import { ANSWER_JSON_SCHEMA, SYSTEM_PROMPT } from "@/lib/chat/prompt";
@@ -29,6 +30,7 @@ import { MESSAGES } from "@/lib/messages";
 import {
   blocksOf,
   chatGone,
+  countRecentUserMessages,
   findOwnChat,
   historyOf,
   latestChat,
@@ -91,6 +93,8 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       if (text === null) throw new ActionError(400, "text_length", MESSAGES.chatTextLength);
       // Without a key Claude cannot be asked.
       if (!assistant) throw unavailableError();
+      // Issue #212: one account cannot use up the Claude budget. Nothing is saved and Claude is not asked.
+      if ((await countRecentUserMessages(query)) >= CHAT_MESSAGES_PER_DAY) throw new ActionError(429, "chat_daily_limit", MESSAGES.chatDailyLimit);
 
       const now = deps.now();
       // R13: a session that reached its planned length counts as finished in the totals.

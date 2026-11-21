@@ -95,6 +95,8 @@ export const MESSAGES = {
   chatProOnly: "The AI chat is part of Pro",
   // spec 44: a chat deleted on another device (or in another tab)
   chatGone: "This chat no longer exists",
+  // Issue #212: a limit per user, so one account cannot use up the Claude budget
+  chatDailyLimit: "You have reached today's limit for the coach. Try again tomorrow.",
   chatSearchLength: "A search can be at most 100 characters",
   chatFailedChecks: "The assistant's answer failed our checks. Please try again",
   chatRefused: "The coach cannot help with this request.",
