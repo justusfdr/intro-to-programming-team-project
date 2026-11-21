@@ -353,8 +353,10 @@ export function CalendarView({
       const start = localAt(day, span.startMin);
       const end = localAt(day, span.endMin);
       if (start === event.startLocal && end === event.endLocal) return;
-      // An event of a series: ask first (R28).
-      if (event.seriesId) return setPop({ kind: "series", event, start, end, anchor });
+      // An event of a series: ask first (R28). Not when it moves to another day: "this and following"
+      // keeps every event on its own date, so only this one event can move there.
+      const sameDay = day === event.startLocal.slice(0, 10);
+      if (event.seriesId && sameDay) return setPop({ kind: "series", event, start, end, anchor });
       const saving = moveEvent(event, start, end);
       // Issue #106: it overlaps another event (or its trip does): ask right there.
       const overlap = overlapAt.current(event, start, end);
