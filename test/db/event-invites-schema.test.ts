@@ -387,6 +387,27 @@ describe("answering (R61) and read only for the invited (R63)", () => {
     await expect(answer(ben, benInvite, "accepted")).rejects.toThrow("This event has ended");
   });
 
+  it("after the event has ended the invited person can still decline (spec 64), but not accept or answer maybe", async () => {
+    const event = await seedEvent(ana, "Yesterday's meeting");
+    await setInvites(ana, event, [anaBen, anaDora]);
+    const benInvite = await inviteIdOf(ben);
+    await answer(ben, benInvite, "accepted");
+    await db.admin("update app.events set start_at = $2::timestamptz, end_at = $3::timestamptz where id = $1", [event, inHours(-26), inHours(-25)]);
+    const before = await everything();
+    await expect(answer(ben, benInvite, "accepted")).rejects.toThrow("This event has ended");
+    await expect(answer(ben, benInvite, "tentative")).rejects.toThrow("This event has ended");
+    await expect(answer(dora, benInvite, "declined")).rejects.toThrow("Not found");
+    await expect(answer(carl, benInvite, "declined")).rejects.toThrow("Not found");
+    expect(await everything()).toEqual(before);
+
+    await answer(ben, benInvite, "declined");
+    const [row] = await db.admin<{ answer: string; answered_at: Date | null }>("select answer, answered_at from app.event_invites where id = $1", [benInvite]);
+    expect(row.answer).toBe("declined");
+    expect(row.answered_at).not.toBeNull();
+    // Declined stays declined: it cannot be accepted again once the event has ended.
+    await expect(answer(ben, benInvite, "accepted")).rejects.toThrow("This event has ended");
+  });
+
   it("the invited person cannot change, move or delete the event, write the table, or invite others", async () => {
     const event = await seedEvent(ana, "Meeting");
     await setInvites(ana, event, [anaBen]);
