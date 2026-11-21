@@ -96,7 +96,8 @@ describe("acceptance scenarios", () => {
     expect(openCount(after)).toBe(0);
   });
 
-  it("A17: deleting a goal with two tasks lists both under Inbox (no goal)", async () => {
+  // Issue #211: the Inbox card is gone, so a goal's tasks are deleted with it instead of left without goal.
+  it("A17: deleting a goal with two tasks deletes both", async () => {
     const alice = await app.signedInAs("alice@example.com");
     const goal = await seedGoal(app.db, alice, HALF_MARATHON);
     await seedTask(app.db, alice, { title: "Buy running shoes", goalId: goal.id });
@@ -106,9 +107,6 @@ describe("acceptance scenarios", () => {
     expect(answer.status).toBe(200);
 
     const tasks = await loadTasks(app.deps, alice);
-    expect(tasks.map((t) => [t.title, t.goalId])).toEqual([
-      ["Buy running shoes", null],
-      ["Sign up for the race", null],
-    ]);
+    expect(tasks).toEqual([]);
   });
 });

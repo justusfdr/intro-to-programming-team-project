@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
 import { eventsOf, seedEvent } from "@test/support/events";
 import { goalsOf, seedGoal } from "@test/support/goals";
+import { seedTask, tasksOf } from "@test/support/tasks";
 import { deleteGoal } from "./delete-goal";
 
 let app: TestApp;
@@ -136,5 +137,44 @@ describe("delete_goal: sign-in and same-origin checks (R3)", () => {
 
     expect(response.status).toBe(403);
     expect(await app.snapshot()).toEqual(before);
+  });
+});
+
+describe("issue #211: deleting a goal deletes its tasks", () => {
+  it("its open and done tasks are deleted; the other goal's tasks and tasks without goal stay", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const goal = await seedGoal(app.db, alice, { deadline: "2027-03-14", rules: [{ kind: "count", target: 1 }] });
+    const other = await seedGoal(app.db, alice, { title: "Read 20 books", deadline: "2027-06-30", rules: [{ kind: "count", target: 1 }] });
+    await seedTask(app.db, alice, { title: "Buy shoes", goalId: goal.id });
+    await seedTask(app.db, alice, { title: "Sign up for the race", goalId: goal.id, status: "done" });
+    await seedTask(app.db, alice, { title: "Pick a book", goalId: other.id });
+    await seedTask(app.db, alice, { title: "Call mum" });
+
+    expect((await send(goal.id, BODY_FOR(goal))).status).toBe(200);
+
+    expect((await tasksOf(app.db, alice)).map((t) => t.title).sort()).toEqual(["Call mum", "Pick a book"]);
+  });
+
+  it("another user's tasks are not touched", async () => {
+    const bob = await app.signedInAs("bob@example.com");
+    const bobsGoal = await seedGoal(app.db, bob, { deadline: "2027-03-14", rules: [{ kind: "count", target: 1 }] });
+    await seedTask(app.db, bob, { title: "Bob's task", goalId: bobsGoal.id });
+    const alice = await app.signedInAs("alice@example.com");
+    const goal = await seedGoal(app.db, alice, { deadline: "2027-03-14", rules: [{ kind: "count", target: 1 }] });
+    await seedTask(app.db, alice, { title: "Alice's task", goalId: goal.id });
+
+    expect((await send(goal.id, BODY_FOR(goal))).status).toBe(200);
+
+    expect((await tasksOf(app.db, bob)).map((t) => t.title)).toEqual(["Bob's task"]);
+  });
+
+  it("a refused delete (changed on another device) keeps the tasks", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const goal = await seedGoal(app.db, alice, { deadline: "2027-03-14", rules: [{ kind: "count", target: 1 }] });
+    await seedTask(app.db, alice, { title: "Buy shoes", goalId: goal.id });
+
+    expect((await send(goal.id, { updatedAt: "2020-01-01T00:00:00.000Z" })).status).toBe(409);
+
+    expect((await tasksOf(app.db, alice)).map((t) => t.title)).toEqual(["Buy shoes"]);
   });
 });
