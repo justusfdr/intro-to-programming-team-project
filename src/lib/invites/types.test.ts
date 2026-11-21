@@ -1,7 +1,7 @@
 // The pure rules of spec 54's screens (from spec 36): how an answer is said and drawn (R61) and why the
 // owner cannot invite (R59).
 import { describe, expect, it } from "vitest";
-import { answerWords, inviteBlockedReason, inviteClass, inviteesSummary, inviteLook, invitationsText, personAnswerLabel, sameInvitees } from "./types";
+import { answerWords, inviteBlockedReason, invitedEventEnded, inviteClass, inviteesSummary, inviteLook, invitationsText, personAnswerLabel, sameInvitees } from "./types";
 
 describe("answers in words and looks (R61)", () => {
   it("names each answer and draws pending dashed, maybe lighter, accepted solid and declined not at all", () => {
@@ -43,5 +43,18 @@ describe("who can invite (R59)", () => {
     expect(sameInvitees(["a", "b"], ["b", "a"])).toBe(true);
     expect(sameInvitees(["a"], ["a", "b"])).toBe(false);
     expect(sameInvitees([], [])).toBe(true);
+  });
+});
+
+describe("whether an invited event has ended (spec 64)", () => {
+  it("a timed event at its end, an all-day event after its last day on the viewer's clock", () => {
+    const timed = { allDay: false as const, endAt: "2026-11-20T12:00:00.000Z" };
+    expect(invitedEventEnded(timed, Date.parse("2026-11-20T11:59:00.000Z"), "UTC")).toBe(false);
+    expect(invitedEventEnded(timed, Date.parse("2026-11-20T12:00:00.000Z"), "UTC")).toBe(true);
+    const allDay = { allDay: true as const, lastDay: "2026-11-20" };
+    expect(invitedEventEnded(allDay, Date.parse("2026-11-20T23:30:00.000Z"), "UTC")).toBe(false);
+    expect(invitedEventEnded(allDay, Date.parse("2026-11-21T00:30:00.000Z"), "UTC")).toBe(true);
+    // Still the 20th in New York.
+    expect(invitedEventEnded(allDay, Date.parse("2026-11-21T00:30:00.000Z"), "America/New_York")).toBe(false);
   });
 });

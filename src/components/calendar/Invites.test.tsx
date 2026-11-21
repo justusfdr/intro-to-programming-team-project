@@ -108,6 +108,20 @@ describe("the invitation's card (R60)", () => {
     expect(html).not.toContain('href="/people/d"');
   });
 
+  it("once the event has ended only Decline is left, with a line that says why (spec 64)", () => {
+    const after = Date.parse("2026-11-20T12:00:00.000Z");
+    const html = renderToStaticMarkup(<InvitedEventDetails event={invited("pending")} answer="pending" busy={false} note={null} timeZone="UTC" onAnswer={() => {}} people={people} now={after} />);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>.*?Accept<\/button>/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>.*?Maybe<\/button>/);
+    const decline = html.match(/<button((?:(?!<button).)*?)>(?:(?!<button).)*?Decline<\/button>/)?.[1] ?? "";
+    expect(decline).not.toContain('disabled=""');
+    expect(html).toContain("This event has ended. Decline it to remove it from your calendar.");
+
+    const before = renderToStaticMarkup(<InvitedEventDetails event={invited("pending")} answer="pending" busy={false} note={null} timeZone="UTC" onAnswer={() => {}} people={people} now={after - 60_000} />);
+    expect(before).not.toContain('disabled=""');
+    expect(before).not.toContain("This event has ended");
+  });
+
   it("says it is loading the others until they are read", () => {
     const html = renderToStaticMarkup(<InvitedEventDetails event={invited("pending")} answer="pending" busy={false} note={null} timeZone="UTC" onAnswer={() => {}} people={null} />);
     expect(html).toContain("Loading who else is invited");

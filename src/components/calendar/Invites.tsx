@@ -17,7 +17,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { getJson } from "@/lib/client/post-json";
-import { ANSWER_BUTTONS, answerWords, invitationsText, personAnswerLabel, type GivenAnswer, type InviteAnswer, type InvitedEvent, type InvitePerson } from "@/lib/invites/types";
+import { ANSWER_BUTTONS, answerWords, invitationsText, invitedEventEnded, personAnswerLabel, type GivenAnswer, type InviteAnswer, type InvitedEvent, type InvitePerson } from "@/lib/invites/types";
 import type { TimeFormat } from "@/lib/time/display";
 import { anchorOf, FloatingPanel, type Anchor } from "./FloatingPanel";
 import { allDayWhen, sharedWhen } from "./Shared";
@@ -85,19 +85,24 @@ export function AvatarStack({ people }: { people: readonly InvitePerson[] }) {
 }
 
 /** "Accept", "Maybe", "Decline", the current answer pressed. */
-export function AnswerButtons({ answer, busy, onAnswer }: { answer: InviteAnswer; busy: boolean; onAnswer: (answer: GivenAnswer) => void }) {
+export function AnswerButtons({ answer, busy, onAnswer, ended = false }: { answer: InviteAnswer; busy: boolean; onAnswer: (answer: GivenAnswer) => void; ended?: boolean }) {
   return (
-    <div role="group" aria-label="Your answer" className="flex flex-wrap gap-2">
-      {ANSWER_BUTTONS.map((button) => {
-        const on = answer === button.answer;
-        return (
-          <Button key={button.answer} size="sm" variant={on ? "primary" : "secondary"} aria-pressed={on} disabled={busy} onClick={() => onAnswer(button.answer)}>
-            <AnswerMark answer={button.answer} size={12} />
-            {button.label}
-          </Button>
-        );
-      })}
-    </div>
+    <>
+      <div role="group" aria-label="Your answer" className="flex flex-wrap gap-2">
+        {ANSWER_BUTTONS.map((button) => {
+          const on = answer === button.answer;
+          // Once the event has ended only "Decline" is left (spec 64): it takes the event out of the calendar.
+          const closed = ended && button.answer !== "declined";
+          return (
+            <Button key={button.answer} size="sm" variant={on ? "primary" : "secondary"} aria-pressed={on} disabled={busy || closed} onClick={() => onAnswer(button.answer)}>
+              <AnswerMark answer={button.answer} size={12} />
+              {button.label}
+            </Button>
+          );
+        })}
+      </div>
+      {ended && answer !== "declined" && <p className="text-xs text-ink-3">This event has ended. Decline it to remove it from your calendar.</p>}
+    </>
   );
 }
 
@@ -150,8 +155,10 @@ type InvitedProps = {
 };
 
 /** The card's content with the other people already known (also drawn on its own in the tests). */
-export function InvitedEventDetails({ event, answer, busy, note, timeZone, onAnswer, people }: InvitedProps & { people: InvitePerson[] | null }) {
+export function InvitedEventDetails({ event, answer, busy, note, timeZone, onAnswer, people, now }: InvitedProps & { people: InvitePerson[] | null; now?: number }) {
   const { timeFormat } = useDisplay();
+  // When the card opened: once the event has ended only "Decline" is offered (the server decides too).
+  const [openedAt] = useState(() => Date.now());
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
@@ -171,7 +178,7 @@ export function InvitedEventDetails({ event, answer, busy, note, timeZone, onAns
         <p className="text-sm font-medium text-ink">
           Your answer: <span className="font-normal text-ink-2">{answerWords(answer)}</span>
         </p>
-        <AnswerButtons answer={answer} busy={busy} onAnswer={onAnswer} />
+        <AnswerButtons answer={answer} busy={busy} onAnswer={onAnswer} ended={invitedEventEnded(event, now ?? openedAt, timeZone)} />
         {note && (
           <p role="status" className="text-xs text-ink-3">
             {note}
