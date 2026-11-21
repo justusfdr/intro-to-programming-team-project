@@ -113,6 +113,18 @@ export function answeredText(answer: GivenAnswer): string {
   return answer === "accepted" ? "You accepted." : answer === "tentative" ? "You answered maybe." : "You declined.";
 }
 
+/**
+ * Whether an invited event has ended at `now`, on the viewer's clock: a timed event at its end, an
+ * all-day event after its last day. Then only "Decline" is offered (spec 64): it takes the event out of
+ * the calendar. The database decides for itself (by the owner's time zone for all-day events), so a
+ * difference of a day only changes which buttons are shown, never what is saved.
+ */
+export function invitedEventEnded(event: { allDay: false; endAt: string } | { allDay: true; lastDay: string }, now: number, timeZone: string): boolean {
+  if (!event.allDay) return Date.parse(event.endAt) <= now;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return event.lastDay < today;
+}
+
 /** The three buttons' words. */
 export const ANSWER_BUTTONS: readonly { answer: GivenAnswer; label: string }[] = [
   { answer: "accepted", label: "Accept" },

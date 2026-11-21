@@ -22,7 +22,7 @@ import { FormMessage } from "@/components/account/FormMessage";
 import { useDisplay } from "@/components/shell/DisplayProvider";
 import { getJson, postJson, type PostResult } from "@/lib/client/post-json";
 import { cleanNotes, notesTooLong } from "@/lib/events/notes";
-import { acceptedReadOnlyText, answerWords, type AcceptedInviteDetails, type GivenAnswer, type InvitedEvent, type InvitePerson, type InviteTravelMode } from "@/lib/invites/types";
+import { acceptedReadOnlyText, answerWords, invitedEventEnded, type AcceptedInviteDetails, type GivenAnswer, type InvitedEvent, type InvitePerson, type InviteTravelMode } from "@/lib/invites/types";
 import { MESSAGES } from "@/lib/messages";
 import { cleanTitle, hasRoom, moveTo, type TodoItem } from "@/lib/todos/list";
 import { useAnnounce } from "./Announcer";
@@ -282,7 +282,7 @@ export function AcceptedInviteView({ event, details, people, busy, note, timeZon
           <p className="text-sm font-medium text-ink">
             Your answer: <span className="font-normal text-ink-2">{answerWords("accepted")}</span>
           </p>
-          <AnswerButtons answer="accepted" busy={busy} onAnswer={onAnswer} />
+          <AnswerButtons answer="accepted" busy={busy} onAnswer={onAnswer} ended={invitedEventEnded(shown, now, timeZone)} />
           {note && (
             <p role="status" className="text-xs text-ink-3">
               {note}
