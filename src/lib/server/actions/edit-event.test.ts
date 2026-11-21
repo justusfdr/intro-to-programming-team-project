@@ -31,9 +31,11 @@ const EDIT = { title: "Revision", start: "2026-11-16T10:00", end: "2026-11-16T12
 const BODY_FOR = (e: { updatedAt: string }) => ({ title: "Statistics revision", start: "2026-11-16T09:00", end: "2026-11-16T11:00", updatedAt: e.updatedAt });
 
 describe("edit_event accepted", () => {
+  // The event moves to 10:00, after now (09:00): a done one would be planned again (issue #124,
+  // edit-event-done-moved.test.ts), so this one is planned and stays planned.
   it("changes title, times and may_overlap; status, source and user_id stay; updated_at grows; answers 200 with 'Event saved.' and the new event", async () => {
     const alice = await app.signedInAs("alice@example.com", { timeZone: "Europe/Lisbon" });
-    const { id, updatedAt } = await seedEvent(app.db, alice, { ...SEED, status: "done" });
+    const { id, updatedAt } = await seedEvent(app.db, alice, { ...SEED, status: "planned" });
     const [before] = await eventsOf(app.db, alice);
 
     const answer = await read(await send(id, { ...EDIT, updatedAt }));
@@ -47,11 +49,11 @@ describe("edit_event accepted", () => {
         startAt: "2026-11-16T10:00:00.000Z",
         endAt: "2026-11-16T12:00:00.000Z",
         mayOverlap: true,
-        status: "done",
+        status: "planned",
       },
     });
     const [after] = await eventsOf(app.db, alice);
-    expect(after).toMatchObject({ id, title: "Revision", may_overlap: true, status: "done", source: before.source });
+    expect(after).toMatchObject({ id, title: "Revision", may_overlap: true, status: "planned", source: before.source });
     expect(new Date(after.start_at as Date).toISOString()).toBe("2026-11-16T10:00:00.000Z");
     expect(new Date(after.end_at as Date).toISOString()).toBe("2026-11-16T12:00:00.000Z");
     expect(new Date(after.updated_at as Date).getTime()).toBeGreaterThan(Date.parse(updatedAt));
