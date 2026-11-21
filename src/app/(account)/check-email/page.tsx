@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AccountCard } from "@/components/account/AccountCard";
+import { ExistingAccountHint } from "@/components/account/ExistingAccountHint";
 import { ResendForm } from "./ResendForm";
 
 export const metadata: Metadata = { title: "Check your email" };
@@ -21,6 +22,7 @@ export default function CheckEmailPage() {
     >
       <p className="text-sm text-ink-2">Open the link in the e-mail we sent you.</p>
       <ResendForm />
+      <ExistingAccountHint className="mt-6" />
     </AccountCard>
   );
 }

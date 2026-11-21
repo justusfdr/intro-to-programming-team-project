@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { Field } from "@/components/account/Field";
+import { ExistingAccountHint } from "@/components/account/ExistingAccountHint";
 import { FormMessage } from "@/components/account/FormMessage";
 import { Button } from "@/components/ui/Button";
 import { postJson, type PostResult } from "@/lib/client/post-json";
@@ -46,6 +47,7 @@ export function SignUpForm() {
             Ask for a new link
           </Link>
         </p>
+        <ExistingAccountHint className="mt-2" />
       </>
     );
   }
