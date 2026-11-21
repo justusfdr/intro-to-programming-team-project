@@ -60,6 +60,8 @@ npm run dev     # the app at http://localhost:3000
 
 ## How we worked
 
+We started with a small prototype that ran only in the browser, to try out the basic ideas. For the design we had Claude build several mock-ups, picked the best one as a team, and gave it back to Claude together with the prototype, our notes and the plan (`docs/ontology.md`) to build the app from.
+
 1. We wrote the plan first (`docs/ontology.md`) and extended it with every new feature. Each addition has a date and a reason.
 2. Each feature got a spec in `specs/` and a branch.
 3. Tests come from the spec and cover accepted actions, rejected actions and edge cases.
