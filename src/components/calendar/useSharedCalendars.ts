@@ -87,20 +87,44 @@ export function asAnswer(data: unknown): SharedCalendarAnswer | null {
 }
 
 /**
+ * The shown people: the remembered choice, plus the person the address names ("?share=<id>") unless the
+ * user hid them (issue #197), without anybody who no longer shares, at most three (R58).
+ */
+export function shownIds(remembered: readonly unknown[], named: string | undefined, hiddenNamed: string | null, people: readonly SharingPerson[]): string[] {
+  const withNamed = named && named !== hiddenNamed && !remembered.includes(named) ? [...remembered, named] : remembered;
+  return keepChosen(withNamed, people);
+}
+
+/**
+ * A tick or untick in the People picker: the new remembered list, and whether it hid the person the
+ * address names (issue #197: the address still names them, so without this they came straight back).
+ */
+export function afterToggle(chosen: readonly string[], userId: string, named: string | undefined): { ids: string[]; hideNamed: boolean } {
+  return { ids: toggleChosen(chosen, userId), hideNamed: userId === named && chosen.includes(userId) };
+}
+
+/**
  * `viewerId`: the signed-in user (the key of the remembered choice). `named`: a person the address asks
- * to show ("?share=<id>"); shown on top of the remembered choice while there is room.
+ * to show ("?share=<id>"); shown on top of the remembered choice while there is room, until unticked.
  */
 export function useSharedCalendars(viewerId: string, people: readonly SharingPerson[], days: readonly string[], timeZone: string, named?: string) {
   const key = shownCalendarsKey(viewerId);
   const stored = useSyncExternalStore(subscribe, () => readStored(key), () => null);
-  const chosen = useMemo(() => {
-    const remembered = parseStored(stored);
-    return keepChosen(named && !remembered.includes(named) ? [...remembered, named] : remembered, people);
-  }, [stored, named, people]);
+  // Issue #197: the person the address names, once unticked, until the address names somebody else.
+  const [hiddenNamed, setHiddenNamed] = useState<string | null>(null);
+  const chosen = useMemo(() => shownIds(parseStored(stored), named, hiddenNamed, people), [stored, named, hiddenNamed, people]);
   const [answers, setAnswers] = useState<Record<string, SharedCalendarAnswer>>({});
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const toggle = useCallback((userId: string) => store(key, toggleChosen(chosen, userId)), [key, chosen]);
+  const toggle = useCallback(
+    (userId: string) => {
+      const { ids, hideNamed } = afterToggle(chosen, userId, named);
+      if (hideNamed) setHiddenNamed(userId);
+      else if (userId === named) setHiddenNamed(null);
+      store(key, ids);
+    },
+    [key, chosen, named],
+  );
 
   // Read again when the window comes back to the front.
   useEffect(() => {

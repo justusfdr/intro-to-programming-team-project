@@ -3,7 +3,7 @@
 // title, and the remembered choice is per signed-in user (E15).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SHARED_CALENDAR_KEYS, SHARED_EVENT_KEYS } from "@/lib/shares/types";
-import { asAnswer, rememberShown, shownCalendarsKey } from "./useSharedCalendars";
+import { afterToggle, asAnswer, rememberShown, shownCalendarsKey, shownIds } from "./useSharedCalendars";
 
 const keysOf = (value: object) => Object.keys(value);
 
@@ -58,5 +58,44 @@ describe("rememberShown (R58)", () => {
     expect(rememberShown("viewer-r58", "a")).toBe(true);
     expect(rememberShown("viewer-r58", "d")).toBe(false);
     expect(JSON.parse(saved.get(shownCalendarsKey("viewer-r58"))!)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("issue #197: the person named in the address (?share=) can be hidden again", () => {
+  const people = [
+    { userId: "ana", calendar: "details" },
+    { userId: "ben", calendar: "busy" },
+  ] as unknown as Parameters<typeof shownIds>[3];
+
+  it("the named person is shown on top of the remembered choice", () => {
+    expect(shownIds(["ben"], "ana", null, people)).toEqual(["ben", "ana"]);
+  });
+
+  it("unticking the named person hides them, and they stay hidden", () => {
+    const shown = shownIds([], "ana", null, people);
+    expect(shown).toEqual(["ana"]);
+    const after = afterToggle(shown, "ana", "ana");
+    expect(after).toEqual({ ids: [], hideNamed: true });
+    // The address still says ?share=ana, but the person stays hidden.
+    expect(shownIds(after.ids, "ana", "ana", people)).toEqual([]);
+  });
+
+  it("ticking them again shows them again", () => {
+    const after = afterToggle([], "ana", "ana");
+    expect(after).toEqual({ ids: ["ana"], hideNamed: false });
+    expect(shownIds(after.ids, "ana", null, people)).toEqual(["ana"]);
+  });
+
+  it("unticking somebody else does not hide the named person", () => {
+    const after = afterToggle(["ben", "ana"], "ben", "ana");
+    expect(after).toEqual({ ids: ["ana"], hideNamed: false });
+    expect(shownIds(after.ids, "ana", null, people)).toEqual(["ana"]);
+  });
+
+  it("a hidden named person stays hidden although it was remembered from the profile", () => {
+    // "Show in my calendar" remembered ana; unticking removes her from the stored list too.
+    const after = afterToggle(shownIds(["ana"], "ana", null, people), "ana", "ana");
+    expect(after.ids).toEqual([]);
+    expect(shownIds(after.ids, "ana", "ana", people)).toEqual([]);
   });
 });
