@@ -3,7 +3,7 @@
 // dragging, the goal's place on the accepted sessions (all or nothing), and undo.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
-import { chatOf, draftsOf, seedDraft, sentToday } from "@test/support/chat";
+import { chatOf, draftsOf, seedDraft } from "@test/support/chat";
 import { eventsOf, seedEvent } from "@test/support/events";
 import { seedGoal } from "@test/support/goals";
 import { SYSTEM_PROMPT } from "@/lib/chat/prompt";
@@ -115,18 +115,41 @@ describe("send_message with a never day (R23 extended)", () => {
     expect((await chatOf(app.db, alice)).map((m) => m.status)).toEqual([null, "open"]);
   });
 
-  it("A27: an answer that plans a session on a never day is refused; nothing saved, nothing counted (spec 44)", async () => {
+  it("A27: a session on a never day is left out and named; the session on an allowed day stays (spec 67)", async () => {
     const alice = await app.signedInAs("alice@example.com");
     const gym = await seedGym(alice);
     app.assistant.answerJson(gymAnswer(gym.id, "2026-11-18", "2026-11-20"));
 
     const answer = await read(await send("Plan the gym into my week"));
 
-    expect(answer).toEqual({ status: 502, body: { error: "answer_failed_checks", message: "The assistant's answer failed our checks. Please try again" } });
-    expect(await chatOf(app.db, alice)).toEqual([]);
+    expect(answer.status).toBe(201);
+    const [, reply] = answer.body.messages as { text: string }[];
+    expect(reply.text).toContain("Left out of this plan because it did not fit:");
+    expect(reply.text).toContain("• Gym, Fri, Nov 20,");
+    expect(reply.text).toContain("it is on a day you never do this goal.");
+    expect(reply.text).not.toContain("Wed, Nov 18");
+    const chat = await chatOf(app.db, alice);
+    expect(chat.map((m) => m.status)).toEqual([null, "open"]);
+    expect((chat[1].proposed_events as { start_at: string }[]).map((e) => e.start_at)).toEqual(["2026-11-18T18:00:00.000Z"]);
+    // Nothing is in the calendar before "Apply changes".
     expect(await eventsOf(app.db, alice)).toEqual([]);
-    // Spec 44: nothing is counted.
-    expect(await sentToday(app.db, alice)).toBe(0);
+  });
+
+  it("A27: when every session is on a never day, nothing is planned: a text answer that names them (spec 67)", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    const gym = await seedGym(alice);
+    app.assistant.answerJson(gymAnswer(gym.id, "2026-11-20"));
+
+    const answer = await read(await send("Plan the gym into my week"));
+
+    expect(answer.status).toBe(201);
+    const [, reply] = answer.body.messages as { text: string; draft: unknown }[];
+    expect(reply.draft).toBeNull();
+    expect(reply.text).toContain("None of this could go into a plan:");
+    expect(reply.text).toContain("it is on a day you never do this goal.");
+    expect((await chatOf(app.db, alice)).map((m) => m.status)).toEqual([null, null]);
+    expect(await draftsOf(app.db, alice)).toEqual([]);
+    expect(await eventsOf(app.db, alice)).toEqual([]);
   });
 });
 
@@ -289,7 +312,7 @@ describe("edit_draft with a never day", () => {
 });
 
 describe("A27 as the ontology tells it", () => {
-  it("the data block, an accepted session with the goal's place, undo; then an answer on a Friday refused", async () => {
+  it("the data block, an accepted session with the goal's place, undo; then an answer on a Friday is left out and named", async () => {
     const alice = await app.signedInAs("alice@example.com");
     const gym = await seedGoal(app.db, alice, { title: "Gym", deadline: "2027-03-14", rules: [{ kind: "count", target: 3 }] });
     await app.db.admin(
@@ -325,10 +348,14 @@ describe("A27 as the ontology tells it", () => {
     expect(await app.db.admin("select 1 from app.events where user_id = $1 and source = 'assistant'", [alice])).toEqual([]);
 
     app.assistant.answerJson(gymAnswer(gym.id, "2026-11-20"));
-    const refused = await read(await send("Plan the gym into my week"));
-    expect(refused.body.message).toBe("The assistant's answer failed our checks. Please try again");
-    // Spec 44: nothing is counted.
-    expect(await sentToday(app.db, alice)).toBe(0);
-    expect((await chatOf(app.db, alice)).length).toBe(2);
+    const left = await read(await send("Plan the gym into my week"));
+    expect(left.status).toBe(201);
+    const chat = await chatOf(app.db, alice);
+    // The first draft's two messages, then the new question and a text answer without a draft.
+    expect(chat.length).toBe(4);
+    expect(chat[3].status).toBeNull();
+    expect(chat[3].text).toContain("None of this could go into a plan:");
+    expect(chat[3].text).toContain("it is on a day you never do this goal.");
+    expect(await app.db.admin("select 1 from app.events where user_id = $1 and source = 'assistant'", [alice])).toEqual([]);
   });
 });

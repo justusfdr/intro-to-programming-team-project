@@ -5,7 +5,7 @@
 // event the coach deleted comes back with its to-dos. A failed check of a to-do rejects the answer (R23).
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
-import { draftsOf, sentToday } from "@test/support/chat";
+import { draftsOf } from "@test/support/chat";
 import { seedEvent } from "@test/support/events";
 import { loadChatPage } from "@/lib/server/pages/load";
 import { acceptDraft } from "./accept-draft";
@@ -98,18 +98,24 @@ describe("the coach writes the to-dos down", () => {
     expect(JSON.stringify(app.assistant.lastData().events)).not.toContain("todos");
   });
 
-  it("an answer with 21 to-dos or an empty one fails the checks: nothing saved, nothing counted (A6's rule, spec 44)", async () => {
+  it("an event with 21 to-dos or an empty one is left out and named: nothing planned (A6's rule, spec 67)", async () => {
     const alice = await app.signedInAs("alice@example.com");
-    for (const todos of [Array.from({ length: 21 }, (_, i) => `To-do ${i}`), ["Fine", ""]]) {
+    const cases: [string[], string][] = [
+      [Array.from({ length: 21 }, (_, i) => `To-do ${i}`), "an event has at most 20 to-dos"],
+      [["Fine", ""], "a to-do is empty or too long"],
+    ];
+    for (const [todos, reason] of cases) {
       app.assistant.answerJson({ kind: "draft", text: "Here.", events: [{ ...STUDY, todos }], changes: [] });
-      expect(await read(await send("Plan tomorrow"))).toEqual({
-        status: 502,
-        body: { error: "answer_failed_checks", message: "The assistant's answer failed our checks. Please try again" },
-      });
+      const answer = await read(await send("Plan tomorrow"));
+      expect(answer.status, reason).toBe(201);
+      const [, reply] = answer.body.messages as { text: string; draft: unknown }[];
+      expect(reply.draft, reason).toBeNull();
+      expect(reply.text, reason).toContain("None of this could go into a plan:");
+      expect(reply.text, reason).toContain("• Study, Tue, Nov 17,");
+      expect(reply.text, reason).toContain(`${reason}.`);
     }
     expect(await draftsOf(app.db, alice)).toEqual([]);
-    // Spec 44: nothing is counted.
-    expect(await sentToday(app.db, alice)).toBe(0);
+    expect(await todosOfAll()).toEqual([]);
   });
 
   it("an event the coach deletes comes back on undo with its to-dos", async () => {

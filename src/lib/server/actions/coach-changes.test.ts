@@ -39,7 +39,6 @@ const undo = (id: string, headers?: Record<string, string>) => undoDraft(postJso
 
 const OUT_OF_DATE = { status: 409, body: { error: "draft_out_of_date", message: "This draft is out of date. Ask again" } };
 const CANNOT_UNDO = { status: 409, body: { error: "cannot_undo", message: "This can no longer be undone" } };
-const FAILED = { status: 502, body: { error: "answer_failed_checks", message: "The assistant's answer failed our checks. Please try again" } };
 
 /** Tuesday's lecture 14:00-15:00 and gym 17:00-18:00 (Lisbon is UTC in November). */
 async function tuesday(userId: string) {
@@ -119,7 +118,7 @@ describe("send_message with changes", () => {
     ]);
   });
 
-  it("flags Outlook events, events of a series, all-day events and started events as not changeable; a change to one fails the checks", async () => {
+  it("flags Outlook events, events of a series, all-day events and started events as not changeable; a change to one is left out and named", async () => {
     const alice = await app.signedInAs("alice@example.com");
     const outlook = await seedEvent(app.db, alice, { title: "Team call", start: "2026-11-17T10:00:00Z", end: "2026-11-17T11:00:00Z" });
     await app.db.admin("update app.events set source = 'outlook', outlook_id = 'o-1' where id = $1", [outlook.id]);
@@ -139,29 +138,44 @@ describe("send_message with changes", () => {
     ]);
 
     const refs = (app.assistant.lastData().events as { ref: string }[]).map((e) => e.ref);
+    const before = await times(alice);
     for (const ref of refs) {
-      const before = await app.snapshot();
       app.assistant.answerJson({ kind: "draft", text: "Removed.", events: [], changes: [{ ref, action: "delete", start: null, end: null }] });
-      expect(await read(await send("Delete it")), ref).toEqual(FAILED);
-      const after = await app.snapshot();
-      // Only the day counter moved (R1's exception).
-      delete (after.tables as Record<string, unknown>).profiles;
-      delete (before.tables as Record<string, unknown>).profiles;
-      expect(after).toEqual(before);
+      expect((await send("Delete it")).status, ref).toBe(201);
+      const last = (await chatOf(app.db, alice)).at(-1)!;
+      // The delete is left out: no draft, and the note names it.
+      expect(last.status, ref).toBeNull();
+      expect(last.proposed_events, ref).toBeNull();
+      expect(last.text, ref).toContain("None of this could go into a plan:");
+      expect(last.text, ref).toContain("• Deleting an event: the coach may not change this event.");
     }
+    // The calendar stays as it was.
+    expect(await times(alice)).toEqual(before);
+    expect(await draftsOf(app.db, alice)).toEqual([]);
   });
 
-  it("an unknown reference or a move onto an event that stays fails the checks; nothing saved", async () => {
+  it("an unknown reference or a move onto an event that stays is left out and named; nothing is planned", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await tuesday(alice);
-    for (const changes of [
+    const before = await times(alice);
+    const expected = [
+      "• Deleting an event: the coach named an event it does not know.",
+      '• Moving "Lecture" to Tue, Nov 17, 5:30 – 6:30pm: it clashes with an event in your calendar.',
+    ];
+    const cases = [
       [{ ref: "e7", action: "delete", start: null, end: null }],
       [{ ref: "e1", action: "move", start: "2026-11-17T17:30", end: "2026-11-17T18:30" }],
-    ]) {
+    ];
+    for (const [i, changes] of cases.entries()) {
       app.assistant.answerJson({ kind: "draft", text: "Done.", events: [], changes });
-      expect(await read(await send("Change it"))).toEqual(FAILED);
+      expect((await send("Change it")).status).toBe(201);
+      const last = (await chatOf(app.db, alice)).at(-1)!;
+      expect(last.status).toBeNull();
+      expect(last.text).toContain("None of this could go into a plan:");
+      expect(last.text).toContain(expected[i]);
     }
-    expect(await chatOf(app.db, alice)).toEqual([]);
+    expect(await draftsOf(app.db, alice)).toEqual([]);
+    expect(await times(alice)).toEqual(before);
   });
 
   it("sends an earlier draft's changes in words", async () => {

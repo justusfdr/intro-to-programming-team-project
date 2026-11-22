@@ -20,7 +20,7 @@ const context = (change: Partial<CheckContext> = {}): CheckContext => ({
 const DISPLAY: NoteDisplay = { now: NOW, timeZone: "Europe/Lisbon", timeFormat: "24h", dayStartHour: 7, dayEndHour: 22 };
 
 const event = (title: string, start: string, end: string, goalId: string | null = null) => ({ title, start, end, goalId });
-const draft = (events: ReturnType<typeof event>[], more: Record<string, unknown> = {}) => ({ kind: "draft", text: "Here is your week.", events, ...more });
+const draft = (events: (ReturnType<typeof event> & { todos?: string[] })[], more: Record<string, unknown> = {}) => ({ kind: "draft", text: "Here is your week.", events, ...more });
 
 const LECTURE = { startAt: new Date("2026-11-17T10:00:00Z"), endAt: new Date("2026-11-17T12:00:00Z"), mayOverlap: false };
 

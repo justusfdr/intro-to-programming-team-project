@@ -33,7 +33,19 @@ afterEach(() => {
 });
 
 const GYM = "Fitness Park, Rua Augusta 12, Porto";
-const FAILED = { status: 502, body: { error: "answer_failed_checks", message: "The assistant's answer failed our checks. Please try again" } };
+const ON_THE_WAY = "it falls in the time you need to get to another event";
+const NO_ROOM = "it leaves no time to get there or back";
+
+/** The answer was saved (201) as a text answer: nothing planned, and the note names `title` with `reason` (spec 67). */
+async function expectLeftOut(res: Response, title: string, reason: string) {
+  const answer = await read(res);
+  expect(answer.status).toBe(201);
+  const [, reply] = answer.body.messages as { text: string; draft: unknown }[];
+  expect(reply.draft).toBeNull();
+  expect(reply.text).toContain("None of this could go into a plan:");
+  expect(reply.text).toContain(`• ${title}, Tue, Nov 17,`);
+  expect(reply.text).toContain(`${reason}.`);
+}
 
 const send = () => sendMessage(postJson("/api/chat/messages", { text: "Plan my Tuesday" }), app.deps, routing);
 
@@ -99,11 +111,11 @@ describe("what Claude receives about the way (issue 227)", () => {
 });
 
 describe("an answer that falls into the way to an event", () => {
-  it("is refused: the lecture is at 10:00, the way takes 35 minutes, so 09:30 is on the way", async () => {
+  it("is left out and named: the lecture is at 10:00, the way takes 35 minutes, so 09:30 is on the way", async () => {
     const user = await alice();
     await lecture(user, "10:00", "11:00");
     app.assistant.answerJson(study("09:30", "09:50"));
-    expect(await read(await send())).toEqual(FAILED);
+    await expectLeftOut(await send(), "Study", ON_THE_WAY);
   });
 
   it("is accepted when it ends as the way starts (09:25)", async () => {
@@ -118,7 +130,7 @@ describe("an answer that falls into the way to an event", () => {
     await lecture(user, "10:00", "11:00");
     routing.down = true;
     app.assistant.answerJson(study("09:20", "09:40"));
-    expect(await read(await send())).toEqual(FAILED);
+    await expectLeftOut(await send(), "Study", ON_THE_WAY);
     app.assistant.answerJson(study("08:30", "09:30"));
     expect((await read(await send())).status).toBe(201);
   });
@@ -130,7 +142,7 @@ describe("a session at a goal's place needs room for the way", () => {
     await lecture(user, "14:00", "15:00");
     const goal = await gym(user);
     app.assistant.answerJson(study("15:15", "16:45", goal, "Gym"));
-    expect(await read(await send())).toEqual(FAILED);
+    await expectLeftOut(await send(), "Gym", NO_ROOM);
     app.assistant.answerJson(study("15:40", "17:10", goal, "Gym"));
     expect((await read(await send())).status).toBe(201);
   });
@@ -140,7 +152,7 @@ describe("a session at a goal's place needs room for the way", () => {
     const goal = await gym(user);
     await lecture(user, "17:00", "18:00");
     app.assistant.answerJson(study("15:15", "16:45", goal, "Gym"));
-    expect(await read(await send())).toEqual(FAILED);
+    await expectLeftOut(await send(), "Gym", ON_THE_WAY);
     app.assistant.answerJson(study("14:00", "15:30", goal, "Gym"));
     expect((await read(await send())).status).toBe(201);
   });

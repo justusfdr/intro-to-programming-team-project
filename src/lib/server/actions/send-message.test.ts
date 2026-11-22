@@ -239,11 +239,13 @@ describe("what Claude receives (R22, R31)", () => {
 });
 
 describe("send_message rejected", () => {
-  it("A6: a wrong answer fails the checks and saves nothing; spec 44: the next message is asked again", async () => {
+  // Spec 67: only an answer that cannot be read is still rejected as a whole (here a text answer that
+  // also plans events); an answer with a slot that breaks a rule is saved without it (see below).
+  it("A6: an unreadable answer fails the checks and saves nothing; spec 44: the next message is asked again", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await setSentToday(app.db, alice, 19);
     const before = await app.snapshot();
-    app.assistant.answerJson({ ...A5_ANSWER, events: [{ title: "Call", start: "2026-11-17T13:30", end: "2026-11-17T13:00", goalId: null }] });
+    app.assistant.answerJson({ ...A5_ANSWER, kind: "text" });
 
     expect(await read(await send({ text: A5_TEXT }))).toEqual({
       status: 502,
@@ -260,9 +262,8 @@ describe("send_message rejected", () => {
   it.each([
     ["an answer that is not JSON", { kind: "failed", reason: "not_json" } as const],
     ["an answer that ended for another reason", { kind: "failed", reason: "other_stop" } as const],
-    ["a proposal for another user's goal", { kind: "answer", value: { ...A5_ANSWER, events: [{ ...A5_ANSWER.events[0], goalId: "00000000-0000-4000-8000-000000000000" }] } } as const],
-    ["an all-day proposal", { kind: "answer", value: { ...A5_ANSWER, events: [{ title: "Exam", start: "2026-11-17", end: "2026-11-18", goalId: null }] } } as const],
-    ["a proposal over an event that may not overlap", { kind: "answer", value: A5_ANSWER } as const],
+    ["an answer with an empty text", { kind: "answer", value: { ...A5_ANSWER, text: "   " } } as const],
+    ["an answer with more than 30 events", { kind: "answer", value: { ...A5_ANSWER, events: Array.from({ length: 31 }, () => A5_ANSWER.events[1]) } } as const],
   ])("%s: 'failed our checks', nothing saved, nothing counted (spec 44)", async (_case, result) => {
     const alice = await app.signedInAs("alice@example.com");
     await seedEvent(app.db, alice, { title: "Gym", start: "2026-11-17T18:30:00Z", end: "2026-11-17T19:00:00Z" });
@@ -274,6 +275,44 @@ describe("send_message rejected", () => {
     expect(answer.body.message).toBe("The assistant's answer failed our checks. Please try again");
     expect(await snapshotWithoutCount()).toEqual(before);
     expect(await sentToday(app.db, alice)).toBe(0);
+  });
+
+  // Spec 67 (R23 changed 22 Nov 2026): these three were "failed our checks" until then. Now the slot that
+  // breaks a rule is left out and named under the coach's text; the rest is kept.
+  it("a proposal over an event that may not overlap is left out and named; the other three stay in the draft", async () => {
+    const alice = await app.signedInAs("alice@example.com");
+    await seedEvent(app.db, alice, { title: "Gym", start: "2026-11-17T18:30:00Z", end: "2026-11-17T19:00:00Z" });
+    app.assistant.answerJson(A5_ANSWER);
+
+    const answer = await read(await send({ text: A5_TEXT }));
+
+    expect(answer.status).toBe(201);
+    const reply = (answer.body as { messages: { text: string; draft: { events: { title: string }[] } | null }[] }).messages[1];
+    expect(reply.text).toBe("Here is your Tuesday.\n\nLeft out of this plan because it did not fit:\n• Sport, Tue, Nov 17, 6 – 7:30pm: it clashes with an event in your calendar.");
+    expect(reply.draft?.events.map((e) => e.title)).toEqual(["Study", "Call", "Event"]);
+    expect((await eventsOf(app.db, alice)).map((e) => e.title)).toEqual(["Gym"]);
+  });
+
+  it.each([
+    ["a proposal for another user's goal", { ...A5_ANSWER, events: [{ ...A5_ANSWER.events[0], goalId: "00000000-0000-4000-8000-000000000000" }] }, "• Study, Tue, Nov 17, 8am – 1pm: it names a goal you do not have."],
+    ["an all-day proposal", { ...A5_ANSWER, events: [{ title: "Exam", start: "2026-11-17", end: "2026-11-18", goalId: null }] }, "• Exam: that time does not exist."],
+  ])("%s is left out; with nothing left the answer is a text answer that says why", async (_case, value, line) => {
+    const alice = await app.signedInAs("alice@example.com");
+    app.assistant.answerJson(value);
+
+    const answer = await read(await send({ text: A5_TEXT }));
+
+    expect(answer.status).toBe(201);
+    expect(await chatOf(app.db, alice)).toEqual([
+      { role: "user", text: A5_TEXT, status: null, proposed_events: null },
+      {
+        role: "assistant",
+        text: `Here is your Tuesday.\n\nNone of this could go into a plan:\n${line}\nTry other days or times, or ask for less at once.`,
+        status: null,
+        proposed_events: null,
+      },
+    ]);
+    expect(await eventsOf(app.db, alice)).toEqual([]);
   });
 
   // Issue #148: a refusal and an answer cut off at max_tokens say what happened (still 502, nothing saved or counted).

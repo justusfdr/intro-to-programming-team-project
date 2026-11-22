@@ -350,7 +350,7 @@ describe("the coach and events with guests (R22)", () => {
     expect(SYSTEM_PROMPT).toContain("events with guests");
   });
 
-  it("flags the event as not changeable, sends no address, and an answer that moves it fails the checks", async () => {
+  it("flags the event as not changeable, sends no address, and an answer that moves it is left out and named", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { user } = await connected();
     await setPlan(app.db, user, "pro");
@@ -364,7 +364,12 @@ describe("the coach and events with guests (R22)", () => {
       changes: [{ ref: "e1", action: "move", start: "2026-11-17T16:00", end: "2026-11-17T18:00" }],
     });
     const answer = await read(await sendMessage(postJson("/api/chat/messages", { text: "Move the study group to 4pm" }), app.deps));
-    expect(answer).toEqual({ status: 502, body: { error: "answer_failed_checks", message: "The assistant's answer failed our checks. Please try again" } });
+    expect(answer.status).toBe(201);
+    const [, reply] = answer.body.messages as { text: string; draft: unknown }[];
+    expect(reply.draft).toBeNull();
+    expect(reply.text).toContain("None of this could go into a plan:");
+    expect(reply.text).toContain("• Moving an event: the coach may not change this event.");
+    expect(reply.text).not.toContain("lea@example.com");
     const data = app.assistant.lastData();
     expect(data.events).toMatchObject([
       { ref: "e1", changeable: false, title: "Study group" },
