@@ -55,7 +55,7 @@ npm run dev     # the app at http://localhost:3000
 | `src/components/` | The screens. |
 | `supabase/migrations/` | The database schema with row-level security, one SQL file per step. |
 | `extension/` | The Chrome extension. |
-| `test/`, `src/**/*.test.ts(x)` | About 330 test files. `.github/workflows/ci.yml` runs them on every pull request and on `main`. |
+| `test/`, `src/**/*.test.ts(x)` | About 350 test files. `.github/workflows/ci.yml` runs them on every pull request and on `main`. |
 | `AGENTS.md` | Rules for the coding agents we worked with. |
 
 ## How we worked

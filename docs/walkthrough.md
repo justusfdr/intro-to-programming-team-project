@@ -63,7 +63,7 @@ Without a key in the environment the feature switches itself off: no Claude key 
 
 ## 5. How the tests work
 
-- `npm test` runs Vitest (`vitest.config.mts`). There are about 340 test files (`git ls-files | grep -c "\.test\."` on 21 Nov 2026), all passing on `main`.
+- `npm test` runs Vitest (`vitest.config.mts`). There are about 350 test files (`git ls-files | grep -c "\.test\."` on 22 Nov 2026), all passing on `main`.
 - **Temporary database**: every test file starts PGlite, an in-process Postgres, and runs the same migration files as Supabase plus a small shim for Supabase's `auth` schema (`test/db/harness.ts`, `test/db/supabase-shim.sql`). So row-level security and constraints are tested for real.
 - **Fakes**: `test/support/app.ts` wires a fake sign-in (`auth/fake.ts`), fake Claude (`claude/fake.ts`), fake Outlook (`outlook/fake.ts`), fake Stripe (`stripe/fake.ts`), fake routing and weather, and a clock we can move. Tests never call real services and need no secrets.
 - **Accepted and rejected**: each rule has a test for both. For a rejection the test compares a snapshot of every table before and after, to prove nothing changed (R1, `snapshot()` in `test/support/app.ts`).
