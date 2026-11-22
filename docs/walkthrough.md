@@ -91,7 +91,7 @@ Without a key in the environment the feature switches itself off: no Claude key 
 
 LockedIn is built for a course project with a small number of users. Before a public launch we would change these points:
 
-- **Cost of the Claude API.** The coach has no limit per user. With real users, one person could send many messages and drive up the bill, so we would add a daily message limit per user and a monthly budget alert.
+- **Cost of the Claude API.** The coach allows 100 messages per user in 24 hours (`CHAT_MESSAGES_PER_DAY`, `src/lib/chat/access.ts`). Deleting a chat deletes its messages, so the count can be reset; for real users we would add a counter that survives deleted chats and a monthly budget alert.
 - **Cost of Google Maps.** Address search and travel time are paid per call. The server already stops after a daily number of calls (`GOOGLE_MAPS_DAILY_LIMIT`, `google/daily-limit.ts`); for a launch we would add a limit per user and billing alerts in Google Cloud.
 - **Rate limits per server instance.** The counters live in each server's memory; with many servers they would need a shared store.
 - **Payment in test mode only.** Stripe runs in test mode, so no real money moves.

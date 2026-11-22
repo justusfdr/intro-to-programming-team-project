@@ -82,7 +82,7 @@ All keys live in environment variables on the server. None is in this repository
 ## Known limits
 
 - **Built for a laptop screen.** The layout is not finished for phones.
-- **The coach has no limit per user.** For real users we would add one, so nobody can use up the Claude budget.
+- **The coach allows 100 messages per user in 24 hours.** The counter can be reset by deleting chats; for real users we would add a stricter counter and a monthly budget alert.
 - **Outlook works with personal Microsoft accounts.** University accounts block the connection.
 - **The extension is loaded by hand** (downloaded in Settings); it is not in the Chrome Web Store.
 - **Tests use fakes for the external services**, and no test clicks through the deployed site in a browser. We tested that by hand.
