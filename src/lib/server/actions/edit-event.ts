@@ -47,6 +47,13 @@ const EditBody = EventFields.partial({ title: true }).extend({
   scope: z.enum(["this", "this_and_following"]).optional(),
 });
 
+/**
+ * Issue #124: a done event moved so that it starts in the future has not happened yet, so it is open
+ * again and no longer counts for its goal. The start moment itself counts as started, as for
+ * mark_done. $3 is the new start, $10 the current time.
+ */
+const REOPEN_IF_FUTURE = "case when status = 'done' and $3::timestamptz > $10::timestamptz then 'planned' else status end";
+
 /** Fields that Outlook owns for an imported event (R11). */
 const OUTLOOK_FIELDS = ["title", "start", "end", "allDay", "firstDay", "lastDay", "mayOverlap", "location", "travelMode", "travelFrom", "repeat", "guests", "notes"] as const;
 
@@ -140,6 +147,8 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
       // The goal must be the user's own, else "Not found" (R3). Left out of the body: the goal stays.
       if (event.goalId !== undefined) await assertOwnGoal(query, event.goalId);
       const goal = [event.goalId ?? null, event.goalId !== undefined];
+      // Issue #124: the moment that decides whether a moved done event has started yet.
+      const now = deps.now();
 
       if (body.data.scope === "this_and_following" && row.series_id && row.start_at) {
         // This event and the later ones of the series, locked; each keeps its date (R28).
@@ -157,10 +166,11 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
             `update app.events
                 set title = $2, start_at = $3, end_at = $4, may_overlap = coalesce($5, may_overlap),
                     goal_id = case when $7 then $6 else goal_id end,
-                    notes = case when $9 then $8 else notes end
+                    notes = case when $9 then $8 else notes end,
+                    status = ${REOPEN_IF_FUTURE}
               where id = $1
               returning ${EVENT_COLUMNS}`,
-            [other.id, event.title, startAt, endAt, event.mayOverlap ?? null, ...goal, ...notes],
+            [other.id, event.title, startAt, endAt, event.mayOverlap ?? null, ...goal, ...notes, now],
           );
           if (other.id === id) opened = updated;
         }
@@ -176,10 +186,11 @@ export function editEvent(request: Request, deps: Pick<Deps, "auth" | "withUser"
             set title = $2, all_day = false, start_at = $3, end_at = $4, first_day = null, last_day = null,
                 may_overlap = coalesce($5, may_overlap),
                 goal_id = case when $7 then $6 else goal_id end,
-                notes = case when $9 then $8 else notes end
+                notes = case when $9 then $8 else notes end,
+                status = ${REOPEN_IF_FUTURE}
           where id = $1
           returning ${EVENT_COLUMNS}`,
-        [id, event.title, event.startAt, event.endAt, event.mayOverlap ?? null, ...goal, ...notes],
+        [id, event.title, event.startAt, event.endAt, event.mayOverlap ?? null, ...goal, ...notes, now],
       );
       return jsonOk({ message: MESSAGES.eventSaved, event: toEventDto(updated) });
     }).catch(asAnswer);
