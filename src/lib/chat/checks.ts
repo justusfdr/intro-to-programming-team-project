@@ -1,6 +1,7 @@
 // R23: the checks every answer of the assistant must pass before anything is saved, and again before
-// a draft is accepted. Pure: no database, no clock of its own. One failed check rejects the whole
-// answer (R1); there is no second try.
+// a draft is accepted. Pure: no database, no clock of its own. Here one failed check rejects the whole
+// answer or draft (R1); there is no second try. Spec 67: send_message uses keep-what-fits.ts instead,
+// which runs these same checks per item and leaves out only what fails.
 //
 // Spec 20: a draft may also move and delete existing events. The assistant names an event only by the
 // reference it got with this one request ("e1"); the server turns it back into the event at once
@@ -290,7 +291,7 @@ export function latestStart(now: Date, timeZone: string): Date {
 }
 
 /** A local date-time that really exists in the zone, as an instant; null otherwise. */
-function exactLocal(value: string, timeZone: string): Date | null {
+export function exactLocal(value: string, timeZone: string): Date | null {
   const instant = parseLocalDateTime(value, timeZone);
   if (!instant) return null;
   // A skipped time (02:30 on the spring clock change) comes back as another wall-clock time.

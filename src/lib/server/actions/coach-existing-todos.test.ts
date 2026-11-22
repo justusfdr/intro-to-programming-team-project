@@ -5,7 +5,7 @@
 // to-dos (never the titles) and whether it takes to-dos. Every rule with an accepted and a refused case.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApp, postJson, read, type TestApp } from "@test/support/app";
-import { draftsOf, sentToday } from "@test/support/chat";
+import { draftsOf } from "@test/support/chat";
 import { seedAllDay, seedEvent } from "@test/support/events";
 import { loadChatPage } from "@/lib/server/pages/load";
 import { acceptDraft } from "./accept-draft";
@@ -132,7 +132,7 @@ describe("the owner's example", () => {
 });
 
 describe("which events take to-dos from the coach", () => {
-  it("events of a series, all-day events and started events do; an Outlook event is flagged and an answer naming it fails", async () => {
+  it("events of a series, all-day events and started events do; an Outlook event is flagged and to-dos for it are left out and named", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await app.db.admin(
       `insert into app.events (user_id, title, start_at, end_at, series_id) values ($1, 'Lecture', '2026-11-17T09:00:00Z', '2026-11-17T10:00:00Z', gen_random_uuid())`,
@@ -177,23 +177,28 @@ describe("which events take to-dos from the coach", () => {
       { title: "Started", todo: "Finish" },
     ]);
 
-    // The Outlook event: the whole answer fails, nothing saved (spec 44: nothing counted).
+    // The Outlook event: the to-dos are left out, the answer is saved as text and says why.
     const before = await draftsOf(app.db, alice);
     app.assistant.answerJson({ kind: "draft", text: "Added.", events: [], changes: [], addTodos: [{ ref: "e4", todos: ["Agenda"] }] });
-    expect(await read(await send("Add an agenda to the team call"))).toEqual({
-      status: 502,
-      body: { error: "answer_failed_checks", message: "The assistant's answer failed our checks. Please try again" },
-    });
+    const left = await read(await send("Add an agenda to the team call"));
+    expect(left.status).toBe(201);
+    const [, reply] = left.body.messages as { text: string; draft: unknown }[];
+    expect(reply.draft).toBeNull();
+    expect(reply.text).toContain("None of this could go into a plan:");
+    expect(reply.text).toContain("• To-dos for an event: the coach may not add to-dos to this event.");
     expect(await draftsOf(app.db, alice)).toEqual(before);
-    // Spec 44: nothing is counted.
-    expect(await sentToday(app.db, alice)).toBe(0);
+    expect(await app.db.admin("select 1 from app.event_todos where title = 'Agenda'")).toEqual([]);
   });
 
-  it("an answer that would make the list longer than 20 fails the checks; 18 + 2 passes", async () => {
+  it("an answer that would make the list longer than 20 is left out and named; 18 + 2 passes", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await lernblock(alice, Array.from({ length: 19 }, (_, i) => `Old ${i}`));
     app.assistant.answerJson({ kind: "draft", text: "Added.", events: [], changes: [], addTodos: [{ ref: "e1", todos: TODOS }] });
-    expect((await read(await send(OWNER))).status).toBe(502);
+    const left = await read(await send(OWNER));
+    expect(left.status).toBe(201);
+    const [, reply] = left.body.messages as { text: string; draft: unknown }[];
+    expect(reply.draft).toBeNull();
+    expect(reply.text).toContain('• To-dos for "Lernblock": an event has at most 20 to-dos.');
     expect(await draftsOf(app.db, alice)).toEqual([]);
 
     await app.db.admin("delete from app.event_todos where title = 'Old 18'");
@@ -251,7 +256,7 @@ describe("applying (decision 5)", () => {
     expect(await todosOf(event.id)).toEqual([]);
   });
 
-  it("an event the draft deletes gets nothing else: the answer fails the checks", async () => {
+  it("an event the draft deletes gets nothing else: its to-dos are left out and named, the delete stays", async () => {
     const alice = await app.signedInAs("alice@example.com");
     await lernblock(alice);
     app.assistant.answerJson({
@@ -261,8 +266,14 @@ describe("applying (decision 5)", () => {
       changes: [{ ref: "e1", action: "delete", start: null, end: null }],
       addTodos: [{ ref: "e1", todos: TODOS }],
     });
-    expect((await read(await send("Drop it and add the to-dos"))).status).toBe(502);
-    expect(await draftsOf(app.db, alice)).toEqual([]);
+    const sent = await read(await send("Drop it and add the to-dos"));
+    expect(sent.status).toBe(201);
+    const [, reply] = sent.body.messages as { text: string; draft: { changes: { kind: string }[]; addedTodos?: unknown[] } }[];
+    expect(reply.draft.changes).toMatchObject([{ kind: "delete", title: "Lernblock" }]);
+    expect(reply.draft.addedTodos ?? []).toEqual([]);
+    expect(reply.text).toContain("Left out of this plan because it did not fit:");
+    expect(reply.text).toContain('• To-dos for "Lernblock": this plan deletes that event.');
+    expect(await draftsOf(app.db, alice)).toHaveLength(1);
   });
 });
 
