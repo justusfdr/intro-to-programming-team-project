@@ -1,6 +1,6 @@
 # Repository walkthrough notes
 
-A draft for the team to adapt. In the walkthrough the teaching staff can ask any of us about any part (`docs/grading-criteria.md`). Every member should be able to say the points below in their own words. Paths are given so you can open the file while you talk.
+How LockedIn is built, why, and where its limits are. Paths are given so each part can be opened while reading.
 
 ## 1. How the repository is organised
 
@@ -16,7 +16,7 @@ We build in one direction: **ontology → specs → tests → code**.
   - `src/components/`: the React screens.
   - `supabase/migrations/`: the database schema, one SQL file per step, run in name order.
   - `extension/`: the Chrome extension (plain JavaScript, Manifest V3).
-- **Docs**: `docs/setup.md` (Supabase, Microsoft, Claude, Stripe, Google), `docs/security.md` (dependency audit), this file and `docs/demo-script.md`.
+- **Docs**: `docs/setup.md` (Supabase, Microsoft, Claude, Stripe, Google), `docs/security.md` (dependency audit) and this file.
 
 ## 2. One request from the browser to the database: create_event
 
@@ -50,7 +50,7 @@ Each service has one module under `src/lib/server/` and a fake for tests. Every 
 | Service | Module | Time limit | The user sees |
 |---|---|---|---|
 | Supabase database | `db/` | 10 s per statement | "Your data cannot be loaded right now." (`src/app/error.tsx`, `errors.ts`) |
-| Supabase sign-in | `auth/` | (check before the demo) | "Signing in is not available right now. Try again later" |
+| Supabase sign-in | `auth/` | Supabase's own limit | "Signing in is not available right now. Try again later" |
 | Claude | `claude/client.ts` | 60 s, one retry | "The assistant is not available right now. Your calendar is unchanged" |
 | Outlook (Microsoft Graph) | `outlook/` | 10 s per call | Imported events stay, "Last synced …"; "Not sent to Outlook" on app events |
 | Google Places and Routes | `google/` | 5 s / 8 s, daily call limit | "Travel time not available"; the event is still saved |
@@ -63,7 +63,7 @@ Without a key in the environment the feature switches itself off: no Claude key 
 
 ## 5. How the tests work
 
-- `npm test` runs Vitest (`vitest.config.mts`). There are about 295 test files (`git ls-files | grep -c "\.test\."` on 18 Nov 2026). The last full run in `docs/security.md` had about 3,600 tests, all passing.
+- `npm test` runs Vitest (`vitest.config.mts`). There are about 350 test files (`git ls-files | grep -c "\.test\."` on 22 Nov 2026), all passing on `main`.
 - **Temporary database**: every test file starts PGlite, an in-process Postgres, and runs the same migration files as Supabase plus a small shim for Supabase's `auth` schema (`test/db/harness.ts`, `test/db/supabase-shim.sql`). So row-level security and constraints are tested for real.
 - **Fakes**: `test/support/app.ts` wires a fake sign-in (`auth/fake.ts`), fake Claude (`claude/fake.ts`), fake Outlook (`outlook/fake.ts`), fake Stripe (`stripe/fake.ts`), fake routing and weather, and a clock we can move. Tests never call real services and need no secrets.
 - **Accepted and rejected**: each rule has a test for both. For a rejection the test compares a snapshot of every table before and after, to prove nothing changed (R1, `snapshot()` in `test/support/app.ts`).
@@ -87,14 +87,17 @@ Without a key in the environment the feature switches itself off: no Claude key 
 - **Security headers** in `next.config.ts`: no framing, `nosniff`, HSTS, a partial Content-Security-Policy.
 - **Dependencies**: 12 runtime packages, exact versions in `package.json`; `npm audit` found 0 vulnerabilities on 18 Nov 2026 (`docs/security.md`).
 
-## 7. Known limits and open issues
+## 7. Known limits
 
-- **Pro payment on the live site shows an error** (#121). Stripe is test mode only. A late Stripe message can switch Pro back on (#133).
-- **Coach access**: the coach is open to Free users unless `CHAT_PRO_ONLY` is set on Vercel (#44); on the live site it is set.
-- **Content-Security-Policy has no `script-src`** (#47); sign-up reveals whether an e-mail already has an account (#45). Security fixes from the 18 Nov review are in an open pull request (#120).
-- **Process**: too few teammate reviews (#155), open PRs to merge before 23 Nov (#152).
-- **Display**: only one sidebar widget fits on a small laptop window (#158).
-- **Design limits**: rate limits per server instance; the extension is loaded by hand (not in the Chrome Web Store); Outlook is the only calendar.
+LockedIn is built for a course project with a small number of users. Before a public launch we would change these points:
+
+- **Cost of the Claude API.** The coach allows 100 messages per user in 24 hours (`CHAT_MESSAGES_PER_DAY`, `src/lib/chat/access.ts`). Deleting a chat deletes its messages, so the count can be reset; for real users we would add a counter that survives deleted chats and a monthly budget alert.
+- **Cost of Google Maps.** Address search and travel time are paid per call. The server already stops after a daily number of calls (`GOOGLE_MAPS_DAILY_LIMIT`, `google/daily-limit.ts`); for a launch we would add a limit per user and billing alerts in Google Cloud.
+- **Rate limits per server instance.** The counters live in each server's memory; with many servers they would need a shared store.
+- **Payment in test mode only.** Stripe runs in test mode, so no real money moves.
+- **Built for a laptop screen.** The layout is not finished for phones.
+- **The Chrome extension is loaded by hand** (downloaded in Settings), not from the Chrome Web Store.
+- **Outlook is the only calendar** we connect, and it works with personal Microsoft accounts; university accounts block the connection.
 
 ## 8. Likely questions
 
@@ -115,6 +118,6 @@ Without a key in the environment the feature switches itself off: no Claude key 
 8. **How does the coach avoid changing the calendar by mistake?**
    Claude only returns a draft. Our checks run on it (R23); one failure rejects it. The calendar changes only when the user accepts, and the draft can be undone.
 9. **What would you change with more time?**
-   Browser end-to-end tests, a full Content-Security-Policy, rate limits shared across servers, and the open points above.
-10. **How did you split the work and use AI tools?**
-    Agree the honest answer as a team before the demo. Check before the demo.
+   Browser end-to-end tests, a full Content-Security-Policy, rate limits shared across servers, and the cost limits for Claude and Google Maps from section 7.
+10. **How did you work as a team and use AI tools?**
+    Mostly in joint working sessions: we planned the ontology and specs together, built each feature on its own branch with Claude as the coding agent, and went through and tested the changes together before they reached `main`. The team decided what to build and which rules apply; `AGENTS.md` says what the agent may and may not do.
