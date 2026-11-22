@@ -5,7 +5,8 @@ import "server-only";
 //   4. first transaction: allowed (R21, R5), the chat is the user's (spec 44), text 1 to 4,000
 //      characters, Claude set up on this server; then read what Claude receives (R22, R31).
 //   5. call Claude with no transaction open (it may take up to a minute)
-//   6. run every check of R23 on the answer; one failure rejects it, nothing saved, no second try
+//   6. run every check of R23 on the answer; spec 67: what fails is left out and named under the
+//      coach's text; only an answer that cannot be read is rejected (nothing saved, no second try)
 //   7. second transaction: the user's message, the answer and its draft saved together, in their chat,
 //      or in a new chat titled with the message when none was named.
 // Spec 44 removed the old counter. Issue #212: a high limit per user (CHAT_MESSAGES_PER_DAY in 24 hours,
@@ -22,7 +23,8 @@ import "server-only";
 // must not start on a weekday the goal is never done on.
 import { z } from "zod";
 import { CHAT_MESSAGES_PER_DAY, chatAllowed } from "@/lib/chat/access";
-import { checkAnswer, checkText } from "@/lib/chat/checks";
+import { checkText, type Proposal } from "@/lib/chat/checks";
+import { checkAnswerKeepingWhatFits, leaveOut, withNote } from "@/lib/chat/keep-what-fits";
 import { buildAssistantInput, HISTORY_LENGTH } from "@/lib/chat/input";
 import { ANSWER_JSON_SCHEMA, SYSTEM_PROMPT } from "@/lib/chat/prompt";
 import { chatTotals } from "@/lib/chat/totals";
@@ -150,8 +152,9 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       throw failedChecksError();
     }
 
-    // Step 6: never trust the answer.
-    const checked = checkAnswer(result.value, {
+    // Step 6: never trust the answer. Spec 67: what fails a check is left out and named; only an
+    // answer that cannot be read at all is rejected.
+    const checked = checkAnswerKeepingWhatFits(result.value, {
       now: deps.now(),
       timeZone: settings.timeZone,
       goalIds: new Set(goals.map((g) => g.id)),
@@ -166,20 +169,33 @@ export function sendMessage(request: Request, deps: Pick<Deps, "auth" | "withUse
       console.error("Assistant answer failed a check:", checked.failure);
       throw failedChecksError();
     }
-    // Issue #227: a session at a goal's place needs room for the way from the event before and on to the one after.
-    if (checked.value.kind === "draft") {
-      const moved = new Set(checked.value.changes.map((c) => c.target.id));
-      if (!(await proposalsFitTravel(checked.value.proposals, goalPlaces, context.travel, settings, ways, moved))) {
-        console.error("Assistant answer failed a check:", "no_room_for_travel");
-        throw failedChecksError();
+    let kept = checked.value;
+    // Issue #227: a session at a goal's place needs room for the way from the event before and on to the
+    // one after. Spec 67: when the whole lot does not fit, each new event is kept only if it still fits
+    // together with the ones kept before it.
+    if (kept.answer.kind === "draft" && kept.answer.proposals.length > 0) {
+      const moved = new Set(kept.answer.changes.map((c) => c.target.id));
+      const fits = (proposals: Proposal[]) => proposalsFitTravel(proposals, goalPlaces, context.travel, settings, ways, moved);
+      if (!(await fits(kept.answer.proposals))) {
+        const keep: Proposal[] = [];
+        for (const proposal of kept.answer.proposals) if (await fits([...keep, proposal])) keep.push(proposal);
+        kept = leaveOut(kept, keep, "no_room_for_travel");
       }
     }
+    for (const item of kept.dropped) console.error("Assistant suggestion left out:", item.kind, item.reason);
+    const answer = kept.answer;
+    const text = withNote(answer.text, kept.dropped, answer.kind === "draft", {
+      now: asked,
+      timeZone: settings.timeZone,
+      timeFormat: settings.timeFormat,
+      dayStartHour: settings.dayStartHour,
+      dayEndHour: settings.dayEndHour,
+    });
 
     // Step 7: both messages and the draft in one step.
-    const answer = checked.value;
     const saved = await deps.withUser(userId, (query) =>
       saveTurn(query, context.chatId, context.text, {
-        text: answer.text,
+        text,
         proposals: answer.kind === "draft" ? answer.proposals : null,
         changes: answer.kind === "draft" ? answer.changes : [],
         additions: answer.kind === "draft" ? (answer.additions ?? []) : [],
