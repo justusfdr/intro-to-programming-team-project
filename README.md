@@ -40,6 +40,7 @@ npm run dev     # the app at http://localhost:3000
 
 - `npm test` starts a temporary in-process database for each test file and uses fakes for every external service, so it runs on a fresh copy without any setup.
 - `npm run dev` starts the app, but signing in needs a Supabase project and a `.env.local` file. `.env.example` lists every variable; `docs/setup.md` explains each step.
+- The keys are not in this repository; for the deployed app they are set on Vercel. Locally, a feature whose key is missing switches itself off (for example the coach, Outlook, travel time and payment). To try every feature without any setup, use the deployed app.
 - `npm run check` runs lint, type check, tests and a production build in one go.
 
 ## Where things are
