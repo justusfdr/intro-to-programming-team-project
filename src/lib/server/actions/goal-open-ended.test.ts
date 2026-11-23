@@ -62,7 +62,9 @@ describe("create_goal without an end date", () => {
 
   it("shows 'No end date' and the strip up to this week on the goals page", async () => {
     const alice = await app.signedInAs("alice@example.com");
-    await create({ ...HALF_MARATHON, deadline: null });
+    const created = await read(await create({ ...HALF_MARATHON, deadline: null }));
+    // The database stamps created_at with the real time; put it on the fake clock so the test does not depend on today's date.
+    await app.db.admin("update app.goals set created_at = $1 where id = $2", [app.now().toISOString(), (created.body.goal as { id: string }).id]);
     const [goal] = await loadGoals(app.deps, alice);
     expect(goal.deadline).toBeNull();
     expect(goal.progress.countdown).toBe("No end date");

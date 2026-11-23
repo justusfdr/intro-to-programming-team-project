@@ -163,7 +163,7 @@ describe("readAnalyticsReport", () => {
 
   it("never includes another user's data (R3)", async () => {
     const bob = await app.signedInAs("bob@example.com");
-    const bobGoal = await seedGoal(app.db, bob, { title: "Bob's goal", deadline: "2026-12-31", rules: [{ kind: "count", target: 1 }] });
+    const bobGoal = await seedGoal(app.db, bob, { title: "Bob's goal", deadline: "2026-12-31", createdAt: "2026-11-16T08:00:00Z", rules: [{ kind: "count", target: 1 }] });
     const bobEvent = await seedEvent(app.db, bob, { title: "Bob's event", start: "2026-11-16T08:00:00Z", end: "2026-11-16T10:00:00Z", status: "done", goalId: bobGoal.id });
     await seedSession(app.db, bob, { status: "finished", plannedMinutes: 60, startedAt: "2026-11-16T08:00:00Z", endedAt: "2026-11-16T09:00:00Z", eventId: bobEvent.id });
     await addAttempt(bob, "reddit.com", "2026-11-16T08:30:00Z");
