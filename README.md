@@ -82,6 +82,7 @@ All keys live in environment variables on the server. None is in this repository
 ## Known limits
 
 - **Built for a laptop screen.** The layout is not finished for phones.
+- **No iPhone app, so no Screen Time.** We wanted an iPhone app that also blocks apps during a focus session through Screen Time. That needs Apple's Screen Time interface (Family Controls), which Apple only unlocks for an app after a separate request and approval. We could not get that within the course, so blocking works only in Chrome on the computer, through our extension.
 - **The coach allows 100 messages per user in 24 hours.** The counter can be reset by deleting chats; for real users we would add a stricter counter and a monthly budget alert.
 - **Outlook works with personal Microsoft accounts.** University accounts block the connection.
 - **The extension is loaded by hand** (downloaded in Settings); it is not in the Chrome Web Store.

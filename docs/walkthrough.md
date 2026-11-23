@@ -97,6 +97,7 @@ LockedIn is built for a course project with a small number of users. Before a pu
 - **Payment in test mode only.** Stripe runs in test mode, so no real money moves.
 - **Built for a laptop screen.** The layout is not finished for phones.
 - **The Chrome extension is loaded by hand** (downloaded in Settings), not from the Chrome Web Store.
+- **No iPhone app and no Screen Time.** Our first plan was an iPhone app that blocks distracting apps during a focus session through Screen Time. Apple allows this only through its Screen Time interface (the Family Controls framework), and an app may use it only after Apple has approved a separate request for that permission. We could not get that approval within the course, so we built the blocker as a Chrome extension instead: it blocks websites in Chrome on the computer, but not apps on the phone (R18 in `docs/ontology.md`). With the approval, an iPhone app could ask our server whether a session is running, the same way the extension does.
 - **Outlook is the only calendar** we connect, and it works with personal Microsoft accounts; university accounts block the connection.
 
 ## 8. Likely questions
@@ -118,6 +119,6 @@ LockedIn is built for a course project with a small number of users. Before a pu
 8. **How does the coach avoid changing the calendar by mistake?**
    Claude only returns a draft. Our checks run on it (R23); one failure rejects it. The calendar changes only when the user accepts, and the draft can be undone.
 9. **What would you change with more time?**
-   Browser end-to-end tests, a full Content-Security-Policy, rate limits shared across servers, and the cost limits for Claude and Google Maps from section 7.
+   Browser end-to-end tests, a full Content-Security-Policy, rate limits shared across servers, the cost limits for Claude and Google Maps from section 7, and an iPhone app with Screen Time blocking once Apple approves it.
 10. **How did you work as a team and use AI tools?**
     Mostly in joint working sessions: we planned the ontology and specs together, built each feature on its own branch with Claude as the coding agent, and went through and tested the changes together before they reached `main`. The team decided what to build and which rules apply; `AGENTS.md` says what the agent may and may not do.
